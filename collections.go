@@ -1,24 +1,33 @@
 package core
 
-type ResolveCollectionIDCallback func(ctx *asyncContext, collectionId uint32, manifestRev uint64, err error)
+type ResolveCollectionIDCallback func(collectionId uint32, manifestRev uint64, err error)
 
 type CollectionResolver struct {
 }
 
 func (cr *CollectionResolver) ResolveCollectionID(ctx *asyncContext, scopeName, collectionName string, cb ResolveCollectionIDCallback) {
+	ctx.OnCancel(func(err error) {
+
+	})
+
+	ctx.DropOnCancel()
+	cb(123, 2, nil)
+}
+
+func (cr *CollectionResolver) InvalidateCollectionID(ctx *asyncContext, collectionID uint32, newManifestRev uint64) {
 
 }
 
-func (cr *CollectionResolver) InvalidateCollectionID(collectionID uint32, newManifestRev uint64) {
-
+type CollectionManager interface {
+	Dispatch(ctx *asyncContext, scopeName, collectionName string, dispatchCb func(uint32, error))
 }
 
-type CollectionManager struct {
+type collectionManager struct {
 	resolver *CollectionResolver
 }
 
-func (cm *CollectionManager) Dispatch(ctx *asyncContext, scopeName, collectionName string, dispatchCb func(*asyncContext, uint32, error, finalCallback), finalCb finalCallback) {
-	cm.resolver.ResolveCollectionID(ctx, scopeName, collectionName, func(ctx *asyncContext, collectionId uint32, manifestRev uint64, err error) {
-		dispatchCb(ctx, collectionId, err, finalCb)
+func (cm *collectionManager) Dispatch(ctx *asyncContext, scopeName, collectionName string, dispatchCb func(uint32, error)) {
+	cm.resolver.ResolveCollectionID(ctx, scopeName, collectionName, func(collectionId uint32, manifestRev uint64, err error) {
+		dispatchCb(collectionId, err)
 	})
 }
