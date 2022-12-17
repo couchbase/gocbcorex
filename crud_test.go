@@ -2,11 +2,12 @@ package core
 
 import (
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/couchbase/gocbcore/v10"
 	"github.com/couchbase/gocbcore/v10/memd"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 type fakeVBucketDispatcher struct {
@@ -15,13 +16,13 @@ type fakeVBucketDispatcher struct {
 	endpoint string
 }
 
-func (f *fakeVBucketDispatcher) DispatchByKey(ctx *asyncContext, key []byte, cb func(string, error)) {
+func (f *fakeVBucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte, cb func(string, error)) {
 	time.AfterFunc(f.delay, func() {
 		cb(f.endpoint, f.err)
 	})
 }
 
-func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *asyncContext, vbID uint16, cb func(string, error)) {
+func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16, cb func(string, error)) {
 	// TODO implement me. No, you can't make me.
 	panic("implement me")
 }
@@ -40,7 +41,7 @@ type fakeCollectionManager struct {
 	cid   uint32
 }
 
-func (f *fakeCollectionManager) Dispatch(ctx *asyncContext, scopeName, collectionName string, cb func(uint32, error)) {
+func (f *fakeCollectionManager) Dispatch(ctx *AsyncContext, scopeName, collectionName string, cb func(uint32, error)) {
 	time.AfterFunc(f.delay, func() {
 		cb(f.cid, f.err)
 	})
@@ -73,7 +74,7 @@ func TestAThing(t *testing.T) {
 	}
 
 	waitCh := make(chan struct{}, 1)
-	crud.Get(&asyncContext{}, GetOptions{Key: []byte("hi")}, func(result *GetResult, err error) {
+	crud.Get(&AsyncContext{}, GetOptions{Key: []byte("hi")}, func(result *GetResult, err error) {
 		assert.Nil(t, err)
 
 		assert.Equal(t, 3, called)
@@ -83,7 +84,7 @@ func TestAThing(t *testing.T) {
 }
 
 func TestCancellingAThing(t *testing.T) {
-	ctx := &asyncContext{}
+	ctx := &AsyncContext{}
 
 	var called int
 	routerCb := func(cb func(*memd.Packet, error)) {

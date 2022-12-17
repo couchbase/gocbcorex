@@ -18,7 +18,7 @@ type GetOptions struct {
 type GetResult struct {
 }
 
-func (cc *CrudComponent) Get(ctx *asyncContext, opts GetOptions, cb func(*GetResult, error)) error {
+func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetResult, error)) error {
 	return cc.retries.OrchestrateRetries(ctx, func(retry func(error), err error) {
 		if err != nil {
 			cb(nil, err)

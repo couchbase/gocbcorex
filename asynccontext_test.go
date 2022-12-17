@@ -8,13 +8,13 @@ import (
 )
 
 func TestAsyncContextNilCancel(t *testing.T) {
-	ctx := &asyncContext{}
+	ctx := &AsyncContext{}
 
 	ctx.Cancel()
 }
 
 func TestAsyncContextCancelBeforeOnCancel(t *testing.T) {
-	ctx := &asyncContext{}
+	ctx := &AsyncContext{}
 
 	ctx.Cancel()
 
@@ -32,7 +32,7 @@ func TestAsyncContextCancelBeforeOnCancel(t *testing.T) {
 }
 
 func TestAsyncContextCancelAfterOnCancel(t *testing.T) {
-	ctx := &asyncContext{}
+	ctx := &AsyncContext{}
 
 	var called int
 	var err error
@@ -54,7 +54,7 @@ func TestAsyncContextCancelAfterOnCancel(t *testing.T) {
 }
 
 func TestAsyncContextInternalCancel(t *testing.T) {
-	ctx := &asyncContext{}
+	ctx := &AsyncContext{}
 
 	var called int
 	var err error
@@ -67,7 +67,7 @@ func TestAsyncContextInternalCancel(t *testing.T) {
 	require.Equal(t, 0, called)
 	require.Nil(t, err)
 
-	ctx.InternalCancel(gocbcore.ErrUnambiguousTimeout)
+	ctx.internalCancel(gocbcore.ErrUnambiguousTimeout)
 
 	require.Equal(t, 1, called)
 	require.ErrorIs(t, err, gocbcore.ErrUnambiguousTimeout)
