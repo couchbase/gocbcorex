@@ -6,11 +6,6 @@ type CollectionResolver struct {
 }
 
 func (cr *CollectionResolver) ResolveCollectionID(ctx *AsyncContext, scopeName, collectionName string, cb ResolveCollectionIDCallback) {
-	ctx.OnCancel(func(err error) {
-
-	})
-
-	ctx.DropOnCancel()
 	cb(123, 2, nil)
 }
 

@@ -48,6 +48,8 @@ func (f *fakeCollectionManager) Dispatch(ctx *AsyncContext, scopeName, collectio
 }
 
 func TestAThing(t *testing.T) {
+	t.SkipNow()
+
 	var called int
 	routerCb := func(cb func(*memd.Packet, error)) {
 		time.AfterFunc(0, func() {
@@ -84,6 +86,8 @@ func TestAThing(t *testing.T) {
 }
 
 func TestCancellingAThing(t *testing.T) {
+	t.SkipNow()
+
 	ctx := &AsyncContext{}
 
 	var called int

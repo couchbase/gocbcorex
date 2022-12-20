@@ -70,20 +70,32 @@ func ReleaseAsyncContext(ctx *AsyncContext) {
 }
 
 func (c *AsyncContext) Cancel() {
-	c.internalCancel(context.Canceled)
+	c.cancelWithError(context.Canceled)
 }
 
 func (c *AsyncContext) CancelForDeadline() {
-	c.internalCancel(context.DeadlineExceeded)
+	c.cancelWithError(context.DeadlineExceeded)
 }
 
-func (c *AsyncContext) internalCancel(err error) {
+func (c *AsyncContext) cancelWithError(err error) {
+	// reminder: this function is separated apart from the actual invocation of
+	// the cancel context cancellations so that our testing can validate the race
+	// interactions between the two structures.
+
+	cancelCtxs := c.markCanceled(err)
+
+	for _, cancelCtx := range cancelCtxs {
+		cancelCtx.internalCancel(err)
+	}
+}
+
+func (c *AsyncContext) markCanceled(err error) []*AsyncCancelContext {
 	c.lock.Lock()
 
 	// Check if we were already cancelled, and bail out if so.
 	if c.cancelError != nil {
 		c.lock.Unlock()
-		return
+		return nil
 	}
 
 	c.cancelError = err
@@ -100,17 +112,53 @@ func (c *AsyncContext) internalCancel(err error) {
 
 	c.lock.Unlock()
 
-	for _, cancelCtx := range cancelCtxs {
-		cancelCtx.internalCancel(err)
-	}
+	return cancelCtxs
 }
 
+/*
+attachCancelContext attaches a new cancel context to this context.  If this
+context is already cancelled, we immediately propagate that state to the
+underlying cancel context instead since it's illegal for us to add new cancel
+contexts to the async context after it's been cancelled.
+
+Note that this function assumes that we have exclusive ownership of the cancel
+context and that none of its methods could be called during this method call.
+This is important because we don't use the cancel contexts's locks to mutate
+it's state here.
+*/
 func (c *AsyncContext) attachCancelContext(cc *AsyncCancelContext) {
 	c.lock.Lock()
+
+	cancelError := c.cancelError
+
+	// this if branch acts a completely distinct branch of the unlocking
+	// because in this case, the ownership of the cc isn't ever transferred
+	// into the context and we don't need to deal with concurrent callers to
+	// the cancel context from the context (since it's never exposed to it)
+	if cancelError != nil {
+		c.lock.Unlock()
+
+		cc.ctx = nil
+		cc.cancelError = cancelError
+
+		return
+	}
+
+	// reminder: putting this cc into the cancel contexts list means we no
+	// longer have exclusive ownership of the cancel context (once we
+	// have unlocked the mutex).
+	cc.ctx = c
 	c.cancelCtxs = append(c.cancelCtxs, cc)
+
 	c.lock.Unlock()
 }
 
+/*
+detatchCancelContext removes a cancel context from this async context.  we
+return a boolean indicating whether the operation was successful to deal with
+the race that can happen between a cancellation removing the cancel context
+from the list, and the actual invokation of the cancel context's internalCancel.
+*/
 func (c *AsyncContext) detachCancelContext(cc *AsyncCancelContext) bool {
 	c.lock.Lock()
 
@@ -148,107 +196,216 @@ never complete.
 */
 func (c *AsyncContext) WithCancellation() *AsyncCancelContext {
 	cc := newAsyncCancelContext()
-	cc.ctx = c
 	c.attachCancelContext(cc)
 	return cc
 }
 
 type AsyncCancelContext struct {
-	lock       sync.Mutex
-	ctx        *AsyncContext
-	isComplete bool
-	canceledFn func(err error) bool
+	lock        sync.Mutex
+	ctx         *AsyncContext
+	cancelError error
+	isComplete  bool
+	canceledFn  func(err error) bool
 }
 
 func newAsyncCancelContext() *AsyncCancelContext {
 	return &AsyncCancelContext{}
 }
 
-func releaseAsyncCancelContext(c *AsyncCancelContext) {
-	*c = AsyncCancelContext{}
+func releaseAsyncCancelContext(cc *AsyncCancelContext) {
+	*cc = AsyncCancelContext{}
 }
 
 // internalCancel is invoked by cancellation of the parent AsyncContext, it is
 // assumed that the parent context has already detatched this request.
-func (c *AsyncCancelContext) internalCancel(err error) {
-	c.lock.Lock()
+func (cc *AsyncCancelContext) internalCancel(err error) {
+	cc.lock.Lock()
 
 	// we assume the parent context already detatched us, so first step is to
-	// reflect that in our local state.
-	c.ctx = nil
+	// reflect everything into our local state, since we can no longer rely on
+	// the async context still being alive (it might be returned to a pool).
+	cc.ctx = nil
+	cc.cancelError = err
 
-	// if we are already complete, nothing to do
-	if c.isComplete {
-		c.lock.Unlock()
+	// if canceledFn is nil, it means we haven't received an OnCancel call yet
+	// and need to wait for that before we can do anything.
+	if cc.canceledFn == nil {
+		if cc.isComplete {
+			// if we are already complete, we need to pretend like this error didn't
+			// occur since its too late to propagate it now because we've already told
+			// the completion code that its okay to proceed.
+			cc.cancelError = nil
+		}
+
+		cc.lock.Unlock()
 		return
 	}
 
-	// TODO(brett19): There is actually a major race here, since the AsyncContext
-	// releases its lock before it calls internalCancel, this means that it's possible
-	// that the 'cleanup' of this AsyncCancelContext occurs after we grab this item from
-	// the cancelCtx's list, but before this method is called.
+	// we unlock the lock before calling the cancellation function in case it
+	// blocks, since we don't want to block the parent context from it.
+	wasCompleted := cc.isComplete
+	cc.lock.Unlock()
 
-	c.lock.Unlock()
+	wasCanceled := cc.canceledFn(err)
+
+	// if we successfully cancelled the operation, it means we can safely
+	// release it, as the context no longer points to it, OnCancel was called
+	// and MarkComplete will not be called.
+	if wasCanceled {
+		// this is just an extra debug check to try and reduce bugs...  its
+		// obviously invalid if the MarkComplete call was invoked before we
+		// even called the cancel function, but the cancel function says that
+		// MarkComplete should never be called.
+		if wasCompleted {
+			panic("cancel function indicated successful cancellation after MarkCompleted called")
+		}
+
+		releaseAsyncCancelContext(cc)
+		return
+	}
+
+	// if we see that the MarkComplete call was already made, we can also
+	// safely release it, since all expected calls are completed.
+	if wasCompleted {
+		releaseAsyncCancelContext(cc)
+		return
+	}
+
+	// if we get here, it means that we are expecting a MarkComplete call to
+	// be invoked shortly, so we need to keep the cancel context around for now.
 }
 
-func (c *AsyncCancelContext) MarkComplete() bool {
-	c.lock.Lock()
+func (cc *AsyncCancelContext) MarkComplete() bool {
+	cc.lock.Lock()
 
 	// if this is already marked complete, thats an error
-	if c.isComplete {
+	if cc.isComplete {
 		panic("multiple calls to AsyncCancelContext isComplete")
 	}
 
-	// if the canceledFn is nil, this indicates that OnCancel has not yet been invoked.
-	// We simply mark the operation as having been completed so that OnCancel knows
-	// it can release this cancel context back to the pool, once it will no longer
-	// be used.
-	if c.canceledFn == nil {
-		// mark this cancel context as complete.
-		c.isComplete = true
+	// mark this cancel context as complete.
+	cc.isComplete = true
 
-		// disassociate this cancel context from the parent context
-		if c.ctx.detachCancelContext(c) {
-			// we only clear our ctx reference when the parent context has successfully
-			// detatched us.  if it returns false here, that means its in the process
-			// of invoking our internalCancel function, which is information which is
-			// needed into order to know when we can release this cancel context.
-			c.ctx = nil
+	// if our parent context is nil, it means that we must have already been
+	// cancelled and we should return false to not do any more work.
+	// reminder: this is especially important since we can't refer to our parent
+	// context after we've been cancelled, since it might have been released.
+	if cc.ctx == nil {
+		// if canceledFn is not set, it means OnCancel still needs to be invoked,
+		// so we need to wait for that before releasing ourselves.
+		if cc.canceledFn == nil {
+			cc.lock.Unlock()
+			return false
 		}
 
-		c.lock.Unlock()
+		// if its already set, OnCancel was already invoked and we are safe
+		// to release this object back to the pool
+		cc.lock.Unlock()
+		releaseAsyncCancelContext(cc)
+		return false
+	}
+
+	// disassociate this cancel context from the parent context
+	if !cc.ctx.detachCancelContext(cc) {
+		// if we fail to remove ourselves from our parent context, that means
+		// that there is a pending internalCancel call coming, and we should
+		// not do any more work, so just return false...
+		cc.lock.Unlock()
+		return false
+	}
+
+	// if detatchCancelContext succeeded, it means we no longer are owned by
+	// the parent context anymore and can no longer refer to it.
+	cc.ctx = nil
+
+	// if we've successfully detatched ourselves from our parent context, but
+	// canceledFn isn't set yet, we need to wait for the OnCancel call in order
+	// to release ourselves...
+	if cc.canceledFn == nil {
+		cc.lock.Unlock()
 		return true
 	}
 
-	// if the canceledFn is non-nil, this indicates that OnCancel has already been
-	// invoked, which means no more calls to this AsyncCancelContext are valid and
-	// it is safe to release it back to the pool.
-	c.canceledFn = nil
-
-	c.lock.Unlock()
-
-	releaseAsyncCancelContext(c)
-
+	cc.lock.Unlock()
+	releaseAsyncCancelContext(cc)
 	return true
 }
 
-func (c *AsyncCancelContext) OnCancel(fn func(error) bool) {
-	c.lock.Lock()
+func (cc *AsyncCancelContext) OnCancel(fn func(error) bool) {
+	cc.lock.Lock()
 
-	// if there is a cancelfn registered already, thats an error
-	if c.canceledFn != nil {
+	// if there is a canceledFn registered already, thats an error
+	if cc.canceledFn != nil {
 		panic("multiple calls to AsyncCancelContext OnCancel")
 	}
 
-	// if MarkComplete was already invoked, all we need to do is release
-	// this cancel context back to the pool and we are done.
-	if c.isComplete {
-		c.lock.Unlock()
-		releaseAsyncCancelContext(c)
+	// we set canceledFn here to signal that OnCancel has been invoked.
+	cc.canceledFn = fn
+
+	// if isComplete is set, it means MarkComplete was already invoked.
+	if cc.isComplete {
+		// if the context is not nil, it means we failed disassociation and are still
+		// waiting for the internalCancel call to come in.
+		if cc.ctx != nil {
+			cc.lock.Unlock()
+			return
+		}
+
+		// if cancelError is set, it means that we received the cancellation before
+		// MarkComplete was called (otherwise internalCancel doesn't set it).  Thus
+		// we need to invoke the cancel handler here.
+		if cc.cancelError != nil {
+			cc.lock.Unlock()
+
+			wasCanceled := cc.canceledFn(cc.cancelError)
+			if wasCanceled {
+				// this is a debug check, we already know MarkComplete was called, so having
+				// the handler tell us it won't be called is obviously a logic error...
+				panic("cancel function returned successful cancellation after MarkComplete invoked")
+			}
+
+			releaseAsyncCancelContext(cc)
+			return
+		}
+
+		// if we get here, MarkComplete was already invoked and marked the operation as successful,
+		// and the ctx is nil so we won't be called by the parent context anymore.  So we are safe
+		// to release ourselves back to the pool.
+
+		cc.lock.Unlock()
+		releaseAsyncCancelContext(cc)
 		return
 	}
 
-	c.canceledFn = fn
+	// if our context reference is nil, it implies that someone has already cancelled
+	// our operation and we have not seen a MarkComplete call yet.  We should be able
+	// to immediately invoke the cancel handler.
+	if cc.ctx == nil {
+		// if the cancel error is not set, and ctx is nil, it implies that the operation
+		// must have succeeded, but this is not the case since isComplete is false...
+		if cc.cancelError == nil {
+			panic("expected a cancel error for a nil context")
+		}
 
-	c.lock.Unlock()
+		wasCanceled := fn(cc.cancelError)
+		if !wasCanceled {
+			// if we failed to cancel the operation, we expect to see a MarkComplete call
+			// in the future, so we cannot release ourselves yet.
+			cc.lock.Unlock()
+			return
+		}
+
+		// if the function returns true, it means that the operation was succesfully
+		// cancelled and isComplete is effectively marked as true at this point.
+		// which also means (since we are in the ctx==nil branch) that no more calls
+		// will be made to this cancel context and it can be released.
+		cc.lock.Unlock()
+		releaseAsyncCancelContext(cc)
+		return
+	}
+
+	// if we get to this point, it means that OnCancel was the first thing that was
+	// invoked and we could get cancelled or complete, nothing special to do here...
+
+	cc.lock.Unlock()
 }
