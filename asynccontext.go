@@ -230,12 +230,11 @@ func (cc *AsyncCancelContext) internalCancel(err error) {
 	// if canceledFn is nil, it means we haven't received an OnCancel call yet
 	// and need to wait for that before we can do anything.
 	if cc.canceledFn == nil {
-		if cc.isComplete {
-			// if we are already complete, we need to pretend like this error didn't
-			// occur since its too late to propagate it now because we've already told
-			// the completion code that its okay to proceed.
-			cc.cancelError = nil
-		}
+		// reminder: ctx is irrelevant here because if MarkComplete had been successful
+		// we would not actually be in this call to internalCancel (since MarkComplete
+		// preempts it to be successful).
+		// isComplete is also irrelevant here because MarkComplete can't possibly
+		// have returned true without also pre-empting this call to internalCancel.
 
 		cc.lock.Unlock()
 		return
