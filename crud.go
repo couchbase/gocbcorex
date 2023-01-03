@@ -24,26 +24,31 @@ func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetRes
 			cb(nil, err)
 			return
 		}
+
 		cc.collections.Dispatch(ctx, opts.ScopeName, opts.CollectionName, func(cid uint32, err error) {
 			if err != nil {
 				retry(err)
 				return
 			}
 
-			cc.vbuckets.DispatchByKey(ctx, opts.Key, func(endpoint string, err error) {
-				packet := &memd.Packet{
-					Key:          encodeCidIntoKey(opts.Key, cid),
-					CollectionID: cid,
+			endpoint, err := cc.vbuckets.DispatchByKey(ctx, opts.Key)
+			if err != nil {
+				retry(err)
+				return
+			}
+
+			packet := &memd.Packet{
+				Key:          encodeCidIntoKey(opts.Key, cid),
+				CollectionID: cid,
+			}
+
+			cc.serverRouter.DispatchToServer(ctx, endpoint, packet, func(resp *memd.Packet, err error) {
+				if err != nil {
+					retry(err)
+					return
 				}
 
-				cc.serverRouter.DispatchToServer(endpoint, packet, func(resp *memd.Packet, err error) {
-					if err != nil {
-						retry(err)
-						return
-					}
-
-					cb(&GetResult{}, nil)
-				})
+				cb(&GetResult{}, nil)
 			})
 		})
 	})
