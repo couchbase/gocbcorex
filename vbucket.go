@@ -5,33 +5,56 @@ type VbucketDispatcher interface {
 	DispatchToVbucket(ctx *AsyncContext, vbID uint16) (string, error)
 }
 
-// type vbucketDispatcher struct {
-// 	vbmap unsafe.Pointer
-// }
-//
-// func (vbd *vbucketDispatcher) DispatchByKey(ctx *asyncContext, key []byte) (string, error) {
-// 	vbmap := vbd.LoadVbMap()
-// 	if vbmap == nil {
-// 		return "", placeholderError{"imnotgood"}
-// 	}
-//
-// 	return vbmap.NodeByKey(key, 0)
-// }
-//
-// func (vbd *vbucketDispatcher) DispatchToVbucket(ctx *asyncContext, vbID uint16) (string, error) {
-// 	vbmap := vbd.LoadVbMap()
-// 	if vbmap == nil {
-// 		return "", placeholderError{"imnotgood"}
-// 	}
-//
-// 	return vbmap.NodeByVbucket(vbID, 0)
-// }
-//
-// func (vbd *vbucketDispatcher) LoadVbMap() *vbucketMap {
-// 	vbmap := (*vbucketMap)(atomic.LoadPointer(&vbd.vbmap))
-// 	return vbmap
-// }
-//
-// func (vbd *vbucketDispatcher) StoreVbMap(old, new *vbucketMap) bool {
-// 	return atomic.CompareAndSwapPointer(&vbd.vbmap, unsafe.Pointer(old), unsafe.Pointer(new))
-// }
+type vbucketRoutingInfo struct {
+	vbmap      *vbucketMap
+	serverList []string
+}
+
+type vbucketDispatcher struct {
+	routingInfo AtomicPointer[vbucketRoutingInfo]
+}
+
+func (vbd *vbucketDispatcher) DispatchByKey(ctx *asyncContext, key []byte) (string, error) {
+	info := vbd.loadRoutingInfo()
+	if info == nil {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	idx, err := info.vbmap.NodeByKey(key, 0)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
+	if idx > len(info.serverList) {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	return info.serverList[idx], nil
+}
+
+func (vbd *vbucketDispatcher) DispatchToVbucket(ctx *asyncContext, vbID uint16) (string, error) {
+	info := vbd.loadRoutingInfo()
+	if info == nil {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	idx, err := info.vbmap.NodeByVbucket(vbID, 0)
+	if err != nil {
+		return "", err
+	}
+
+	if idx > len(info.serverList) {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	return info.serverList[idx], nil
+}
+
+func (vbd *vbucketDispatcher) loadRoutingInfo() *vbucketRoutingInfo {
+	return vbd.routingInfo.Load()
+}
+
+func (vbd *vbucketDispatcher) storeRoutingInfo(old, new *vbucketRoutingInfo) bool {
+	return vbd.routingInfo.CompareAndSwap(old, new)
+}

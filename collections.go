@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/couchbase/gocbcore/v10/memd"
 	"sync"
-	"sync/atomic"
 )
 
 type collectionInvalidation bool
@@ -41,7 +40,7 @@ func (cm *collectionsManifest) Lookup(scopeName, collectionName string) (uint32,
 }
 
 type collectionResolver struct {
-	manifest   atomic.Value
+	manifest   AtomicPointer[collectionsManifest]
 	dispatcher ServerDispatcher
 
 	// TODO: This isn't the correct data structure.
@@ -63,7 +62,7 @@ func newCollectionResolver(dispatcher ServerDispatcher) *collectionResolver {
 }
 
 func (cr *collectionResolver) loadManifest() *collectionsManifest {
-	return cr.manifest.Load().(*collectionsManifest)
+	return cr.manifest.Load()
 }
 
 func (cr *collectionResolver) storeManifest(old, new *collectionsManifest) bool {
