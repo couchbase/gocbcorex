@@ -14,7 +14,7 @@ type vbucketDispatcher struct {
 	routingInfo AtomicPointer[vbucketRoutingInfo]
 }
 
-func (vbd *vbucketDispatcher) DispatchByKey(ctx *asyncContext, key []byte) (string, error) {
+func (vbd *vbucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte) (string, error) {
 	info := vbd.loadRoutingInfo()
 	if info == nil {
 		return "", placeholderError{"imnotgood"}
@@ -33,7 +33,7 @@ func (vbd *vbucketDispatcher) DispatchByKey(ctx *asyncContext, key []byte) (stri
 	return info.serverList[idx], nil
 }
 
-func (vbd *vbucketDispatcher) DispatchToVbucket(ctx *asyncContext, vbID uint16) (string, error) {
+func (vbd *vbucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16) (string, error) {
 	info := vbd.loadRoutingInfo()
 	if info == nil {
 		return "", placeholderError{"imnotgood"}

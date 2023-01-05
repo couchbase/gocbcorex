@@ -8,7 +8,7 @@ import (
 )
 
 func TestVbucketDispatcherDispatchToKey(t *testing.T) {
-	ctx := &asyncContext{}
+	ctx := &AsyncContext{}
 	dispatcher := &vbucketDispatcher{}
 	routingInfo := &vbucketRoutingInfo{
 		vbmap: &vbucketMap{

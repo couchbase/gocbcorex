@@ -27,11 +27,11 @@ func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16
 }
 
 type fakeServerDispatcher struct {
-	onCall func(*memd.Packet, func(*memd.Packet, error))
+	onCall func(*memd.Packet, string, func(*memd.Packet, error))
 }
 
 func (f *fakeServerDispatcher) DispatchToServer(ctx *AsyncContext, endpoint string, pak *memd.Packet, cb func(*memd.Packet, error)) error {
-	f.onCall(pak, cb)
+	f.onCall(pak, endpoint, cb)
 	return nil
 }
 
@@ -51,7 +51,7 @@ func TestAThing(t *testing.T) {
 	t.SkipNow()
 
 	var called int
-	routerCb := func(_pak *memd.Packet, cb func(*memd.Packet, error)) {
+	routerCb := func(_pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
 		time.AfterFunc(0, func() {
 			if called == 3 {
 				cb(&memd.Packet{}, nil)
@@ -91,7 +91,7 @@ func TestCancellingAThing(t *testing.T) {
 	ctx := &AsyncContext{}
 
 	var called int
-	routerCb := func(_pak *memd.Packet, cb func(*memd.Packet, error)) {
+	routerCb := func(_pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
 		time.AfterFunc(0, func() {
 			if called == 3 {
 				ctx.Cancel()
@@ -126,15 +126,15 @@ func TestCancellingAThing(t *testing.T) {
 
 func TestCollectionUnknownStandardResolver(t *testing.T) {
 	var called int
-	routerCb := func(pak *memd.Packet, cb func(*memd.Packet, error)) {
+	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
 		time.AfterFunc(0, func() {
 			called++
 			if pak.Command == memd.CmdCollectionsGetID {
 				pk := &memd.Packet{
 					Extras: make([]byte, 12),
 				}
-				binary.BigEndian.PutUint64(pk.Extras, 4)
-				binary.BigEndian.PutUint32(pk.Extras, 9)
+				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
+				binary.BigEndian.PutUint32(pk.Extras[8:], 9)
 				cb(pk, nil)
 				return
 			}
