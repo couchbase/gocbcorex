@@ -247,26 +247,3 @@ type CollectionResolver interface {
 	ResolveCollectionID(ctx *AsyncContext, endpoint, scopeName, collectionName string, cb ResolveCollectionIDCallback)
 	InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, manifestRev uint64)
 }
-
-type CollectionManager interface {
-	Dispatch(ctx *AsyncContext, scopeName, collectionName string, dispatchCb func(uint32, error))
-}
-
-type collectionManager struct {
-	resolver *perCidCollectionResolver
-}
-
-func (cm *collectionManager) Dispatch(ctx *AsyncContext, scopeName, collectionName string, dispatchCb func(uint32, error)) {
-	cm.resolver.ResolveCollectionID(ctx, "", scopeName, collectionName, func(collectionId uint32, manifestRev uint64, err error) {
-		if err != nil {
-			dispatchCb(0, err)
-			return
-		}
-
-		dispatchCb(collectionId, nil)
-	})
-}
-
-func (cm *collectionManager) CollectionIsUnknown(ctx *AsyncContext, endpoint, scopeName, collectionName string, manifestRev uint64) {
-	cm.resolver.InvalidateCollectionID(ctx, scopeName, collectionName, endpoint, manifestRev)
-}

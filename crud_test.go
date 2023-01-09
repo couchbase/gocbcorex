@@ -35,16 +35,20 @@ func (f *fakeServerDispatcher) DispatchToServer(ctx *AsyncContext, endpoint stri
 	return nil
 }
 
-type fakeCollectionManager struct {
+type fakeCollectionResolver struct {
 	delay time.Duration
 	err   error
 	cid   uint32
+	mRev  uint64
 }
 
-func (f *fakeCollectionManager) Dispatch(ctx *AsyncContext, scopeName, collectionName string, cb func(uint32, error)) {
+func (f *fakeCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpoint, scopeName, collectionName string, cb ResolveCollectionIDCallback) {
 	time.AfterFunc(f.delay, func() {
-		cb(f.cid, f.err)
+		cb(f.cid, f.mRev, f.err)
 	})
+}
+
+func (f *fakeCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, newManifestRev uint64) {
 }
 
 func TestAThing(t *testing.T) {
@@ -65,7 +69,7 @@ func TestAThing(t *testing.T) {
 		onCall: routerCb,
 	}
 	crud := &CrudComponent{
-		collections: &fakeCollectionManager{
+		collections: &fakeCollectionResolver{
 			cid: 7,
 		},
 		vbuckets: &fakeVBucketDispatcher{
@@ -104,7 +108,7 @@ func TestCancellingAThing(t *testing.T) {
 		onCall: routerCb,
 	}
 	crud := &CrudComponent{
-		collections: &fakeCollectionManager{
+		collections: &fakeCollectionResolver{
 			cid: 7,
 		},
 		vbuckets: &fakeVBucketDispatcher{
@@ -146,9 +150,7 @@ func TestCollectionUnknownStandardResolver(t *testing.T) {
 		onCall: routerCb,
 	}
 	crud := &CrudComponent{
-		collections: &collectionManager{
-			resolver: newCollectionResolver(router),
-		},
+		collections: newCollectionResolver(router),
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},

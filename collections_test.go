@@ -43,15 +43,14 @@ func TestCollectionsManagerQueueMultipleCallbacksOneCollection(t *testing.T) {
 	router := &fakeServerDispatcher{
 		onCall: routerCb,
 	}
-	mgr := &collectionManager{
-		resolver: newCollectionResolver(router),
-	}
+
+	resolver := newCollectionResolver(router)
 
 	var wg sync.WaitGroup
 	numReqs := 10
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
-		mgr.Dispatch(&AsyncContext{}, scope, collection, func(u uint32, err error) {
+		resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
 			assert.Equal(t, cid, u)
 			wg.Done()
 		})
@@ -100,21 +99,19 @@ func TestCollectionsManagerQueueMultipleCallbacksNCollections(t *testing.T) {
 	router := &fakeServerDispatcher{
 		onCall: routerCb,
 	}
-	mgr := &collectionManager{
-		resolver: newCollectionResolver(router),
-	}
+	resolver := newCollectionResolver(router)
 
 	var wg sync.WaitGroup
 	numReqs := 10
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
 		if i%2 == 0 {
-			mgr.Dispatch(&AsyncContext{}, scope1, collection1, func(u uint32, err error) {
+			resolver.ResolveCollectionID(&AsyncContext{}, "", scope1, collection1, func(u uint32, _ uint64, err error) {
 				assert.Equal(t, cid1, u)
 				wg.Done()
 			})
 		} else {
-			mgr.Dispatch(&AsyncContext{}, scope2, collection2, func(u uint32, err error) {
+			resolver.ResolveCollectionID(&AsyncContext{}, "", scope2, collection2, func(u uint32, _ uint64, err error) {
 				assert.Equal(t, cid2, u)
 				wg.Done()
 			})
@@ -149,15 +146,13 @@ func TestCollectionsManagerDispatchErrors(t *testing.T) {
 	router := &fakeServerDispatcher{
 		onCall: routerCb,
 	}
-	mgr := &collectionManager{
-		resolver: newCollectionResolver(router),
-	}
+	resolver := newCollectionResolver(router)
 
 	var wg sync.WaitGroup
 	numReqs := 10
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
-		mgr.Dispatch(&AsyncContext{}, scope, collection, func(u uint32, err error) {
+		resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
 			assert.Equal(t, cbErr, err)
 			assert.Equal(t, uint32(0), u)
 			wg.Done()
@@ -190,12 +185,9 @@ func TestCollectionsManagerKnownCollection(t *testing.T) {
 		},
 	}
 	resolver.storeManifest(resolver.loadManifest(), manifest)
-	mgr := &collectionManager{
-		resolver: resolver,
-	}
 
 	waitCh := make(chan struct{}, 1)
-	mgr.Dispatch(&AsyncContext{}, scope, collection, func(u uint32, err error) {
+	resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
 		assert.Equal(t, uint32(12), u)
 		waitCh <- struct{}{}
 	})
@@ -242,17 +234,14 @@ func TestCollectionsManagerUnknownCollectionNewerManifestRev(t *testing.T) {
 		},
 	}
 	resolver.storeManifest(resolver.loadManifest(), manifest)
-	mgr := &collectionManager{
-		resolver: resolver,
-	}
 
-	mgr.CollectionIsUnknown(&AsyncContext{}, "endpoint1", scope, collection, 5)
+	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 5)
 
 	// We should have now invalidated the only entry in the cache.
 	assert.Empty(t, resolver.manifest.Load().collections)
 
 	waitCh := make(chan struct{}, 1)
-	mgr.Dispatch(&AsyncContext{}, scope, collection, func(u uint32, err error) {
+	resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
 		assert.Equal(t, cid, u)
 		waitCh <- struct{}{}
 	})
@@ -286,11 +275,8 @@ func TestCollectionsManagerUnknownCollectionOlderManifestRev(t *testing.T) {
 		},
 	}
 	resolver.storeManifest(resolver.loadManifest(), manifest)
-	mgr := &collectionManager{
-		resolver: resolver,
-	}
 
-	mgr.CollectionIsUnknown(&AsyncContext{}, "endpoint1", scope, collection, 3)
+	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 3)
 
 	cols := resolver.manifest.Load().collections
 	assert.Len(t, cols, 1)
@@ -322,11 +308,8 @@ func TestCollectionsManagerUnknownCollectionSameManifestRev(t *testing.T) {
 		},
 	}
 	resolver.storeManifest(resolver.loadManifest(), manifest)
-	mgr := &collectionManager{
-		resolver: resolver,
-	}
 
 	assert.Panics(t, func() {
-		mgr.CollectionIsUnknown(&AsyncContext{}, "endpoint1", scope, collection, 4)
+		resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 4)
 	})
 }
