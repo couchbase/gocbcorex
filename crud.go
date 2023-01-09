@@ -2,15 +2,15 @@ package core
 
 import (
 	"errors"
-	"github.com/couchbase/gocbcore/v10"
 	"github.com/couchbase/gocbcore/v10/memd"
 )
 
 type CrudComponent struct {
-	collections  CollectionResolver
-	vbuckets     VbucketDispatcher
-	serverRouter ServerDispatcher
-	retries      RetryComponent
+	collections   CollectionResolver
+	vbuckets      VbucketDispatcher
+	serverRouter  ServerDispatcher
+	retries       RetryComponent
+	errorResolver PacketResolver
 }
 
 type GetOptions struct {
@@ -48,8 +48,15 @@ func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetRes
 
 			cc.serverRouter.DispatchToServer(ctx, endpoint, packet, func(resp *memd.Packet, err error) {
 				if err != nil {
-					if errors.Is(err, gocbcore.ErrCollectionNotFound) {
-						cc.collections.InvalidateCollectionID(ctx, opts.ScopeName, opts.CollectionName, endpoint, 0)
+					retry(err)
+					return
+				}
+
+				err = cc.errorResolver.ResolvePacket(resp)
+				if err != nil {
+					var collectionNotFoundError CollectionNotFoundError
+					if errors.As(err, &collectionNotFoundError) {
+						cc.collections.InvalidateCollectionID(ctx, opts.ScopeName, opts.CollectionName, endpoint, collectionNotFoundError.ManifestUid)
 					}
 					retry(err)
 					return

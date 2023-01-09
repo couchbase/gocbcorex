@@ -13,12 +13,11 @@ import (
 
 type fakeVBucketDispatcher struct {
 	delay    time.Duration
-	err      error
 	endpoint string
 }
 
 func (f *fakeVBucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte) (string, error) {
-	return f.endpoint, f.err
+	return f.endpoint, nil
 }
 
 func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16) (string, error) {
@@ -51,6 +50,30 @@ func (f *fakeCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpoint
 func (f *fakeCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, newManifestRev uint64) {
 }
 
+type fakePacketResolver struct {
+	err error
+}
+
+func (f *fakePacketResolver) ResolvePacket(*memd.Packet) error {
+	return f.err
+}
+
+type fakeRetryOrch struct {
+}
+
+func (f *fakeRetryOrch) OrchestrateRetries(ctx *AsyncContext, dispatchCb func(func(error), error)) error {
+	var handler func(error)
+	handler = func(err error) {
+		if err != nil {
+			dispatchCb(nil, err)
+			return
+		}
+		dispatchCb(handler, err)
+	}
+	dispatchCb(handler, nil)
+	return nil
+}
+
 func TestAThing(t *testing.T) {
 	t.SkipNow()
 
@@ -75,8 +98,9 @@ func TestAThing(t *testing.T) {
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter: router,
-		retries:      newRetryComponent(),
+		serverRouter:  router,
+		retries:       newRetryComponent(),
+		errorResolver: &fakePacketResolver{},
 	}
 
 	waitCh := make(chan struct{}, 1)
@@ -114,8 +138,9 @@ func TestCancellingAThing(t *testing.T) {
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter: router,
-		retries:      newRetryComponent(),
+		serverRouter:  router,
+		retries:       newRetryComponent(),
+		errorResolver: &fakePacketResolver{},
 	}
 
 	waitCh := make(chan struct{}, 1)
@@ -154,8 +179,9 @@ func TestCollectionUnknownStandardResolver(t *testing.T) {
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter: router,
-		retries:      newRetryComponent(),
+		serverRouter:  router,
+		retries:       newRetryComponent(),
+		errorResolver: &fakePacketResolver{},
 	}
 
 	waitCh := make(chan struct{}, 1)
@@ -163,6 +189,43 @@ func TestCollectionUnknownStandardResolver(t *testing.T) {
 		assert.Nil(t, err)
 
 		assert.Equal(t, 2, called)
+		waitCh <- struct{}{}
+	})
+	<-waitCh
+}
+
+func TestResolvingPacketWithError(t *testing.T) {
+	ctx := &AsyncContext{}
+
+	routerCb := func(_pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+		time.AfterFunc(0, func() {
+			cb(&memd.Packet{
+				Status: 1,
+			}, nil)
+		})
+	}
+	router := &fakeServerDispatcher{
+		onCall: routerCb,
+	}
+	expectedErr := errors.New("some error")
+	crud := &CrudComponent{
+		collections: &fakeCollectionResolver{
+			cid: 7,
+		},
+		vbuckets: &fakeVBucketDispatcher{
+			endpoint: "anendpoint",
+		},
+		serverRouter: router,
+		retries:      &fakeRetryOrch{},
+		errorResolver: &fakePacketResolver{
+			err: expectedErr,
+		},
+	}
+
+	waitCh := make(chan struct{}, 1)
+	crud.Get(ctx, GetOptions{Key: []byte("hi")}, func(result *GetResult, err error) {
+		assert.Equal(t, expectedErr, err)
+
 		waitCh <- struct{}{}
 	})
 	<-waitCh
