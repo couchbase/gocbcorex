@@ -3,6 +3,7 @@ package core
 type VbucketDispatcher interface {
 	DispatchByKey(ctx *AsyncContext, key []byte) (string, error)
 	DispatchToVbucket(ctx *AsyncContext, vbID uint16) (string, error)
+	StoreVbucketRoutingInfo(info *vbucketRoutingInfo)
 }
 
 type vbucketRoutingInfo struct {
@@ -12,6 +13,10 @@ type vbucketRoutingInfo struct {
 
 type vbucketDispatcher struct {
 	routingInfo AtomicPointer[vbucketRoutingInfo]
+}
+
+func (vbd *vbucketDispatcher) StoreVbucketRoutingInfo(info *vbucketRoutingInfo) {
+	vbd.storeRoutingInfo(info)
 }
 
 func (vbd *vbucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte) (string, error) {
@@ -55,6 +60,6 @@ func (vbd *vbucketDispatcher) loadRoutingInfo() *vbucketRoutingInfo {
 	return vbd.routingInfo.Load()
 }
 
-func (vbd *vbucketDispatcher) storeRoutingInfo(old, new *vbucketRoutingInfo) bool {
-	return vbd.routingInfo.CompareAndSwap(old, new)
+func (vbd *vbucketDispatcher) storeRoutingInfo(new *vbucketRoutingInfo) {
+	vbd.routingInfo.Store(new)
 }

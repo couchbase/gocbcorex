@@ -25,6 +25,9 @@ func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16
 	panic("implement me")
 }
 
+func (f *fakeVBucketDispatcher) StoreVbucketRoutingInfo(info *vbucketRoutingInfo) {
+}
+
 type fakeServerDispatcher struct {
 	onCall func(*memd.Packet, string, func(*memd.Packet, error))
 }
@@ -32,6 +35,9 @@ type fakeServerDispatcher struct {
 func (f *fakeServerDispatcher) DispatchToServer(ctx *AsyncContext, endpoint string, pak *memd.Packet, cb func(*memd.Packet, error)) error {
 	f.onCall(pak, endpoint, cb)
 	return nil
+}
+
+func (f *fakeServerDispatcher) ApplyEndpoints(serverList []string) {
 }
 
 type fakeCollectionResolver struct {

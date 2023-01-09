@@ -34,7 +34,7 @@ func TestVbucketDispatcherDispatchToKey(t *testing.T) {
 		serverList: []string{"endpoint1", "endpoint2"},
 	}
 
-	dispatcher.storeRoutingInfo(nil, routingInfo)
+	dispatcher.storeRoutingInfo(routingInfo)
 
 	endpoint, err := dispatcher.DispatchByKey(ctx, []byte("key1"))
 	require.Nil(t, err)
