@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -301,7 +302,7 @@ func TestCollectionsManagerUnknownCollectionSameManifestRev(t *testing.T) {
 	resolver := newCollectionResolver(router)
 	manifest := &collectionsManifest{
 		collections: map[string]*collectionsManifestEntry{
-			string(fqCollectionName): {
+			fqCollectionName: {
 				cid: 12,
 				rev: 4,
 			},
@@ -312,4 +313,154 @@ func TestCollectionsManagerUnknownCollectionSameManifestRev(t *testing.T) {
 	assert.Panics(t, func() {
 		resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 4)
 	})
+}
+
+func TestCollectionsManagerCancelContext(t *testing.T) {
+	var called uint32
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	blockCh := make(chan struct{}, 1)
+	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+		called++
+		pk := &memd.Packet{
+			Extras: make([]byte, 12),
+		}
+		binary.BigEndian.PutUint64(pk.Extras[0:], 4)
+		binary.BigEndian.PutUint32(pk.Extras[8:], 7)
+
+		cb(pk, nil)
+	}
+	router := &fakeServerDispatcher{
+		onCall: routerCb,
+	}
+
+	resolver := newCollectionResolver(router)
+	ctx := &AsyncContext{}
+	ctx.Cancel()
+
+	waitCh := make(chan struct{}, 1)
+	resolver.ResolveCollectionID(ctx, "", scope, collection, func(u uint32, _ uint64, err error) {
+		assert.Equal(t, context.Canceled, err)
+		waitCh <- struct{}{}
+	})
+	close(blockCh)
+	<-waitCh
+
+	assert.Equal(t, uint32(1), called)
+}
+
+func TestCollectionsManagerCancelContextMultipleOps(t *testing.T) {
+	var called uint32
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	cid := uint32(9)
+	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
+	blockCh := make(chan struct{}, 1)
+	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+		go func() {
+			<-blockCh
+			atomic.AddUint32(&called, 1)
+			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
+				pk := &memd.Packet{
+					Extras: make([]byte, 12),
+				}
+				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
+				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
+				cb(pk, nil)
+				return
+			}
+
+			t.Error("Should not have reached here")
+		}()
+	}
+	router := &fakeServerDispatcher{
+		onCall: routerCb,
+	}
+
+	resolver := newCollectionResolver(router)
+
+	var wg sync.WaitGroup
+	numReqs := 10
+	var toCancel []*AsyncContext
+	for i := 0; i < numReqs; i++ {
+		wg.Add(1)
+
+		var willCancel bool
+		ctx := &AsyncContext{}
+		if i%2 == 0 {
+			toCancel = append(toCancel, ctx)
+			willCancel = true
+		}
+
+		func(hasCanceled bool) {
+			resolver.ResolveCollectionID(ctx, "", scope, collection, func(u uint32, _ uint64, err error) {
+				if willCancel {
+					assert.Equal(t, context.Canceled, err)
+				} else {
+					assert.Equal(t, cid, u)
+				}
+				wg.Done()
+			})
+		}(willCancel)
+	}
+
+	for _, ctx := range toCancel {
+		ctx.Cancel()
+	}
+
+	close(blockCh)
+	wg.Wait()
+
+	assert.Equal(t, uint32(1), called)
+}
+
+func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
+	var called uint32
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	cid := uint32(9)
+	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
+	blockCh := make(chan struct{}, 1)
+	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+		go func() {
+			<-blockCh
+			atomic.AddUint32(&called, 1)
+			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
+				pk := &memd.Packet{
+					Extras: make([]byte, 12),
+				}
+				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
+				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
+				cb(pk, nil)
+				blockCh <- struct{}{}
+				return
+			}
+
+			t.Error("Should not have reached here")
+		}()
+	}
+	router := &fakeServerDispatcher{
+		onCall: routerCb,
+	}
+
+	resolver := newCollectionResolver(router)
+
+	var wg sync.WaitGroup
+	numReqs := 10
+	ctx := &AsyncContext{}
+	for i := 0; i < numReqs; i++ {
+		wg.Add(1)
+
+		resolver.ResolveCollectionID(ctx, "", scope, collection, func(u uint32, _ uint64, err error) {
+			assert.Equal(t, context.Canceled, err)
+			wg.Done()
+		})
+	}
+	ctx.Cancel()
+
+	blockCh <- struct{}{}
+	wg.Wait()
+	<-blockCh
+
+	assert.Equal(t, uint32(1), called)
 }

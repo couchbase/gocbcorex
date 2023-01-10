@@ -37,12 +37,22 @@ func (cm *collectionsManifest) Lookup(scopeName, collectionName string) (uint32,
 	return 0, 0, false
 }
 
+type collectionIDCallbackNode struct {
+	callback ResolveCollectionIDCallback
+}
+
+type perCidAwaitingDispatchItem struct {
+	callbacks []*collectionIDCallbackNode
+	ctx       *AsyncContext
+	lock      sync.Mutex
+}
+
 type perCidCollectionResolver struct {
 	manifest   AtomicPointer[collectionsManifest]
 	dispatcher ServerDispatcher
 
 	// TODO: This isn't the correct data structure.
-	awaitingDispatch     map[string]*[]ResolveCollectionIDCallback
+	awaitingDispatch     map[string]*perCidAwaitingDispatchItem
 	awaitingDispatchLock sync.Mutex
 }
 
@@ -52,7 +62,7 @@ func newCollectionResolver(dispatcher ServerDispatcher) *perCidCollectionResolve
 	}
 	cr := &perCidCollectionResolver{
 		dispatcher:       dispatcher,
-		awaitingDispatch: make(map[string]*[]ResolveCollectionIDCallback),
+		awaitingDispatch: make(map[string]*perCidAwaitingDispatchItem),
 	}
 	cr.manifest.Store(manifest)
 
@@ -69,7 +79,6 @@ func (cr *perCidCollectionResolver) storeManifest(old, new *collectionsManifest)
 
 func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key string, packet *memd.Packet) {
 	cr.dispatcher.DispatchToServer(ctx, endpoint, packet, func(resp *memd.Packet, err error) {
-		// TODO: If this is a timeout then we'll have to recurse using the context at the top of the queue.
 		if err != nil {
 			cr.awaitingDispatchLock.Lock()
 			pending, ok := cr.awaitingDispatch[key]
@@ -77,8 +86,8 @@ func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key 
 				return
 			}
 
-			for _, cb := range *pending {
-				cb(0, 0, err)
+			for _, cb := range pending.callbacks {
+				cb.callback(0, 0, err)
 			}
 			delete(cr.awaitingDispatch, key)
 			cr.awaitingDispatchLock.Unlock()
@@ -116,16 +125,20 @@ func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key 
 		cr.awaitingDispatchLock.Lock()
 		pending, ok := cr.awaitingDispatch[key]
 		if !ok {
+			cr.awaitingDispatchLock.Unlock()
 			// This might be possible depending on how request cancellation works.
 			return
 		}
-
-		var callbacks []ResolveCollectionIDCallback
-		for _, cb := range *pending {
-			callbacks = append(callbacks, cb)
-		}
 		delete(cr.awaitingDispatch, key)
 		cr.awaitingDispatchLock.Unlock()
+
+		pending.lock.Lock()
+		callbacks := make([]ResolveCollectionIDCallback, len(pending.callbacks))
+		for i, cb := range pending.callbacks {
+			callbacks[i] = cb.callback
+		}
+		pending.callbacks = nil
+		pending.lock.Unlock()
 
 		for _, cb := range callbacks {
 			cb(collectionID, manifestRev, nil)
@@ -148,20 +161,67 @@ func (cr *perCidCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpo
 	cr.awaitingDispatchLock.Lock()
 	// Try another lookup in case a pending get cid came in before we entered the lock.
 	if cid, mRev, ok := cr.loadManifest().Lookup(scopeName, collectionName); ok {
+		cr.awaitingDispatchLock.Unlock()
 		// TODO: This should be given some thought, this means that the callback is occurring in the same goroutine as the call.
 		cb(cid, mRev, nil)
+		return
 	}
 
 	pending, ok := cr.awaitingDispatch[key]
+	if !ok {
+		// We don't have a pending get cid so create an entry in the map and send a request.
+		pending = &perCidAwaitingDispatchItem{
+			callbacks: []*collectionIDCallbackNode{},
+			ctx:       NewAsyncContext(),
+		}
+		cr.awaitingDispatch[key] = pending
+	}
+	cr.awaitingDispatchLock.Unlock()
+
+	cancelCtx := ctx.WithCancellation()
+
+	handler := &collectionIDCallbackNode{
+		callback: func(collectionId uint32, manifestRev uint64, err error) {
+			if cancelCtx.MarkComplete() {
+				cb(collectionId, manifestRev, err)
+			}
+		},
+	}
+	pending.lock.Lock()
+	// We already sent a get cid request so just add this callback to the queue.
+	pending.callbacks = append(pending.callbacks, handler)
+	pending.lock.Unlock()
+
+	cancelCtx.OnCancel(func(err error) bool {
+		index := -1
+		pending.lock.Lock()
+		for i, callback := range pending.callbacks {
+			if callback == handler {
+				index = i
+				break
+			}
+		}
+
+		// Get cid request must have completed.
+		if index == -1 {
+			return false
+		}
+
+		pending.callbacks = append((pending.callbacks)[:index], (pending.callbacks)[index+1:]...)
+		if len(pending.callbacks) == 0 {
+			pending.ctx.Cancel()
+			cr.awaitingDispatchLock.Lock()
+			delete(cr.awaitingDispatch, key)
+			cr.awaitingDispatchLock.Unlock()
+		}
+		pending.lock.Unlock()
+		cb(0, 0, err)
+		return true
+	})
+
 	if ok {
-		// We already sent a get cid request so just add this callback to the queue.
-		*pending = append(*pending, cb)
-		cr.awaitingDispatchLock.Unlock()
 		return
 	}
-	// We don't have a pending get cid so create an entry in the map and send a request.
-	cr.awaitingDispatch[key] = &[]ResolveCollectionIDCallback{cb}
-	cr.awaitingDispatchLock.Unlock()
 
 	// The collection is completely unknown, so we need to go to the server and see if it exists.
 	packet := &memd.Packet{
@@ -174,7 +234,7 @@ func (cr *perCidCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpo
 		Value:    []byte(key),
 	}
 
-	cr.refreshCid(ctx, endpoint, key, packet)
+	cr.refreshCid(pending.ctx, endpoint, key, packet)
 }
 
 func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, newManifestRev uint64) {
@@ -214,33 +274,8 @@ func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, sc
 		}
 	}
 
-	cr.awaitingDispatchLock.Lock()
-	// Try another lookup in case a pending get cid occurred between us removing the cid and here.
-	if _, _, ok := cr.loadManifest().Lookup(scopeName, collectionName); ok {
-		return
-	}
-
-	_, ok := cr.awaitingDispatch[key]
-	if ok {
-		// We already sent a get cid request so just bail out.
-		cr.awaitingDispatchLock.Unlock()
-		return
-	}
-	// We don't have a pending get cid so send a request.
-	cr.awaitingDispatch[key] = &[]ResolveCollectionIDCallback{}
-	cr.awaitingDispatchLock.Unlock()
-
-	packet := &memd.Packet{
-		Magic:    memd.CmdMagicReq,
-		Command:  memd.CmdCollectionsGetID,
-		Datatype: 0,
-		Cas:      0,
-		Extras:   nil,
-		Key:      nil,
-		Value:    []byte(key),
-	}
-
-	cr.refreshCid(ctx, endpoint, key, packet)
+	cr.ResolveCollectionID(ctx, endpoint, scopeName, collectionName, func(collectionId uint32, manifestRev uint64, err error) {
+	})
 }
 
 type CollectionResolver interface {
