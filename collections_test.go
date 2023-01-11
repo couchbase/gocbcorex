@@ -464,3 +464,60 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 
 	assert.Equal(t, uint32(1), called)
 }
+
+func TestCollectionsManagerInvalidateTwice(t *testing.T) {
+	var called uint32
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	cid := uint32(9)
+	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
+	blockCh := make(chan struct{})
+	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+		go func() {
+			<-blockCh
+			atomic.AddUint32(&called, 1)
+			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
+				pk := &memd.Packet{
+					Extras: make([]byte, 12),
+				}
+				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
+				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
+				blockCh <- struct{}{}
+				cb(pk, nil)
+				return
+			}
+
+			t.Error("Should not have reached here")
+		}()
+	}
+	router := &fakeServerDispatcher{
+		onCall: routerCb,
+	}
+
+	resolver := newCollectionResolver(router)
+	manifest := &collectionsManifest{
+		collections: map[string]*collectionsManifestEntry{
+			string(fqCollectionName): {
+				cid: 12,
+				rev: 4,
+			},
+		},
+	}
+	resolver.storeManifest(resolver.loadManifest(), manifest)
+
+	// Invalidate the collection ID and then allow the get cid fetch callback to be invoked at the same time as
+	// a second invalidation.
+	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 5)
+	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 6)
+	blockCh <- struct{}{}
+	<-blockCh
+
+	waitCh := make(chan struct{}, 1)
+	resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
+		assert.Equal(t, cid, u)
+		waitCh <- struct{}{}
+	})
+	<-waitCh
+
+	assert.Equal(t, uint32(1), called)
+}

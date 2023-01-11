@@ -1,11 +1,7 @@
 package core
 
-type clusterConfig struct {
-}
-
-type config struct {
-}
+import "github.com/couchbase/stellar-nebula/contrib/cbconfig"
 
 type ConfigManager interface {
-	ApplyConfig(*clusterConfig) (*config, bool)
+	ApplyConfig(json *cbconfig.TerseConfigJson) (*routeConfig, bool)
 }
