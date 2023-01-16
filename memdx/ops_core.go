@@ -173,7 +173,8 @@ type SASLAuthRequest struct {
 }
 
 type SASLAuthResponse struct {
-	Payload []byte
+	NeedsMoreSteps bool
+	Payload        []byte
 }
 
 func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthResponse, error)) error {
@@ -188,13 +189,22 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 			return false
 		}
 
+		if resp.Status == StatusAuthContinue {
+			cb(&SASLAuthResponse{
+				NeedsMoreSteps: true,
+				Payload:        resp.Value,
+			}, nil)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			cb(nil, o.decodeError(resp))
 			return false
 		}
 
 		cb(&SASLAuthResponse{
-			Payload: resp.Value,
+			NeedsMoreSteps: false,
+			Payload:        resp.Value,
 		}, nil)
 		return false
 	})
@@ -206,7 +216,8 @@ type SASLStepRequest struct {
 }
 
 type SASLStepResponse struct {
-	Payload []byte
+	NeedsMoreSteps bool
+	Payload        []byte
 }
 
 func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepResponse, error)) error {
@@ -221,13 +232,22 @@ func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepR
 			return false
 		}
 
+		if resp.Status == StatusAuthContinue {
+			cb(&SASLStepResponse{
+				NeedsMoreSteps: true,
+				Payload:        resp.Value,
+			}, nil)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			cb(nil, o.decodeError(resp))
 			return false
 		}
 
 		cb(&SASLStepResponse{
-			Payload: resp.Value,
+			NeedsMoreSteps: false,
+			Payload:        resp.Value,
 		}, nil)
 		return false
 	})
