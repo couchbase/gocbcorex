@@ -1,6 +1,9 @@
 package memdx
 
-import "errors"
+import (
+	"crypto"
+	"errors"
+)
 
 type OpSaslAuthByName struct {
 	Mechanism string
@@ -16,19 +19,19 @@ func (a OpSaslAuthByName) Authenticate(d Dispatcher, cb func(err error)) {
 		}.Authenticate(d, cb)
 	} else if a.Mechanism == "SCRAM-SHA1" {
 		OpSaslAuthScram{
-			HashName: "SHA1",
+			Hash:     crypto.SHA1,
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, cb)
 	} else if a.Mechanism == "SCRAM-SHA256" {
 		OpSaslAuthScram{
-			HashName: "SHA256",
+			Hash:     crypto.SHA256,
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, cb)
 	} else if a.Mechanism == "SCRAM-SHA512" {
 		OpSaslAuthScram{
-			HashName: "SHA512",
+			Hash:     crypto.SHA512,
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, cb)

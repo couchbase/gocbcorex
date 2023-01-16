@@ -1,45 +1,35 @@
 package memdx
 
 import (
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
+	"crypto"
 	"errors"
-	"hash"
 	"log"
 
 	"github.com/couchbase/stellar-nebula/core/scram"
 )
 
 type OpSaslAuthScram struct {
-	HashName string
+	Hash     crypto.Hash
 	Username string
 	Password string
 }
 
-func (a OpSaslAuthScram) getHashNew() (func() hash.Hash, error) {
-	switch a.HashName {
-	case "SHA1":
-		return sha1.New, nil
-	case "SHA256":
-		return sha256.New, nil
-	case "SHA512":
-		return sha512.New, nil
-	}
-
-	return nil, errors.New("invalid hash name: " + a.HashName)
-}
-
 func (a OpSaslAuthScram) Authenticate(d Dispatcher, cb func(err error)) {
-	mechName := "SCRAM-" + a.HashName
-
-	hash, err := a.getHashNew()
-	if err != nil {
-		cb(err)
+	mechName := ""
+	switch a.Hash {
+	case crypto.SHA1:
+		mechName = "SCRAM-SHA1"
+	case crypto.SHA256:
+		mechName = "SCRAM-SHA256"
+	case crypto.SHA512:
+		mechName = "SCRAM-SHA512"
+	}
+	if mechName == "" {
+		cb(errors.New("unsupported hash type: " + a.Hash.String()))
 		return
 	}
 
-	scramMgr := scram.NewClient(hash, a.Username, a.Password)
+	scramMgr := scram.NewClient(a.Hash.New, a.Username, a.Password)
 
 	// Perform the initial SASL step
 	scramMgr.Step(nil)
