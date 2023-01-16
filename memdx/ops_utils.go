@@ -6,8 +6,6 @@ import (
 )
 
 type OpsUtils struct {
-	Dispatcher Dispatcher
-
 	ExtFramesEnabled bool
 }
 
@@ -43,13 +41,13 @@ type StatsResponse struct {
 	Value string
 }
 
-func (o OpsUtils) Stats(req *StatsRequest, cb func(*StatsResponse, error)) error {
+func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) error {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
 		return err
 	}
 
-	return o.Dispatcher.Dispatch(&Packet{
+	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
 		OpCode:        OpCodeSASLAuth,
 		Key:           []byte(req.GroupName),
@@ -90,7 +88,7 @@ type GetCollectionIDResponse struct {
 	CollectionID uint32
 }
 
-func (o OpsUtils) GetCollectionID(req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) error {
+func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) error {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
 		return err
@@ -98,7 +96,7 @@ func (o OpsUtils) GetCollectionID(req *GetCollectionIDRequest, cb func(*GetColle
 
 	reqPath := fmt.Sprintf("%s.%s", req.ScopeName, req.CollectionName)
 
-	return o.Dispatcher.Dispatch(&Packet{
+	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
 		OpCode:        OpCodeCollectionsGetID,
 		Value:         []byte(reqPath),

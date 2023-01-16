@@ -5,7 +5,6 @@ import (
 )
 
 type OpsCrud struct {
-	Dispatcher         Dispatcher
 	CollectionsEnabled bool
 }
 
@@ -35,13 +34,13 @@ type GetResponse struct {
 	Datatype uint8
 }
 
-func (o OpsCrud) Get(req *GetRequest, cb func(*GetResponse, error)) error {
+func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)) error {
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return err
 	}
 
-	return o.Dispatcher.Dispatch(&Packet{
+	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeGet,
 		Key:    reqKey,
@@ -93,7 +92,7 @@ type GetRandomResponse struct {
 	Datatype uint8
 }
 
-func (o OpsCrud) GetRandom(req *GetRandomRequest, cb func(*GetRandomResponse, error)) error {
+func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) error {
 	var extrasBuf []byte
 	if !o.CollectionsEnabled {
 		if req.CollectionID != 0 {
@@ -105,7 +104,7 @@ func (o OpsCrud) GetRandom(req *GetRandomRequest, cb func(*GetRandomResponse, er
 		extrasBuf = binary.BigEndian.AppendUint32(extrasBuf, req.CollectionID)
 	}
 
-	return o.Dispatcher.Dispatch(&Packet{
+	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeGet,
 		Extras: extrasBuf,
