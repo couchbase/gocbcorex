@@ -2,7 +2,6 @@ package memdx
 
 import (
 	"errors"
-	"log"
 	"sync"
 )
 
@@ -10,7 +9,9 @@ import (
 // note that it is not thread-safe, but does use locks to prevent internal races
 // between operations that are being sent and responses being received.
 type Client struct {
-	conn *Conn
+	conn          *Conn
+	orphanHandler func(*Packet)
+	closeHandler  func(error)
 
 	lock      sync.Mutex
 	opaqueCtr uint32
@@ -19,28 +20,49 @@ type Client struct {
 
 var _ Dispatcher = (*Client)(nil)
 
-func Connect(address string) (*Client, error) {
+type ClientOptions struct {
+	OrphanHandler func(*Packet)
+	CloseHandler  func(error)
+}
+
+func NewClient(conn *Conn, opts *ClientOptions) *Client {
+	if opts == nil {
+		opts = &ClientOptions{}
+	}
+
 	c := &Client{
+		conn:          conn,
+		orphanHandler: opts.OrphanHandler,
+		closeHandler:  opts.CloseHandler,
+
 		opaqueCtr: 1,
 		opaqueMap: make(map[uint32]DispatchCallback),
 	}
 	go c.run()
-	return c, nil
+
+	return c
 }
 
 func (c *Client) run() {
 	pak := &Packet{}
+	var closeErr error
 	for {
 		err := c.conn.ReadPacket(pak)
 		if err != nil {
-			// TODO(brett19): Handle read errors...
-			log.Printf("failed to read packet from socket: %s", err)
+			closeErr = err
+			break
 		}
 
 		err = c.dispatchCallback(pak)
 		if err != nil {
-			// TODO(brett19): Handle dispatch errors
-			log.Printf("failed to dispatch packet to handler: %s", err)
+			closeErr = err
+			break
+		}
+	}
+
+	if closeErr != nil {
+		if c.closeHandler != nil {
+			c.closeHandler(closeErr)
 		}
 	}
 }
@@ -63,8 +85,15 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 
 	handler, handlerIsValid := c.opaqueMap[pak.Opaque]
 	if !handlerIsValid {
+		orphanHandler := c.orphanHandler
 		c.lock.Unlock()
-		return errors.New("invalid opaque on response packet")
+
+		if orphanHandler == nil {
+			return errors.New("invalid opaque on response packet")
+		}
+
+		orphanHandler(pak)
+		return nil
 	}
 
 	c.lock.Unlock()
