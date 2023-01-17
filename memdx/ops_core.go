@@ -131,7 +131,7 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(er
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		if resp.Status == StatusAccessError {
 			cb(ErrUnknownBucketName)
 			return false
 		}
