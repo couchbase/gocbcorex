@@ -117,14 +117,14 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 }
 
 type SelectBucketRequest struct {
-	BucketName []byte
+	BucketName string
 }
 
 func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(error)) error {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSelectBucket,
-		Key:    req.BucketName,
+		Key:    []byte(req.BucketName),
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(err)
