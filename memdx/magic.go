@@ -1,5 +1,7 @@
 package memdx
 
+import "encoding/hex"
+
 type Magic uint8
 
 const (
@@ -15,6 +17,21 @@ const (
 	// MagicResExt indicates that the packet is a response with framing extras.
 	MagicResExt = Magic(0x18)
 )
+
+func (m Magic) String() string {
+	switch m {
+	case MagicReq:
+		return "Req"
+	case MagicRes:
+		return "Res"
+	case MagicReqExt:
+		return "ReqExt"
+	case MagicResExt:
+		return "ResExt"
+	}
+
+	return "x" + hex.EncodeToString([]byte{byte(m)})
+}
 
 func (m Magic) IsRequest() bool {
 	return m == MagicReq || m == MagicReqExt

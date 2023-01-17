@@ -1,5 +1,7 @@
 package memdx
 
+import "encoding/hex"
+
 // HelloFeature represents a feature code included in a memcached
 // HELLO operation.
 type HelloFeature uint16
@@ -73,3 +75,54 @@ const (
 	// FeatureReplaceBodyWithXattr indicates support for the replace body with xattr feature.
 	HelloFeatureReplaceBodyWithXattr = HelloFeature(0x19)
 )
+
+func (f HelloFeature) String() string {
+	switch f {
+	case HelloFeatureDatatype:
+		return "Datatype"
+	case HelloFeatureTLS:
+		return "TLS"
+	case HelloFeatureTCPNoDelay:
+		return "TCPNoDelay"
+	case HelloFeatureSeqNo:
+		return "SeqNo"
+	case HelloFeatureTCPDelay:
+		return "TCPDelay"
+	case HelloFeatureXattr:
+		return "Xattr"
+	case HelloFeatureXerror:
+		return "Xerror"
+	case HelloFeatureSelectBucket:
+		return "SelectBucket"
+	case HelloFeatureSnappy:
+		return "Snappy"
+	case HelloFeatureJSON:
+		return "JSON"
+	case HelloFeatureDuplex:
+		return "Duplex"
+	case HelloFeatureClusterMapNotif:
+		return "ClusterMapNotif"
+	case HelloFeatureUnorderedExec:
+		return "UnorderedExec"
+	case HelloFeatureDurations:
+		return "Durations"
+	case HelloFeatureAltRequests:
+		return "AltRequests"
+	case HelloFeatureSyncReplication:
+		return "SyncReplication"
+	case HelloFeatureCollections:
+		return "Collections"
+	case HelloFeatureOpenTracing:
+		return "OpenTracing"
+	case HelloFeaturePreserveExpiry:
+		return "PreserveExpiry"
+	case HelloFeaturePITR:
+		return "PITR"
+	case HelloFeatureCreateAsDeleted:
+		return "CreateAsDeleted"
+	case HelloFeatureReplaceBodyWithXattr:
+		return "ReplaceBodyWithXattr"
+	}
+
+	return "x" + hex.EncodeToString([]byte{byte(f)})
+}

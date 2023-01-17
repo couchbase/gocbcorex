@@ -1,6 +1,6 @@
 package memdx
 
-import "fmt"
+import "encoding/hex"
 
 type Status uint16
 
@@ -206,108 +206,107 @@ const (
 )
 
 // String returns the textual representation of this Status.
-func (code Status) String() string {
-	switch code {
+func (s Status) String() string {
+	switch s {
 	case StatusSuccess:
-		return "success"
+		return "Success"
 	case StatusKeyNotFound:
-		return "key not found"
+		return "KeyNotFound"
 	case StatusKeyExists:
-		return "key already exists, if a cas was provided the key exists with a different cas"
+		return "KeyExists"
 	case StatusTooBig:
-		return "document value was too large"
+		return "TooBig"
 	case StatusInvalidArgs:
-		return "invalid arguments"
+		return "InvalidArgs"
 	case StatusNotStored:
-		return "document could not be stored"
+		return "NotStored"
 	case StatusBadDelta:
-		return "invalid delta was passed"
+		return "BadDelta"
 	case StatusNotMyVBucket:
-		return "operation sent to incorrect server"
+		return "NotMyVBucket"
 	case StatusNoBucket:
-		return "not connected to a bucket"
+		return "NoBucket"
 	case StatusAuthStale:
-		return "authentication context is stale, try re-authenticating"
+		return "AuthStale"
 	case StatusAuthError:
-		return "authentication error"
+		return "AuthError"
 	case StatusAuthContinue:
-		return "more authentication steps needed"
+		return "AuthContinue"
 	case StatusRangeError:
-		return "requested value is outside range"
+		return "RangeError"
 	case StatusAccessError:
-		return "no access"
+		return "AccessError"
 	case StatusNotInitialized:
-		return "cluster is being initialized, requests are blocked"
+		return "NotInitialized"
 	case StatusRollback:
-		return "rollback is required"
+		return "Rollback"
 	case StatusUnknownCommand:
-		return "unknown command was received"
+		return "UnknownCommand"
 	case StatusOutOfMemory:
-		return "server is out of memory"
+		return "OutOfMemory"
 	case StatusNotSupported:
-		return "server does not support this command"
+		return "NotSupported"
 	case StatusInternalError:
-		return "internal server error"
+		return "InternalError"
 	case StatusBusy:
-		return "server is busy, try again later"
+		return "Busy"
 	case StatusTmpFail:
-		return "temporary failure occurred, try again later"
+		return "TmpFail"
 	case StatusCollectionUnknown:
-		return "the requested collection cannot be found"
+		return "CollectionUnknown"
 	case StatusScopeUnknown:
-		return "the requested scope cannot be found."
+		return "ScopeUnknown"
 	case StatusDCPStreamIDInvalid:
-		return "the provided stream ID is invalid"
+		return "DCPStreamIDInvalid"
 	case StatusDurabilityInvalidLevel:
-		return "invalid request, invalid durability level specified."
+		return "DurabilityInvalidLevel"
 	case StatusDurabilityImpossible:
-		return "the requested durability requirements are impossible."
+		return "DurabilityImpossible"
 	case StatusSyncWriteInProgress:
-		return "key already has syncwrite pending."
+		return "SyncWriteInProgress"
 	case StatusSyncWriteAmbiguous:
-		return "the syncwrite request did not complete in time."
+		return "SyncWriteAmbiguous"
 	case StatusSubDocPathNotFound:
-		return "sub-document path does not exist"
+		return "SubDocPathNotFound"
 	case StatusSubDocPathMismatch:
-		return "type of element in sub-document path conflicts with type in document"
+		return "SubDocPathMismatch"
 	case StatusSubDocPathInvalid:
-		return "malformed sub-document path"
+		return "SubDocPathInvalid"
 	case StatusSubDocPathTooBig:
-		return "sub-document contains too many components"
+		return "SubDocPathTooBig"
 	case StatusSubDocDocTooDeep:
-		return "existing document contains too many levels of nesting"
+		return "SubDocDocTooDeep"
 	case StatusSubDocCantInsert:
-		return "subdocument operation would invalidate the JSON"
+		return "SubDocCantInsert"
 	case StatusSubDocNotJSON:
-		return "existing document is not valid JSON"
+		return "SubDocNotJSON"
 	case StatusSubDocBadRange:
-		return "existing numeric value is too large"
+		return "SubDocBadRange"
 	case StatusSubDocBadDelta:
-		return "numeric operation would yield a number that is too large, or " +
-			"a zero delta was specified"
+		return "SubDocBadDelta"
 	case StatusSubDocPathExists:
-		return "given path already exists in the document"
+		return "SubDocPathExists"
 	case StatusSubDocValueTooDeep:
-		return "value is too deep to insert"
+		return "SubDocValueTooDeep"
 	case StatusSubDocBadCombo:
-		return "incorrectly matched subdocument operation types"
+		return "SubDocBadCombo"
 	case StatusSubDocBadMulti:
-		return "could not execute one or more multi lookups or mutations"
+		return "SubDocBadMulti"
 	case StatusSubDocSuccessDeleted:
-		return "document is soft-deleted"
+		return "SubDocSuccessDeleted"
 	case StatusSubDocXattrInvalidFlagCombo:
-		return "invalid xattr flag combination"
+		return "SubDocXattrInvalidFlagCombo"
 	case StatusSubDocXattrInvalidKeyCombo:
-		return "invalid xattr key combination"
+		return "SubDocXattrInvalidKeyCombo"
 	case StatusSubDocXattrUnknownMacro:
-		return "unknown xattr macro"
+		return "SubDocXattrUnknownMacro"
 	case StatusSubDocXattrUnknownVAttr:
-		return "unknown xattr virtual attribute"
+		return "SubDocXattrUnknownVAttr"
 	case StatusSubDocXattrCannotModifyVAttr:
-		return "cannot modify virtual attributes"
+		return "SubDocXattrCannotModifyVAttr"
 	case StatusSubDocMultiPathFailureDeleted:
-		return "sub-document multi-path error"
-	default:
-		return fmt.Sprintf("unknown kv status code (%d)", code)
+		return "SubDocMultiPathFailureDeleted"
 	}
+
+	return "x" + hex.EncodeToString([]byte{byte(s)})
 }

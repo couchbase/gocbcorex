@@ -15,7 +15,7 @@ const (
 	OpCodeDelete                     = OpCode(0x04)
 	OpCodeIncrement                  = OpCode(0x05)
 	OpCodeDecrement                  = OpCode(0x06)
-	OpCodeNoop                       = OpCode(0x0a)
+	OpCodeNoOp                       = OpCode(0x0a)
 	OpCodeAppend                     = OpCode(0x0e)
 	OpCodePrepend                    = OpCode(0x0f)
 	OpCodeStat                       = OpCode(0x10)
@@ -40,7 +40,7 @@ const (
 	OpCodeDcpOsoSnapshot             = OpCode(0x65)
 	OpCodeDcpFlush                   = OpCode(0x5a)
 	OpCodeDcpSetVbucketState         = OpCode(0x5b)
-	OpCodeDcpNoop                    = OpCode(0x5c)
+	OpCodeDcpNoOp                    = OpCode(0x5c)
 	OpCodeDcpBufferAck               = OpCode(0x5d)
 	OpCodeDcpControl                 = OpCode(0x5e)
 	OpCodeDcpEvent                   = OpCode(0x5f)
@@ -75,132 +75,132 @@ const (
 	OpCodeGetErrorMap                = OpCode(0xfe)
 )
 
-// Name returns the string representation of the OpCode.
-func (command OpCode) Name() string {
-	switch command {
+// String returns the string representation of the OpCode.
+func (c OpCode) String() string {
+	switch c {
 	case OpCodeGet:
-		return "GET"
+		return "Get"
 	case OpCodeSet:
-		return "SET"
+		return "Set"
 	case OpCodeAdd:
-		return "ADD"
+		return "Add"
 	case OpCodeReplace:
-		return "REPLACE"
+		return "Replace"
 	case OpCodeDelete:
-		return "DELETE"
+		return "Delete"
 	case OpCodeIncrement:
-		return "INCREMENT"
+		return "Increment"
 	case OpCodeDecrement:
-		return "DECREMENT"
-	case OpCodeNoop:
-		return "NOOP"
+		return "Decrement"
+	case OpCodeNoOp:
+		return "Noop"
 	case OpCodeAppend:
-		return "APPEND"
+		return "Append"
 	case OpCodePrepend:
-		return "PREPEND"
+		return "Prepend"
 	case OpCodeStat:
-		return "STAT"
+		return "Stat"
 	case OpCodeTouch:
-		return "TOUCH"
+		return "Touch"
 	case OpCodeGAT:
 		return "GAT"
 	case OpCodeHello:
-		return "HELLO"
+		return "Hello"
 	case OpCodeSASLListMechs:
-		return "SASLLISTMECHS"
+		return "SASLListMechs"
 	case OpCodeSASLAuth:
-		return "SASLAUTH"
+		return "SASLAuth"
 	case OpCodeSASLStep:
-		return "SASLSTEP"
+		return "SASLStep"
 	case OpCodeGetAllVBSeqnos:
-		return "GETALLVBSEQNOS"
+		return "GetAllVBSeqnos"
 	case OpCodeDcpOpenConnection:
-		return "DCPOPENCONNECTION"
+		return "DcpOpenConnection"
 	case OpCodeDcpAddStream:
-		return "DCPADDSTREAM"
+		return "DcpAddStream"
 	case OpCodeDcpCloseStream:
-		return "DCPCLOSESTREAM"
+		return "DcpCloseStream"
 	case OpCodeDcpStreamReq:
-		return "DCPSTREAMREQ"
+		return "DcpStreamReq"
 	case OpCodeDcpGetFailoverLog:
-		return "DCPGETFAILOVERLOG"
+		return "DcpGetFailoverLog"
 	case OpCodeDcpStreamEnd:
-		return "DCPSTREAMEND"
+		return "DcpStreamEnd"
 	case OpCodeDcpSnapshotMarker:
-		return "DCPSNAPSHOTMARKER"
+		return "DcpSnapshotMarker"
 	case OpCodeDcpMutation:
-		return "DCPMUTATION"
+		return "DcpMutation"
 	case OpCodeDcpDeletion:
-		return "DCPDELETION"
+		return "DcpDeletion"
 	case OpCodeDcpExpiration:
-		return "DCPEXPIRATION"
+		return "DcpExpiration"
 	case OpCodeDcpFlush:
-		return "DCPFLUSH"
+		return "DcpFlush"
 	case OpCodeDcpSetVbucketState:
-		return "DCPSETVBUCKETSTATE"
-	case OpCodeDcpNoop:
-		return "DCPNOOP"
+		return "DcpSetVbucketState"
+	case OpCodeDcpNoOp:
+		return "DcpNoOp"
 	case OpCodeDcpBufferAck:
-		return "DCPBUFFERACK"
+		return "DcpBufferAck"
 	case OpCodeDcpControl:
-		return "DCPCONTROL"
+		return "DcpControl"
 	case OpCodeGetReplica:
-		return "GETREPLICA"
+		return "GetReplica"
 	case OpCodeSelectBucket:
-		return "SELECTBUCKET"
+		return "SelectBucket"
 	case OpCodeObserveSeqNo:
-		return "OBSERVESEQNO"
+		return "ObserveSeqNo"
 	case OpCodeObserve:
-		return "OBSERVE"
+		return "Observe"
 	case OpCodeGetLocked:
-		return "GET_LOCKED"
+		return "GetLocked"
 	case OpCodeUnlockKey:
-		return "UNLOCK"
+		return "UnlockKey"
 	case OpCodeGetMeta:
-		return "GET_META"
+		return "GetMeta"
 	case OpCodeSetMeta:
-		return "SET_META"
+		return "SetMeta"
 	case OpCodeDelMeta:
-		return "DEL_META"
+		return "DelMeta"
 	case OpCodeGetClusterConfig:
-		return "GETCLUSTERCONFIG"
+		return "GetClusterConfig"
 	case OpCodeGetRandom:
-		return "GETRANDOM"
+		return "GetRandom"
 	case OpCodeSubDocGet:
-		return "SUBDOCGET"
+		return "SubDocGet"
 	case OpCodeSubDocExists:
-		return "SUBDOCEXISTS"
+		return "SubDocExists"
 	case OpCodeSubDocDictAdd:
-		return "SUBDOCDICTADD"
+		return "SubDocDictAdd"
 	case OpCodeSubDocDictSet:
-		return "SUBDOCDICTSET"
+		return "SubDocDictSet"
 	case OpCodeSubDocDelete:
-		return "SUBDOCDELETE"
+		return "SubDocDelete"
 	case OpCodeSubDocReplace:
-		return "SUBDOCREPLACE"
+		return "SubDocReplace"
 	case OpCodeSubDocArrayPushLast:
-		return "SUBDOCARRAYPUSHLAST"
+		return "SubDocArrayPushLast"
 	case OpCodeSubDocArrayPushFirst:
-		return "SUBDOCARRAYPUSHFIRST"
+		return "SubDocArrayPushFirst"
 	case OpCodeSubDocArrayInsert:
-		return "SUBDOCARRAYINSERT"
+		return "SubDocArrayInsert"
 	case OpCodeSubDocArrayAddUnique:
-		return "SUBDOCARRAYADDUNIQUE"
+		return "SubDocArrayAddUnique"
 	case OpCodeSubDocCounter:
-		return "SUBDOCCOUNTER"
+		return "SubDocCounter"
 	case OpCodeSubDocMultiLookup:
-		return "SUBDOCMULTILOOKUP"
+		return "SubDocMultiLookup"
 	case OpCodeSubDocMultiMutation:
-		return "SUBDOCMULTIMUTATION"
+		return "SubDocMultiMutation"
 	case OpCodeSubDocGetCount:
-		return "SUBDOCGETCOUNT"
+		return "SubDocGetCount"
 	case OpCodeGetErrorMap:
-		return "GETERRORMAP"
+		return "GetErrorMap"
 	case OpCodeCollectionsGetID:
-		return "GETCOLLECTIONID"
+		return "CollectionsGetID"
 	case OpCodeCollectionsGetManifest:
-		return "GETCOLLECTIONMANIFEST"
-	default:
-		return "x" + hex.EncodeToString([]byte{byte(command)})
+		return "CollectionsGetManifest"
 	}
+
+	return "x" + hex.EncodeToString([]byte{byte(c)})
 }
