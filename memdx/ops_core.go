@@ -203,6 +203,9 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 				Payload:        resp.Value,
 			}, nil)
 			return false
+		} else if resp.Status == StatusAuthError {
+			cb(nil, ErrAuthError)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -245,6 +248,9 @@ func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepR
 				NeedsMoreSteps: true,
 				Payload:        resp.Value,
 			}, nil)
+			return false
+		} else if resp.Status == StatusAuthError {
+			cb(nil, ErrAuthError)
 			return false
 		}
 

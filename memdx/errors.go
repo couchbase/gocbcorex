@@ -9,6 +9,7 @@ var (
 	ErrUnknownCollectionName = errors.New("unknown collection name")
 	ErrCollectionsNotEnabled = errors.New("collections not enabled")
 	ErrDocNotFound           = errors.New("document not found")
+	ErrAuthError             = errors.New("auth error")
 )
 
 var ErrProtocol = errors.New("protocol error")
