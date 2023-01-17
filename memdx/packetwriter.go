@@ -16,7 +16,7 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 	extFramesLen := len(pak.FramingExtras)
 	extrasLen := len(pak.Extras)
 	keyLen := len(pak.Key)
-	valueLen := len(pak.Key)
+	valueLen := len(pak.Value)
 	payloadLen := extFramesLen + extrasLen + keyLen + valueLen
 	totalLen := 24 + payloadLen
 
