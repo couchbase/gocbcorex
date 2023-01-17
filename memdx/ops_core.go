@@ -11,7 +11,7 @@ type OpsCore struct {
 
 func (o OpsCore) decodeError(resp *Packet) error {
 	// TODO(brett19): Do better...
-	return errors.New("generic error: " + resp.Status.String())
+	return errors.New("generic error with status: " + resp.Status.String())
 }
 
 type HelloRequest struct {
@@ -63,10 +63,18 @@ func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, 
 	})
 }
 
-func (o OpsCore) GetErrorMap(d Dispatcher, cb func([]byte, error)) error {
+type GetErrorMapRequest struct {
+	Version uint16
+}
+
+func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]byte, error)) error {
+	valueBuf := make([]byte, 2)
+	binary.BigEndian.PutUint16(valueBuf[0:], req.Version)
+
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeGetErrorMap,
+		Value:  valueBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
