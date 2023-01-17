@@ -1,6 +1,8 @@
 package memdx
 
-import "errors"
+import (
+	"errors"
+)
 
 type OpSaslAuthPlain struct {
 	Username string
@@ -20,6 +22,11 @@ func (a OpSaslAuthPlain) Authenticate(d Dispatcher, cb func(err error)) {
 		Mechanism: "PLAIN",
 		Payload:   authData,
 	}, func(resp *SASLAuthResponse, err error) {
+		if err != nil {
+			cb(err)
+			return
+		}
+
 		if resp.NeedsMoreSteps {
 			cb(errors.New("unexpected PLAIN auth step request"))
 			return
