@@ -15,11 +15,11 @@ type OpSaslAuthAuto struct {
 	// authentication.  Earlier entries in the array are selected with higher
 	// priority then later entries, with the first entry being unambiguously
 	// attempted for non-blocking authentication.
-	EnabledMechs []string
+	EnabledMechs []AuthMechanism
 }
 
 func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
-	var serverMechs []string
+	var serverMechs []AuthMechanism
 
 	if len(a.EnabledMechs) == 0 {
 		// TODO(brett19): Enhance this error with more details
@@ -62,7 +62,7 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(er
 			}
 
 			foundCompatibleMech := false
-			selectedMech := ""
+			var selectedMech AuthMechanism
 			for _, mech := range a.EnabledMechs {
 				if slices.Contains(serverMechs, mech) {
 					foundCompatibleMech = true

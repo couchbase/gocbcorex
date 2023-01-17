@@ -147,7 +147,7 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(er
 }
 
 type SASLListMechsResponse struct {
-	AvailableMechs []string
+	AvailableMechs []AuthMechanism
 }
 
 func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, error)) error {
@@ -166,7 +166,11 @@ func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, err
 		}
 
 		mechsList := string(resp.Value)
-		mechsArr := strings.Split(mechsList, " ")
+		mechsStrArr := strings.Split(mechsList, " ")
+		mechsArr := make([]AuthMechanism, len(mechsStrArr))
+		for i, mech := range mechsStrArr {
+			mechsArr[i] = AuthMechanism(mech)
+		}
 
 		cb(&SASLListMechsResponse{
 			AvailableMechs: mechsArr,
@@ -176,7 +180,7 @@ func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, err
 }
 
 type SASLAuthRequest struct {
-	Mechanism string
+	Mechanism AuthMechanism
 	Payload   []byte
 }
 
@@ -222,7 +226,7 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 }
 
 type SASLStepRequest struct {
-	Mechanism string
+	Mechanism AuthMechanism
 	Payload   []byte
 }
 

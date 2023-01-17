@@ -15,14 +15,14 @@ type OpSaslAuthScram struct {
 }
 
 func (a OpSaslAuthScram) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
-	mechName := ""
+	var mechName AuthMechanism
 	switch a.Hash {
 	case crypto.SHA1:
-		mechName = "SCRAM-SHA1"
+		mechName = ScramSha1AuthMechanism
 	case crypto.SHA256:
-		mechName = "SCRAM-SHA256"
+		mechName = ScramSha256AuthMechanism
 	case crypto.SHA512:
-		mechName = "SCRAM-SHA512"
+		mechName = ScramSha512AuthMechanism
 	}
 	if mechName == "" {
 		cb(errors.New("unsupported hash type: " + a.Hash.String()))

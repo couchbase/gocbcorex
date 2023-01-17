@@ -6,30 +6,30 @@ import (
 )
 
 type OpSaslAuthByName struct {
-	Mechanism string
+	Mechanism AuthMechanism
 	Username  string
 	Password  string
 }
 
 func (a OpSaslAuthByName) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
-	if a.Mechanism == "PLAIN" {
+	if a.Mechanism == PlainAuthMechanism {
 		OpSaslAuthPlain{
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, pipelineCb, cb)
-	} else if a.Mechanism == "SCRAM-SHA1" {
+	} else if a.Mechanism == ScramSha1AuthMechanism {
 		OpSaslAuthScram{
 			Hash:     crypto.SHA1,
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, pipelineCb, cb)
-	} else if a.Mechanism == "SCRAM-SHA256" {
+	} else if a.Mechanism == ScramSha256AuthMechanism {
 		OpSaslAuthScram{
 			Hash:     crypto.SHA256,
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, pipelineCb, cb)
-	} else if a.Mechanism == "SCRAM-SHA512" {
+	} else if a.Mechanism == ScramSha512AuthMechanism {
 		OpSaslAuthScram{
 			Hash:     crypto.SHA512,
 			Username: a.Username,

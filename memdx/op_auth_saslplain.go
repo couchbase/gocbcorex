@@ -19,7 +19,7 @@ func (a OpSaslAuthPlain) Authenticate(d Dispatcher, pipelineCb func(), cb func(e
 	copy(authData[1+len(userBuf)+1:], passBuf)
 
 	OpsCore{}.SASLAuth(d, &SASLAuthRequest{
-		Mechanism: "PLAIN",
+		Mechanism: PlainAuthMechanism,
 		Payload:   authData,
 	}, func(resp *SASLAuthResponse, err error) {
 		if err != nil {
