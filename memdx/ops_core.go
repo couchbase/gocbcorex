@@ -91,15 +91,12 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]by
 	})
 }
 
-type GetClusterConfigRequest struct {
-	BucketName []byte
-}
+type GetClusterConfigRequest struct{}
 
 func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func([]byte, error)) error {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeGetClusterConfig,
-		Key:    req.BucketName,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
