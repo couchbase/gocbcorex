@@ -35,6 +35,8 @@ func (a OpSaslAuthByName) Authenticate(d Dispatcher, cb func(err error)) {
 			Username: a.Username,
 			Password: a.Password,
 		}.Authenticate(d, cb)
+	} else if a.Mechanism == "INVALID" {
+		OpSaslAuthInvalid{}.Authenticate(d, cb)
 	} else {
 		// TODO(brett19): Add better error information here
 		cb(errors.New("unsupported mechanism"))
