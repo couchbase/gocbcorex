@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/tls"
+	"golang.org/x/exp/slices"
 	"sync/atomic"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
@@ -119,12 +120,7 @@ func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
 }
 
 func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
-	for _, feature := range c.supportedFeatures {
-		if feature == feat {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.supportedFeatures, feat)
 }
 
 func (c *kvClient) Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error {
