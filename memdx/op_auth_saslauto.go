@@ -2,6 +2,7 @@ package memdx
 
 import (
 	"errors"
+	"log"
 	"sync"
 
 	"golang.org/x/exp/slices"
@@ -18,9 +19,8 @@ type OpSaslAuthAuto struct {
 	EnabledMechs []string
 }
 
-func (a *OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
+func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 	var mechsWaitGroup sync.WaitGroup
-	var mechsListErr error
 	var serverMechs []string
 
 	if len(a.EnabledMechs) == 0 {
@@ -32,7 +32,7 @@ func (a *OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 	mechsWaitGroup.Add(1)
 	OpsCore{}.SASLListMechs(d, func(resp *SASLListMechsResponse, err error) {
 		if err != nil {
-			mechsListErr = err
+			log.Printf("failed to list available authentication mechanisms: %s", err)
 			mechsWaitGroup.Done()
 			return
 		}
@@ -41,49 +41,53 @@ func (a *OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 		mechsWaitGroup.Done()
 	})
 
+	// the default mech is the first one in the list
+	defaultMech := a.EnabledMechs[0]
+
 	OpSaslAuthByName{
-		Mechanism: a.EnabledMechs[0],
+		Mechanism: defaultMech,
 		Username:  a.Username,
 		Password:  a.Password,
 	}.Authenticate(d, func(err error) {
 		if err != nil {
-			// TODO(brett19): Implement proper checking of these
-			isInvalidMechanismError := false
-			if isInvalidMechanismError {
-				mechsWaitGroup.Wait()
+			// TODO(brett19): We should investigate invalid mechanism error handling.
+			// There was no obvious way to differentiate between a mechanism being unsupported
+			// and the credentials being wrong.  So for now we just assume any error should be
+			// ignored if our list-mechs doesn't include it.
 
-				// if we failed to list the mechanisms that are available,
-				// return that error directly for easier debugging.
-				if mechsListErr != nil {
-					cb(mechsListErr)
-					return
-				}
+			// wait to ensure the list-mechs call has completed
+			mechsWaitGroup.Wait()
 
-				foundCompatibleMech := false
-				selectedMech := ""
-				for _, mech := range a.EnabledMechs {
-					if slices.Contains(serverMechs, mech) {
-						foundCompatibleMech = true
-						selectedMech = mech
-						break
-					}
-				}
-
-				if !foundCompatibleMech {
-					// TODO(brett19): Enhance this error with more information
-					cb(errors.New("no compatible mechanism was found"))
-				}
-
-				OpSaslAuthByName{
-					Mechanism: selectedMech,
-					Username:  a.Username,
-					Password:  a.Password,
-				}.Authenticate(d, cb)
-				return
-			} else {
+			// if we support the default mech, it means this error is 'real', otherwise we try
+			// with one of the mechanisms that we now know are supported
+			supportsDefaultMech := slices.Contains(serverMechs, defaultMech)
+			if supportsDefaultMech {
 				cb(err)
 				return
 			}
+
+			foundCompatibleMech := false
+			selectedMech := ""
+			for _, mech := range a.EnabledMechs {
+				if slices.Contains(serverMechs, mech) {
+					foundCompatibleMech = true
+					selectedMech = mech
+					break
+				}
+			}
+
+			if !foundCompatibleMech {
+				// TODO(brett19): Enhance this error with more information
+				cb(errors.New("no compatible mechanism was found"))
+				return
+			}
+
+			OpSaslAuthByName{
+				Mechanism: selectedMech,
+				Username:  a.Username,
+				Password:  a.Password,
+			}.Authenticate(d, cb)
+			return
 		}
 
 		cb(nil)
