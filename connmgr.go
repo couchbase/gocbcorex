@@ -6,11 +6,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type ConnExecuteHandler func(*KvClient, error) error
+type ConnExecuteHandler func(KvClient, error) error
 
 type ConnectionManager interface {
 	UpdateEndpoints(endpoints []string) error
-
 	Execute(endpoint string, handler ConnExecuteHandler) error
 }
 

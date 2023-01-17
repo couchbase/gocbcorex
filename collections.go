@@ -1,8 +1,7 @@
 package core
 
 import (
-	"encoding/binary"
-	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/stellar-nebula/core/memdx"
 	"sync"
 )
 
@@ -49,14 +48,14 @@ type perCidAwaitingDispatchItem struct {
 
 type perCidCollectionResolver struct {
 	manifest   AtomicPointer[collectionsManifest]
-	dispatcher ServerDispatcher
+	dispatcher ConnectionManager
 
 	// TODO: This isn't the correct data structure.
 	awaitingDispatch     map[string]*perCidAwaitingDispatchItem
 	awaitingDispatchLock sync.Mutex
 }
 
-func newCollectionResolver(dispatcher ServerDispatcher) *perCidCollectionResolver {
+func newCollectionResolver(dispatcher ConnectionManager) *perCidCollectionResolver {
 	manifest := &collectionsManifest{
 		collections: make(map[string]*collectionsManifestEntry),
 	}
@@ -77,13 +76,14 @@ func (cr *perCidCollectionResolver) storeManifest(old, new *collectionsManifest)
 	return cr.manifest.CompareAndSwap(old, new)
 }
 
-func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key string, packet *memd.Packet) {
-	cr.dispatcher.DispatchToServer(ctx, endpoint, packet, func(resp *memd.Packet, err error) {
+func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key, scope, collection string) {
+	cr.dispatcher.Execute(endpoint, func(client KvClient, err error) error {
+		// TODO: DRY up or reconsider this error handling.
 		if err != nil {
 			cr.awaitingDispatchLock.Lock()
 			pending, ok := cr.awaitingDispatch[key]
 			if !ok {
-				return
+				return nil
 			}
 
 			for _, cb := range pending.callbacks {
@@ -91,59 +91,76 @@ func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key 
 			}
 			delete(cr.awaitingDispatch, key)
 			cr.awaitingDispatchLock.Unlock()
-			return
+			return nil
 		}
 
-		// Pull the details out of the packet.
-		manifestRev := binary.BigEndian.Uint64(resp.Extras[0:])
-		collectionID := binary.BigEndian.Uint32(resp.Extras[8:])
+		return memdx.OpsUtils{
+			ExtFramesEnabled: true, // TODO: ?
+		}.GetCollectionID(client, &memdx.GetCollectionIDRequest{
+			ScopeName:      scope,
+			CollectionName: collection,
+		}, func(resp *memdx.GetCollectionIDResponse, err error) {
+			if err != nil {
+				cr.awaitingDispatchLock.Lock()
+				pending, ok := cr.awaitingDispatch[key]
+				if !ok {
+					return
+				}
 
-		// Repeatedly try to apply the manifest in case someone else added or removed a cid whilst we've tried to
-		// update.
-		for {
-			manifest := cr.loadManifest()
-
-			// Create a new manifest containing all the old entries and the new one.
-			manifestCollections := make(map[string]*collectionsManifestEntry, len(manifest.collections)-1)
-			for k, cols := range manifest.collections {
-				manifestCollections[k] = cols
-			}
-			manifestCollections[key] = &collectionsManifestEntry{
-				cid: collectionID,
-				rev: manifestRev,
-			}
-
-			newManifest := &collectionsManifest{
-				collections: manifestCollections,
+				for _, cb := range pending.callbacks {
+					cb.callback(0, 0, err)
+				}
+				delete(cr.awaitingDispatch, key)
+				cr.awaitingDispatchLock.Unlock()
+				return
 			}
 
-			if cr.storeManifest(manifest, newManifest) {
-				break
-			}
-		}
+			// Repeatedly try to apply the manifest in case someone else added or removed a cid whilst we've tried to
+			// update.
+			for {
+				manifest := cr.loadManifest()
 
-		cr.awaitingDispatchLock.Lock()
-		pending, ok := cr.awaitingDispatch[key]
-		if !ok {
+				// Create a new manifest containing all the old entries and the new one.
+				manifestCollections := make(map[string]*collectionsManifestEntry, len(manifest.collections)-1)
+				for k, cols := range manifest.collections {
+					manifestCollections[k] = cols
+				}
+				manifestCollections[key] = &collectionsManifestEntry{
+					cid: resp.CollectionID,
+					rev: resp.ManifestID,
+				}
+
+				newManifest := &collectionsManifest{
+					collections: manifestCollections,
+				}
+
+				if cr.storeManifest(manifest, newManifest) {
+					break
+				}
+			}
+
+			cr.awaitingDispatchLock.Lock()
+			pending, ok := cr.awaitingDispatch[key]
+			if !ok {
+				cr.awaitingDispatchLock.Unlock()
+				// This might be possible depending on how request cancellation works.
+				return
+			}
+			delete(cr.awaitingDispatch, key)
 			cr.awaitingDispatchLock.Unlock()
-			// This might be possible depending on how request cancellation works.
-			return
-		}
-		delete(cr.awaitingDispatch, key)
-		cr.awaitingDispatchLock.Unlock()
 
-		pending.lock.Lock()
-		callbacks := make([]ResolveCollectionIDCallback, len(pending.callbacks))
-		for i, cb := range pending.callbacks {
-			callbacks[i] = cb.callback
-		}
-		pending.callbacks = nil
-		pending.lock.Unlock()
+			pending.lock.Lock()
+			callbacks := make([]ResolveCollectionIDCallback, len(pending.callbacks))
+			for i, cb := range pending.callbacks {
+				callbacks[i] = cb.callback
+			}
+			pending.callbacks = nil
+			pending.lock.Unlock()
 
-		for _, cb := range callbacks {
-			cb(collectionID, manifestRev, nil)
-		}
-
+			for _, cb := range callbacks {
+				cb(resp.CollectionID, resp.ManifestID, nil)
+			}
+		})
 	})
 }
 
@@ -224,17 +241,7 @@ func (cr *perCidCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpo
 	}
 
 	// The collection is completely unknown, so we need to go to the server and see if it exists.
-	packet := &memd.Packet{
-		Magic:    memd.CmdMagicReq,
-		Command:  memd.CmdCollectionsGetID,
-		Datatype: 0,
-		Cas:      0,
-		Extras:   nil,
-		Key:      nil,
-		Value:    []byte(key),
-	}
-
-	cr.refreshCid(pending.ctx, endpoint, key, packet)
+	cr.refreshCid(pending.ctx, endpoint, key, scopeName, collectionName)
 }
 
 func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, newManifestRev uint64) {

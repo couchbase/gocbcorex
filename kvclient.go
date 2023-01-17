@@ -7,12 +7,10 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
-type PacketHandler func(resp *memdx.Packet, err error) bool
-
 type KvClient interface {
 	HasFeature(feat memd.HelloFeature) bool
 
-	Dispatch(req *memdx.Packet, handler PacketHandler) error
+	Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error
 	Close() error
 
 	LoadFactor() float64
@@ -46,7 +44,7 @@ func (c *kvClient) HasFeature(feat memd.HelloFeature) bool {
 	return false
 }
 
-func (c *kvClient) Dispatch(req *memdx.Packet, handler PacketHandler) error {
+func (c *kvClient) Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error {
 	return nil
 }
 

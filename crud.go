@@ -2,15 +2,15 @@ package core
 
 import (
 	"errors"
-	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 type CrudComponent struct {
 	collections   CollectionResolver
 	vbuckets      VbucketDispatcher
-	serverRouter  ServerDispatcher
 	retries       RetryComponent
 	errorResolver PacketResolver
+	connManager   ConnectionManager
 }
 
 type GetOptions struct {
@@ -20,6 +20,10 @@ type GetOptions struct {
 }
 
 type GetResult struct {
+	Value    []byte
+	Flags    uint32
+	Datatype uint8
+	Cas      uint64
 }
 
 func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetResult, error)) error {
@@ -41,29 +45,44 @@ func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetRes
 				return
 			}
 
-			packet := &memd.Packet{
-				Key:          encodeCidIntoKey(opts.Key, cid),
-				CollectionID: cid,
-			}
-
-			cc.serverRouter.DispatchToServer(ctx, endpoint, packet, func(resp *memd.Packet, err error) {
+			err = cc.connManager.Execute(endpoint, func(client KvClient, err error) error {
 				if err != nil {
 					retry(err)
-					return
+					return nil
 				}
 
-				err = cc.errorResolver.ResolvePacket(resp)
-				if err != nil {
-					var collectionNotFoundError CollectionNotFoundError
-					if errors.As(err, &collectionNotFoundError) {
-						cc.collections.InvalidateCollectionID(ctx, opts.ScopeName, opts.CollectionName, endpoint, collectionNotFoundError.ManifestUid)
+				return memdx.OpsCrud{
+					CollectionsEnabled: true, // TODO: update to reflect the truth
+				}.Get(client, &memdx.GetRequest{
+					CollectionID: cid,
+					Key:          opts.Key,
+				}, func(resp *memdx.GetResponse, err error) {
+					// if err != nil {
+					// 	retry(err)
+					// 	return
+					// }
+					// err = cc.errorResolver.ResolvePacket(resp)
+					if err != nil {
+						var collectionNotFoundError CollectionNotFoundError
+						if errors.As(err, &collectionNotFoundError) {
+							cc.collections.InvalidateCollectionID(ctx, opts.ScopeName, opts.CollectionName, endpoint, collectionNotFoundError.ManifestUid)
+						}
+						retry(err)
+						return
 					}
-					retry(err)
-					return
-				}
 
-				cb(&GetResult{}, nil)
+					cb(&GetResult{
+						Value:    resp.Value,
+						Flags:    resp.Flags,
+						Datatype: resp.Datatype,
+						Cas:      resp.Cas,
+					}, nil)
+				})
 			})
+			if err != nil {
+				retry(err)
+				return
+			}
 		})
 	})
 }

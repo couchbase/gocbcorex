@@ -6,11 +6,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/couchbase/stellar-nebula/core/memdx"
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	"github.com/couchbase/gocbcore/v10/memd"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,25 +24,29 @@ func TestCollectionsManagerQueueMultipleCallbacksOneCollection(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
-				cb(pk, nil)
+				handler(pk, nil)
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 
 	resolver := newCollectionResolver(router)
@@ -75,30 +79,34 @@ func TestCollectionsManagerQueueMultipleCallbacksNCollections(t *testing.T) {
 	fqCollectionName1 := []byte(fmt.Sprintf("%s.%s", scope1, collection1))
 	fqCollectionName2 := []byte(fmt.Sprintf("%s.%s", scope2, collection2))
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID {
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID {
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
-				if bytes.Equal(pak.Value, fqCollectionName1) {
+				if bytes.Equal(req.Value, fqCollectionName1) {
 					binary.BigEndian.PutUint32(pk.Extras[8:], cid1)
-				} else if bytes.Equal(pak.Value, fqCollectionName2) {
+				} else if bytes.Equal(req.Value, fqCollectionName2) {
 					binary.BigEndian.PutUint32(pk.Extras[8:], cid2)
 				}
 
-				cb(pk, nil)
+				handler(pk, nil)
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	resolver := newCollectionResolver(router)
 
@@ -132,20 +140,24 @@ func TestCollectionsManagerDispatchErrors(t *testing.T) {
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	cbErr := errors.New("some error")
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
-				cb(nil, cbErr)
+			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
+				handler(nil, cbErr)
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	resolver := newCollectionResolver(router)
 
@@ -169,12 +181,16 @@ func TestCollectionsManagerKnownCollection(t *testing.T) {
 	scope := uuid.NewString()
 	collection := uuid.NewString()
 	fqCollectionName := fmt.Sprintf("%s.%s", scope, collection)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		t.Error("Test should not have triggered a request")
-		cb(nil, errors.New("bad"))
+		handler(nil, errors.New("bad"))
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	resolver := newCollectionResolver(router)
 	manifest := &collectionsManifest{
@@ -204,26 +220,30 @@ func TestCollectionsManagerUnknownCollectionNewerManifestRev(t *testing.T) {
 	cid := uint32(15)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
-				assert.Equal(t, "endpoint1", endpoint)
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
+				// assert.Equal(t, "endpoint1", endpoint)
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
-				cb(pk, nil)
+				handler(pk, nil)
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	resolver := newCollectionResolver(router)
 	manifest := &collectionsManifest{
@@ -257,14 +277,18 @@ func TestCollectionsManagerUnknownCollectionOlderManifestRev(t *testing.T) {
 	collection := uuid.NewString()
 	scope := uuid.NewString()
 	fqCollectionName := fmt.Sprintf("%s.%s", scope, collection)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			t.Error("Should not have reached here")
-			cb(nil, errors.New("nope"))
+			handler(nil, errors.New("nope"))
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	resolver := newCollectionResolver(router)
 	manifest := &collectionsManifest{
@@ -290,14 +314,18 @@ func TestCollectionsManagerUnknownCollectionSameManifestRev(t *testing.T) {
 	collection := uuid.NewString()
 	scope := uuid.NewString()
 	fqCollectionName := fmt.Sprintf("%s.%s", scope, collection)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			t.Error("Should not have reached here")
-			cb(nil, errors.New("nope"))
+			handler(nil, errors.New("nope"))
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	resolver := newCollectionResolver(router)
 	manifest := &collectionsManifest{
@@ -320,18 +348,22 @@ func TestCollectionsManagerCancelContext(t *testing.T) {
 	collection := uuid.NewString()
 	scope := uuid.NewString()
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		called++
-		pk := &memd.Packet{
+		pk := &memdx.Packet{
 			Extras: make([]byte, 12),
 		}
 		binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 		binary.BigEndian.PutUint32(pk.Extras[8:], 7)
 
-		cb(pk, nil)
+		handler(pk, nil)
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 
 	resolver := newCollectionResolver(router)
@@ -356,25 +388,29 @@ func TestCollectionsManagerCancelContextMultipleOps(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
-				cb(pk, nil)
+				handler(pk, nil)
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 
 	resolver := newCollectionResolver(router)
@@ -421,26 +457,30 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{}, 1)
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
-				cb(pk, nil)
+				handler(pk, nil)
 				blockCh <- struct{}{}
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 
 	resolver := newCollectionResolver(router)
@@ -472,26 +512,30 @@ func TestCollectionsManagerInvalidateTwice(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{})
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
-			if pak.Command == memd.CmdCollectionsGetID && bytes.Equal(pak.Value, fqCollectionName) {
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
 				blockCh <- struct{}{}
-				cb(pk, nil)
+				handler(pk, nil)
 				return
 			}
 
 			t.Error("Should not have reached here")
 		}()
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 
 	resolver := newCollectionResolver(router)

@@ -5,10 +5,10 @@ import "context"
 type SNAgent struct {
 	bucket string
 
-	poller           ConfigPoller
-	configMgr        ConfigManager
-	vbuckets         VbucketDispatcher
-	serverDispatcher ServerDispatcher
+	poller    ConfigPoller
+	configMgr ConfigManager
+	vbuckets  VbucketDispatcher
+	connMgr   ConnectionManager
 }
 
 func Connect() *SNAgent {
@@ -39,6 +39,6 @@ func (agent *SNAgent) WatchConfigs() {
 			vbmap:      routeCfg.vbMap,
 			serverList: serverList,
 		})
-		agent.serverDispatcher.ApplyEndpoints(serverList)
+		agent.connMgr.UpdateEndpoints(serverList)
 	}
 }

@@ -1,11 +1,9 @@
 package core
 
 import (
-	"errors"
 	"net"
 
 	"github.com/couchbase/gocbcore/v10/memd"
-	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 type PacketType uint
@@ -43,21 +41,23 @@ type memdRawClient struct {
 }
 
 func (c *memdBaseClient) WritePacket(pak *memdRawPacket) error {
-	if pak.PacketType == PacketTypeReq {
-		if len(pak.FramingExtras) > 0 {
-			magic := memdx.MagicReqExt
-		} else {
-			magic := memdx.MagicReq
-		}
-	} else if pak.PacketType == PacketTypeRes {
-		if len(pak.FramingExtras) > 0 {
-			magic := memdx.MagicResExt
-		} else {
-			magic := memdx.MagicRes
-		}
-	} else {
-		return errors.New("invalid packet type")
-	}
+	// if pak.PacketType == PacketTypeReq {
+	// 	if len(pak.FramingExtras) > 0 {
+	// 		magic := memdx.MagicReqExt
+	// 	} else {
+	// 		magic := memdx.MagicReq
+	// 	}
+	// } else if pak.PacketType == PacketTypeRes {
+	// 	if len(pak.FramingExtras) > 0 {
+	// 		magic := memdx.MagicResExt
+	// 	} else {
+	// 		magic := memdx.MagicRes
+	// 	}
+	// } else {
+	// 	return errors.New("invalid packet type")
+	// }
+
+	return nil
 }
 
 func (c *memdBaseClient) ReadPacket(pak *memdRawPacket) error {

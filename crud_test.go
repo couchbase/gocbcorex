@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/couchbase/stellar-nebula/core/memdx"
 	"testing"
 	"time"
 
@@ -28,16 +29,37 @@ func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16
 func (f *fakeVBucketDispatcher) StoreVbucketRoutingInfo(info *vbucketRoutingInfo) {
 }
 
-type fakeServerDispatcher struct {
-	onCall func(*memd.Packet, string, func(*memd.Packet, error))
+type fakeKvClient struct {
+	onCall func(*memdx.Packet, memdx.DispatchCallback) error
 }
 
-func (f *fakeServerDispatcher) DispatchToServer(ctx *AsyncContext, endpoint string, pak *memd.Packet, cb func(*memd.Packet, error)) error {
-	f.onCall(pak, endpoint, cb)
+func (cli *fakeKvClient) HasFeature(feat memd.HelloFeature) bool {
+	return true
+}
+
+func (cli *fakeKvClient) Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	return cli.onCall(req, handler)
+}
+
+func (cli *fakeKvClient) Close() error {
 	return nil
 }
 
-func (f *fakeServerDispatcher) ApplyEndpoints(serverList []string) {
+func (cli *fakeKvClient) LoadFactor() float64 {
+	return 1.0
+}
+
+type fakeConnManager struct {
+	cli KvClient
+	err error
+}
+
+func (f *fakeConnManager) Execute(endpoint string, handler ConnExecuteHandler) error {
+	return handler(f.cli, f.err)
+}
+
+func (f *fakeConnManager) UpdateEndpoints(serverList []string) error {
+	return nil
 }
 
 type fakeCollectionResolver struct {
@@ -84,18 +106,22 @@ func TestAThing(t *testing.T) {
 	t.SkipNow()
 
 	var called int
-	routerCb := func(_pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		time.AfterFunc(0, func() {
 			if called == 3 {
-				cb(&memd.Packet{}, nil)
+				handler(&memdx.Packet{}, nil)
 				return
 			}
 			called++
-			cb(nil, errors.New("rar"))
+			handler(nil, errors.New("rar"))
 		})
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	crud := &CrudComponent{
 		collections: &fakeCollectionResolver{
@@ -104,7 +130,7 @@ func TestAThing(t *testing.T) {
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter:  router,
+		connManager:   router,
 		retries:       newRetryComponent(),
 		errorResolver: &fakePacketResolver{},
 	}
@@ -125,17 +151,21 @@ func TestCancellingAThing(t *testing.T) {
 	ctx := &AsyncContext{}
 
 	var called int
-	routerCb := func(_pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		time.AfterFunc(0, func() {
 			if called == 3 {
 				ctx.Cancel()
 			}
 			called++
-			cb(nil, errors.New("rar"))
+			handler(nil, errors.New("rar"))
 		})
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	crud := &CrudComponent{
 		collections: &fakeCollectionResolver{
@@ -144,7 +174,7 @@ func TestCancellingAThing(t *testing.T) {
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter:  router,
+		connManager:   router,
 		retries:       newRetryComponent(),
 		errorResolver: &fakePacketResolver{},
 	}
@@ -161,31 +191,44 @@ func TestCancellingAThing(t *testing.T) {
 
 func TestCollectionUnknownStandardResolver(t *testing.T) {
 	var called int
-	routerCb := func(pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		time.AfterFunc(0, func() {
 			called++
-			if pak.Command == memd.CmdCollectionsGetID {
-				pk := &memd.Packet{
+			if req.OpCode == memdx.OpCodeCollectionsGetID {
+				pk := &memdx.Packet{
 					Extras: make([]byte, 12),
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], 9)
-				cb(pk, nil)
+				handler(pk, nil)
+				return
+			} else if req.OpCode == memdx.OpCodeGet {
+				pk := &memdx.Packet{
+					Extras: make([]byte, 4),
+					Value:  []byte("value"),
+				}
+				binary.BigEndian.PutUint32(pk.Extras[0:], 1)
+				handler(pk, nil)
 				return
 			}
 
-			cb(&memd.Packet{Value: []byte("value")}, nil)
+			handler(nil, errors.New("test should not have reached here"))
 		})
+
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
+	}
+	router := &fakeConnManager{
+		cli: client,
 	}
 	crud := &CrudComponent{
 		collections: newCollectionResolver(router),
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter:  router,
+		connManager:   router,
 		retries:       newRetryComponent(),
 		errorResolver: &fakePacketResolver{},
 	}
@@ -203,17 +246,22 @@ func TestCollectionUnknownStandardResolver(t *testing.T) {
 func TestResolvingPacketWithError(t *testing.T) {
 	ctx := &AsyncContext{}
 
-	routerCb := func(_pak *memd.Packet, endpoint string, cb func(*memd.Packet, error)) {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
 		time.AfterFunc(0, func() {
-			cb(&memd.Packet{
+			handler(&memdx.Packet{
 				Status: 1,
 			}, nil)
 		})
+
+		return nil
 	}
-	router := &fakeServerDispatcher{
-		onCall: routerCb,
+	client := &fakeKvClient{
+		onCall: cliCb,
 	}
-	expectedErr := errors.New("some error")
+	router := &fakeConnManager{
+		cli: client,
+	}
+	expectedErr := memdx.ErrDocNotFound
 	crud := &CrudComponent{
 		collections: &fakeCollectionResolver{
 			cid: 7,
@@ -221,8 +269,8 @@ func TestResolvingPacketWithError(t *testing.T) {
 		vbuckets: &fakeVBucketDispatcher{
 			endpoint: "anendpoint",
 		},
-		serverRouter: router,
-		retries:      &fakeRetryOrch{},
+		connManager: router,
+		retries:     &fakeRetryOrch{},
 		errorResolver: &fakePacketResolver{
 			err: expectedErr,
 		},
