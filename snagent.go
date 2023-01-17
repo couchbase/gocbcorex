@@ -20,21 +20,21 @@ func Connect() *SNAgent {
 }
 
 func (agent *SNAgent) WatchConfigs() {
-	configCh, err := agent.poller.Watch(context.Background(), agent.bucket) // TODO: this context probably needs to be linked with agent shutdown
+	configCh, err := agent.poller.Watch(context.Background()) // TODO: this context probably needs to be linked with agent shutdown
 	if err != nil {
 		// TODO: Errr, panic?
 		return
 	}
 
 	for config := range configCh {
-		routeCfg, configOK := agent.configMgr.ApplyConfig(config)
+		routeCfg, configOK := agent.configMgr.ApplyConfig(config.SourceHostname, config.Config)
 		if !configOK {
 			// Either the config is invalid or the config manager has already seen a config with an equal
 			// or newer revision, so we wait for the next config.
 			continue
 		}
 
-		serverList := routeCfg.kvServerList.SSLEndpoints // TODO: pick endpoints based on TLS config
+		serverList := routeCfg.kvServerList.NonSSLEndpoints // TODO: pick endpoints based on TLS config
 		agent.vbuckets.StoreVbucketRoutingInfo(&vbucketRoutingInfo{
 			vbmap:      routeCfg.vbMap,
 			serverList: serverList,
