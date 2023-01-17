@@ -18,7 +18,7 @@ type OpSaslAuthAuto struct {
 	EnabledMechs []string
 }
 
-func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
+func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
 	var serverMechs []string
 
 	if len(a.EnabledMechs) == 0 {
@@ -46,7 +46,7 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 		Mechanism: defaultMech,
 		Username:  a.Username,
 		Password:  a.Password,
-	}.Authenticate(d, func(err error) {
+	}.Authenticate(d, pipelineCb, func(err error) {
 		if err != nil {
 			// TODO(brett19): We should investigate invalid mechanism error handling.
 			// There was no obvious way to differentiate between a mechanism being unsupported
@@ -81,7 +81,7 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 				Mechanism: selectedMech,
 				Username:  a.Username,
 				Password:  a.Password,
-			}.Authenticate(d, cb)
+			}.Authenticate(d, pipelineCb, cb)
 			return
 		}
 

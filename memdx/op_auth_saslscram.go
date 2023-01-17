@@ -14,7 +14,7 @@ type OpSaslAuthScram struct {
 	Password string
 }
 
-func (a OpSaslAuthScram) Authenticate(d Dispatcher, cb func(err error)) {
+func (a OpSaslAuthScram) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
 	mechName := ""
 	switch a.Hash {
 	case crypto.SHA1:
@@ -74,5 +74,9 @@ func (a OpSaslAuthScram) Authenticate(d Dispatcher, cb func(err error)) {
 
 			cb(nil)
 		})
+
+		if pipelineCb != nil {
+			pipelineCb()
+		}
 	})
 }

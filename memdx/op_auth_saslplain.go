@@ -9,7 +9,7 @@ type OpSaslAuthPlain struct {
 	Password string
 }
 
-func (a OpSaslAuthPlain) Authenticate(d Dispatcher, cb func(err error)) {
+func (a OpSaslAuthPlain) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
 	userBuf := []byte(a.Username)
 	passBuf := []byte(a.Password)
 	authData := make([]byte, 1+len(userBuf)+1+len(passBuf))
@@ -34,4 +34,8 @@ func (a OpSaslAuthPlain) Authenticate(d Dispatcher, cb func(err error)) {
 
 		cb(err)
 	})
+
+	if pipelineCb != nil {
+		pipelineCb()
+	}
 }

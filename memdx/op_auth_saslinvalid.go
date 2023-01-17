@@ -5,11 +5,15 @@ package memdx
 type OpSaslAuthInvalid struct {
 }
 
-func (a OpSaslAuthInvalid) Authenticate(d Dispatcher, cb func(err error)) {
+func (a OpSaslAuthInvalid) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
 	OpsCore{}.SASLAuth(d, &SASLAuthRequest{
 		Mechanism: "INVALID",
 		Payload:   []byte{0, 'a', 'b', 'c', 0, 'a', 'b', 'c'},
 	}, func(resp *SASLAuthResponse, err error) {
 		cb(err)
 	})
+
+	if pipelineCb != nil {
+		pipelineCb()
+	}
 }
