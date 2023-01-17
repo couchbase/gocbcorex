@@ -3,7 +3,6 @@ package memdx
 import (
 	"errors"
 	"log"
-	"sync"
 
 	"golang.org/x/exp/slices"
 )
@@ -20,7 +19,6 @@ type OpSaslAuthAuto struct {
 }
 
 func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
-	var mechsWaitGroup sync.WaitGroup
 	var serverMechs []string
 
 	if len(a.EnabledMechs) == 0 {
@@ -29,16 +27,16 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 		return
 	}
 
-	mechsWaitGroup.Add(1)
+	// NOTE(brett19): The following logic is dependant on operation ordering that
+	// is guarenteed by memcached, even when Out-Of-Order Execution is enabled.
+
 	OpsCore{}.SASLListMechs(d, func(resp *SASLListMechsResponse, err error) {
 		if err != nil {
 			log.Printf("failed to list available authentication mechanisms: %s", err)
-			mechsWaitGroup.Done()
 			return
 		}
 
 		serverMechs = resp.AvailableMechs
-		mechsWaitGroup.Done()
 	})
 
 	// the default mech is the first one in the list
@@ -54,9 +52,6 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, cb func(err error)) {
 			// There was no obvious way to differentiate between a mechanism being unsupported
 			// and the credentials being wrong.  So for now we just assume any error should be
 			// ignored if our list-mechs doesn't include it.
-
-			// wait to ensure the list-mechs call has completed
-			mechsWaitGroup.Wait()
 
 			// if we support the default mech, it means this error is 'real', otherwise we try
 			// with one of the mechanisms that we now know are supported
