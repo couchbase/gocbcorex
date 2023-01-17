@@ -33,7 +33,7 @@ type fakeKvClient struct {
 	onCall func(*memdx.Packet, memdx.DispatchCallback) error
 }
 
-func (cli *fakeKvClient) HasFeature(feat memd.HelloFeature) bool {
+func (cli *fakeKvClient) HasFeature(feat memdx.HelloFeature) bool {
 	return true
 }
 

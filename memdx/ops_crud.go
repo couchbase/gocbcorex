@@ -25,6 +25,7 @@ func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []b
 type GetRequest struct {
 	CollectionID uint32
 	Key          []byte
+	VbucketID    uint16
 }
 
 type GetResponse struct {
@@ -41,9 +42,10 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
-		OpCode: OpCodeGet,
-		Key:    reqKey,
+		Magic:     MagicReq,
+		OpCode:    OpCodeGet,
+		Key:       reqKey,
+		VbucketID: req.VbucketID,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
