@@ -8,15 +8,24 @@ import (
 	"github.com/couchbase/stellar-nebula/core/scram"
 )
 
+type OpSaslAuthScramEncoder interface {
+	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) error
+	SASLStep(Dispatcher, *SASLStepRequest, func(*SASLStepResponse, error)) error
+}
+
 type OpSaslAuthScram struct {
+	Encoder OpSaslAuthScramEncoder
+}
+
+type SaslAuthScramOptions struct {
 	Hash     crypto.Hash
 	Username string
 	Password string
 }
 
-func (a OpSaslAuthScram) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
+func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, pipelineCb func(), cb func(err error)) {
 	var mechName AuthMechanism
-	switch a.Hash {
+	switch req.Hash {
 	case crypto.SHA1:
 		mechName = ScramSha1AuthMechanism
 	case crypto.SHA256:
@@ -25,15 +34,15 @@ func (a OpSaslAuthScram) Authenticate(d Dispatcher, pipelineCb func(), cb func(e
 		mechName = ScramSha512AuthMechanism
 	}
 	if mechName == "" {
-		cb(errors.New("unsupported hash type: " + a.Hash.String()))
+		cb(errors.New("unsupported hash type: " + req.Hash.String()))
 		return
 	}
 
-	scramMgr := scram.NewClient(a.Hash.New, a.Username, a.Password)
+	scramMgr := scram.NewClient(req.Hash.New, req.Username, req.Password)
 
 	// Perform the initial SASL step
 	scramMgr.Step(nil)
-	OpsCore{}.SASLAuth(d, &SASLAuthRequest{
+	a.Encoder.SASLAuth(d, &SASLAuthRequest{
 		Mechanism: mechName,
 		Payload:   scramMgr.Out(),
 	}, func(resp *SASLAuthResponse, err error) {
@@ -59,7 +68,7 @@ func (a OpSaslAuthScram) Authenticate(d Dispatcher, pipelineCb func(), cb func(e
 			return
 		}
 
-		OpsCore{}.SASLStep(d, &SASLStepRequest{
+		a.Encoder.SASLStep(d, &SASLStepRequest{
 			Mechanism: mechName,
 			Payload:   scramMgr.Out(),
 		}, func(resp *SASLStepResponse, err error) {

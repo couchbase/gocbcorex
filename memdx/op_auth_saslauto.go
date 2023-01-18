@@ -7,7 +7,16 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type OpSaslAuthAutoEncoder interface {
+	OpSaslAuthByNameEncoder
+	SASLListMechs(Dispatcher, func(*SASLListMechsResponse, error)) error
+}
+
 type OpSaslAuthAuto struct {
+	Encoder OpSaslAuthAutoEncoder
+}
+
+type SaslAuthAutoOptions struct {
 	Username string
 	Password string
 
@@ -18,10 +27,10 @@ type OpSaslAuthAuto struct {
 	EnabledMechs []AuthMechanism
 }
 
-func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(err error)) {
+func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pipelineCb func(), cb func(err error)) {
 	var serverMechs []AuthMechanism
 
-	if len(a.EnabledMechs) == 0 {
+	if len(opts.EnabledMechs) == 0 {
 		// TODO(brett19): Enhance this error with more details
 		cb(errors.New("must specify at least one allowed authentication mechanism"))
 		return
@@ -30,7 +39,7 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(er
 	// NOTE(brett19): The following logic is dependant on operation ordering that
 	// is guarenteed by memcached, even when Out-Of-Order Execution is enabled.
 
-	OpsCore{}.SASLListMechs(d, func(resp *SASLListMechsResponse, err error) {
+	a.Encoder.SASLListMechs(d, func(resp *SASLListMechsResponse, err error) {
 		if err != nil {
 			log.Printf("failed to list available authentication mechanisms: %s", err)
 			return
@@ -40,13 +49,15 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(er
 	})
 
 	// the default mech is the first one in the list
-	defaultMech := a.EnabledMechs[0]
+	defaultMech := opts.EnabledMechs[0]
 
 	OpSaslAuthByName{
+		Encoder: a.Encoder,
+	}.SASLAuthByName(d, &SaslAuthByNameOptions{
 		Mechanism: defaultMech,
-		Username:  a.Username,
-		Password:  a.Password,
-	}.Authenticate(d, pipelineCb, func(err error) {
+		Username:  opts.Username,
+		Password:  opts.Password,
+	}, pipelineCb, func(err error) {
 		if err != nil {
 			// TODO(brett19): We should investigate invalid mechanism error handling.
 			// There was no obvious way to differentiate between a mechanism being unsupported
@@ -63,7 +74,7 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(er
 
 			foundCompatibleMech := false
 			var selectedMech AuthMechanism
-			for _, mech := range a.EnabledMechs {
+			for _, mech := range opts.EnabledMechs {
 				if slices.Contains(serverMechs, mech) {
 					foundCompatibleMech = true
 					selectedMech = mech
@@ -78,10 +89,12 @@ func (a OpSaslAuthAuto) Authenticate(d Dispatcher, pipelineCb func(), cb func(er
 			}
 
 			OpSaslAuthByName{
+				Encoder: a.Encoder,
+			}.SASLAuthByName(d, &SaslAuthByNameOptions{
 				Mechanism: selectedMech,
-				Username:  a.Username,
-				Password:  a.Password,
-			}.Authenticate(d, pipelineCb, cb)
+				Username:  opts.Username,
+				Password:  opts.Password,
+			}, pipelineCb, cb)
 			return
 		}
 

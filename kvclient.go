@@ -76,6 +76,8 @@ func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
 	errWait := make(chan error, 1)
 	resultWait := make(chan *kvClientBootstrapResult, 1)
 	memdx.OpBootstrap{
+		Encoder: memdx.OpsCore{},
+	}.Execute(c, &memdx.BootstrapOptions{
 		Hello: &memdx.HelloRequest{
 			ClientName:        []byte("core"),
 			RequestedFeatures: c.requestedFeatures,
@@ -83,7 +85,7 @@ func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
 		GetErrorMap: &memdx.GetErrorMapRequest{
 			Version: 2,
 		},
-		Auth: &memdx.OpSaslAuthAuto{
+		Auth: &memdx.SaslAuthAutoOptions{
 			Username:     c.username,
 			Password:     c.password,
 			EnabledMechs: []memdx.AuthMechanism{memdx.ScramSha512AuthMechanism, memdx.ScramSha256AuthMechanism},
@@ -92,7 +94,7 @@ func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
 			BucketName: c.bucket,
 		},
 		GetClusterConfig: &memdx.GetClusterConfigRequest{},
-	}.Execute(c, func(res *memdx.BootstrapResult, err error) {
+	}, func(res *memdx.BootstrapResult, err error) {
 		if err != nil {
 			errWait <- err
 			return

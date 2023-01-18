@@ -2,12 +2,26 @@ package memdx
 
 import "log"
 
+type OpBootstrapEncoder interface {
+	Hello(Dispatcher, *HelloRequest, func(*HelloResponse, error)) error
+	GetErrorMap(Dispatcher, *GetErrorMapRequest, func([]byte, error)) error
+	OpSaslAuthAutoEncoder
+	SelectBucket(Dispatcher, *SelectBucketRequest, func(error)) error
+	GetClusterConfig(Dispatcher, *GetClusterConfigRequest, func([]byte, error)) error
+}
+
+var _ OpBootstrapEncoder = (*OpsCore)(nil)
+
 // OpBootstrap implements automatic pipelining of the 5 standard bootstrap
 // operations that a client needs to perform to set up a connection.
 type OpBootstrap struct {
+	Encoder OpBootstrapEncoder
+}
+
+type BootstrapOptions struct {
 	Hello            *HelloRequest
 	GetErrorMap      *GetErrorMapRequest
-	Auth             *OpSaslAuthAuto
+	Auth             *SaslAuthAutoOptions
 	SelectBucket     *SelectBucketRequest
 	GetClusterConfig *GetClusterConfigRequest
 }
@@ -18,7 +32,7 @@ type BootstrapResult struct {
 	ClusterConfig []byte
 }
 
-func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err error)) {
+func (a OpBootstrap) Execute(d Dispatcher, opts *BootstrapOptions, cb func(res *BootstrapResult, err error)) {
 	// NOTE(brett19): The following logic is dependant on operation ordering that
 	// is guarenteed by memcached, even when Out-Of-Order Execution is enabled.
 
@@ -46,19 +60,19 @@ func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err err
 	var dispatchCallback func()
 
 	maybeCallback := func() {
-		if currentStage == stageHello && a.Hello == nil {
+		if currentStage == stageHello && opts.Hello == nil {
 			currentStage = stageErrorMap
 		}
-		if currentStage == stageErrorMap && a.GetErrorMap == nil {
+		if currentStage == stageErrorMap && opts.GetErrorMap == nil {
 			currentStage = stageAuth
 		}
-		if currentStage == stageAuth && a.Auth == nil {
+		if currentStage == stageAuth && opts.Auth == nil {
 			currentStage = stageSelectBucket
 		}
-		if currentStage == stageSelectBucket && a.SelectBucket == nil {
+		if currentStage == stageSelectBucket && opts.SelectBucket == nil {
 			currentStage = stageClusterConfig
 		}
-		if currentStage == stageClusterConfig && a.GetClusterConfig == nil {
+		if currentStage == stageClusterConfig && opts.GetClusterConfig == nil {
 			currentStage = stageCallback
 		}
 
@@ -68,13 +82,13 @@ func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err err
 	}
 
 	dispatchHello = func() {
-		if a.Hello == nil {
+		if opts.Hello == nil {
 			dispatchErrorMap()
 			return
 		}
 
 		log.Printf("Hello sending...")
-		OpsCore{}.Hello(d, a.Hello, func(resp *HelloResponse, err error) {
+		a.Encoder.Hello(d, opts.Hello, func(resp *HelloResponse, err error) {
 			if currentStage != stageHello {
 				return
 			}
@@ -93,13 +107,13 @@ func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err err
 	}
 
 	dispatchErrorMap = func() {
-		if a.GetErrorMap == nil {
+		if opts.GetErrorMap == nil {
 			dispatchAuth()
 			return
 		}
 
 		log.Printf("GetErrorMap sending...")
-		OpsCore{}.GetErrorMap(d, a.GetErrorMap, func(errorMap []byte, err error) {
+		a.Encoder.GetErrorMap(d, opts.GetErrorMap, func(errorMap []byte, err error) {
 			if currentStage != stageErrorMap {
 				return
 			}
@@ -118,13 +132,15 @@ func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err err
 	}
 
 	dispatchAuth = func() {
-		if a.Auth == nil {
+		if opts.Auth == nil {
 			dispatchSelectBucket()
 			return
 		}
 
 		log.Printf("Authenticate sending...")
-		a.Auth.Authenticate(d, func() {
+		OpSaslAuthAuto{
+			Encoder: a.Encoder,
+		}.SASLAuthAuto(d, opts.Auth, func() {
 			dispatchSelectBucket()
 		}, func(err error) {
 			if currentStage != stageAuth {
@@ -142,13 +158,13 @@ func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err err
 	}
 
 	dispatchSelectBucket = func() {
-		if a.SelectBucket == nil {
+		if opts.SelectBucket == nil {
 			dispatchClusterConfig()
 			return
 		}
 
 		log.Printf("SelectBucket sending...")
-		OpsCore{}.SelectBucket(d, a.SelectBucket, func(err error) {
+		a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
 			if currentStage != stageSelectBucket {
 				return
 			}
@@ -165,13 +181,13 @@ func (a OpBootstrap) Execute(d Dispatcher, cb func(res *BootstrapResult, err err
 	}
 
 	dispatchClusterConfig = func() {
-		if a.GetClusterConfig == nil {
+		if opts.GetClusterConfig == nil {
 			dispatchCallback()
 			return
 		}
 
 		log.Printf("GetClusterConfig sending...")
-		OpsCore{}.GetClusterConfig(d, a.GetClusterConfig, func(clusterConfig []byte, err error) {
+		a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, func(clusterConfig []byte, err error) {
 			if currentStage != stageClusterConfig {
 				return
 			}
