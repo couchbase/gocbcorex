@@ -117,6 +117,7 @@ func (m *connectionManager) Execute(endpoint string, handler ConnExecuteHandler)
 	m.lock.Lock()
 	pipeline, ok := m.connections[endpoint]
 	if !ok {
+		m.lock.Unlock()
 		return placeholderError{Inner: "endpoint not known"}
 	}
 	client := pipeline.connections[rand.Intn(len(pipeline.connections))]

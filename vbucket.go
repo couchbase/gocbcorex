@@ -15,6 +15,10 @@ type vbucketDispatcher struct {
 	routingInfo AtomicPointer[vbucketRoutingInfo]
 }
 
+func newVbucketDispatcher() *vbucketDispatcher {
+	return &vbucketDispatcher{}
+}
+
 func (vbd *vbucketDispatcher) StoreVbucketRoutingInfo(info *vbucketRoutingInfo) {
 	vbd.storeRoutingInfo(info)
 }

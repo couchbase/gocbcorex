@@ -16,6 +16,10 @@ type configManager struct {
 	currentConfig AtomicPointer[routeConfig]
 }
 
+func newConfigManager() *configManager {
+	return &configManager{}
+}
+
 func (cm *configManager) ApplyConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) (*routeConfig, bool) {
 	for {
 		oldConfig := cm.currentConfig.Load()

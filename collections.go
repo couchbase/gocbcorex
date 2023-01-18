@@ -55,6 +55,17 @@ type perCidCollectionResolver struct {
 	awaitingDispatchLock sync.Mutex
 }
 
+type perCidCollectionResolverOptions struct {
+	Dispatcher ConnectionManager
+}
+
+func newPerCidCollectionResolver(opts perCidCollectionResolverOptions) *perCidCollectionResolver {
+	return &perCidCollectionResolver{
+		dispatcher:       opts.Dispatcher,
+		awaitingDispatch: make(map[string]*perCidAwaitingDispatchItem),
+	}
+}
+
 func newCollectionResolver(dispatcher ConnectionManager) *perCidCollectionResolver {
 	manifest := &collectionsManifest{
 		collections: make(map[string]*collectionsManifestEntry),
@@ -165,6 +176,12 @@ func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key,
 }
 
 func (cr *perCidCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpoint, scopeName, collectionName string, cb ResolveCollectionIDCallback) {
+	// Special case the default scope and collection.
+	if isDefaultScopeAndCollection(scopeName, collectionName) {
+		// TODO: This should be given some thought, this means that the callback is occurring in the same goroutine as the call.
+		cb(0, 0, nil)
+		return
+	}
 	// First try an atomic lookup to see if we already know about this collection.
 	if cid, mRev, ok := cr.loadManifest().Lookup(scopeName, collectionName); ok {
 		// TODO: This should be given some thought, this means that the callback is occurring in the same goroutine as the call.
@@ -283,6 +300,13 @@ func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, sc
 
 	cr.ResolveCollectionID(ctx, endpoint, scopeName, collectionName, func(collectionId uint32, manifestRev uint64, err error) {
 	})
+}
+
+func isDefaultScopeAndCollection(scopeName, collectionName string) bool {
+	noCollection := collectionName == "" && scopeName == ""
+	defaultCollection := collectionName == "_default" && scopeName == "_default"
+
+	return noCollection || defaultCollection
 }
 
 type CollectionResolver interface {

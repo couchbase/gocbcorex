@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,9 +47,14 @@ type httpConfigPoller struct {
 	confHTTPRedialPeriod time.Duration
 	confHTTPMaxWait      time.Duration
 	httpClient           *http.Client
-	endpoints            routeEndpoints
 	bucketName           string
 	seenNodes            map[string]uint64
+
+	username string
+	password string
+
+	lock      sync.Mutex
+	endpoints []string
 }
 
 type httpPollerProperties struct {
@@ -57,9 +63,11 @@ type httpPollerProperties struct {
 	ConfHTTPMaxWait      time.Duration
 	HttpClient           *http.Client // TODO: when a http component exists, use it.
 	BucketName           string
+	Username             string // TODO: when a http component exists, use it instead of passing auth in here.
+	Password             string // TODO: when a http component exists, use it instead of passing auth in here.
 }
 
-func newhttpConfigPoller(endpoints routeEndpoints, props httpPollerProperties) *httpConfigPoller {
+func newhttpConfigPoller(endpoints []string, props httpPollerProperties) *httpConfigPoller {
 	return &httpConfigPoller{
 		confHTTPRedialPeriod: props.ConfHTTPRedialPeriod,
 		confHTTPRetryDelay:   props.ConfHTTPRetryDelay,
@@ -68,7 +76,15 @@ func newhttpConfigPoller(endpoints routeEndpoints, props httpPollerProperties) *
 		endpoints:            endpoints,
 		bucketName:           props.BucketName,
 		seenNodes:            make(map[string]uint64),
+		username:             props.Username,
+		password:             props.Password,
 	}
+}
+
+func (hcc *httpConfigPoller) UpdateEndpoints(endpoints []string) {
+	hcc.lock.Lock()
+	hcc.endpoints = endpoints
+	hcc.lock.Unlock()
 }
 
 func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJsonWithSource, error) {
@@ -136,11 +152,13 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 				uri := fmt.Sprintf("/pools/default/%s/%s", streamPath, url.PathEscape(hcc.bucketName))
 				log.Printf("Requesting config from: %s/%s.", pickedSrv, uri)
 
-				req, err := http.NewRequestWithContext(ctx, "GET", hostname+path, nil)
+				req, err := http.NewRequestWithContext(ctx, "GET", pickedSrv+path, nil)
 				if err != nil {
 					log.Printf("Failed to create request. %v", err)
 					return 0
 				}
+
+				req.SetBasicAuth(hcc.username, hcc.password)
 
 				resp, err = hcc.httpClient.Do(req)
 				if err != nil {
@@ -252,7 +270,12 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 
 func (hcc *httpConfigPoller) pickEndpoint(iterNum uint64) string {
 	var pickedSrv string
-	for _, srv := range hcc.endpoints.NonSSLEndpoints {
+	hcc.lock.Lock()
+	endpoints := make([]string, len(hcc.endpoints))
+	copy(endpoints, hcc.endpoints)
+	hcc.lock.Unlock()
+
+	for _, srv := range endpoints {
 		if hcc.seenNodes[srv] >= iterNum {
 			continue
 		}
