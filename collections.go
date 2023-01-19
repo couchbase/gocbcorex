@@ -1,9 +1,18 @@
 package core
 
 import (
+	"context"
 	"github.com/couchbase/stellar-nebula/core/memdx"
 	"sync"
+	"sync/atomic"
 )
+
+type ResolveCollectionIDCallback func(collectionId uint32, manifestRev uint64, err error)
+
+type CollectionResolver interface {
+	ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error)
+	InvalidateCollectionID(ctx context.Context, scopeName, collectionName, endpoint string, manifestRev uint64)
+}
 
 type collectionInvalidation bool
 
@@ -11,8 +20,6 @@ const (
 	collectionWasInvalidated    collectionInvalidation = true
 	collectionWasNotInvalidated                        = false
 )
-
-type ResolveCollectionIDCallback func(collectionId uint32, manifestRev uint64, err error)
 
 type collectionsManifestEntry struct {
 	cid uint32
@@ -41,9 +48,11 @@ type collectionIDCallbackNode struct {
 }
 
 type perCidAwaitingDispatchItem struct {
-	callbacks []*collectionIDCallbackNode
-	ctx       *AsyncContext
-	lock      sync.Mutex
+	cancel     context.CancelFunc
+	numWaiters uint32
+	ctx        context.Context
+	signal     chan struct{}
+	err        error
 }
 
 type perCidCollectionResolver struct {
@@ -87,22 +96,14 @@ func (cr *perCidCollectionResolver) storeManifest(old, new *collectionsManifest)
 	return cr.manifest.CompareAndSwap(old, new)
 }
 
-func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key, scope, collection string) {
+func (cr *perCidCollectionResolver) refreshCid(ctx context.Context, endpoint, key, scope, collection string) {
+	errCh := make(chan error, 1)
+	resCh := make(chan *memdx.GetCollectionIDResponse, 1)
 	cr.dispatcher.Execute(endpoint, func(client KvClient, err error) error {
 		// TODO: DRY up or reconsider this error handling.
 		if err != nil {
-			cr.awaitingDispatchLock.Lock()
-			pending, ok := cr.awaitingDispatch[key]
-			if !ok {
-				return nil
-			}
-
-			for _, cb := range pending.callbacks {
-				cb.callback(0, 0, err)
-			}
-			delete(cr.awaitingDispatch, key)
-			cr.awaitingDispatchLock.Unlock()
-			return nil
+			errCh <- err
+			return err
 		}
 
 		return memdx.OpsUtils{
@@ -112,81 +113,86 @@ func (cr *perCidCollectionResolver) refreshCid(ctx *AsyncContext, endpoint, key,
 			CollectionName: collection,
 		}, func(resp *memdx.GetCollectionIDResponse, err error) {
 			if err != nil {
-				cr.awaitingDispatchLock.Lock()
-				pending, ok := cr.awaitingDispatch[key]
-				if !ok {
-					return
-				}
-
-				for _, cb := range pending.callbacks {
-					cb.callback(0, 0, err)
-				}
-				delete(cr.awaitingDispatch, key)
-				cr.awaitingDispatchLock.Unlock()
+				errCh <- err
 				return
 			}
 
-			// Repeatedly try to apply the manifest in case someone else added or removed a cid whilst we've tried to
-			// update.
-			for {
-				manifest := cr.loadManifest()
-
-				// Create a new manifest containing all the old entries and the new one.
-				manifestCollections := make(map[string]*collectionsManifestEntry, len(manifest.collections)-1)
-				for k, cols := range manifest.collections {
-					manifestCollections[k] = cols
-				}
-				manifestCollections[key] = &collectionsManifestEntry{
-					cid: resp.CollectionID,
-					rev: resp.ManifestID,
-				}
-
-				newManifest := &collectionsManifest{
-					collections: manifestCollections,
-				}
-
-				if cr.storeManifest(manifest, newManifest) {
-					break
-				}
-			}
-
-			cr.awaitingDispatchLock.Lock()
-			pending, ok := cr.awaitingDispatch[key]
-			if !ok {
-				cr.awaitingDispatchLock.Unlock()
-				// This might be possible depending on how request cancellation works.
-				return
-			}
-			delete(cr.awaitingDispatch, key)
-			cr.awaitingDispatchLock.Unlock()
-
-			pending.lock.Lock()
-			callbacks := make([]ResolveCollectionIDCallback, len(pending.callbacks))
-			for i, cb := range pending.callbacks {
-				callbacks[i] = cb.callback
-			}
-			pending.callbacks = nil
-			pending.lock.Unlock()
-
-			for _, cb := range callbacks {
-				cb(resp.CollectionID, resp.ManifestID, nil)
-			}
+			resCh <- resp
 		})
 	})
+
+	select {
+	case <-ctx.Done():
+		cr.awaitingDispatchLock.Lock()
+		pending, ok := cr.awaitingDispatch[key]
+		if !ok {
+			cr.awaitingDispatchLock.Unlock()
+			return
+		}
+
+		pending.err = ctx.Err()
+		close(pending.signal)
+
+		delete(cr.awaitingDispatch, key)
+		cr.awaitingDispatchLock.Unlock()
+	case err := <-errCh:
+		cr.awaitingDispatchLock.Lock()
+		pending, ok := cr.awaitingDispatch[key]
+		if !ok {
+			cr.awaitingDispatchLock.Unlock()
+			return
+		}
+
+		pending.err = err
+		close(pending.signal)
+
+		delete(cr.awaitingDispatch, key)
+		cr.awaitingDispatchLock.Unlock()
+	case resp := <-resCh:
+		for {
+			manifest := cr.loadManifest()
+
+			// Create a new manifest containing all the old entries and the new one.
+			manifestCollections := make(map[string]*collectionsManifestEntry, len(manifest.collections)-1)
+			for k, cols := range manifest.collections {
+				manifestCollections[k] = cols
+			}
+			manifestCollections[key] = &collectionsManifestEntry{
+				cid: resp.CollectionID,
+				rev: resp.ManifestID,
+			}
+
+			newManifest := &collectionsManifest{
+				collections: manifestCollections,
+			}
+
+			if cr.storeManifest(manifest, newManifest) {
+				break
+			}
+		}
+
+		cr.awaitingDispatchLock.Lock()
+		pending, ok := cr.awaitingDispatch[key]
+		if !ok {
+			cr.awaitingDispatchLock.Unlock()
+			// This might be possible depending on how request cancellation works.
+			return
+		}
+		delete(cr.awaitingDispatch, key)
+		cr.awaitingDispatchLock.Unlock()
+
+		close(pending.signal)
+	}
 }
 
-func (cr *perCidCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpoint, scopeName, collectionName string, cb ResolveCollectionIDCallback) {
+func (cr *perCidCollectionResolver) ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error) {
 	// Special case the default scope and collection.
 	if isDefaultScopeAndCollection(scopeName, collectionName) {
-		// TODO: This should be given some thought, this means that the callback is occurring in the same goroutine as the call.
-		cb(0, 0, nil)
-		return
+		return 0, 0, nil
 	}
 	// First try an atomic lookup to see if we already know about this collection.
 	if cid, mRev, ok := cr.loadManifest().Lookup(scopeName, collectionName); ok {
-		// TODO: This should be given some thought, this means that the callback is occurring in the same goroutine as the call.
-		cb(cid, mRev, nil)
-		return
+		return cid, mRev, nil
 	}
 
 	key := makeManifestKey(scopeName, collectionName)
@@ -196,72 +202,48 @@ func (cr *perCidCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpo
 	// Try another lookup in case a pending get cid came in before we entered the lock.
 	if cid, mRev, ok := cr.loadManifest().Lookup(scopeName, collectionName); ok {
 		cr.awaitingDispatchLock.Unlock()
-		// TODO: This should be given some thought, this means that the callback is occurring in the same goroutine as the call.
-		cb(cid, mRev, nil)
-		return
+		return cid, mRev, nil
 	}
 
 	pending, ok := cr.awaitingDispatch[key]
 	if !ok {
 		// We don't have a pending get cid so create an entry in the map and send a request.
+		refreshCtx, cancel := context.WithCancel(context.Background())
 		pending = &perCidAwaitingDispatchItem{
-			callbacks: []*collectionIDCallbackNode{},
-			ctx:       NewAsyncContext(),
+			cancel: cancel,
+			ctx:    refreshCtx,
+			signal: make(chan struct{}),
 		}
 		cr.awaitingDispatch[key] = pending
+		// The collection is completely unknown, so we need to go to the server and see if it exists.
+		go cr.refreshCid(refreshCtx, endpoint, key, scopeName, collectionName)
 	}
 	cr.awaitingDispatchLock.Unlock()
 
-	cancelCtx := ctx.WithCancellation()
+	atomic.AddUint32(&pending.numWaiters, 1)
+	select {
+	case <-ctx.Done():
+		// If this context has been canceled then we need to decrement the number of waiters,
+		// and if there are no waiters then cancel the underlying get cid request.
+		if atomic.AddUint32(&pending.numWaiters, ^uint32(0)) == 0 {
+			pending.cancel()
 
-	handler := &collectionIDCallbackNode{
-		callback: func(collectionId uint32, manifestRev uint64, err error) {
-			if cancelCtx.MarkComplete() {
-				cb(collectionId, manifestRev, err)
-			}
-		},
+			// Wait for the underlying op to cancel to prevent any races.
+			<-pending.signal
+		}
+
+		return 0, 0, ctx.Err()
+	case <-pending.signal:
+		if pending.err != nil {
+			return 0, 0, pending.err
+		}
+
+		// Start again.
+		return cr.ResolveCollectionID(ctx, endpoint, scopeName, collectionName)
 	}
-	pending.lock.Lock()
-	// We already sent a get cid request so just add this callback to the queue.
-	pending.callbacks = append(pending.callbacks, handler)
-	pending.lock.Unlock()
-
-	cancelCtx.OnCancel(func(err error) bool {
-		index := -1
-		pending.lock.Lock()
-		for i, callback := range pending.callbacks {
-			if callback == handler {
-				index = i
-				break
-			}
-		}
-
-		// Get cid request must have completed.
-		if index == -1 {
-			return false
-		}
-
-		pending.callbacks = append((pending.callbacks)[:index], (pending.callbacks)[index+1:]...)
-		if len(pending.callbacks) == 0 {
-			pending.ctx.Cancel()
-			cr.awaitingDispatchLock.Lock()
-			delete(cr.awaitingDispatch, key)
-			cr.awaitingDispatchLock.Unlock()
-		}
-		pending.lock.Unlock()
-		cb(0, 0, err)
-		return true
-	})
-
-	if ok {
-		return
-	}
-
-	// The collection is completely unknown, so we need to go to the server and see if it exists.
-	cr.refreshCid(pending.ctx, endpoint, key, scopeName, collectionName)
 }
 
-func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, newManifestRev uint64) {
+func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx context.Context, scopeName, collectionName, endpoint string, newManifestRev uint64) {
 	key := makeManifestKey(scopeName, collectionName)
 	for {
 		manifest := cr.loadManifest()
@@ -298,8 +280,7 @@ func (cr *perCidCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, sc
 		}
 	}
 
-	cr.ResolveCollectionID(ctx, endpoint, scopeName, collectionName, func(collectionId uint32, manifestRev uint64, err error) {
-	})
+	go cr.ResolveCollectionID(ctx, endpoint, scopeName, collectionName)
 }
 
 func isDefaultScopeAndCollection(scopeName, collectionName string) bool {
@@ -307,9 +288,4 @@ func isDefaultScopeAndCollection(scopeName, collectionName string) bool {
 	defaultCollection := collectionName == "_default" && scopeName == "_default"
 
 	return noCollection || defaultCollection
-}
-
-type CollectionResolver interface {
-	ResolveCollectionID(ctx *AsyncContext, endpoint, scopeName, collectionName string, cb ResolveCollectionIDCallback)
-	InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, manifestRev uint64)
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"github.com/couchbase/stellar-nebula/core/memdx"
@@ -76,13 +77,11 @@ type fakeCollectionResolver struct {
 	mRev  uint64
 }
 
-func (f *fakeCollectionResolver) ResolveCollectionID(ctx *AsyncContext, endpoint, scopeName, collectionName string, cb ResolveCollectionIDCallback) {
-	time.AfterFunc(f.delay, func() {
-		cb(f.cid, f.mRev, f.err)
-	})
+func (f *fakeCollectionResolver) ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error) {
+	return f.cid, f.mRev, f.err
 }
 
-func (f *fakeCollectionResolver) InvalidateCollectionID(ctx *AsyncContext, scopeName, collectionName, endpoint string, newManifestRev uint64) {
+func (f *fakeCollectionResolver) InvalidateCollectionID(ctx context.Context, scopeName, collectionName, endpoint string, newManifestRev uint64) {
 }
 
 type fakePacketResolver struct {

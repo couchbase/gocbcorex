@@ -55,10 +55,12 @@ func TestCollectionsManagerQueueMultipleCallbacksOneCollection(t *testing.T) {
 	numReqs := 10
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
-		resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
+		go func() {
+			u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+			assert.Nil(t, err)
 			assert.Equal(t, cid, u)
 			wg.Done()
-		})
+		}()
 	}
 	close(blockCh)
 	wg.Wait()
@@ -114,18 +116,19 @@ func TestCollectionsManagerQueueMultipleCallbacksNCollections(t *testing.T) {
 	numReqs := 10
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
-		if i%2 == 0 {
-			resolver.ResolveCollectionID(&AsyncContext{}, "", scope1, collection1, func(u uint32, _ uint64, err error) {
+		go func(i int) {
+			if i%2 == 0 {
+				u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope1, collection1)
+				assert.Nil(t, err)
 				assert.Equal(t, cid1, u)
 				wg.Done()
-			})
-		} else {
-			resolver.ResolveCollectionID(&AsyncContext{}, "", scope2, collection2, func(u uint32, _ uint64, err error) {
+			} else {
+				u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope2, collection2)
+				assert.Nil(t, err)
 				assert.Equal(t, cid2, u)
 				wg.Done()
-			})
-		}
-
+			}
+		}(i)
 	}
 	close(blockCh)
 	wg.Wait()
@@ -165,11 +168,12 @@ func TestCollectionsManagerDispatchErrors(t *testing.T) {
 	numReqs := 10
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
-		resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
+		go func() {
+			u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
 			assert.Equal(t, cbErr, err)
 			assert.Equal(t, uint32(0), u)
 			wg.Done()
-		})
+		}()
 	}
 	close(blockCh)
 	wg.Wait()
@@ -204,10 +208,12 @@ func TestCollectionsManagerKnownCollection(t *testing.T) {
 	resolver.storeManifest(resolver.loadManifest(), manifest)
 
 	waitCh := make(chan struct{}, 1)
-	resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
+	go func() {
+		u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+		assert.Nil(t, err)
 		assert.Equal(t, uint32(12), u)
 		waitCh <- struct{}{}
-	})
+	}()
 	<-waitCh
 }
 
@@ -256,16 +262,18 @@ func TestCollectionsManagerUnknownCollectionNewerManifestRev(t *testing.T) {
 	}
 	resolver.storeManifest(resolver.loadManifest(), manifest)
 
-	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 5)
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
 
 	// We should have now invalidated the only entry in the cache.
 	assert.Empty(t, resolver.manifest.Load().collections)
 
 	waitCh := make(chan struct{}, 1)
-	resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
+	go func() {
+		u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+		assert.Nil(t, err)
 		assert.Equal(t, cid, u)
 		waitCh <- struct{}{}
-	})
+	}()
 	close(blockCh)
 	<-waitCh
 
@@ -301,7 +309,7 @@ func TestCollectionsManagerUnknownCollectionOlderManifestRev(t *testing.T) {
 	}
 	resolver.storeManifest(resolver.loadManifest(), manifest)
 
-	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 3)
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 3)
 
 	cols := resolver.manifest.Load().collections
 	assert.Len(t, cols, 1)
@@ -339,7 +347,7 @@ func TestCollectionsManagerUnknownCollectionSameManifestRev(t *testing.T) {
 	resolver.storeManifest(resolver.loadManifest(), manifest)
 
 	assert.Panics(t, func() {
-		resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 4)
+		resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 4)
 	})
 }
 
@@ -367,14 +375,15 @@ func TestCollectionsManagerCancelContext(t *testing.T) {
 	}
 
 	resolver := newCollectionResolver(router)
-	ctx := &AsyncContext{}
-	ctx.Cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
 	waitCh := make(chan struct{}, 1)
-	resolver.ResolveCollectionID(ctx, "", scope, collection, func(u uint32, _ uint64, err error) {
+	go func() {
+		_, _, err := resolver.ResolveCollectionID(ctx, "", scope, collection)
 		assert.Equal(t, context.Canceled, err)
 		waitCh <- struct{}{}
-	})
+	}()
 	close(blockCh)
 	<-waitCh
 
@@ -417,31 +426,34 @@ func TestCollectionsManagerCancelContextMultipleOps(t *testing.T) {
 
 	var wg sync.WaitGroup
 	numReqs := 10
-	var toCancel []*AsyncContext
+	var toCancel []context.CancelFunc
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
 
 		var willCancel bool
-		ctx := &AsyncContext{}
+		var ctx context.Context
 		if i%2 == 0 {
-			toCancel = append(toCancel, ctx)
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithCancel(context.Background())
+			toCancel = append(toCancel, cancel)
 			willCancel = true
+		} else {
+			ctx = context.Background()
 		}
 
-		func(hasCanceled bool) {
-			resolver.ResolveCollectionID(ctx, "", scope, collection, func(u uint32, _ uint64, err error) {
-				if willCancel {
-					assert.Equal(t, context.Canceled, err)
-				} else {
-					assert.Equal(t, cid, u)
-				}
-				wg.Done()
-			})
+		go func(hasCanceled bool) {
+			u, _, err := resolver.ResolveCollectionID(ctx, "", scope, collection)
+			if willCancel {
+				assert.Equal(t, context.Canceled, err)
+			} else {
+				assert.Equal(t, cid, u)
+			}
+			wg.Done()
 		}(willCancel)
 	}
 
-	for _, ctx := range toCancel {
-		ctx.Cancel()
+	for _, cancel := range toCancel {
+		cancel()
 	}
 
 	close(blockCh)
@@ -467,8 +479,8 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 				}
 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
-				handler(pk, nil)
 				blockCh <- struct{}{}
+				handler(pk, nil)
 				return
 			}
 
@@ -487,16 +499,17 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 
 	var wg sync.WaitGroup
 	numReqs := 10
-	ctx := &AsyncContext{}
+	ctx, cancel := context.WithCancel(context.Background())
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
 
-		resolver.ResolveCollectionID(ctx, "", scope, collection, func(u uint32, _ uint64, err error) {
+		go func() {
+			_, _, err := resolver.ResolveCollectionID(ctx, "", scope, collection)
 			assert.Equal(t, context.Canceled, err)
 			wg.Done()
-		})
+		}()
 	}
-	ctx.Cancel()
+	cancel()
 
 	blockCh <- struct{}{}
 	wg.Wait()
@@ -551,16 +564,18 @@ func TestCollectionsManagerInvalidateTwice(t *testing.T) {
 
 	// Invalidate the collection ID and then allow the get cid fetch callback to be invoked at the same time as
 	// a second invalidation.
-	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 5)
-	resolver.InvalidateCollectionID(&AsyncContext{}, scope, collection, "endpoint1", 6)
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 6)
 	blockCh <- struct{}{}
 	<-blockCh
 
 	waitCh := make(chan struct{}, 1)
-	resolver.ResolveCollectionID(&AsyncContext{}, "", scope, collection, func(u uint32, _ uint64, err error) {
+	go func() {
+		u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+		assert.Nil(t, err)
 		assert.Equal(t, cid, u)
 		waitCh <- struct{}{}
-	})
+	}()
 	<-waitCh
 
 	assert.Equal(t, uint32(1), called)
