@@ -71,29 +71,6 @@ func CreateAgent(opts FakeAgentOptions) *FakeAgent {
 	return agent
 }
 
-func (agent *FakeAgent) updateComponents(routeCfg *routeConfig) {
-	var mgmtList []string
-	var serverList []string
-	if agent.tlsConfig == nil {
-		serverList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
-		copy(serverList, routeCfg.kvServerList.NonSSLEndpoints)
-		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
-		copy(mgmtList, routeCfg.mgmtEpList.NonSSLEndpoints)
-	} else {
-		serverList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
-		copy(serverList, routeCfg.kvServerList.SSLEndpoints)
-		mgmtList = make([]string, len(routeCfg.mgmtEpList.SSLEndpoints))
-		copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
-	}
-
-	agent.connMgr.UpdateEndpoints(serverList)
-	agent.vbuckets.StoreVbucketRoutingInfo(&vbucketRoutingInfo{
-		vbmap:      routeCfg.vbMap,
-		serverList: serverList,
-	})
-	agent.poller.UpdateEndpoints(mgmtList)
-}
-
 func (agent *FakeAgent) WatchConfigs() {
 	configCh, err := agent.poller.Watch(context.Background()) // TODO: this context probably needs to be linked with agent shutdown
 	if err != nil {

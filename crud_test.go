@@ -17,16 +17,23 @@ type fakeVBucketDispatcher struct {
 	endpoint string
 }
 
-func (f *fakeVBucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte) (string, error) {
-	return f.endpoint, nil
+func (f *fakeVBucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte, cb DispatchByKeyHandler) error {
+	time.AfterFunc(f.delay, func() {
+		cb(f.endpoint, 0, nil)
+	})
+	return nil
 }
 
-func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16) (string, error) {
+func (f *fakeVBucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16, cb DispatchToVbucketHandler) error {
 	// TODO implement me. No, you can't make me.
 	panic("implement me")
 }
 
 func (f *fakeVBucketDispatcher) StoreVbucketRoutingInfo(info *vbucketRoutingInfo) {
+}
+
+func (f *fakeVBucketDispatcher) Close() error {
+	return nil
 }
 
 type fakeKvClient struct {

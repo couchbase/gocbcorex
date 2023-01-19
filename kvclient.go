@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/tls"
 	"golang.org/x/exp/slices"
+	"strings"
 	"sync/atomic"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
@@ -47,7 +48,8 @@ type kvClientOptions struct {
 }
 
 func newKvClient(opts kvClientOptions) (*kvClient, error) {
-	conn, err := memdx.DialConn(opts.Hostname, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
+	hostname := trimSchemePrefix(opts.Hostname)
+	conn, err := memdx.DialConn(hostname, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
 	if err != nil {
 		return nil, err
 	}
@@ -135,4 +137,13 @@ func (c *kvClient) Close() error {
 
 func (c *kvClient) LoadFactor() float64 {
 	return (float64)(atomic.LoadUint64(&c.pendingOperations))
+}
+
+func trimSchemePrefix(address string) string {
+	idx := strings.Index(address, "://")
+	if idx < 0 {
+		return address
+	}
+
+	return address[idx+len("://"):]
 }

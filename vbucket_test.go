@@ -9,7 +9,7 @@ import (
 
 func TestVbucketDispatcherDispatchToKey(t *testing.T) {
 	ctx := &AsyncContext{}
-	dispatcher := &vbucketDispatcher{}
+	dispatcher := newVbucketDispatcher()
 	routingInfo := &vbucketRoutingInfo{
 		vbmap: &vbucketMap{
 			entries: [][]int{
@@ -34,15 +34,42 @@ func TestVbucketDispatcherDispatchToKey(t *testing.T) {
 		serverList: []string{"endpoint1", "endpoint2"},
 	}
 
-	dispatcher.storeRoutingInfo(routingInfo)
+	dispatcher.StoreVbucketRoutingInfo(routingInfo)
 
-	endpoint, err := dispatcher.DispatchByKey(ctx, []byte("key1"))
+	endpointCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+	err := dispatcher.DispatchByKey(ctx, []byte("key1"), func(endpoint string, vbID uint16, err error) {
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		endpointCh <- endpoint
+	})
 	require.Nil(t, err)
 
-	assert.Equal(t, "endpoint2", endpoint)
+	select {
+	case err = <-errCh:
+		require.Nil(t, err)
+	case endpoint := <-endpointCh:
+		assert.Equal(t, "endpoint2", endpoint)
+	}
 
-	endpoint, err = dispatcher.DispatchByKey(ctx, []byte("key2"))
+	err = dispatcher.DispatchByKey(ctx, []byte("key2"), func(endpoint string, vbID uint16, err error) {
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		endpointCh <- endpoint
+	})
 	require.Nil(t, err)
+	select {
+	case err = <-errCh:
+		require.Nil(t, err)
+	case endpoint := <-endpointCh:
+		assert.Equal(t, "endpoint1", endpoint)
+	}
 
-	assert.Equal(t, "endpoint1", endpoint)
+	dispatcher.Close()
 }

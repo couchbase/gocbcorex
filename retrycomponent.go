@@ -38,6 +38,8 @@ func (rc *retryComponent) OrchestrateRetries(ctx *AsyncContext, dispatchCb func(
 			// dispatch err
 			return true
 		})
+
+		dispatchCb(nil, err)
 	}
 	dispatchCb(handler, nil)
 	return nil

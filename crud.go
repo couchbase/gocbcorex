@@ -39,45 +39,51 @@ func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetRes
 				return
 			}
 
-			endpoint, err := cc.vbuckets.DispatchByKey(ctx, opts.Key)
-			if err != nil {
-				retry(err)
-				return
-			}
-
-			err = cc.connManager.Execute(endpoint, func(client KvClient, err error) error {
+			err = cc.vbuckets.DispatchByKey(ctx, opts.Key, func(endpoint string, vbID uint16, err error) {
 				if err != nil {
 					retry(err)
-					return nil
+					return
 				}
 
-				return memdx.OpsCrud{
-					CollectionsEnabled: true, // TODO: update to reflect the truth
-				}.Get(client, &memdx.GetRequest{
-					CollectionID: cid,
-					Key:          opts.Key,
-				}, func(resp *memdx.GetResponse, err error) {
-					// if err != nil {
-					// 	retry(err)
-					// 	return
-					// }
-					// err = cc.errorResolver.ResolvePacket(resp)
+				err = cc.connManager.Execute(endpoint, func(client KvClient, err error) error {
 					if err != nil {
-						var collectionNotFoundError CollectionNotFoundError
-						if errors.As(err, &collectionNotFoundError) {
-							cc.collections.InvalidateCollectionID(ctx, opts.ScopeName, opts.CollectionName, endpoint, collectionNotFoundError.ManifestUid)
-						}
 						retry(err)
-						return
+						return nil
 					}
 
-					cb(&GetResult{
-						Value:    resp.Value,
-						Flags:    resp.Flags,
-						Datatype: resp.Datatype,
-						Cas:      resp.Cas,
-					}, nil)
+					return memdx.OpsCrud{
+						CollectionsEnabled: client.HasFeature(memdx.HelloFeatureCollections), // TODO: update to reflect the truth
+					}.Get(client, &memdx.GetRequest{
+						CollectionID: cid,
+						Key:          opts.Key,
+						VbucketID:    vbID,
+					}, func(resp *memdx.GetResponse, err error) {
+						// if err != nil {
+						// 	retry(err)
+						// 	return
+						// }
+						// err = cc.errorResolver.ResolvePacket(resp)
+						if err != nil {
+							var collectionNotFoundError CollectionNotFoundError
+							if errors.As(err, &collectionNotFoundError) {
+								cc.collections.InvalidateCollectionID(ctx, opts.ScopeName, opts.CollectionName, endpoint, collectionNotFoundError.ManifestUid)
+							}
+							retry(err)
+							return
+						}
+
+						cb(&GetResult{
+							Value:    resp.Value,
+							Flags:    resp.Flags,
+							Datatype: resp.Datatype,
+							Cas:      resp.Cas,
+						}, nil)
+					})
 				})
+				if err != nil {
+					retry(err)
+					return
+				}
 			})
 			if err != nil {
 				retry(err)
