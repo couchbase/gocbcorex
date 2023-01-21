@@ -23,7 +23,7 @@ type HelloResponse struct {
 	EnabledFeatures []HelloFeature
 }
 
-func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, error)) error {
+func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, error)) (PendingOp, error) {
 	featureBytes := make([]byte, len(req.RequestedFeatures)*2)
 	for featIdx, featCode := range req.RequestedFeatures {
 		binary.BigEndian.PutUint16(featureBytes[featIdx*2:], uint16(featCode))
@@ -67,7 +67,7 @@ type GetErrorMapRequest struct {
 	Version uint16
 }
 
-func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]byte, error)) error {
+func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]byte, error)) (PendingOp, error) {
 	valueBuf := make([]byte, 2)
 	binary.BigEndian.PutUint16(valueBuf[0:], req.Version)
 
@@ -93,7 +93,7 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]by
 
 type GetClusterConfigRequest struct{}
 
-func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func([]byte, error)) error {
+func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func([]byte, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeGetClusterConfig,
@@ -117,7 +117,7 @@ type SelectBucketRequest struct {
 	BucketName string
 }
 
-func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(error)) error {
+func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSelectBucket,
@@ -147,7 +147,7 @@ type SASLListMechsResponse struct {
 	AvailableMechs []AuthMechanism
 }
 
-func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, error)) error {
+func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSASLListMechs,
@@ -186,7 +186,7 @@ type SASLAuthResponse struct {
 	Payload        []byte
 }
 
-func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthResponse, error)) error {
+func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSASLAuth,
@@ -232,7 +232,7 @@ type SASLStepResponse struct {
 	Payload        []byte
 }
 
-func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepResponse, error)) error {
+func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSASLStep,

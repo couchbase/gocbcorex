@@ -1,9 +1,11 @@
 package core
 
 import (
+	"context"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestBasicSnAgent(t *testing.T) {
@@ -20,27 +22,12 @@ func TestBasicSnAgent(t *testing.T) {
 
 	agent := CreateAgent(opts)
 
-	respCh := make(chan *GetResult, 1)
-	errCh := make(chan error, 1)
-	err := agent.Get(&AsyncContext{}, GetOptions{
+	res, err := agent.SyncGet(context.Background(), &GetOptions{
 		Key:            []byte("test"),
 		ScopeName:      "",
 		CollectionName: "",
-	}, func(result *GetResult, err error) {
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		respCh <- result
 	})
 	require.NoError(t, err)
-
-	select {
-	case err := <-errCh:
-		require.NoError(t, err)
-	case resp := <-respCh:
-		assert.NotZero(t, resp.Cas)
-		assert.NotEmpty(t, resp.Value)
-	}
+	assert.NotZero(t, res.Cas)
+	assert.NotEmpty(t, res.Value)
 }

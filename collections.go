@@ -2,17 +2,11 @@ package core
 
 import (
 	"context"
-	"github.com/couchbase/stellar-nebula/core/memdx"
 	"sync"
 	"sync/atomic"
+
+	"github.com/couchbase/stellar-nebula/core/memdx"
 )
-
-type ResolveCollectionIDCallback func(collectionId uint32, manifestRev uint64, err error)
-
-type CollectionResolver interface {
-	ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error)
-	InvalidateCollectionID(ctx context.Context, scopeName, collectionName, endpoint string, manifestRev uint64)
-}
 
 type collectionInvalidation bool
 
@@ -41,10 +35,6 @@ func (cm *collectionsManifest) Lookup(scopeName, collectionName string) (uint32,
 	}
 
 	return 0, 0, false
-}
-
-type collectionIDCallbackNode struct {
-	callback ResolveCollectionIDCallback
 }
 
 type perCidAwaitingDispatchItem struct {
@@ -97,45 +87,15 @@ func (cr *perCidCollectionResolver) storeManifest(old, new *collectionsManifest)
 }
 
 func (cr *perCidCollectionResolver) refreshCid(ctx context.Context, endpoint, key, scope, collection string) {
-	errCh := make(chan error, 1)
-	resCh := make(chan *memdx.GetCollectionIDResponse, 1)
-	cr.dispatcher.Execute(endpoint, func(client KvClient, err error) error {
-		// TODO: DRY up or reconsider this error handling.
-		if err != nil {
-			errCh <- err
-			return err
-		}
-
-		return memdx.OpsUtils{
-			ExtFramesEnabled: true, // TODO: ?
-		}.GetCollectionID(client, &memdx.GetCollectionIDRequest{
-			ScopeName:      scope,
-			CollectionName: collection,
-		}, func(resp *memdx.GetCollectionIDResponse, err error) {
-			if err != nil {
-				errCh <- err
-				return
-			}
-
-			resCh <- resp
+	resp, err := OrchestrateMemdClient(
+		ctx, cr.dispatcher, endpoint,
+		func(client KvClient) (*memdx.GetCollectionIDResponse, error) {
+			return client.GetCollectionID(ctx, &memdx.GetCollectionIDRequest{
+				ScopeName:      scope,
+				CollectionName: collection,
+			})
 		})
-	})
-
-	select {
-	case <-ctx.Done():
-		cr.awaitingDispatchLock.Lock()
-		pending, ok := cr.awaitingDispatch[key]
-		if !ok {
-			cr.awaitingDispatchLock.Unlock()
-			return
-		}
-
-		pending.err = ctx.Err()
-		close(pending.signal)
-
-		delete(cr.awaitingDispatch, key)
-		cr.awaitingDispatchLock.Unlock()
-	case err := <-errCh:
+	if err != nil {
 		cr.awaitingDispatchLock.Lock()
 		pending, ok := cr.awaitingDispatch[key]
 		if !ok {
@@ -148,41 +108,42 @@ func (cr *perCidCollectionResolver) refreshCid(ctx context.Context, endpoint, ke
 
 		delete(cr.awaitingDispatch, key)
 		cr.awaitingDispatchLock.Unlock()
-	case resp := <-resCh:
-		for {
-			manifest := cr.loadManifest()
-
-			// Create a new manifest containing all the old entries and the new one.
-			manifestCollections := make(map[string]*collectionsManifestEntry, len(manifest.collections)-1)
-			for k, cols := range manifest.collections {
-				manifestCollections[k] = cols
-			}
-			manifestCollections[key] = &collectionsManifestEntry{
-				cid: resp.CollectionID,
-				rev: resp.ManifestID,
-			}
-
-			newManifest := &collectionsManifest{
-				collections: manifestCollections,
-			}
-
-			if cr.storeManifest(manifest, newManifest) {
-				break
-			}
-		}
-
-		cr.awaitingDispatchLock.Lock()
-		pending, ok := cr.awaitingDispatch[key]
-		if !ok {
-			cr.awaitingDispatchLock.Unlock()
-			// This might be possible depending on how request cancellation works.
-			return
-		}
-		delete(cr.awaitingDispatch, key)
-		cr.awaitingDispatchLock.Unlock()
-
-		close(pending.signal)
+		return
 	}
+
+	for {
+		manifest := cr.loadManifest()
+
+		// Create a new manifest containing all the old entries and the new one.
+		manifestCollections := make(map[string]*collectionsManifestEntry, len(manifest.collections)-1)
+		for k, cols := range manifest.collections {
+			manifestCollections[k] = cols
+		}
+		manifestCollections[key] = &collectionsManifestEntry{
+			cid: resp.CollectionID,
+			rev: resp.ManifestID,
+		}
+
+		newManifest := &collectionsManifest{
+			collections: manifestCollections,
+		}
+
+		if cr.storeManifest(manifest, newManifest) {
+			break
+		}
+	}
+
+	cr.awaitingDispatchLock.Lock()
+	pending, ok := cr.awaitingDispatch[key]
+	if !ok {
+		cr.awaitingDispatchLock.Unlock()
+		// This might be possible depending on how request cancellation works.
+		return
+	}
+	delete(cr.awaitingDispatch, key)
+	cr.awaitingDispatchLock.Unlock()
+
+	close(pending.signal)
 }
 
 func (cr *perCidCollectionResolver) ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error) {

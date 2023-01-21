@@ -41,10 +41,10 @@ type StatsResponse struct {
 	Value string
 }
 
-func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) error {
+func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) (PendingOp, error) {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
@@ -88,10 +88,10 @@ type GetCollectionIDResponse struct {
 	CollectionID uint32
 }
 
-func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) error {
+func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) (PendingOp, error) {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	reqPath := fmt.Sprintf("%s.%s", req.ScopeName, req.CollectionName)

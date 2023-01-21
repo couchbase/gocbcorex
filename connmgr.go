@@ -2,14 +2,15 @@ package core
 
 import (
 	"crypto/tls"
-	"github.com/couchbase/stellar-nebula/core/memdx"
 	"math/rand"
 	"sync"
+
+	"github.com/couchbase/stellar-nebula/core/memdx"
 
 	"golang.org/x/exp/slices"
 )
 
-type ConnExecuteHandler func(KvClient, error) error
+type ConnExecuteHandler func(KvClient) error
 
 type ConnectionManager interface {
 	UpdateEndpoints(endpoints []string) error
@@ -113,6 +114,10 @@ func (m *connectionManager) UpdateEndpoints(endpoints []string) error {
 	return nil
 }
 
+func (m *connectionManager) GetClientForEndpoint(endpoint string) (KvClient, error) {
+	return nil, nil
+}
+
 func (m *connectionManager) Execute(endpoint string, handler ConnExecuteHandler) error {
 	m.lock.Lock()
 	pipeline, ok := m.connections[endpoint]
@@ -123,5 +128,5 @@ func (m *connectionManager) Execute(endpoint string, handler ConnExecuteHandler)
 	client := pipeline.connections[rand.Intn(len(pipeline.connections))]
 	m.lock.Unlock()
 
-	return handler(client, nil)
+	return handler(client)
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"testing"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
@@ -34,29 +35,12 @@ func TestKvClientConnectAndBootstrapAndSendOp(t *testing.T) {
 	assert.NotNil(t, res.ClusterConfig)
 	assert.NotNil(t, res.ErrorMap)
 
-	respCh := make(chan *memdx.GetResponse, 1)
-	errCh := make(chan error, 1)
-	err = memdx.OpsCrud{
-		CollectionsEnabled: true,
-	}.Get(client, &memdx.GetRequest{
+	getRes, err := client.Get(context.Background(), &memdx.GetRequest{
 		CollectionID: 0,
 		Key:          []byte("test"),
 		VbucketID:    127,
-	}, func(response *memdx.GetResponse, err error) {
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		respCh <- response
 	})
 	require.NoError(t, err)
-
-	select {
-	case err := <-errCh:
-		require.NoError(t, err)
-	case resp := <-respCh:
-		assert.NotZero(t, resp.Cas)
-		assert.NotEmpty(t, resp.Value)
-	}
+	assert.NotZero(t, getRes.Cas)
+	assert.NotEmpty(t, getRes.Value)
 }

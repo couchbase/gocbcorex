@@ -3,11 +3,11 @@ package memdx
 import "log"
 
 type OpBootstrapEncoder interface {
-	Hello(Dispatcher, *HelloRequest, func(*HelloResponse, error)) error
-	GetErrorMap(Dispatcher, *GetErrorMapRequest, func([]byte, error)) error
+	Hello(Dispatcher, *HelloRequest, func(*HelloResponse, error)) (PendingOp, error)
+	GetErrorMap(Dispatcher, *GetErrorMapRequest, func([]byte, error)) (PendingOp, error)
 	OpSaslAuthAutoEncoder
-	SelectBucket(Dispatcher, *SelectBucketRequest, func(error)) error
-	GetClusterConfig(Dispatcher, *GetClusterConfigRequest, func([]byte, error)) error
+	SelectBucket(Dispatcher, *SelectBucketRequest, func(error)) (PendingOp, error)
+	GetClusterConfig(Dispatcher, *GetClusterConfigRequest, func([]byte, error)) (PendingOp, error)
 }
 
 var _ OpBootstrapEncoder = (*OpsCore)(nil)

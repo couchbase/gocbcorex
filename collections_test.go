@@ -6,10 +6,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/couchbase/stellar-nebula/core/memdx"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/couchbase/stellar-nebula/core/memdx"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -322,12 +323,12 @@ func TestCollectionsManagerUnknownCollectionSameManifestRev(t *testing.T) {
 	collection := uuid.NewString()
 	scope := uuid.NewString()
 	fqCollectionName := fmt.Sprintf("%s.%s", scope, collection)
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		go func() {
 			t.Error("Should not have reached here")
 			handler(nil, errors.New("nope"))
 		}()
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -356,7 +357,7 @@ func TestCollectionsManagerCancelContext(t *testing.T) {
 	collection := uuid.NewString()
 	scope := uuid.NewString()
 	blockCh := make(chan struct{}, 1)
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		called++
 		pk := &memdx.Packet{
 			Extras: make([]byte, 12),
@@ -365,7 +366,7 @@ func TestCollectionsManagerCancelContext(t *testing.T) {
 		binary.BigEndian.PutUint32(pk.Extras[8:], 7)
 
 		handler(pk, nil)
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -397,7 +398,7 @@ func TestCollectionsManagerCancelContextMultipleOps(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{}, 1)
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
@@ -413,7 +414,7 @@ func TestCollectionsManagerCancelContextMultipleOps(t *testing.T) {
 
 			t.Error("Should not have reached here")
 		}()
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -469,7 +470,7 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{}, 1)
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
@@ -486,7 +487,7 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 
 			t.Error("Should not have reached here")
 		}()
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -525,7 +526,7 @@ func TestCollectionsManagerInvalidateTwice(t *testing.T) {
 	cid := uint32(9)
 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
 	blockCh := make(chan struct{})
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		go func() {
 			<-blockCh
 			atomic.AddUint32(&called, 1)
@@ -542,7 +543,7 @@ func TestCollectionsManagerInvalidateTwice(t *testing.T) {
 
 			t.Error("Should not have reached here")
 		}()
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,

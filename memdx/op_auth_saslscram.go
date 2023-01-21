@@ -9,8 +9,8 @@ import (
 )
 
 type OpSaslAuthScramEncoder interface {
-	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) error
-	SASLStep(Dispatcher, *SASLStepRequest, func(*SASLStepResponse, error)) error
+	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) (PendingOp, error)
+	SASLStep(Dispatcher, *SASLStepRequest, func(*SASLStepResponse, error)) (PendingOp, error)
 }
 
 type OpSaslAuthScram struct {

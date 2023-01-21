@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"github.com/couchbase/stellar-nebula/core/memdx"
 	"testing"
 	"time"
+
+	"github.com/couchbase/stellar-nebula/core/memdx"
 
 	"github.com/couchbase/gocbcore/v10"
 	"github.com/couchbase/gocbcore/v10/memd"
@@ -38,14 +39,14 @@ func (f *fakeVBucketDispatcher) Close() error {
 }
 
 type fakeKvClient struct {
-	onCall func(*memdx.Packet, memdx.DispatchCallback) error
+	onCall func(*memdx.Packet, memdx.DispatchCallback) (memdx.PendingOp, error)
 }
 
 func (cli *fakeKvClient) HasFeature(feat memdx.HelloFeature) bool {
 	return true
 }
 
-func (cli *fakeKvClient) Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error {
+func (cli *fakeKvClient) Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 	return cli.onCall(req, handler)
 }
 
@@ -112,7 +113,7 @@ func TestAThing(t *testing.T) {
 	t.SkipNow()
 
 	var called int
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		time.AfterFunc(0, func() {
 			if called == 3 {
 				handler(&memdx.Packet{}, nil)
@@ -121,7 +122,7 @@ func TestAThing(t *testing.T) {
 			called++
 			handler(nil, errors.New("rar"))
 		})
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -157,7 +158,7 @@ func TestCancellingAThing(t *testing.T) {
 	ctx := &AsyncContext{}
 
 	var called int
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		time.AfterFunc(0, func() {
 			if called == 3 {
 				ctx.Cancel()
@@ -165,7 +166,7 @@ func TestCancellingAThing(t *testing.T) {
 			called++
 			handler(nil, errors.New("rar"))
 		})
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -197,7 +198,7 @@ func TestCancellingAThing(t *testing.T) {
 
 func TestCollectionUnknownStandardResolver(t *testing.T) {
 	var called int
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		time.AfterFunc(0, func() {
 			called++
 			if req.OpCode == memdx.OpCodeCollectionsGetID {
@@ -221,7 +222,7 @@ func TestCollectionUnknownStandardResolver(t *testing.T) {
 			handler(nil, errors.New("test should not have reached here"))
 		})
 
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,
@@ -252,14 +253,14 @@ func TestCollectionUnknownStandardResolver(t *testing.T) {
 func TestResolvingPacketWithError(t *testing.T) {
 	ctx := &AsyncContext{}
 
-	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
+	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) (memdx.PendingOp, error) {
 		time.AfterFunc(0, func() {
 			handler(&memdx.Packet{
 				Status: 1,
 			}, nil)
 		})
 
-		return nil
+		return nil, nil
 	}
 	client := &fakeKvClient{
 		onCall: cliCb,

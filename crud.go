@@ -2,7 +2,7 @@ package core
 
 import (
 	"context"
-	"errors"
+
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
@@ -27,72 +27,22 @@ type GetResult struct {
 	Cas      uint64
 }
 
-func (cc *CrudComponent) Get(ctx *AsyncContext, opts GetOptions, cb func(*GetResult, error)) error {
-	return cc.retries.OrchestrateRetries(ctx, func(retry func(error), err error) {
-		if err != nil {
-			cb(nil, err)
-			return
-		}
-
-		cid, _, err := cc.collections.ResolveCollectionID(context.Background(), "", opts.ScopeName, opts.CollectionName)
-		if err != nil {
-			retry(err)
-			return
-		}
-
-		err = cc.vbuckets.DispatchByKey(ctx, opts.Key, func(endpoint string, vbID uint16, err error) {
-			if err != nil {
-				retry(err)
-				return
-			}
-
-			err = cc.connManager.Execute(endpoint, func(client KvClient, err error) error {
-				if err != nil {
-					retry(err)
-					return nil
-				}
-
-				return memdx.OpsCrud{
-					CollectionsEnabled: client.HasFeature(memdx.HelloFeatureCollections), // TODO: update to reflect the truth
-				}.Get(client, &memdx.GetRequest{
-					CollectionID: cid,
-					Key:          opts.Key,
-					VbucketID:    vbID,
-				}, func(resp *memdx.GetResponse, err error) {
-					// if err != nil {
-					// 	retry(err)
-					// 	return
-					// }
-					// err = cc.errorResolver.ResolvePacket(resp)
-					if err != nil {
-						var collectionNotFoundError CollectionNotFoundError
-						if errors.As(err, &collectionNotFoundError) {
-							cc.collections.InvalidateCollectionID(context.Background(), opts.ScopeName, opts.CollectionName, endpoint, collectionNotFoundError.ManifestUid)
-						}
-						retry(err)
-						return
-					}
-
-					cb(&GetResult{
-						Value:    resp.Value,
-						Flags:    resp.Flags,
-						Datatype: resp.Datatype,
-						Cas:      resp.Cas,
-					}, nil)
-				})
+func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult, error) {
+	return OrchestrateSimpleCrud(
+		ctx, cc.retries, cc.collections, cc.vbuckets, cc.connManager,
+		opts.ScopeName, opts.CollectionName, opts.Key,
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
+			resp, err := client.Get(ctx, &memdx.GetRequest{
+				CollectionID: collectionID,
+				Key:          opts.Key,
+				VbucketID:    vbID,
 			})
 			if err != nil {
-				retry(err)
-				return
+				return nil, err
 			}
-		})
-		if err != nil {
-			retry(err)
-			return
-		}
-	})
-}
 
-func encodeCidIntoKey(key []byte, cid uint32) []byte {
-	return []byte{}
+			return &GetResult{
+				Cas: resp.Cas,
+			}, nil
+		})
 }

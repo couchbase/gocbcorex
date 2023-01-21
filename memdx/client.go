@@ -80,6 +80,20 @@ func (c *Client) registerHandler(handler DispatchCallback) uint32 {
 	return opaqueID
 }
 
+func (c *Client) cancelHandler(opaqueID uint32) bool {
+	c.lock.Lock()
+
+	_, handlerIsValid := c.opaqueMap[opaqueID]
+	if !handlerIsValid {
+		c.lock.Unlock()
+		return false
+	}
+
+	delete(c.opaqueMap, opaqueID)
+	c.lock.Unlock()
+	return true
+}
+
 func (c *Client) dispatchCallback(pak *Packet) error {
 	c.lock.Lock()
 
@@ -113,8 +127,26 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Dispatch(req *Packet, handler DispatchCallback) error {
+type clientPendingOp struct {
+	client   *Client
+	opaqueID uint32
+}
+
+func (po clientPendingOp) Cancel() bool {
+	return po.client.cancelHandler(po.opaqueID)
+}
+
+func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, error) {
 	opaqueID := c.registerHandler(handler)
 	req.Opaque = opaqueID
-	return c.conn.WritePacket(req)
+
+	err := c.conn.WritePacket(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return clientPendingOp{
+		client:   c,
+		opaqueID: opaqueID,
+	}, nil
 }

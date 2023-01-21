@@ -5,6 +5,7 @@ import (
 )
 
 type OpsCrud struct {
+	ExtFramesEnabled   bool
 	CollectionsEnabled bool
 }
 
@@ -35,10 +36,10 @@ type GetResponse struct {
 	Datatype uint8
 }
 
-func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)) error {
+func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)) (PendingOp, error) {
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
@@ -95,10 +96,10 @@ type GetAndTouchResponse struct {
 	Datatype uint8
 }
 
-func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*GetAndTouchResponse, error)) error {
+func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*GetAndTouchResponse, error)) (PendingOp, error) {
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	extraBuf := make([]byte, 4)
@@ -158,10 +159,10 @@ type GetAndLockResponse struct {
 	Datatype uint8
 }
 
-func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAndLockResponse, error)) error {
+func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAndLockResponse, error)) (PendingOp, error) {
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	extraBuf := make([]byte, 4)
@@ -220,11 +221,11 @@ type GetRandomResponse struct {
 	Datatype uint8
 }
 
-func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) error {
+func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) (PendingOp, error) {
 	var extrasBuf []byte
 	if !o.CollectionsEnabled {
 		if req.CollectionID != 0 {
-			return ErrCollectionsNotEnabled
+			return nil, ErrCollectionsNotEnabled
 		}
 
 		// extrasBuf = nil

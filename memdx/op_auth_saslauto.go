@@ -9,7 +9,7 @@ import (
 
 type OpSaslAuthAutoEncoder interface {
 	OpSaslAuthByNameEncoder
-	SASLListMechs(Dispatcher, func(*SASLListMechsResponse, error)) error
+	SASLListMechs(Dispatcher, func(*SASLListMechsResponse, error)) (PendingOp, error)
 }
 
 type OpSaslAuthAuto struct {

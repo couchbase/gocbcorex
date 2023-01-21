@@ -3,7 +3,7 @@ package memdx
 // OpSaslAuthInvalid exists to support some testing requirements
 // and intentionally executes a SASLAuth that is known to be invalid.
 type OpSaslAuthInvalidEncoder interface {
-	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) error
+	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) (PendingOp, error)
 }
 
 type OpSaslAuthInvalid struct {

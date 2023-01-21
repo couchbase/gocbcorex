@@ -5,7 +5,7 @@ import (
 )
 
 type OpSaslAuthPlainEncoder interface {
-	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) error
+	SASLAuth(Dispatcher, *SASLAuthRequest, func(*SASLAuthResponse, error)) (PendingOp, error)
 }
 
 type OpSaslAuthPlain struct {

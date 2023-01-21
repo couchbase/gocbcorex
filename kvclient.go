@@ -1,18 +1,21 @@
 package core
 
 import (
+	"context"
 	"crypto/tls"
-	"golang.org/x/exp/slices"
 	"strings"
 	"sync/atomic"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 type KvClient interface {
-	HasFeature(feat memdx.HelloFeature) bool
+	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
+	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
+	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 
-	Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error
 	Close() error
 
 	LoadFactor() float64
@@ -79,7 +82,7 @@ func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
 	resultWait := make(chan *kvClientBootstrapResult, 1)
 	memdx.OpBootstrap{
 		Encoder: memdx.OpsCore{},
-	}.Execute(c, &memdx.BootstrapOptions{
+	}.Execute(c.cli, &memdx.BootstrapOptions{
 		Hello: &memdx.HelloRequest{
 			ClientName:        []byte("core"),
 			RequestedFeatures: c.requestedFeatures,
@@ -125,10 +128,6 @@ func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
 
 func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
 	return slices.Contains(c.supportedFeatures, feat)
-}
-
-func (c *kvClient) Dispatch(req *memdx.Packet, handler memdx.DispatchCallback) error {
-	return c.cli.Dispatch(req, handler)
 }
 
 func (c *kvClient) Close() error {
