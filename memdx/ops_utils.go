@@ -12,10 +12,6 @@ type OpsUtils struct {
 func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []byte, error) {
 	var err error
 
-	if !o.ExtFramesEnabled {
-		return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
-	}
-
 	if onBehalfOf != "" {
 		buf, err = AppendExtFrame(ExtFrameCodeReqOnBehalfOf, []byte(onBehalfOf), buf)
 		if err != nil {
@@ -24,10 +20,14 @@ func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []by
 	}
 
 	if len(buf) > 0 {
+		if !o.ExtFramesEnabled {
+			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+		}
+
 		return MagicReqExt, buf, nil
 	}
 
-	return MagicReq, buf, nil
+	return MagicReq, nil, nil
 }
 
 type StatsRequest struct {
