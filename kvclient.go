@@ -34,6 +34,7 @@ type KvClient interface {
 	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
 	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
+	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 
 	Close() error
 
@@ -100,7 +101,7 @@ func newKvClient(ctx context.Context, opts *KvClientOptions) (*kvClient, error) 
 		return nil, err
 	}
 
-	log.Printf("bootstrapped: %+v", res)
+	log.Printf("bootstrapped: %+v", res.Hello)
 
 	return kvCli, nil
 }

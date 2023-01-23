@@ -16,19 +16,28 @@ func TestBasicSnAgent(t *testing.T) {
 		BucketName: "default",
 		Username:   "Administrator",
 		Password:   "password",
-		HTTPAddrs:  []string{"http://10.112.230.101:8091"},
-		MemdAddrs:  []string{"10.112.230.101:11210"},
+		HTTPAddrs:  []string{"http://192.168.0.100:8091"},
+		MemdAddrs:  []string{"192.168.0.100:11210"},
 	}
 
 	agent, err := CreateAgent(opts)
 	require.NoError(t, err)
 
-	res, err := agent.SyncGet(context.Background(), &GetOptions{
+	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, upsertRes.Cas)
+
+	getRes, err := agent.Get(context.Background(), &GetOptions{
 		Key:            []byte("test"),
 		ScopeName:      "",
 		CollectionName: "",
 	})
 	require.NoError(t, err)
-	assert.NotZero(t, res.Cas)
-	assert.NotEmpty(t, res.Value)
+	assert.NotZero(t, getRes.Cas)
+	assert.NotEmpty(t, getRes.Value)
 }

@@ -114,3 +114,7 @@ func (c *kvClient) GetCollectionID(ctx context.Context, req *memdx.GetCollection
 func (c *kvClient) Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Get, req)
 }
+
+func (c *kvClient) Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Set, req)
+}

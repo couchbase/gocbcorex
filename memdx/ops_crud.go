@@ -266,3 +266,65 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 		return false
 	})
 }
+
+type SetRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint32
+	Value        []byte
+	Datatype     uint8
+	Expiry       uint32
+}
+
+type SetResponse struct {
+	Cas uint64
+}
+
+func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)) (PendingOp, error) {
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 8)
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+
+	return d.Dispatch(&Packet{
+		Magic:     MagicReq,
+		OpCode:    OpCodeSet,
+		Key:       reqKey,
+		VbucketID: req.VbucketID,
+		Datatype:  req.Datatype,
+		Extras:    extraBuf,
+		Value:     req.Value,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusCollectionUnknown {
+			cb(nil, ErrUnknownCollectionID)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCore{}.decodeError(resp))
+			return false
+		}
+
+		if len(resp.Extras) == 16 {
+			// parse mutation token
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&SetResponse{
+			Cas: resp.Cas,
+		}, nil)
+		return false
+	})
+}

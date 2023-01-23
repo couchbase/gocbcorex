@@ -37,6 +37,9 @@ var _ KvClient = &KvClientMock{}
 //			ReconfigureFunc: func(ctx context.Context, opts *KvClientOptions) error {
 //				panic("mock out the Reconfigure method")
 //			},
+//			SetFunc: func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
+//				panic("mock out the Set method")
+//			},
 //		}
 //
 //		// use mockedKvClient in code that requires KvClient
@@ -61,6 +64,9 @@ type KvClientMock struct {
 
 	// ReconfigureFunc mocks the Reconfigure method.
 	ReconfigureFunc func(ctx context.Context, opts *KvClientOptions) error
+
+	// SetFunc mocks the Set method.
+	SetFunc func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -98,6 +104,13 @@ type KvClientMock struct {
 			// Opts is the opts argument value.
 			Opts *KvClientOptions
 		}
+		// Set holds details about calls to the Set method.
+		Set []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.SetRequest
+		}
 	}
 	lockClose            sync.RWMutex
 	lockGet              sync.RWMutex
@@ -105,6 +118,7 @@ type KvClientMock struct {
 	lockGetCollectionID  sync.RWMutex
 	lockLoadFactor       sync.RWMutex
 	lockReconfigure      sync.RWMutex
+	lockSet              sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -302,5 +316,41 @@ func (mock *KvClientMock) ReconfigureCalls() []struct {
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure
 	mock.lockReconfigure.RUnlock()
+	return calls
+}
+
+// Set calls SetFunc.
+func (mock *KvClientMock) Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
+	if mock.SetFunc == nil {
+		panic("KvClientMock.SetFunc: method is nil but KvClient.Set was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.SetRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockSet.Lock()
+	mock.calls.Set = append(mock.calls.Set, callInfo)
+	mock.lockSet.Unlock()
+	return mock.SetFunc(ctx, req)
+}
+
+// SetCalls gets all the calls that were made to Set.
+// Check the length with:
+//
+//	len(mockedKvClient.SetCalls())
+func (mock *KvClientMock) SetCalls() []struct {
+	Ctx context.Context
+	Req *memdx.SetRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.SetRequest
+	}
+	mock.lockSet.RLock()
+	calls = mock.calls.Set
+	mock.lockSet.RUnlock()
 	return calls
 }
