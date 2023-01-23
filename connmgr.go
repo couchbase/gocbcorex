@@ -8,6 +8,7 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/net/context"
 )
 
 type ConnExecuteHandler func(KvClient) error
@@ -78,24 +79,27 @@ func (m *connectionManager) UpdateEndpoints(endpoints []string) error {
 		if m.connections[endpoint] == nil {
 			clients := make([]KvClient, m.connectionsPerNode)
 			for i := uint8(0); i < m.connectionsPerNode; i++ {
-				cli, err := newKvClient(kvClientOptions{
-					Hostname:       endpoint,
+				cli, err := newKvClient(context.Background(), &KvClientOptions{
+					Address:        endpoint,
 					TlsConfig:      m.tlsConfig,
 					SelectedBucket: m.bucket,
-					Features:       m.requestedFeatures,
-					Username:       m.username,
-					Password:       m.password,
+					//Features:       m.requestedFeatures,
+					Username: m.username,
+					Password: m.password,
 				})
+
 				if err != nil {
 					m.lock.Unlock()
 					return err // TODO: not really sure what we'd do here...
 				}
 
-				_, err = cli.Bootstrap()
-				if err != nil {
-					m.lock.Unlock()
-					return err // TODO: not really sure what we'd do here...
-				}
+				/*
+					_, err = cli.Bootstrap()
+					if err != nil {
+						m.lock.Unlock()
+						return err // TODO: not really sure what we'd do here...
+					}
+				*/
 
 				clients[i] = cli
 			}

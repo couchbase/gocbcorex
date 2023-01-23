@@ -32,7 +32,7 @@ type BootstrapResult struct {
 	ClusterConfig []byte
 }
 
-func (a OpBootstrap) Execute(d Dispatcher, opts *BootstrapOptions, cb func(res *BootstrapResult, err error)) {
+func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res *BootstrapResult, err error)) (PendingOp, error) {
 	// NOTE(brett19): The following logic is dependant on operation ordering that
 	// is guarenteed by memcached, even when Out-Of-Order Execution is enabled.
 
@@ -207,10 +207,8 @@ func (a OpBootstrap) Execute(d Dispatcher, opts *BootstrapOptions, cb func(res *
 
 	dispatchCallback = func() {}
 
-	maybeCallback()
-	if currentStage == stageCallback {
-		return
-	}
-
 	dispatchHello()
+	maybeCallback()
+
+	return pendingOpNoop{}, nil
 }

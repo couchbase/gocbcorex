@@ -127,15 +127,6 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-type clientPendingOp struct {
-	client   *Client
-	opaqueID uint32
-}
-
-func (po clientPendingOp) Cancel() bool {
-	return po.client.cancelHandler(po.opaqueID)
-}
-
 func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, error) {
 	opaqueID := c.registerHandler(handler)
 	req.Opaque = opaqueID

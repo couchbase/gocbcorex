@@ -1,5 +1,7 @@
 package core
 
+import "context"
+
 type placeholderError struct {
 	Inner string
 }
@@ -24,4 +26,16 @@ type CollectionNotFoundError struct {
 
 func (e CollectionNotFoundError) Error() string {
 	return e.InnerError.Error()
+}
+
+type contextualDeadline struct {
+	Message string
+}
+
+func (e contextualDeadline) Error() string {
+	return e.Message
+}
+
+func (e contextualDeadline) Unwrap() error {
+	return context.DeadlineExceeded
 }

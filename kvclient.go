@@ -3,7 +3,8 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"strings"
+	"errors"
+	"log"
 	"sync/atomic"
 
 	"golang.org/x/exp/slices"
@@ -11,7 +12,25 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
+type KvClientOptions struct {
+	Address        string
+	TlsConfig      *tls.Config
+	SelectedBucket string
+	Username       string
+	Password       string
+}
+
+func (o KvClientOptions) Equals(b *KvClientOptions) bool {
+	return o.Address == b.Address &&
+		o.TlsConfig == b.TlsConfig &&
+		o.SelectedBucket == b.SelectedBucket &&
+		o.Username == b.Username &&
+		o.Password == b.Password
+}
+
 type KvClient interface {
+	Reconfigure(ctx context.Context, opts *KvClientOptions) error
+
 	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
 	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
@@ -38,92 +57,56 @@ type kvClient struct {
 
 var _ KvClient = (*kvClient)(nil)
 
-type kvClientOptions struct {
-	Hostname       string
-	TlsConfig      *tls.Config
-	SelectedBucket string
-	Features       []memdx.HelloFeature
-
-	// TODO: this should probably be swapped out for an authenticator of some sort, which can probably be hotswapped
-	// during Reconfigure.
-	Username string
-	Password string
-}
-
-func newKvClient(opts kvClientOptions) (*kvClient, error) {
-	hostname := trimSchemePrefix(opts.Hostname)
-	conn, err := memdx.DialConn(hostname, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
+func newKvClient(ctx context.Context, opts *KvClientOptions) (*kvClient, error) {
+	conn, err := memdx.DialConn(ctx, opts.Address, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
 	if err != nil {
 		return nil, err
 	}
+
 	cli := memdx.NewClient(conn, &memdx.ClientOptions{
 		OrphanHandler: nil,
 		CloseHandler:  nil,
 	})
 
-	return &kvClient{
+	kvCli := &kvClient{
 		cli:               cli,
-		hostname:          opts.Hostname,
+		hostname:          opts.Address,
 		tlsConfig:         opts.TlsConfig,
-		requestedFeatures: opts.Features,
+		requestedFeatures: nil, // TODO(brett19): fix this
 		username:          opts.Username,
 		password:          opts.Password,
 		bucket:            opts.SelectedBucket,
-	}, nil
-}
+	}
 
-type kvClientBootstrapResult struct {
-	ErrorMap      []byte
-	ClusterConfig []byte
-}
-
-func (c *kvClient) Bootstrap() (*kvClientBootstrapResult, error) {
-	errWait := make(chan error, 1)
-	resultWait := make(chan *kvClientBootstrapResult, 1)
-	memdx.OpBootstrap{
-		Encoder: memdx.OpsCore{},
-	}.Execute(c.cli, &memdx.BootstrapOptions{
+	res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
 		Hello: &memdx.HelloRequest{
 			ClientName:        []byte("core"),
-			RequestedFeatures: c.requestedFeatures,
+			RequestedFeatures: kvCli.requestedFeatures,
 		},
 		GetErrorMap: &memdx.GetErrorMapRequest{
 			Version: 2,
 		},
 		Auth: &memdx.SaslAuthAutoOptions{
-			Username:     c.username,
-			Password:     c.password,
+			Username:     opts.Username,
+			Password:     opts.Password,
 			EnabledMechs: []memdx.AuthMechanism{memdx.ScramSha512AuthMechanism, memdx.ScramSha256AuthMechanism},
 		},
 		SelectBucket: &memdx.SelectBucketRequest{
-			BucketName: c.bucket,
+			BucketName: opts.SelectedBucket,
 		},
 		GetClusterConfig: &memdx.GetClusterConfigRequest{},
-	}, func(res *memdx.BootstrapResult, err error) {
-		if err != nil {
-			errWait <- err
-			return
-		}
-		c.supportedFeatures = res.Hello.EnabledFeatures
-
-		resultWait <- &kvClientBootstrapResult{
-			ErrorMap:      res.ErrorMap,
-			ClusterConfig: res.ClusterConfig,
-		}
 	})
-
-	select {
-	case err := <-errWait:
+	if err != nil {
 		return nil, err
-	case res := <-resultWait:
-		return res, nil
 	}
-	// HELLO
-	// GET_ERROR_MAP
-	// AUTH (SASL_LIST_MECHS, SASL_AUTH, SASL_CONTINUE)
-	// SELECT_BUCKET
-	// GET_CLUSTER_CONFIG
-	// OPERATIONS
+
+	log.Printf("bootstrapped: %+v", res)
+
+	return kvCli, nil
+}
+
+func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientOptions) error {
+	return errors.New("kv client does not currently support reconfiguring")
 }
 
 func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
@@ -136,13 +119,4 @@ func (c *kvClient) Close() error {
 
 func (c *kvClient) LoadFactor() float64 {
 	return (float64)(atomic.LoadUint64(&c.pendingOperations))
-}
-
-func trimSchemePrefix(address string) string {
-	idx := strings.Index(address, "://")
-	if idx < 0 {
-		return address
-	}
-
-	return address[idx+len("://"):]
 }

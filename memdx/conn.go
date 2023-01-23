@@ -1,6 +1,7 @@
 package memdx
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 )
@@ -14,23 +15,29 @@ type Conn struct {
 
 type DialConnOptions struct {
 	TLSConfig *tls.Config
+	Dialer    *net.Dialer
 }
 
-func DialConn(addr string, opts *DialConnOptions) (*Conn, error) {
+func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, error) {
 	if opts == nil {
 		opts = &DialConnOptions{}
 	}
 
+	dialer := opts.Dialer
+	if dialer == nil {
+		dialer = &net.Dialer{}
+	}
+
 	var netConn net.Conn
 	if opts.TLSConfig == nil {
-		tcpConn, err := net.Dial("tcp", addr)
+		tcpConn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, err
 		}
 
 		netConn = tcpConn
 	} else {
-		tlsConn, err := tls.Dial("tcp", addr, opts.TLSConfig)
+		tlsConn, err := tls.DialWithDialer(dialer, "tcp", addr, opts.TLSConfig)
 		if err != nil {
 			return nil, err
 		}

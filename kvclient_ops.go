@@ -97,6 +97,12 @@ func kvClient_SimpleCrudCall[ReqT any, RespT any](
 	}, execFn, req)
 }
 
+func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) (*memdx.BootstrapResult, error) {
+	return kvClient_SimpleCall(ctx, c, memdx.OpBootstrap{
+		Encoder: memdx.OpsCore{},
+	}, memdx.OpBootstrap.Bootstrap, opts)
+}
+
 func (c *kvClient) GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error) {
 	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.GetClusterConfig, req)
 }
