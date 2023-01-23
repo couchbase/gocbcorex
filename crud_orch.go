@@ -87,7 +87,8 @@ func OrchestrateMemdRouting[RespT any](
 			if errors.Is(err, memdx.ErrNotMyVbucket) {
 				// TODO: this will need to retry or something.
 			}
-			return nil, err
+
+			return res, err
 		}
 
 		return res, nil
