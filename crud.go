@@ -11,7 +11,7 @@ type CrudComponent struct {
 	vbuckets      VbucketDispatcher
 	retries       RetryComponent
 	errorResolver PacketResolver
-	connManager   ConnectionManager
+	connManager   EndpointConnectionProvider
 }
 
 type GetOptions struct {

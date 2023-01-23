@@ -97,12 +97,18 @@ func OrchestrateMemdRouting[RespT any](
 
 func OrchestrateMemdClient[RespT any](
 	ctx context.Context,
-	cm ConnectionManager,
+	cm EndpointConnectionProvider,
 	endpoint string,
 	fn func(client KvClient) (RespT, error),
 ) (RespT, error) {
 	for {
-		res, err := fn(nil)
+		cli, err := cm.GetClient(ctx, endpoint)
+		if err != nil {
+			var emptyResp RespT
+			return emptyResp, err
+		}
+
+		res, err := fn(cli)
 		if err != nil {
 			return res, err
 		}
@@ -116,7 +122,7 @@ func OrchestrateSimpleCrud[RespT any](
 	rs RetryComponent,
 	cr CollectionResolver,
 	vb VbucketDispatcher,
-	cm ConnectionManager,
+	cm EndpointConnectionProvider,
 	scopeName, collectionName string,
 	key []byte,
 	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),

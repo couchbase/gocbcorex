@@ -9,7 +9,7 @@ import (
 )
 
 func TestBasicSnAgent(t *testing.T) {
-	t.SkipNow()
+	// t.SkipNow()
 
 	opts := FakeAgentOptions{
 		TLSConfig:  nil,
@@ -20,7 +20,8 @@ func TestBasicSnAgent(t *testing.T) {
 		MemdAddrs:  []string{"10.112.230.101:11210"},
 	}
 
-	agent := CreateAgent(opts)
+	agent, err := CreateAgent(opts)
+	require.NoError(t, err)
 
 	res, err := agent.SyncGet(context.Background(), &GetOptions{
 		Key:            []byte("test"),

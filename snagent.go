@@ -5,27 +5,29 @@ import (
 	"crypto/tls"
 	"net/http"
 	"time"
-
-	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 type FakeAgent struct {
 	bucket    string
 	tlsConfig *tls.Config
+	username  string
+	password  string
 
 	poller      ConfigPoller
 	configMgr   ConfigManager
 	vbuckets    VbucketDispatcher
-	connMgr     ConnectionManager
+	connMgr     EndpointConnectionProvider
 	crud        *CrudComponent
 	collections CollectionResolver
 	retries     RetryComponent
 }
 
-func CreateAgent(opts FakeAgentOptions) *FakeAgent {
+func CreateAgent(opts FakeAgentOptions) (*FakeAgent, error) {
 	agent := &FakeAgent{
 		bucket:    opts.BucketName,
 		tlsConfig: opts.TLSConfig,
+		username:  opts.Username,
+		password:  opts.Password,
 
 		poller: newhttpConfigPoller(opts.HTTPAddrs, httpPollerProperties{
 			ConfHTTPRetryDelay:   10 * time.Second,
@@ -38,21 +40,19 @@ func CreateAgent(opts FakeAgentOptions) *FakeAgent {
 		}),
 		configMgr: newConfigManager(),
 		vbuckets:  newVbucketDispatcher(),
-		connMgr: newConnectionManager(connManagerOptions{
-			ConnectionsPerNode: 1,
-			TlsConfig:          nil,
-			SelectedBucket:     opts.BucketName,
-			Features: []memdx.HelloFeature{
-				memdx.HelloFeatureTLS, memdx.HelloFeatureXattr, memdx.HelloFeatureSelectBucket, memdx.HelloFeatureXerror,
-				memdx.HelloFeatureJSON, memdx.HelloFeatureSeqNo, memdx.HelloFeatureSnappy, memdx.HelloFeatureDurations,
-				memdx.HelloFeatureCollections, memdx.HelloFeatureUnorderedExec, memdx.HelloFeatureAltRequests,
-				memdx.HelloFeatureCreateAsDeleted, memdx.HelloFeatureReplaceBodyWithXattr, memdx.HelloFeaturePITR,
-				memdx.HelloFeatureSyncReplication,
-			},
-			Username: opts.Username,
-			Password: opts.Password,
-		}),
-		retries: newRetryComponent(),
+		retries:   newRetryComponent(),
+	}
+
+	var err error
+	agent.connMgr, err = NewEndpointConnectionManager(&EndpointConnectionManagerOptions{
+		Endpoints:      opts.MemdAddrs,
+		TLSConfig:      agent.tlsConfig,
+		SelectedBucket: opts.BucketName,
+		Username:       opts.Username,
+		Password:       opts.Password,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	agent.collections = NewCollectionResolverCached(&CollectionResolverMemd{
@@ -69,7 +69,7 @@ func CreateAgent(opts FakeAgentOptions) *FakeAgent {
 
 	go agent.WatchConfigs()
 
-	return agent
+	return agent, nil
 }
 
 func (agent *FakeAgent) WatchConfigs() {
@@ -101,7 +101,13 @@ func (agent *FakeAgent) WatchConfigs() {
 			copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
 		}
 
-		agent.connMgr.UpdateEndpoints(serverList)
+		agent.connMgr.Reconfigure(&EndpointConnectionManagerOptions{
+			Endpoints:      serverList,
+			TLSConfig:      agent.tlsConfig,
+			SelectedBucket: agent.bucket,
+			Username:       agent.username,
+			Password:       agent.password,
+		})
 		agent.vbuckets.StoreVbucketRoutingInfo(&vbucketRoutingInfo{
 			vbmap:      routeCfg.vbMap,
 			serverList: serverList,

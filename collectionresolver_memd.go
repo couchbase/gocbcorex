@@ -7,7 +7,7 @@ import (
 )
 
 type CollectionResolverMemd struct {
-	connMgr ConnectionManager
+	connMgr EndpointConnectionProvider
 }
 
 var _ CollectionResolver = (*CollectionResolverMemd)(nil)
