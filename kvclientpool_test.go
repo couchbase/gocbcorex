@@ -173,7 +173,7 @@ func TestKvClientPoolReconfigureNilOptions(t *testing.T) {
 	assert.Equal(t, mock, cli)
 
 	err = pool.Reconfigure(nil)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	cli, err = pool.GetClient(context.Background())
 	require.NoError(t, err)

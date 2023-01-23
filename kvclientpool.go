@@ -356,6 +356,9 @@ func (p *KvClientPool) rebuildFastMapLocked() {
 }
 
 func (p *KvClientPool) Reconfigure(opts *KvClientPoolOptions) error {
+	if opts == nil {
+		return errors.New("you must pass options")
+	}
 	// there are no options that make reconfiguring fail
 
 	p.lock.Lock()
