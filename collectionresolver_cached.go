@@ -33,6 +33,13 @@ type CollectionResolverCached struct {
 
 var _ CollectionResolver = (*CollectionResolverCached)(nil)
 
+func NewCollectionResolverCached(resolver CollectionResolver) *CollectionResolverCached {
+	return &CollectionResolverCached{
+		resolver: resolver,
+		slowMap:  make(map[string]*collectionCacheEntry),
+	}
+}
+
 func (cr *CollectionResolverCached) rebuildFastCacheLocked() {
 	manifest := &collectionsFastManifest{
 		collections: make(map[string]collectionsFastCacheEntry),
