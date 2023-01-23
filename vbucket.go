@@ -1,13 +1,18 @@
 package core
 
-import "sync/atomic"
+import (
+	"context"
+	"errors"
+	"sync/atomic"
+)
 
-type DispatchByKeyHandler func(string, uint16, error)
-type DispatchToVbucketHandler func(string, error)
+var (
+	ErrWaitingForVbucketMap = contextualDeadline{"still waiting for a vbucket map"}
+)
 
 type VbucketDispatcher interface {
-	DispatchByKey(ctx *AsyncContext, key []byte, cb DispatchByKeyHandler) error
-	DispatchToVbucket(ctx *AsyncContext, vbID uint16, cb DispatchToVbucketHandler) error
+	DispatchByKey(ctx context.Context, key []byte) (string, uint16, error)
+	DispatchToVbucket(ctx context.Context, vbID uint16) (string, error)
 	StoreVbucketRoutingInfo(info *vbucketRoutingInfo)
 	Close() error
 }
@@ -18,110 +23,101 @@ type vbucketRoutingInfo struct {
 }
 
 type vbucketDispatcher struct {
-	routingInfo  AtomicPointer[vbucketRoutingInfo]
-	pendingQueue *queue[*comparableQueueItem[func()]]
-	readyCh      chan struct{}
+	routingInfo AtomicPointer[vbucketRoutingInfo]
 
-	ready uint32
+	ready    uint32
+	readyCh  chan struct{}
+	closedCh chan struct{}
 }
 
 func newVbucketDispatcher() *vbucketDispatcher {
 	vbd := &vbucketDispatcher{
-		pendingQueue: newQueue[*comparableQueueItem[func()]](2048),
-		readyCh:      make(chan struct{}, 1),
+		readyCh:  make(chan struct{}, 1),
+		closedCh: make(chan struct{}, 1),
 	}
-	go vbd.process()
 
 	return vbd
 }
 
-func (vbd *vbucketDispatcher) process() {
-	<-vbd.readyCh
-	for {
-		next := vbd.pendingQueue.Next()
-		if next == nil {
-			return
-		}
-
-		(*next).value()
-	}
-}
-
 func (vbd *vbucketDispatcher) Close() error {
-	vbd.pendingQueue.Close()
-	if atomic.CompareAndSwapUint32(&vbd.ready, 0, 1) {
-		close(vbd.readyCh)
-	}
+	vbd.StoreVbucketRoutingInfo(nil)
+	close(vbd.closedCh)
 
 	return nil
 }
 
 func (vbd *vbucketDispatcher) StoreVbucketRoutingInfo(info *vbucketRoutingInfo) {
-	if atomic.CompareAndSwapUint32(&vbd.ready, 0, 1) {
+	// TODO: gross
+	if info != nil && atomic.CompareAndSwapUint32(&vbd.ready, 0, 1) {
 		close(vbd.readyCh)
 	}
 
-	vbd.storeRoutingInfo(info)
+	vbd.routingInfo.Store(info)
 }
 
-func (vbd *vbucketDispatcher) DispatchByKey(ctx *AsyncContext, key []byte, cb DispatchByKeyHandler) error {
-	handler := func() {
-		info := vbd.loadRoutingInfo()
-		if info == nil {
-			cb("", 0, placeholderError{"imnotgood"})
-			return
+func (vbd *vbucketDispatcher) waitToBeReady(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		ctxErr := ctx.Err()
+		if errors.Is(ctxErr, context.DeadlineExceeded) {
+			return ErrWaitingForVbucketMap
+		} else {
+			return ctxErr
 		}
-
-		vbID := info.vbmap.VbucketByKey(key)
-		idx, err := info.vbmap.NodeByVbucket(vbID, 0)
-		if err != nil {
-			cb("", 0, err)
-			return
-		}
-
-		// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
-		if idx > len(info.serverList) {
-			cb("", 0, placeholderError{"imnotgood"})
-			return
-		}
-
-		cb(info.serverList[idx], vbID, nil)
+	case <-vbd.readyCh:
+		return nil
+	case <-vbd.closedCh:
+		return nil
 	}
-
-	return vbd.pendingQueue.Push(&comparableQueueItem[func()]{handler})
-
 }
 
-func (vbd *vbucketDispatcher) DispatchToVbucket(ctx *AsyncContext, vbID uint16, cb DispatchToVbucketHandler) error {
-	handler := func() {
-		info := vbd.loadRoutingInfo()
-		if info == nil {
-			cb("", placeholderError{"imnotgood"})
-			return
-		}
-
-		idx, err := info.vbmap.NodeByVbucket(vbID, 0)
-		if err != nil {
-			cb("", err)
-			return
-		}
-
-		// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
-		if idx > len(info.serverList) {
-			cb("", placeholderError{"imnotgood"})
-			return
-		}
-
-		cb(info.serverList[idx], nil)
+func (vbd *vbucketDispatcher) DispatchByKey(ctx context.Context, key []byte) (string, uint16, error) {
+	if err := vbd.waitToBeReady(ctx); err != nil {
+		return "", 0, err
 	}
 
-	return vbd.pendingQueue.Push(&comparableQueueItem[func()]{handler})
+	info := vbd.loadRoutingInfo()
+	if info == nil {
+		return "", 0, placeholderError{"imnotgood"}
+	}
+
+	vbID := info.vbmap.VbucketByKey(key)
+	idx, err := info.vbmap.NodeByVbucket(vbID, 0)
+	if err != nil {
+		return "", 0, err
+	}
+
+	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
+	if idx > len(info.serverList) {
+		return "", 0, placeholderError{"imnotgood"}
+	}
+
+	return info.serverList[idx], vbID, nil
+}
+
+func (vbd *vbucketDispatcher) DispatchToVbucket(ctx context.Context, vbID uint16) (string, error) {
+	if err := vbd.waitToBeReady(ctx); err != nil {
+		return "", err
+	}
+
+	info := vbd.loadRoutingInfo()
+	if info == nil {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	idx, err := info.vbmap.NodeByVbucket(vbID, 0)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
+	if idx > len(info.serverList) {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	return info.serverList[idx], nil
 }
 
 func (vbd *vbucketDispatcher) loadRoutingInfo() *vbucketRoutingInfo {
 	return vbd.routingInfo.Load()
-}
-
-func (vbd *vbucketDispatcher) storeRoutingInfo(new *vbucketRoutingInfo) {
-	vbd.routingInfo.Store(new)
 }

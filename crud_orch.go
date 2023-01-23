@@ -75,10 +75,19 @@ func OrchestrateMemdRouting[RespT any](
 	fn func(endpoint string, vbID uint16) (RespT, error),
 ) (RespT, error) {
 	for {
-		// Implement me properly
-		res, err := fn("", 0)
+		endpoint, vbID, err := vd.DispatchByKey(ctx, key)
 		if err != nil {
-			return res, err
+			var emptyResp RespT
+			return emptyResp, err
+		}
+
+		// Implement me properly
+		res, err := fn(endpoint, vbID)
+		if err != nil {
+			if errors.Is(err, memdx.ErrNotMyVbucket) {
+				// TODO: this will need to retry or something.
+			}
+			return nil, err
 		}
 
 		return res, nil

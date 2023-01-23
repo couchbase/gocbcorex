@@ -1,14 +1,15 @@
 package core
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVbucketDispatcherDispatchToKey(t *testing.T) {
-	ctx := &AsyncContext{}
 	dispatcher := newVbucketDispatcher()
 	routingInfo := &vbucketRoutingInfo{
 		vbmap: &vbucketMap{
@@ -36,40 +37,118 @@ func TestVbucketDispatcherDispatchToKey(t *testing.T) {
 
 	dispatcher.StoreVbucketRoutingInfo(routingInfo)
 
-	endpointCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-	err := dispatcher.DispatchByKey(ctx, []byte("key1"), func(endpoint string, vbID uint16, err error) {
-		if err != nil {
-			errCh <- err
-			return
-		}
+	endpoint, vbID, err := dispatcher.DispatchByKey(context.Background(), []byte("key1"))
+	require.NoError(t, err)
 
-		endpointCh <- endpoint
-	})
-	require.Nil(t, err)
+	assert.Equal(t, "endpoint2", endpoint)
+	assert.Equal(t, uint16(1), vbID)
 
-	select {
-	case err = <-errCh:
-		require.Nil(t, err)
-	case endpoint := <-endpointCh:
-		assert.Equal(t, "endpoint2", endpoint)
+	endpoint, vbID, err = dispatcher.DispatchByKey(context.Background(), []byte("key2"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "endpoint1", endpoint)
+	assert.Equal(t, uint16(3), vbID)
+
+	err = dispatcher.Close()
+	require.NoError(t, err)
+}
+
+// TODO: This test needs to somehow become more deterministic.
+func TestVbucketDispatcherWaitToDispatch(t *testing.T) {
+	dispatcher := newVbucketDispatcher()
+	routingInfo := &vbucketRoutingInfo{
+		vbmap: &vbucketMap{
+			entries: [][]int{
+				{
+					0,
+				},
+				{
+					1,
+				},
+				{
+					0,
+				},
+				{
+					0,
+				},
+				{
+					1,
+				},
+			},
+			numReplicas: 0,
+		},
+		serverList: []string{"endpoint1", "endpoint2"},
 	}
 
-	err = dispatcher.DispatchByKey(ctx, []byte("key2"), func(endpoint string, vbID uint16, err error) {
-		if err != nil {
-			errCh <- err
-			return
-		}
+	var err error
+	var endpoint string
+	var vbID uint16
+	wait := make(chan struct{}, 1)
+	go func() {
+		endpoint, vbID, err = dispatcher.DispatchByKey(context.Background(), []byte("key1"))
+		wait <- struct{}{}
+	}()
 
-		endpointCh <- endpoint
-	})
-	require.Nil(t, err)
-	select {
-	case err = <-errCh:
-		require.Nil(t, err)
-	case endpoint := <-endpointCh:
-		assert.Equal(t, "endpoint1", endpoint)
-	}
+	dispatcher.StoreVbucketRoutingInfo(routingInfo)
 
-	dispatcher.Close()
+	<-wait
+
+	require.NoError(t, err)
+
+	assert.Equal(t, "endpoint2", endpoint)
+	assert.Equal(t, uint16(1), vbID)
+
+	err = dispatcher.Close()
+	require.NoError(t, err)
+}
+
+func TestVbucketDispatcherCancelWaitingToDispatch(t *testing.T) {
+	dispatcher := newVbucketDispatcher()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var err error
+	var endpoint string
+	var vbID uint16
+	wait := make(chan struct{}, 1)
+	go func() {
+		endpoint, vbID, err = dispatcher.DispatchByKey(ctx, []byte("key1"))
+		wait <- struct{}{}
+	}()
+
+	cancel()
+
+	<-wait
+
+	assert.ErrorIs(t, err, context.Canceled)
+
+	assert.Equal(t, "", endpoint)
+	assert.Equal(t, uint16(0), vbID)
+
+	err = dispatcher.Close()
+	require.NoError(t, err)
+}
+
+func TestVbucketDispatcherDeadlinedWaitingToDispatch(t *testing.T) {
+	dispatcher := newVbucketDispatcher()
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
+	defer cancel()
+	var err error
+	var endpoint string
+	var vbID uint16
+	wait := make(chan struct{}, 1)
+	go func() {
+		endpoint, vbID, err = dispatcher.DispatchByKey(ctx, []byte("key1"))
+		wait <- struct{}{}
+	}()
+
+	<-wait
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	assert.Equal(t, "", endpoint)
+	assert.Equal(t, uint16(0), vbID)
+
+	err = dispatcher.Close()
+	require.NoError(t, err)
 }

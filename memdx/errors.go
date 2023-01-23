@@ -10,6 +10,7 @@ var (
 	ErrCollectionsNotEnabled = errors.New("collections not enabled")
 	ErrDocNotFound           = errors.New("document not found")
 	ErrAuthError             = errors.New("auth error")
+	ErrNotMyVbucket          = errors.New("not my vbucket")
 )
 
 var ErrProtocol = errors.New("protocol error")
