@@ -57,7 +57,7 @@ type KvClientPool struct {
 }
 
 func NewKvClientPool(opts *KvClientPoolOptions) (*KvClientPool, error) {
-	if opts != nil {
+	if opts == nil {
 		return nil, errors.New("must pass options")
 	}
 
@@ -384,11 +384,13 @@ func (p *KvClientPool) Reconfigure(opts *KvClientPoolOptions) error {
 
 func (p *KvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 	fastMap := p.fastMap.Load()
-	fastMapNumConns := uint64(len(fastMap.activeConnections))
-	if fastMapNumConns > 0 {
-		clientIdx := atomic.AddUint64(&p.clientIdx, 1) - 1
-		conn := fastMap.activeConnections[clientIdx%fastMapNumConns]
-		return conn, nil
+	if fastMap != nil {
+		fastMapNumConns := uint64(len(fastMap.activeConnections))
+		if fastMapNumConns > 0 {
+			clientIdx := atomic.AddUint64(&p.clientIdx, 1) - 1
+			conn := fastMap.activeConnections[clientIdx%fastMapNumConns]
+			return conn, nil
+		}
 	}
 
 	return p.getClientSlow(ctx)
