@@ -3,9 +3,10 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"github.com/couchbase/stellar-nebula/core/memdx"
 	"net/http"
 	"time"
+
+	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 type FakeAgent struct {
@@ -54,8 +55,8 @@ func CreateAgent(opts FakeAgentOptions) *FakeAgent {
 		retries: newRetryComponent(),
 	}
 
-	agent.collections = newPerCidCollectionResolver(perCidCollectionResolverOptions{
-		Dispatcher: agent.connMgr,
+	agent.collections = NewCollectionResolverCached(&CollectionResolverMemd{
+		connMgr: agent.connMgr,
 	})
 
 	agent.crud = &CrudComponent{
