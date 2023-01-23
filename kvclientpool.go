@@ -289,7 +289,7 @@ func (p *KvClientPool) reconfigureClientThread(client KvClient) {
 			continue
 		}
 
-		clientIdx := slices.IndexFunc(p.activeConnections, func(oclient KvClient) bool { return oclient == client })
+		clientIdx := slices.IndexFunc(p.reconfigConnections, func(oclient KvClient) bool { return oclient == client })
 		if clientIdx == -1 {
 			// we've successfully reconfigured a connection that should not be getting reconfigured...
 			panic("reconfigure complete of unreconfiguring client")
