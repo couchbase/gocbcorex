@@ -55,6 +55,26 @@ func OrchestrateMemdClient[RespT any](
 		return res, nil
 	}
 }
+func OrchestrateRandomMemdClient[RespT any](
+	ctx context.Context,
+	cm EndpointConnectionProvider,
+	fn func(client KvClient) (RespT, error),
+) (RespT, error) {
+	for {
+		cli, err := cm.GetRandomClient(ctx)
+		if err != nil {
+			var emptyResp RespT
+			return emptyResp, err
+		}
+
+		res, err := fn(cli)
+		if err != nil {
+			return res, err
+		}
+
+		return res, nil
+	}
+}
 
 func OrchestrateSimpleCrud[RespT any](
 	ctx context.Context,

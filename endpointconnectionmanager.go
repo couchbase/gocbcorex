@@ -12,6 +12,7 @@ type EndpointConnectionProvider interface {
 	ShutdownClient(endpoint string, client KvClient)
 	GetClient(ctx context.Context, endpoint string) (KvClient, error)
 	Reconfigure(opts *EndpointConnectionManagerOptions) error
+	GetRandomClient(ctx context.Context) (KvClient, error)
 }
 
 type EndpointConnectionManagerOptions struct {
@@ -109,7 +110,7 @@ func (m *EndpointConnectionManager) Reconfigure(opts *EndpointConnectionManagerO
 	return nil
 }
 
-func (m *EndpointConnectionManager) GetEndpoint(endpoint string) (ConnectionProvider, error) {
+func (m *EndpointConnectionManager) GetRandomEndpoint() (ConnectionProvider, error) {
 	endpointsPtr := m.endpoints.Load()
 	if endpointsPtr == nil {
 		return nil, placeholderError{"no endpoints known, shutdown?"}
@@ -117,12 +118,25 @@ func (m *EndpointConnectionManager) GetEndpoint(endpoint string) (ConnectionProv
 
 	endpoints := *endpointsPtr
 
-	if endpoint == "" {
-		// Just pick one at random for now
-		for _, pool := range endpoints {
-			return pool, nil
-		}
+	// Just pick one at random for now
+	for _, pool := range endpoints {
+		return pool, nil
 	}
+
+	return nil, placeholderError{"no endpoints known, shutdown?"}
+}
+
+func (m *EndpointConnectionManager) GetEndpoint(endpoint string) (ConnectionProvider, error) {
+	if endpoint == "" {
+		return nil, placeholderError{"endpoint must be specified for GetEndpoint"}
+	}
+
+	endpointsPtr := m.endpoints.Load()
+	if endpointsPtr == nil {
+		return nil, placeholderError{"no endpoints known, shutdown?"}
+	}
+
+	endpoints := *endpointsPtr
 
 	pool, ok := endpoints[endpoint]
 	if !ok {
@@ -139,6 +153,15 @@ func (m *EndpointConnectionManager) ShutdownClient(endpoint string, client KvCli
 	}
 
 	connProvider.ShutdownClient(client)
+}
+
+func (m *EndpointConnectionManager) GetRandomClient(ctx context.Context) (KvClient, error) {
+	connProvider, err := m.GetRandomEndpoint()
+	if err != nil {
+		return nil, err
+	}
+
+	return connProvider.GetClient(ctx)
 }
 
 func (m *EndpointConnectionManager) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
