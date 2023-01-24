@@ -489,12 +489,13 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	blockCh := make(chan struct{}, 1)
 	mock := &CollectionResolverMock{
 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
-			<-blockCh
 			called++
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
 			assert.NotNil(t, ctx)
+
+			<-blockCh
 
 			return cid, manifestRev, nil
 		},
@@ -520,13 +521,13 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	}
 	cancel()
 
-	blockCh <- struct{}{}
 	wg.Wait()
+
+	blockCh <- struct{}{}
 
 	assert.Equal(t, uint32(1), called)
 }
 
-//
 // func TestCollectionsManagerInvalidateTwice(t *testing.T) {
 // 	var called uint32
 // 	collection := uuid.NewString()
@@ -535,12 +536,11 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 // 	manifestRev := uint64(4)
 // 	fqCollectionName := scope + "." + collection
 // 	mock := &CollectionResolverMock{
-// 		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+// 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 // 			called++
 //
 // 			assert.Equal(t, scope, scopeName)
 // 			assert.Equal(t, collection, collectionName)
-// 			assert.Equal(t, "", endpoint)
 // 			assert.NotNil(t, ctx)
 //
 // 			return cid, manifestRev, nil
@@ -549,7 +549,12 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 // 		},
 // 	}
 //
-// 	resolver := NewCollectionResolverCached(mock)
+// 	resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
+// 		Resolver:       mock,
+// 		ResolveTimeout: 10 * time.Second,
+// 	})
+// 	require.NoError(t, err)
+//
 // 	manifest := &collectionsFastManifest{
 // 		collections: map[string]collectionsFastCacheEntry{
 // 			fqCollectionName: {
@@ -573,7 +578,7 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 //
 // 	waitCh := make(chan struct{}, 1)
 // 	go func() {
-// 		u, _, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+// 		u, _, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 // 		assert.Nil(t, err)
 // 		assert.Equal(t, cid, u)
 // 		waitCh <- struct{}{}
