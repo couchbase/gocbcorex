@@ -205,7 +205,15 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 		dispatchCallback()
 	}
 
-	dispatchCallback = func() {}
+	dispatchCallback = func() {
+		// this function does nothing because we have no way to easily
+		// schedule a callback to be invoked serialy by the connection
+		// so we rely on maybeCallback() to handle this behaviour.
+	}
+
+	// maybeCallback must be invoked before any dispatches to ensure
+	// we still own all the state and to avoid racing those threads.
+	maybeCallback()
 
 	dispatchHello()
 
