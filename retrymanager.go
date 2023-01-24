@@ -25,7 +25,7 @@ func OrchestrateMemdRetries[RespT any](
 		res, err := fn()
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				return res, retrierDeadline{lastErr}
+				return res, retrierDeadline{err, lastErr}
 			}
 
 			if opRetryController == nil {
@@ -39,7 +39,7 @@ func OrchestrateMemdRetries[RespT any](
 				case <-ctx.Done():
 					ctxErr := ctx.Err()
 					if errors.Is(ctxErr, context.DeadlineExceeded) {
-						return res, retrierDeadline{err}
+						return res, retrierDeadline{ctxErr, err}
 					} else {
 						return res, err
 					}
