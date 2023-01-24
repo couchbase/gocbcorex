@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -24,13 +25,24 @@ type Agent struct {
 }
 
 func CreateAgent(opts AgentOptions) (*Agent, error) {
+	var srcHTTPAddrs []string
+	for _, hostPort := range opts.HTTPAddrs {
+		if opts.TLSConfig == nil {
+			ep := fmt.Sprintf("http://%s", hostPort)
+			srcHTTPAddrs = append(srcHTTPAddrs, ep)
+		} else {
+			ep := fmt.Sprintf("https://%s", hostPort)
+			srcHTTPAddrs = append(srcHTTPAddrs, ep)
+		}
+	}
+
 	agent := &Agent{
 		bucket:    opts.BucketName,
 		tlsConfig: opts.TLSConfig,
 		username:  opts.Username,
 		password:  opts.Password,
 
-		poller: newhttpConfigPoller(opts.HTTPAddrs, httpPollerProperties{
+		poller: newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
 			ConfHTTPRetryDelay:   10 * time.Second,
 			ConfHTTPRedialPeriod: 10 * time.Second,
 			ConfHTTPMaxWait:      5 * time.Second,

@@ -2,11 +2,12 @@ package memdx
 
 import (
 	"context"
+	"github.com/couchbase/stellar-nebula/core/testutils"
 	"testing"
 )
 
 func createTestClient(t *testing.T) *Client {
-	testAddress := "192.168.0.100:11210"
+	testAddress := testutils.TestOpts.MemdAddrs[0]
 	testUsername := "Administrator"
 	testPassword := "password"
 	testBucket := "default"

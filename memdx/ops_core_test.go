@@ -1,12 +1,17 @@
 package memdx
 
 import (
+	"github.com/couchbase/stellar-nebula/core/testutils"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
 	cli := createTestClient(t)
 
 	resp, err := syncUnaryCall(OpsUtils{
@@ -21,6 +26,10 @@ func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
 }
 
 func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
 	cli := createTestClient(t)
 
 	_, err := syncUnaryCall(OpsUtils{
@@ -39,6 +48,10 @@ func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
 }
 
 func TestOpsCoreGetCollectionIDScopeMissing(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
 	cli := createTestClient(t)
 
 	_, err := syncUnaryCall(OpsUtils{

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"github.com/couchbase/stellar-nebula/core/testutils"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,15 +10,17 @@ import (
 )
 
 func TestBasicSnAgent(t *testing.T) {
-	// t.SkipNow()
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
 
 	opts := AgentOptions{
 		TLSConfig:  nil,
 		BucketName: "default",
 		Username:   "Administrator",
 		Password:   "password",
-		HTTPAddrs:  []string{"http://192.168.0.100:8091"},
-		MemdAddrs:  []string{"192.168.0.100:11210"},
+		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
+		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
 
 	agent, err := CreateAgent(opts)
