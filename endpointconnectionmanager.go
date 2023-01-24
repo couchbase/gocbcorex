@@ -82,18 +82,23 @@ func (m *EndpointConnectionManager) Reconfigure(opts *EndpointConnectionManagerO
 	}
 
 	m.config = *opts
+
+	// TODO: Need to think about whether Reconfigure is going to be called concurrently.
 	endpointsPtr := m.endpoints.Load()
 	if endpointsPtr == nil {
 		return nil
 	}
 
+	newEndpoints := make(map[string]ConnectionProvider)
 	endpoints := *endpointsPtr
 	for _, ep := range m.config.Endpoints {
-		_, ok := endpoints[ep]
-		if !ok {
+		pool, ok := endpoints[ep]
+		if ok {
+			newEndpoints[ep] = pool
+		} else {
 			var err error
 			hostname := trimSchemePrefix(ep)
-			endpoints[ep], err = m.newConnectionProvider(hostname)
+			newEndpoints[ep], err = m.newConnectionProvider(hostname)
 			if err != nil {
 				// TODO: Would need to tidy up here.
 				return err
@@ -106,6 +111,8 @@ func (m *EndpointConnectionManager) Reconfigure(opts *EndpointConnectionManagerO
 			// TODO: Shutdown the pool I guess?
 		}
 	}
+
+	m.endpoints.Store(&newEndpoints)
 
 	return nil
 }
