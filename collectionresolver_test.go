@@ -13,20 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testCollectionResolver struct {
-	err  error
-	cid  uint32
-	mRev uint64
-}
-
-func (tcr *testCollectionResolver) ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error) {
-	return collectionId, manifestRev, err
-}
-
-func (tcr *testCollectionResolver) InvalidateCollectionID(ctx context.Context, scopeName, collectionName, endpoint string, manifestRev uint64) {
-
-}
-
 // We expect to see a single get cid be dispatched for n requests, and then all the callbacks
 // called with the cid.
 func TestCollectionResolverCachedNCallsOneCollection(t *testing.T) {
