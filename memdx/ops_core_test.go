@@ -15,15 +15,17 @@ func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
 
 	cli := createTestClient(t)
 
+	// we intentionally request a non-default collection to guarentee that
+	// collection-id and manifest-rev are non-zero.
 	resp, err := syncUnaryCall(OpsUtils{
 		ExtFramesEnabled: false,
 	}, OpsUtils.GetCollectionID, cli, &GetCollectionIDRequest{
 		ScopeName:      "_default",
-		CollectionName: "_default",
+		CollectionName: "test",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint32(0), resp.CollectionID)
-	require.Equal(t, uint64(0), resp.ManifestRev)
+	require.NotEqual(t, uint32(0), resp.CollectionID)
+	require.NotEqual(t, uint64(0), resp.ManifestRev)
 }
 
 func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
