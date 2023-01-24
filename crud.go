@@ -7,11 +7,10 @@ import (
 )
 
 type CrudComponent struct {
-	collections   CollectionResolver
-	vbuckets      VbucketDispatcher
-	retries       RetryManager
-	errorResolver PacketResolver
-	connManager   EndpointConnectionProvider
+	collections CollectionResolver
+	vbuckets    VbucketDispatcher
+	retries     RetryManager
+	connManager EndpointConnectionProvider
 }
 
 type GetOptions struct {
