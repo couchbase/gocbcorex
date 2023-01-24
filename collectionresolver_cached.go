@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"time"
 )
@@ -145,8 +144,6 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 
 		collectionID, manifestRev, err := cr.resolver.ResolveCollectionID(cancelCtx, scopeName, collectionName)
 		cancelFn()
-
-		log.Printf("collection resolver thread resolved: %+v %d %d for %s.%s", err, collectionID, manifestRev, scopeName, collectionName)
 
 		if err != nil {
 			cr.slowLock.Lock()
