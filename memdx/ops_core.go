@@ -9,9 +9,16 @@ import (
 type OpsCore struct {
 }
 
+func (o OpsCore) decodeErrorContext(resp *Packet, err error) error {
+	return ServerError{
+		Cause:       err,
+		ContextJson: resp.Value,
+	}
+}
+
 func (o OpsCore) decodeError(resp *Packet) error {
 	// TODO(brett19): Do better...
-	return errors.New("generic error with status: " + resp.Status.String())
+	return o.decodeErrorContext(resp, errors.New("unexpected status: "+resp.Status.String()))
 }
 
 type HelloRequest struct {

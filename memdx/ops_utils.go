@@ -108,9 +108,9 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 		}
 
 		if resp.Status == StatusScopeUnknown {
-			cb(nil, ErrUnknownScopeName)
+			cb(nil, OpsCore{}.decodeErrorContext(resp, ErrUnknownScopeName))
 		} else if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionName)
+			cb(nil, OpsCore{}.decodeErrorContext(resp, ErrUnknownCollectionName))
 		}
 
 		if resp.Status != StatusSuccess {
