@@ -27,7 +27,7 @@ func (cr *CollectionResolverMemd) ResolveCollectionID(
 		return 0, 0, err
 	}
 
-	return resp.CollectionID, resp.ManifestID, nil
+	return resp.CollectionID, resp.ManifestRev, nil
 }
 
 func (cr *CollectionResolverMemd) InvalidateCollectionID(

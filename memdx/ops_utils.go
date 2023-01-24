@@ -84,7 +84,7 @@ type GetCollectionIDRequest struct {
 }
 
 type GetCollectionIDResponse struct {
-	ManifestID   uint64
+	ManifestRev  uint64
 	CollectionID uint32
 }
 
@@ -123,11 +123,11 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 			return false
 		}
 
-		manifestID := binary.BigEndian.Uint64(resp.Extras[0:])
+		manifestRev := binary.BigEndian.Uint64(resp.Extras[0:])
 		collectionID := binary.BigEndian.Uint32(resp.Extras[8:])
 
 		cb(&GetCollectionIDResponse{
-			ManifestID:   manifestID,
+			ManifestRev:  manifestRev,
 			CollectionID: collectionID,
 		}, nil)
 		return false

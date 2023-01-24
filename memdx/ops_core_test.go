@@ -1,8 +1,9 @@
 package memdx
 
 import (
-	"github.com/couchbase/stellar-nebula/core/testutils"
 	"testing"
+
+	"github.com/couchbase/stellar-nebula/core/testutils"
 
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint32(0), resp.CollectionID)
-	require.Equal(t, uint64(0), resp.ManifestID)
+	require.Equal(t, uint64(0), resp.ManifestRev)
 }
 
 func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
