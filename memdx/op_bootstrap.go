@@ -208,7 +208,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	dispatchCallback = func() {}
 
 	dispatchHello()
-	maybeCallback()
 
 	return pendingOpNoop{}, nil
 }

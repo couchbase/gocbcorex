@@ -60,6 +60,7 @@ func (c *Client) run() {
 		}
 	}
 
+	// TODO: closeErr is always not nil here
 	if closeErr != nil {
 		if c.closeHandler != nil {
 			c.closeHandler(closeErr)
