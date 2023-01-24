@@ -22,7 +22,7 @@ func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint32(0), resp.CollectionID)
-	require.NotEqual(t, uint64(0), resp.ManifestID)
+	require.Equal(t, uint64(0), resp.ManifestID)
 }
 
 func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
