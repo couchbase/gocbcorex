@@ -94,7 +94,7 @@ func (cr *CollectionResolverCached) rebuildFastCacheLocked() {
 }
 
 func (cr *CollectionResolverCached) ResolveCollectionID(
-	ctx context.Context, endpoint, scopeName, collectionName string,
+	ctx context.Context, scopeName, collectionName string,
 ) (collectionId uint32, manifestRev uint64, err error) {
 	fullKeyPath := scopeName + "." + collectionName
 
@@ -106,7 +106,7 @@ func (cr *CollectionResolverCached) ResolveCollectionID(
 		}
 	}
 
-	return cr.resolveCollectionIDSlow(ctx, endpoint, scopeName, collectionName)
+	return cr.resolveCollectionIDSlow(ctx, scopeName, collectionName)
 }
 
 func (cr *CollectionResolverCached) resolveCollectionThread(
@@ -143,7 +143,7 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 			return
 		}
 
-		collectionID, manifestRev, err := cr.resolver.ResolveCollectionID(cancelCtx, "", scopeName, collectionName)
+		collectionID, manifestRev, err := cr.resolver.ResolveCollectionID(cancelCtx, scopeName, collectionName)
 		cancelFn()
 
 		log.Printf("collection resolver thread resolved: %+v %d %d for %s.%s", err, collectionID, manifestRev, scopeName, collectionName)
@@ -186,7 +186,7 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 }
 
 func (cr *CollectionResolverCached) resolveCollectionIDSlow(
-	ctx context.Context, endpoint, scopeName, collectionName string,
+	ctx context.Context, scopeName, collectionName string,
 ) (collectionId uint32, manifestRev uint64, err error) {
 	fullKeyPath := scopeName + "." + collectionName
 
@@ -220,7 +220,7 @@ func (cr *CollectionResolverCached) resolveCollectionIDSlow(
 			}
 		}
 
-		return cr.resolveCollectionIDSlow(ctx, endpoint, scopeName, collectionName)
+		return cr.resolveCollectionIDSlow(ctx, scopeName, collectionName)
 	}
 
 	if slowEntry.ResolveErr != nil {

@@ -13,10 +13,10 @@ type CollectionResolverMemd struct {
 var _ CollectionResolver = (*CollectionResolverMemd)(nil)
 
 func (cr *CollectionResolverMemd) ResolveCollectionID(
-	ctx context.Context, endpoint, scopeName, collectionName string,
+	ctx context.Context, scopeName, collectionName string,
 ) (collectionId uint32, manifestRev uint64, err error) {
 	resp, err := OrchestrateMemdClient(
-		ctx, cr.connMgr, endpoint,
+		ctx, cr.connMgr, "",
 		func(client KvClient) (*memdx.GetCollectionIDResponse, error) {
 			return client.GetCollectionID(ctx, &memdx.GetCollectionIDRequest{
 				ScopeName:      scopeName,

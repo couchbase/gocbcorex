@@ -21,7 +21,7 @@ var _ CollectionResolver = &CollectionResolverMock{}
 //			InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64)  {
 //				panic("mock out the InvalidateCollectionID method")
 //			},
-//			ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+//			ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 //				panic("mock out the ResolveCollectionID method")
 //			},
 //		}
@@ -35,7 +35,7 @@ type CollectionResolverMock struct {
 	InvalidateCollectionIDFunc func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64)
 
 	// ResolveCollectionIDFunc mocks the ResolveCollectionID method.
-	ResolveCollectionIDFunc func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error)
+	ResolveCollectionIDFunc func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -56,8 +56,6 @@ type CollectionResolverMock struct {
 		ResolveCollectionID []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Endpoint is the endpoint argument value.
-			Endpoint string
 			// ScopeName is the scopeName argument value.
 			ScopeName string
 			// CollectionName is the collectionName argument value.
@@ -117,25 +115,23 @@ func (mock *CollectionResolverMock) InvalidateCollectionIDCalls() []struct {
 }
 
 // ResolveCollectionID calls ResolveCollectionIDFunc.
-func (mock *CollectionResolverMock) ResolveCollectionID(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+func (mock *CollectionResolverMock) ResolveCollectionID(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 	if mock.ResolveCollectionIDFunc == nil {
 		panic("CollectionResolverMock.ResolveCollectionIDFunc: method is nil but CollectionResolver.ResolveCollectionID was just called")
 	}
 	callInfo := struct {
 		Ctx            context.Context
-		Endpoint       string
 		ScopeName      string
 		CollectionName string
 	}{
 		Ctx:            ctx,
-		Endpoint:       endpoint,
 		ScopeName:      scopeName,
 		CollectionName: collectionName,
 	}
 	mock.lockResolveCollectionID.Lock()
 	mock.calls.ResolveCollectionID = append(mock.calls.ResolveCollectionID, callInfo)
 	mock.lockResolveCollectionID.Unlock()
-	return mock.ResolveCollectionIDFunc(ctx, endpoint, scopeName, collectionName)
+	return mock.ResolveCollectionIDFunc(ctx, scopeName, collectionName)
 }
 
 // ResolveCollectionIDCalls gets all the calls that were made to ResolveCollectionID.
@@ -144,13 +140,11 @@ func (mock *CollectionResolverMock) ResolveCollectionID(ctx context.Context, end
 //	len(mockedCollectionResolver.ResolveCollectionIDCalls())
 func (mock *CollectionResolverMock) ResolveCollectionIDCalls() []struct {
 	Ctx            context.Context
-	Endpoint       string
 	ScopeName      string
 	CollectionName string
 } {
 	var calls []struct {
 		Ctx            context.Context
-		Endpoint       string
 		ScopeName      string
 		CollectionName string
 	}

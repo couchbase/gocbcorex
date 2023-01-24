@@ -23,12 +23,11 @@ func TestCollectionResolverCachedNCallsOneCollection(t *testing.T) {
 	cid := uint32(9)
 
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
-			assert.Equal(t, "", endpoint)
 			assert.NotNil(t, ctx)
 
 			return cid, manifestRev, nil
@@ -44,7 +43,7 @@ func TestCollectionResolverCachedNCallsOneCollection(t *testing.T) {
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
 		go func() {
-			u, mRev, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+			u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 			assert.Nil(t, err)
 			assert.Equal(t, cid, u)
 			assert.Equal(t, manifestRev, mRev)
@@ -69,10 +68,9 @@ func TestCollectionResolverNCallsNCollections(t *testing.T) {
 	manifestRev := uint64(4)
 
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 
-			assert.Equal(t, "", endpoint)
 			assert.NotNil(t, ctx)
 
 			if scopeName == scope1 && collectionName == collection1 {
@@ -97,13 +95,13 @@ func TestCollectionResolverNCallsNCollections(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			if i%2 == 0 {
-				u, mRev, err := resolver.ResolveCollectionID(context.Background(), "", scope1, collection1)
+				u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope1, collection1)
 				assert.Nil(t, err)
 				assert.Equal(t, cid1, u)
 				assert.Equal(t, manifestRev, mRev)
 				wg.Done()
 			} else {
-				u, mRev, err := resolver.ResolveCollectionID(context.Background(), "", scope2, collection2)
+				u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope2, collection2)
 				assert.Nil(t, err)
 				assert.Equal(t, cid2, u)
 				assert.Equal(t, manifestRev, mRev)
@@ -123,12 +121,11 @@ func TestCollectionManagerDispatchErrors(t *testing.T) {
 	cbErr := errors.New("some error")
 
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
-			assert.Equal(t, "", endpoint)
 			assert.NotNil(t, ctx)
 
 			return 0, 0, cbErr
@@ -145,7 +142,7 @@ func TestCollectionManagerDispatchErrors(t *testing.T) {
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
 		go func() {
-			u, mRev, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+			u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 			assert.Equal(t, cbErr, err)
 			assert.Equal(t, uint32(0), u)
 			assert.Equal(t, uint64(0), mRev)
@@ -165,7 +162,7 @@ func TestCollectionResolverCachedKnownCollection(t *testing.T) {
 	cid := uint32(12)
 	var called int
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 
 			return 0, 0, errors.New("should not have reached here")
@@ -189,7 +186,7 @@ func TestCollectionResolverCachedKnownCollection(t *testing.T) {
 
 	waitCh := make(chan struct{}, 1)
 	go func() {
-		u, mRev, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
+		u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 		assert.Nil(t, err)
 		assert.Equal(t, uint32(12), u)
 		assert.Equal(t, manifestRev, mRev)
@@ -210,7 +207,7 @@ func TestCollectionResolverUnknownCollectionNewerManifestRev(t *testing.T) {
 	resolveCount := 0
 	invalidateCount := 0
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			resolveCount++
 			return baseCollectionId + uint32(invalidateCount), baseManifestRev + uint64(invalidateCount), nil
 		},
@@ -225,24 +222,19 @@ func TestCollectionResolverUnknownCollectionNewerManifestRev(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	firstCid, firstManifestRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection, "endpoint1")
+	firstCid, firstManifestRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 	require.NoError(t, err)
 	require.Equal(t, resolveCount, 1)
 	require.Equal(t, baseCollectionId, firstCid)
 	require.Equal(t, baseManifestRev, firstManifestRev)
 
-	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "", 100)
 	require.Equal(t, invalidateCount, 1)
 
-	waitCh := make(chan struct{}, 1)
-	go func() {
-		cid, mRev, err := resolver.ResolveCollectionID(context.Background(), "", scope, collection)
-		assert.Nil(t, err)
-		assert.Equal(t, baseCollectionId+1, cid)
-		assert.Equal(t, baseManifestRev+1, mRev)
-		waitCh <- struct{}{}
-	}()
-	<-waitCh
+	cid, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
+	assert.Nil(t, err)
+	assert.Equal(t, baseCollectionId+1, cid)
+	assert.Equal(t, baseManifestRev+1, mRev)
 
 	require.Equal(t, resolveCount, 2)
 }
@@ -256,7 +248,7 @@ func TestCollectionsResolverUnknownCollectionOlderManifestRev(t *testing.T) {
 	manifestRev := uint64(4)
 	var called int
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 
 			return 0, 0, errors.New("should be unreachable")
@@ -342,13 +334,12 @@ func TestCollectionResolverCancelContext(t *testing.T) {
 	cid := uint32(15)
 	manifestRev := uint64(4)
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 			close(calledCh)
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
-			assert.Equal(t, "", endpoint)
 			assert.NotNil(t, ctx)
 
 			<-blockCh
@@ -366,7 +357,7 @@ func TestCollectionResolverCancelContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, err = resolver.ResolveCollectionID(ctx, "", scope, collection)
+	_, _, err = resolver.ResolveCollectionID(ctx, scope, collection)
 	assert.Equal(t, context.Canceled, err)
 
 	<-calledCh
@@ -384,13 +375,12 @@ func TestCollectionResolverTimeoutContext(t *testing.T) {
 	cid := uint32(15)
 	manifestRev := uint64(4)
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 			close(calledCh)
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
-			assert.Equal(t, "", endpoint)
 			assert.NotNil(t, ctx)
 
 			<-blockCh
@@ -407,7 +397,7 @@ func TestCollectionResolverTimeoutContext(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 
-	_, _, err = resolver.ResolveCollectionID(ctx, "", scope, collection)
+	_, _, err = resolver.ResolveCollectionID(ctx, scope, collection)
 	cancel()
 	assert.ErrorIs(t, err, ErrStillResolvingCollection)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
@@ -425,12 +415,11 @@ func TestCollectionResolverCancelContextMultipleOps(t *testing.T) {
 	cid := uint32(15)
 	manifestRev := uint64(4)
 	mock := &CollectionResolverMock{
-		ResolveCollectionIDFunc: func(ctx context.Context, endpoint string, scopeName string, collectionName string) (uint32, uint64, error) {
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
 			called++
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
-			assert.Equal(t, "", endpoint)
 			assert.NotNil(t, ctx)
 
 			return cid, manifestRev, nil
@@ -461,7 +450,7 @@ func TestCollectionResolverCancelContextMultipleOps(t *testing.T) {
 		}
 
 		go func(hasCanceled bool) {
-			u, mRev, err := resolver.ResolveCollectionID(ctx, "", scope, collection)
+			u, mRev, err := resolver.ResolveCollectionID(ctx, scope, collection)
 			if willCancel {
 				assert.Equal(t, context.Canceled, err)
 			} else {

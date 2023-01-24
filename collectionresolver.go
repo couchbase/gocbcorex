@@ -8,7 +8,7 @@ import (
 )
 
 type CollectionResolver interface {
-	ResolveCollectionID(ctx context.Context, endpoint, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error)
+	ResolveCollectionID(ctx context.Context, scopeName, collectionName string) (collectionId uint32, manifestRev uint64, err error)
 	InvalidateCollectionID(ctx context.Context, scopeName, collectionName, endpoint string, manifestRev uint64)
 }
 
@@ -18,7 +18,7 @@ func OrchestrateMemdCollectionID[RespT any](
 	scopeName, collectionName string,
 	fn func(collectionID uint32, manifestID uint64) (RespT, error),
 ) (RespT, error) {
-	collectionID, manifestID, err := cr.ResolveCollectionID(ctx, "", scopeName, collectionName)
+	collectionID, manifestID, err := cr.ResolveCollectionID(ctx, scopeName, collectionName)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
