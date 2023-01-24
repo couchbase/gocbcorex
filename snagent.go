@@ -55,9 +55,15 @@ func CreateAgent(opts FakeAgentOptions) (*FakeAgent, error) {
 		return nil, err
 	}
 
-	agent.collections = NewCollectionResolverCached(&CollectionResolverMemd{
-		connMgr: agent.connMgr,
+	agent.collections, err = NewCollectionResolverCached(&CollectionResolverCachedOptions{
+		Resolver: &CollectionResolverMemd{
+			connMgr: agent.connMgr,
+		},
+		ResolveTimeout: 10 * time.Second,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	agent.crud = &CrudComponent{
 		collections: agent.collections,
