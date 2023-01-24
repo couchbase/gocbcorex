@@ -7,38 +7,6 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
-func OrchestrateMemdCollectionID[RespT any](
-	ctx context.Context,
-	cr CollectionResolver,
-	scopeName, collectionName string,
-	fn func(collectionID uint32, manifestID uint64) (RespT, error),
-) (RespT, error) {
-	collectionID, manifestID, err := cr.ResolveCollectionID(ctx, "", scopeName, collectionName)
-	if err != nil {
-		var emptyResp RespT
-		return emptyResp, err
-	}
-
-	for {
-		res, err := fn(collectionID, manifestID)
-		if err != nil {
-			if errors.Is(err, memdx.ErrUnknownCollectionID) {
-				// TODO(brett19): Implement the endpoint and collectionID info here...
-				cr.InvalidateCollectionID(ctx, scopeName, collectionName, "", 0)
-
-				// TODO(brett19): Implement actually retrying when possible.
-				// Note that we need to return the error if our second resolution yields
-				// the same information we already had rather than looping.  In case the
-				// server is "perpetually behind".
-			}
-
-			return res, err
-		}
-
-		return res, nil
-	}
-}
-
 func OrchestrateMemdRouting[RespT any](
 	ctx context.Context,
 	vd VbucketDispatcher,
