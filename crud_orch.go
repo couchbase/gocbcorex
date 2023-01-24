@@ -7,35 +7,6 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
-func OrchestrateMemdRetries[RespT any](
-	ctx context.Context,
-	rs RetryComponent,
-	fn func() (RespT, error),
-) (RespT, error) {
-	for {
-		res, err := fn()
-		if err != nil {
-			// TODO(brett19): Implement this
-			/*
-				retryTime := rs.GetRetryAction(err)
-				if retryTime > 0 {
-					err := contextSleep(ctx, retryTime)
-					if err != nil {
-						var emptyResp RespT
-						return emptyResp, err
-					}
-
-					continue
-				}
-			*/
-
-			return res, err
-		}
-
-		return res, nil
-	}
-}
-
 func OrchestrateMemdCollectionID[RespT any](
 	ctx context.Context,
 	cr CollectionResolver,
@@ -119,7 +90,7 @@ func OrchestrateMemdClient[RespT any](
 
 func OrchestrateSimpleCrud[RespT any](
 	ctx context.Context,
-	rs RetryComponent,
+	rs RetryManager,
 	cr CollectionResolver,
 	vb VbucketDispatcher,
 	cm EndpointConnectionProvider,

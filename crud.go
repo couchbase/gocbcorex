@@ -9,7 +9,7 @@ import (
 type CrudComponent struct {
 	collections   CollectionResolver
 	vbuckets      VbucketDispatcher
-	retries       RetryComponent
+	retries       RetryManager
 	errorResolver PacketResolver
 	connManager   EndpointConnectionProvider
 }

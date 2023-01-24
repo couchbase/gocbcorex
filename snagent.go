@@ -19,7 +19,7 @@ type FakeAgent struct {
 	connMgr     EndpointConnectionProvider
 	crud        *CrudComponent
 	collections CollectionResolver
-	retries     RetryComponent
+	retries     RetryManager
 }
 
 func CreateAgent(opts FakeAgentOptions) (*FakeAgent, error) {
@@ -40,7 +40,7 @@ func CreateAgent(opts FakeAgentOptions) (*FakeAgent, error) {
 		}),
 		configMgr: newConfigManager(),
 		vbuckets:  newVbucketDispatcher(),
-		retries:   newRetryComponent(),
+		retries:   NewRetryManagerDefault(),
 	}
 
 	var err error
