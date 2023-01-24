@@ -1,5 +1,7 @@
 package core
 
+import "hash/crc32"
+
 type vbucketMap struct {
 	entries     [][]int
 	numReplicas int
@@ -26,7 +28,9 @@ func (vbMap vbucketMap) NumReplicas() int {
 }
 
 func (vbMap vbucketMap) VbucketByKey(key []byte) uint16 {
-	return uint16(cbCrc(key) % uint32(len(vbMap.entries)))
+	crc := crc32.ChecksumIEEE(key)
+	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
+	return crcMidBits % uint16(len(vbMap.entries))
 }
 
 func (vbMap vbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error) {
