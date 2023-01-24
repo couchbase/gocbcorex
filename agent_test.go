@@ -11,7 +11,7 @@ import (
 func TestBasicSnAgent(t *testing.T) {
 	// t.SkipNow()
 
-	opts := FakeAgentOptions{
+	opts := AgentOptions{
 		TLSConfig:  nil,
 		BucketName: "default",
 		Username:   "Administrator",

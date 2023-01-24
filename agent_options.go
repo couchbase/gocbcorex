@@ -3,7 +3,7 @@ package core
 import "crypto/tls"
 
 // Temporary options.
-type FakeAgentOptions struct {
+type AgentOptions struct {
 	TLSConfig  *tls.Config
 	BucketName string
 	Username   string

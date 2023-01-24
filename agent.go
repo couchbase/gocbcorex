@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type FakeAgent struct {
+type Agent struct {
 	bucket    string
 	tlsConfig *tls.Config
 	username  string
@@ -17,13 +17,14 @@ type FakeAgent struct {
 	configMgr   ConfigManager
 	vbuckets    VbucketDispatcher
 	connMgr     EndpointConnectionProvider
-	crud        *CrudComponent
 	collections CollectionResolver
 	retries     RetryManager
+
+	crud *CrudComponent
 }
 
-func CreateAgent(opts FakeAgentOptions) (*FakeAgent, error) {
-	agent := &FakeAgent{
+func CreateAgent(opts AgentOptions) (*Agent, error) {
+	agent := &Agent{
 		bucket:    opts.BucketName,
 		tlsConfig: opts.TLSConfig,
 		username:  opts.Username,
@@ -78,7 +79,7 @@ func CreateAgent(opts FakeAgentOptions) (*FakeAgent, error) {
 	return agent, nil
 }
 
-func (agent *FakeAgent) WatchConfigs() {
+func (agent *Agent) WatchConfigs() {
 	configCh, err := agent.poller.Watch(context.Background()) // TODO: this context probably needs to be linked with agent shutdown
 	if err != nil {
 		// TODO: Errr, panic?
