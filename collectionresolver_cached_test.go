@@ -415,8 +415,81 @@ func TestCollectionResolverCancelContextMultipleOps(t *testing.T) {
 	scope := uuid.NewString()
 	cid := uint32(15)
 	manifestRev := uint64(4)
+	blockCh := make(chan struct{}, 1)
 	mock := &CollectionResolverMock{
 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			<-blockCh
+			called++
+
+			assert.Equal(t, scope, scopeName)
+			assert.Equal(t, collection, collectionName)
+			assert.NotNil(t, ctx)
+
+			return cid, manifestRev, nil
+		},
+	}
+
+	resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
+		Resolver:       mock,
+		ResolveTimeout: 10 * time.Second,
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	var cancelGroup sync.WaitGroup
+	numReqs := 10
+	var toCancel []context.CancelFunc
+	for i := 0; i < numReqs; i++ {
+
+		var willCancel bool
+		var ctx context.Context
+		if i%2 == 0 {
+			cancelGroup.Add(1)
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithCancel(context.Background())
+			toCancel = append(toCancel, cancel)
+			willCancel = true
+		} else {
+			wg.Add(1)
+			ctx = context.Background()
+		}
+
+		go func(hasCanceled bool) {
+			u, mRev, err := resolver.ResolveCollectionID(ctx, scope, collection)
+			if willCancel {
+				assert.Equal(t, context.Canceled, err)
+				cancelGroup.Done()
+			} else {
+				assert.Equal(t, cid, u)
+				assert.Equal(t, manifestRev, mRev)
+				wg.Done()
+			}
+		}(willCancel)
+	}
+
+	for _, cancel := range toCancel {
+		cancel()
+	}
+
+	cancelGroup.Wait()
+
+	close(blockCh)
+
+	wg.Wait()
+
+	assert.Equal(t, uint32(1), called)
+}
+
+func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
+	var called uint32
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	cid := uint32(9)
+	manifestRev := uint64(4)
+	blockCh := make(chan struct{}, 1)
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			<-blockCh
 			called++
 
 			assert.Equal(t, scope, scopeName)
@@ -435,97 +508,24 @@ func TestCollectionResolverCancelContextMultipleOps(t *testing.T) {
 
 	var wg sync.WaitGroup
 	numReqs := 10
-	var toCancel []context.CancelFunc
+	ctx, cancel := context.WithCancel(context.Background())
 	for i := 0; i < numReqs; i++ {
 		wg.Add(1)
 
-		var willCancel bool
-		var ctx context.Context
-		if i%2 == 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithCancel(context.Background())
-			toCancel = append(toCancel, cancel)
-			willCancel = true
-		} else {
-			ctx = context.Background()
-		}
-
-		go func(hasCanceled bool) {
-			u, mRev, err := resolver.ResolveCollectionID(ctx, scope, collection)
-			if willCancel {
-				assert.Equal(t, context.Canceled, err)
-			} else {
-				assert.Equal(t, cid, u)
-				assert.Equal(t, manifestRev, mRev)
-			}
+		go func() {
+			_, _, err := resolver.ResolveCollectionID(ctx, scope, collection)
+			assert.Equal(t, context.Canceled, err)
 			wg.Done()
-		}(willCancel)
+		}()
 	}
+	cancel()
 
-	for _, cancel := range toCancel {
-		cancel()
-	}
-
+	blockCh <- struct{}{}
 	wg.Wait()
 
 	assert.Equal(t, uint32(1), called)
 }
 
-// func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
-// 	var called uint32
-// 	collection := uuid.NewString()
-// 	scope := uuid.NewString()
-// 	cid := uint32(9)
-// 	fqCollectionName := []byte(fmt.Sprintf("%s.%s", scope, collection))
-// 	blockCh := make(chan struct{}, 1)
-// 	cliCb := func(req *memdx.Packet, handler memdx.DispatchCallback) error {
-// 		go func() {
-// 			<-blockCh
-// 			atomic.AddUint32(&called, 1)
-// 			if req.OpCode == memdx.OpCodeCollectionsGetID && bytes.Equal(req.Value, fqCollectionName) {
-// 				pk := &memdx.Packet{
-// 					Extras: make([]byte, 12),
-// 				}
-// 				binary.BigEndian.PutUint64(pk.Extras[0:], 4)
-// 				binary.BigEndian.PutUint32(pk.Extras[8:], cid)
-// 				blockCh <- struct{}{}
-// 				handler(pk, nil)
-// 				return
-// 			}
-//
-// 			t.Error("Should not have reached here")
-// 		}()
-// 		return nil
-// 	}
-// 	client := &fakeKvClient{
-// 		onCall: cliCb,
-// 	}
-// 	router := &fakeConnManager{
-// 		cli: client,
-// 	}
-//
-// 	resolver := newCollectionResolver(router)
-//
-// 	var wg sync.WaitGroup
-// 	numReqs := 10
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	for i := 0; i < numReqs; i++ {
-// 		wg.Add(1)
-//
-// 		go func() {
-// 			_, _, err := resolver.ResolveCollectionID(ctx, "", scope, collection)
-// 			assert.Equal(t, context.Canceled, err)
-// 			wg.Done()
-// 		}()
-// 	}
-// 	cancel()
-//
-// 	blockCh <- struct{}{}
-// 	wg.Wait()
-// 	<-blockCh
-//
-// 	assert.Equal(t, uint32(1), called)
-// }
 //
 // func TestCollectionsManagerInvalidateTwice(t *testing.T) {
 // 	var called uint32
