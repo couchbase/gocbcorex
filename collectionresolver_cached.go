@@ -172,6 +172,9 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 		entry.CollectionID = collectionID
 		entry.ManifestRev = manifestRev
 
+		doneCh := entry.DoneCh
+		entry.DoneCh = nil
+
 		pendingCh := entry.PendingCh
 		entry.PendingCh = nil
 
@@ -179,6 +182,9 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 
 		if pendingCh != nil {
 			close(pendingCh)
+		}
+		if doneCh != nil {
+			close(doneCh)
 		}
 
 		break

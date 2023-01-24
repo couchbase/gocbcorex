@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -69,7 +70,7 @@ func TestCollectionResolverNCallsNCollections(t *testing.T) {
 
 	mock := &CollectionResolverMock{
 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
-			called++
+			atomic.AddUint32(&called, 1)
 
 			assert.NotNil(t, ctx)
 
