@@ -17,7 +17,7 @@ type Agent struct {
 	poller      ConfigPoller
 	configMgr   ConfigManager
 	vbuckets    VbucketDispatcher
-	connMgr     EndpointConnectionProvider
+	connMgr     NodeKvClientProvider
 	collections CollectionResolver
 	retries     RetryManager
 
@@ -57,7 +57,7 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 	}
 
 	var err error
-	agent.connMgr, err = NewEndpointConnectionManager(&EndpointConnectionManagerOptions{
+	agent.connMgr, err = NewNodeKvClientManager(&NodeKvClientManagerOptions{
 		Endpoints:      opts.MemdAddrs,
 		TLSConfig:      agent.tlsConfig,
 		SelectedBucket: opts.BucketName,
@@ -120,7 +120,7 @@ func (agent *Agent) WatchConfigs() {
 			copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
 		}
 
-		agent.connMgr.Reconfigure(&EndpointConnectionManagerOptions{
+		agent.connMgr.Reconfigure(&NodeKvClientManagerOptions{
 			Endpoints:      serverList,
 			TLSConfig:      agent.tlsConfig,
 			SelectedBucket: agent.bucket,

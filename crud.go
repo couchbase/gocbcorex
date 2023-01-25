@@ -10,7 +10,7 @@ type CrudComponent struct {
 	collections CollectionResolver
 	vbuckets    VbucketDispatcher
 	retries     RetryManager
-	connManager EndpointConnectionProvider
+	connManager NodeKvClientProvider
 }
 
 type GetOptions struct {

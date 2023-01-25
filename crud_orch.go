@@ -36,7 +36,7 @@ func OrchestrateMemdRouting[RespT any](
 
 func OrchestrateMemdClient[RespT any](
 	ctx context.Context,
-	cm EndpointConnectionProvider,
+	cm NodeKvClientProvider,
 	endpoint string,
 	fn func(client KvClient) (RespT, error),
 ) (RespT, error) {
@@ -57,7 +57,7 @@ func OrchestrateMemdClient[RespT any](
 }
 func OrchestrateRandomMemdClient[RespT any](
 	ctx context.Context,
-	cm EndpointConnectionProvider,
+	cm NodeKvClientProvider,
 	fn func(client KvClient) (RespT, error),
 ) (RespT, error) {
 	for {
@@ -81,7 +81,7 @@ func OrchestrateSimpleCrud[RespT any](
 	rs RetryManager,
 	cr CollectionResolver,
 	vb VbucketDispatcher,
-	cm EndpointConnectionProvider,
+	cm NodeKvClientProvider,
 	scopeName, collectionName string,
 	key []byte,
 	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),

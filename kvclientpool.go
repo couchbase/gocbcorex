@@ -14,7 +14,7 @@ var (
 	ErrPoolStillConnecting = contextualDeadline{"still waiting for a connection in the pool"}
 )
 
-type ConnectionProvider interface {
+type KvClientProvider interface {
 	GetClient(ctx context.Context) (KvClient, error)
 	ShutdownClient(client KvClient)
 }

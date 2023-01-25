@@ -7,7 +7,7 @@ import (
 )
 
 type CollectionResolverMemd struct {
-	connMgr EndpointConnectionProvider
+	connMgr NodeKvClientProvider
 }
 
 var _ CollectionResolver = (*CollectionResolverMemd)(nil)
