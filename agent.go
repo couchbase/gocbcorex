@@ -16,7 +16,6 @@ type Agent struct {
 
 	poller      ConfigPoller
 	configMgr   ConfigManager
-	vbuckets    VbucketDispatcher
 	connMgr     NodeKvClientProvider
 	collections CollectionResolver
 	retries     RetryManager
@@ -51,8 +50,7 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 			Username:             opts.Username,
 			Password:             opts.Password,
 		}),
-		configMgr: newConfigManager(),
-		vbuckets:  newVbucketDispatcher(),
+		configMgr: newConfigManager(opts.TLSConfig),
 		retries:   NewRetryManagerDefault(),
 	}
 
@@ -80,7 +78,6 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 
 	agent.crud = &CrudComponent{
 		collections: agent.collections,
-		vbuckets:    agent.vbuckets,
 		retries:     agent.retries,
 		// errorResolver: new,
 		connManager: agent.connMgr,
@@ -126,10 +123,6 @@ func (agent *Agent) WatchConfigs() {
 			SelectedBucket: agent.bucket,
 			Username:       agent.username,
 			Password:       agent.password,
-		})
-		agent.vbuckets.StoreVbucketRoutingInfo(&vbucketRoutingInfo{
-			vbmap:      routeCfg.vbMap,
-			serverList: serverList,
 		})
 		agent.poller.UpdateEndpoints(mgmtList)
 	}

@@ -1,16 +1,18 @@
 package core
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
+	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
-
-	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
+	"time"
 )
 
 func TestConfigManagerAppliesFirstConfig(t *testing.T) {
-	manager := newConfigManager()
+	manager := newConfigManager(nil)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
@@ -21,7 +23,7 @@ func TestConfigManagerAppliesFirstConfig(t *testing.T) {
 }
 
 func TestConfigManagerAppliesNewerRevConfig(t *testing.T) {
-	manager := newConfigManager()
+	manager := newConfigManager(nil)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
@@ -39,7 +41,7 @@ func TestConfigManagerAppliesNewerRevConfig(t *testing.T) {
 }
 
 func TestConfigManagerAppliesNewerRevEpochConfig(t *testing.T) {
-	manager := newConfigManager()
+	manager := newConfigManager(nil)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
@@ -57,7 +59,7 @@ func TestConfigManagerAppliesNewerRevEpochConfig(t *testing.T) {
 }
 
 func TestConfigManagerIgnoresOlderConfig(t *testing.T) {
-	manager := newConfigManager()
+	manager := newConfigManager(nil)
 
 	cfg := GenTerseClusterConfig(2, 2, []string{"endpoint1", "endpoint2"})
 
@@ -73,7 +75,7 @@ func TestConfigManagerIgnoresOlderConfig(t *testing.T) {
 }
 
 func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
-	manager := newConfigManager()
+	manager := newConfigManager(nil)
 
 	cfg := GenTerseClusterConfig(2, 2, []string{"endpoint1", "endpoint2"})
 
@@ -85,7 +87,7 @@ func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
 }
 
 func TestConfigManagerAppliesBucketConfigOverCluster(t *testing.T) {
-	manager := newConfigManager()
+	manager := newConfigManager(nil)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
@@ -100,6 +102,134 @@ func TestConfigManagerAppliesBucketConfigOverCluster(t *testing.T) {
 	require.True(t, applied)
 
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
+}
+
+func TestConfigManagerDispatchToKey(t *testing.T) {
+	manager := newConfigManager(nil)
+
+	cfg := GenTerseBucketConfig(1, 1, []string{"endpoint1", "endpoint2"})
+	_, applied := manager.ApplyConfig("endpoint1", cfg)
+	require.True(t, applied)
+
+	endpoint, vbID, err := manager.DispatchByKey(context.Background(), []byte("key1"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "couchbase://endpoint1:11210", endpoint)
+	assert.Equal(t, uint16(0x5c), vbID)
+
+	endpoint, vbID, err = manager.DispatchByKey(context.Background(), []byte("key2"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "couchbase://endpoint1:11210", endpoint)
+	assert.Equal(t, uint16(0x155), vbID)
+
+	err = manager.Close()
+	require.NoError(t, err)
+}
+
+func TestConfigManagerDispatchToKeyAfterReconfigure(t *testing.T) {
+	manager := newConfigManager(nil)
+
+	cfg := GenTerseBucketConfig(1, 1, []string{"endpoint1", "endpoint2"})
+	_, applied := manager.ApplyConfig("endpoint1", cfg)
+	require.True(t, applied)
+
+	endpoint, vbID, err := manager.DispatchByKey(context.Background(), []byte("key1"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "couchbase://endpoint1:11210", endpoint)
+	assert.Equal(t, uint16(0x5c), vbID)
+
+	manager.Reconfigure(&tls.Config{})
+
+	endpoint, vbID, err = manager.DispatchByKey(context.Background(), []byte("key2"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "couchbases://endpoint1:11207", endpoint)
+	assert.Equal(t, uint16(0x155), vbID)
+
+	err = manager.Close()
+	require.NoError(t, err)
+}
+
+//
+// TODO: This test needs to somehow become more deterministic.
+func TestConfigManagertDispatcherWaitToDispatch(t *testing.T) {
+	manager := newConfigManager(nil)
+
+	var err error
+	var endpoint string
+	var vbID uint16
+	wait := make(chan struct{}, 1)
+	go func() {
+		endpoint, vbID, err = manager.DispatchByKey(context.Background(), []byte("key1"))
+		wait <- struct{}{}
+	}()
+
+	cfg := GenTerseBucketConfig(1, 1, []string{"endpoint1", "endpoint2"})
+	_, applied := manager.ApplyConfig("endpoint1", cfg)
+	require.True(t, applied)
+
+	<-wait
+
+	require.NoError(t, err)
+
+	assert.Equal(t, "couchbase://endpoint1:11210", endpoint)
+	assert.Equal(t, uint16(0x5c), vbID)
+
+	err = manager.Close()
+	require.NoError(t, err)
+}
+
+func TestConfigManagerCancelWaitingToDispatch(t *testing.T) {
+	manager := newConfigManager(nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var err error
+	var endpoint string
+	var vbID uint16
+	wait := make(chan struct{}, 1)
+	go func() {
+		endpoint, vbID, err = manager.DispatchByKey(ctx, []byte("key1"))
+		wait <- struct{}{}
+	}()
+
+	cancel()
+
+	<-wait
+
+	assert.ErrorIs(t, err, context.Canceled)
+
+	assert.Equal(t, "", endpoint)
+	assert.Equal(t, uint16(0), vbID)
+
+	err = manager.Close()
+	require.NoError(t, err)
+}
+
+func TestVbucketDispatcherDeadlinedWaitingToDispatch(t *testing.T) {
+	manager := newConfigManager(nil)
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(1*time.Millisecond))
+	defer cancel()
+	var err error
+	var endpoint string
+	var vbID uint16
+	wait := make(chan struct{}, 1)
+	go func() {
+		endpoint, vbID, err = manager.DispatchByKey(ctx, []byte("key1"))
+		wait <- struct{}{}
+	}()
+
+	<-wait
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	assert.Equal(t, "", endpoint)
+	assert.Equal(t, uint16(0), vbID)
+
+	err = manager.Close()
+	require.NoError(t, err)
 }
 
 // TODO: Once we consolidate all of our config stuff across projects we should also provide utils for generating configs.

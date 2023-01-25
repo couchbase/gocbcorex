@@ -1,23 +1,56 @@
 package core
 
 import (
+	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
+	"sync/atomic"
 
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 )
 
+var (
+	ErrWaitingForConfig = contextualDeadline{"still waiting for a cluster config"}
+)
+
 type ConfigManager interface {
 	ApplyConfig(sourceHostname string, json *cbconfig.TerseConfigJson) (*routeConfig, bool)
+	DispatchByKey(ctx context.Context, key []byte) (string, uint16, error)
+	DispatchToVbucket(ctx context.Context, vbID uint16) (string, error)
+	Reconfigure(tlsConfig *tls.Config)
+	Close() error
 }
 
 type configManager struct {
 	currentConfig AtomicPointer[routeConfig]
+	tlsConfig     AtomicPointer[tls.Config]
+
+	ready    uint32
+	readyCh  chan struct{}
+	closedCh chan struct{}
 }
 
-func newConfigManager() *configManager {
-	return &configManager{}
+func newConfigManager(tlsConfig *tls.Config) *configManager {
+	mgr := &configManager{
+		readyCh:  make(chan struct{}),
+		closedCh: make(chan struct{}),
+	}
+	mgr.tlsConfig.Store(tlsConfig)
+
+	return mgr
+}
+
+func (cm *configManager) Close() error {
+	close(cm.closedCh)
+
+	return nil
+}
+
+func (cm *configManager) Reconfigure(tlsConfig *tls.Config) {
+	cm.tlsConfig.Store(tlsConfig)
 }
 
 func (cm *configManager) ApplyConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) (*routeConfig, bool) {
@@ -57,11 +90,99 @@ func (cm *configManager) ApplyConfig(sourceHostname string, cfg *cbconfig.TerseC
 		}
 
 		if cm.currentConfig.CompareAndSwap(oldConfig, newConfig) {
+			// TODO: so gross
+			if atomic.CompareAndSwapUint32(&cm.ready, 0, 1) {
+				close(cm.readyCh)
+			}
+
 			return newConfig, true
 		} else if oldConfig == nil {
 			// This would be odd.
 			return nil, false
 		}
+	}
+}
+
+func (cm *configManager) DispatchByKey(ctx context.Context, key []byte) (string, uint16, error) {
+	if err := cm.waitToBeReady(ctx); err != nil {
+		return "", 0, err
+	}
+
+	cfg := cm.loadConfig()
+	if cfg == nil {
+		return "", 0, placeholderError{"imnotgood"}
+	}
+
+	vbID := cfg.vbMap.VbucketByKey(key)
+	idx, err := cfg.vbMap.NodeByVbucket(vbID, 0)
+	if err != nil {
+		return "", 0, err
+	}
+
+	var serverList []string
+	tlsConfig := cm.tlsConfig.Load()
+	if tlsConfig == nil {
+		serverList = cfg.kvServerList.NonSSLEndpoints
+	} else {
+		serverList = cfg.kvServerList.SSLEndpoints
+	}
+
+	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
+	if idx > len(serverList) {
+		return "", 0, placeholderError{"imnotgood"}
+	}
+
+	return serverList[idx], vbID, nil
+}
+
+func (cm *configManager) DispatchToVbucket(ctx context.Context, vbID uint16) (string, error) {
+	if err := cm.waitToBeReady(ctx); err != nil {
+		return "", err
+	}
+
+	cfg := cm.loadConfig()
+	if cfg == nil {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	idx, err := cfg.vbMap.NodeByVbucket(vbID, 0)
+	if err != nil {
+		return "", err
+	}
+
+	var serverList []string
+	tlsConfig := cm.tlsConfig.Load()
+	if tlsConfig == nil {
+		serverList = cfg.kvServerList.NonSSLEndpoints
+	} else {
+		serverList = cfg.kvServerList.SSLEndpoints
+	}
+
+	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
+	if idx > len(serverList) {
+		return "", placeholderError{"imnotgood"}
+	}
+
+	return serverList[idx], nil
+}
+
+func (cm *configManager) loadConfig() *routeConfig {
+	return cm.currentConfig.Load()
+}
+
+func (cm *configManager) waitToBeReady(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		ctxErr := ctx.Err()
+		if errors.Is(ctxErr, context.DeadlineExceeded) {
+			return ErrWaitingForConfig
+		} else {
+			return ctxErr
+		}
+	case <-cm.readyCh:
+		return nil
+	case <-cm.closedCh:
+		return nil
 	}
 }
 

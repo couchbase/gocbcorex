@@ -7,14 +7,14 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
-func OrchestrateMemdRouting[RespT any](
+func OrchestrateConfig[RespT any](
 	ctx context.Context,
-	vd VbucketDispatcher,
+	cm ConfigManager,
 	key []byte,
 	fn func(endpoint string, vbID uint16) (RespT, error),
 ) (RespT, error) {
 	for {
-		endpoint, vbID, err := vd.DispatchByKey(ctx, key)
+		endpoint, vbID, err := cm.DispatchByKey(ctx, key)
 		if err != nil {
 			var emptyResp RespT
 			return emptyResp, err
@@ -80,8 +80,8 @@ func OrchestrateSimpleCrud[RespT any](
 	ctx context.Context,
 	rs RetryManager,
 	cr CollectionResolver,
-	vb VbucketDispatcher,
-	cm NodeKvClientProvider,
+	cm ConfigManager,
+	nkcp NodeKvClientProvider,
 	scopeName, collectionName string,
 	key []byte,
 	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),
@@ -92,10 +92,10 @@ func OrchestrateSimpleCrud[RespT any](
 			return OrchestrateMemdCollectionID(
 				ctx, cr, scopeName, collectionName,
 				func(collectionID uint32, manifestID uint64) (RespT, error) {
-					return OrchestrateMemdRouting(
-						ctx, vb, key,
+					return OrchestrateConfig(
+						ctx, cm, key,
 						func(endpoint string, vbID uint16) (RespT, error) {
-							return OrchestrateMemdClient(ctx, cm, endpoint, func(client KvClient) (RespT, error) {
+							return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
 								return fn(collectionID, manifestID, endpoint, vbID, client)
 							})
 						})
