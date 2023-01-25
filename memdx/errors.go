@@ -32,6 +32,18 @@ func (e protocolError) Unwrap() error {
 	return ErrProtocol
 }
 
+type NotMyVbucketError struct {
+	ConfigValue []byte
+}
+
+func (e NotMyVbucketError) Error() string {
+	return ErrNotMyVbucket.Error()
+}
+
+func (e NotMyVbucketError) Unwrap() error {
+	return ErrNotMyVbucket
+}
+
 type ServerErrorContext struct {
 	Text        string
 	Ref         string

@@ -17,6 +17,11 @@ func (o OpsCore) decodeErrorContext(resp *Packet, err error) error {
 }
 
 func (o OpsCore) decodeError(resp *Packet) error {
+	if resp.Status == StatusNotMyVBucket {
+		return NotMyVbucketError{
+			ConfigValue: resp.Value,
+		}
+	}
 	// TODO(brett19): Do better...
 	return o.decodeErrorContext(resp, errors.New("unexpected status: "+resp.Status.String()))
 }

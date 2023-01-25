@@ -2,37 +2,7 @@ package core
 
 import (
 	"context"
-	"errors"
-
-	"github.com/couchbase/stellar-nebula/core/memdx"
 )
-
-func OrchestrateConfig[RespT any](
-	ctx context.Context,
-	cm ConfigManager,
-	key []byte,
-	fn func(endpoint string, vbID uint16) (RespT, error),
-) (RespT, error) {
-	for {
-		endpoint, vbID, err := cm.DispatchByKey(ctx, key)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		// Implement me properly
-		res, err := fn(endpoint, vbID)
-		if err != nil {
-			if errors.Is(err, memdx.ErrNotMyVbucket) {
-				// TODO: this will need to retry or something.
-			}
-
-			return res, err
-		}
-
-		return res, nil
-	}
-}
 
 func OrchestrateMemdClient[RespT any](
 	ctx context.Context,
