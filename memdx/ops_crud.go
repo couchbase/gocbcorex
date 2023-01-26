@@ -87,6 +87,7 @@ type GetAndTouchRequest struct {
 	CollectionID uint32
 	Expiry       uint32
 	Key          []byte
+	VbucketID    uint16
 }
 
 type GetAndTouchResponse struct {
@@ -106,10 +107,11 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
-		OpCode: OpCodeGAT,
-		Key:    reqKey,
-		Extras: extraBuf,
+		Magic:     MagicReq,
+		OpCode:    OpCodeGAT,
+		Key:       reqKey,
+		Extras:    extraBuf,
+		VbucketID: req.VbucketID,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -150,6 +152,7 @@ type GetAndLockRequest struct {
 	CollectionID uint32
 	LockTime     uint32
 	Key          []byte
+	VbucketID    uint16
 }
 
 type GetAndLockResponse struct {
@@ -169,10 +172,11 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 	binary.BigEndian.PutUint32(extraBuf[0:], req.LockTime)
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
-		OpCode: OpCodeGetLocked,
-		Key:    reqKey,
-		Extras: extraBuf,
+		Magic:     MagicReq,
+		OpCode:    OpCodeGetLocked,
+		Key:       reqKey,
+		Extras:    extraBuf,
+		VbucketID: req.VbucketID,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -223,24 +227,29 @@ type GetRandomResponse struct {
 
 func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) (PendingOp, error) {
 	var extrasBuf []byte
-	if !o.CollectionsEnabled {
+	if o.CollectionsEnabled {
+		extrasBuf = make([]byte, 4)
+		binary.BigEndian.PutUint32(extrasBuf, req.CollectionID)
+	} else {
 		if req.CollectionID != 0 {
 			return nil, ErrCollectionsNotEnabled
 		}
 
 		// extrasBuf = nil
-	} else {
-		extrasBuf = make([]byte, 4)
-		binary.BigEndian.PutUint32(extrasBuf, req.CollectionID)
 	}
 
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
-		OpCode: OpCodeGet,
+		OpCode: OpCodeGetRandom,
 		Extras: extrasBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusCollectionUnknown {
+			cb(nil, ErrUnknownCollectionID)
 			return false
 		}
 

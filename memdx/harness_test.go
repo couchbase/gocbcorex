@@ -3,6 +3,7 @@ package memdx
 import (
 	"context"
 	"github.com/couchbase/stellar-nebula/core/testutils"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -13,21 +14,19 @@ func createTestClient(t *testing.T) *Client {
 	testBucket := "default"
 
 	conn, err := DialConn(context.Background(), testAddress, nil)
-	if err != nil {
-		t.Fatalf("failed to dial connection: %s", err)
-	}
+	require.NoError(t, err, "failed to dial connection")
 
 	cli := NewClient(conn, &ClientOptions{
 		OrphanHandler: nil,
 		CloseHandler:  nil,
 	})
 
-	syncUnaryCall(OpBootstrap{
+	_, err = syncUnaryCall(OpBootstrap{
 		Encoder: OpsCore{},
 	}, OpBootstrap.Bootstrap, cli, &BootstrapOptions{
 		Hello: &HelloRequest{
 			ClientName:        []byte("memdx-test-harness"),
-			RequestedFeatures: []HelloFeature{HelloFeatureCollections},
+			RequestedFeatures: []HelloFeature{HelloFeatureCollections, HelloFeatureJSON},
 		},
 		GetErrorMap: &GetErrorMapRequest{
 			Version: 2,
@@ -42,10 +41,7 @@ func createTestClient(t *testing.T) *Client {
 		},
 		GetClusterConfig: &GetClusterConfigRequest{},
 	})
-	if err != nil {
-		cli.Close()
-		t.Fatalf("failed to bootstrap: %s", err)
-	}
+	require.NoError(t, err, "failed to bootstrap")
 
 	t.Cleanup(func() {
 		cli.Close()
