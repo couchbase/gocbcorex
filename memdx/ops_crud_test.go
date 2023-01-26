@@ -170,6 +170,17 @@ func TestOpsCrudGetKeyNotFound(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Touch",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Touch(cli, &TouchRequest{
+					Key:    key,
+					Expiry: 60,
+				}, func(resp *TouchResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -273,6 +284,18 @@ func TestOpsCrudGetCollectionNotKnown(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Touch",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Touch(cli, &TouchRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Expiry:       60,
+				}, func(resp *TouchResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -340,4 +363,41 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 		Cas:          res.Cas,
 	})
 	require.NoError(t, err)
+}
+
+func TestOpsCrudTouch(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte(uuid.NewString())
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+	})
+	require.NoError(t, err)
+
+	res, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Touch, cli, &TouchRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Expiry:       1,
+	})
+	require.NoError(t, err)
+
+	assert.NotZero(t, res.Cas)
 }

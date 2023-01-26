@@ -390,3 +390,62 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		return false
 	})
 }
+
+type TouchRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Expiry       uint32
+}
+
+type TouchResponse struct {
+	Cas uint64
+}
+
+func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, error)) (PendingOp, error) {
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Expiry)
+
+	return d.Dispatch(&Packet{
+		Magic:     MagicReq,
+		OpCode:    OpCodeTouch,
+		Key:       reqKey,
+		VbucketID: req.VbucketID,
+		Extras:    extraBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusCollectionUnknown {
+			cb(nil, ErrUnknownCollectionID)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCore{}.decodeError(resp))
+			return false
+		}
+
+		if len(resp.Extras) == 16 {
+			// parse mutation token
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&TouchResponse{
+			Cas: resp.Cas,
+		}, nil)
+		return false
+	})
+}
