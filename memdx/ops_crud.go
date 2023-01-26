@@ -23,6 +23,15 @@ func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []b
 	return AppendCollectionIDAndKey(collectionID, key, buf)
 }
 
+func (o OpsCrud) decodeCommonError(resp *Packet) error {
+	switch resp.Status {
+	case StatusCollectionUnknown:
+		return ErrUnknownCollectionID
+	default:
+		return OpsCore{}.decodeError(resp)
+	}
+}
+
 type GetRequest struct {
 	CollectionID uint32
 	Key          []byte
@@ -56,13 +65,10 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -121,13 +127,12 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
+		} else if resp.Status == StatusKeyExists {
+			cb(nil, ErrDocLocked)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -186,13 +191,12 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
+		} else if resp.Status == StatusKeyExists {
+			cb(nil, ErrDocLocked)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -248,13 +252,8 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 			return false
 		}
 
-		if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
-		}
-
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -314,13 +313,8 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 			return false
 		}
 
-		if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
-		}
-
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -369,13 +363,12 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
+		} else if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -426,13 +419,12 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusCollectionUnknown {
-			cb(nil, ErrUnknownCollectionID)
-			return false
+		} else if resp.Status == StatusKeyExists {
+			cb(nil, ErrDocLocked)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 

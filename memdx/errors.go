@@ -16,6 +16,8 @@ var (
 	ErrDocNotFound           = errors.New("document not found")
 	ErrAuthError             = errors.New("auth error")
 	ErrNotMyVbucket          = errors.New("not my vbucket")
+	ErrCasMismatch           = errors.New("cas mismatch")
+	ErrDocLocked             = errors.New("document locked")
 )
 
 var ErrProtocol = errors.New("protocol error")
