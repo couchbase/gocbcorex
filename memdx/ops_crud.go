@@ -337,3 +337,56 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		return false
 	})
 }
+
+type UnlockRequest struct {
+	CollectionID uint32
+	Cas          uint64
+	Key          []byte
+	VbucketID    uint16
+}
+
+type UnlockResponse struct {
+}
+
+func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockResponse, error)) (PendingOp, error) {
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:     MagicReq,
+		OpCode:    OpCodeUnlockKey,
+		Key:       reqKey,
+		VbucketID: req.VbucketID,
+		Cas:       req.Cas,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusCollectionUnknown {
+			cb(nil, ErrUnknownCollectionID)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCore{}.decodeError(resp))
+			return false
+		}
+
+		if len(resp.Extras) == 16 {
+			// parse mutation token
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&UnlockResponse{}, nil)
+		return false
+	})
+}

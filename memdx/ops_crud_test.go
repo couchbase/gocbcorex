@@ -57,18 +57,6 @@ func TestOpsCrudGets(t *testing.T) {
 				assert.NotZero(t, randRes.Value)
 			},
 		},
-		// { TODO: This locks the doc, probably need to an unlock here too.
-		// 	Name: "GetAndLock",
-		// 	Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
-		// 		return opsCrud.GetAndLock(cli, &GetAndLockRequest{
-		// 			Key:       key,
-		// 			VbucketID: 1,
-		// 			LockTime:  0,
-		// 		}, func(resp *GetAndLockResponse, err error) {
-		// 			cb(resp, err)
-		// 		})
-		// 	},
-		// },
 		{
 			Name: "GetAndTouch",
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
@@ -171,6 +159,17 @@ func TestOpsCrudGetKeyNotFound(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Unlock",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Unlock(cli, &UnlockRequest{
+					Key: key,
+					Cas: 1,
+				}, func(resp *UnlockResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -262,6 +261,18 @@ func TestOpsCrudGetCollectionNotKnown(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Unlock",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Unlock(cli, &UnlockRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Cas:          1,
+				}, func(resp *UnlockResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -281,4 +292,52 @@ func TestOpsCrudGetCollectionNotKnown(t *testing.T) {
 			assert.ErrorIs(tt, <-wait, ErrUnknownCollectionID)
 		})
 	}
+}
+
+func TestOpsCrudGetAndLockUnlock(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte(uuid.NewString())
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+	})
+	require.NoError(t, err)
+
+	res, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.GetAndLock, cli, &GetAndLockRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, value, res.Value)
+	assert.NotZero(t, res.Cas)
+
+	_, err = syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Unlock, cli, &UnlockRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Cas:          res.Cas,
+	})
+	require.NoError(t, err)
 }
