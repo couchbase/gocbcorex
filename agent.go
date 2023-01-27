@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type agentConfigLocked struct {
+type agentState struct {
 	bucket    string
 	tlsConfig *tls.Config
 	username  string
@@ -20,8 +20,8 @@ type agentConfigLocked struct {
 }
 
 type Agent struct {
-	lock   sync.Mutex
-	config agentConfigLocked
+	lock  sync.Mutex
+	state agentState
 
 	poller      ConfigPoller
 	configMgr   *RouteConfigManager
@@ -46,7 +46,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	agent := &Agent{
-		config: agentConfigLocked{
+		state: agentState{
 			bucket:    opts.BucketName,
 			tlsConfig: opts.TLSConfig,
 			username:  opts.Username,
@@ -70,10 +70,10 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	for _, addr := range opts.MemdAddrs {
 		clients[addr] = &KvClientConfig{
 			Address:        addr,
-			TlsConfig:      agent.config.tlsConfig,
-			SelectedBucket: agent.config.bucket,
-			Username:       agent.config.username,
-			Password:       agent.config.password,
+			TlsConfig:      agent.state.tlsConfig,
+			SelectedBucket: agent.state.bucket,
+			Username:       agent.state.username,
+			Password:       agent.state.password,
 		}
 	}
 	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
@@ -100,7 +100,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 	agent.configMgr.RegisterCallback(func(rc *routeConfig) {
 		agent.lock.Lock()
-		agent.config.latestConfig = rc
+		agent.state.latestConfig = rc
 		agent.updateStateLocked()
 		agent.lock.Unlock()
 	})
@@ -122,12 +122,12 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 }
 
 func (agent *Agent) updateStateLocked() {
-	log.Printf("updating config: %+v %+v", agent.config, *agent.config.latestConfig)
-	routeCfg := agent.config.latestConfig
+	log.Printf("updating config: %+v %+v", agent.state, *agent.state.latestConfig)
+	routeCfg := agent.state.latestConfig
 
 	var mgmtList []string
 	var serverList []string
-	if agent.config.tlsConfig == nil {
+	if agent.state.tlsConfig == nil {
 		serverList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
 		copy(serverList, routeCfg.kvServerList.NonSSLEndpoints)
 		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
@@ -147,10 +147,10 @@ func (agent *Agent) updateStateLocked() {
 	for _, addr := range serverList {
 		clients[addr] = &KvClientConfig{
 			Address:        addr,
-			TlsConfig:      agent.config.tlsConfig,
-			SelectedBucket: agent.config.bucket,
-			Username:       agent.config.username,
-			Password:       agent.config.password,
+			TlsConfig:      agent.state.tlsConfig,
+			SelectedBucket: agent.state.bucket,
+			Username:       agent.state.username,
+			Password:       agent.state.password,
 		}
 	}
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
