@@ -44,10 +44,12 @@ func OrchestrateMemdRetries[RespT any](
 						return res, err
 					}
 				}
+
+				lastErr = err
+				continue
 			}
 
-			lastErr = err
-			continue
+			return res, err
 		}
 
 		return res, nil

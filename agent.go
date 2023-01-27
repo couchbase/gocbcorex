@@ -63,7 +63,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			Password:             opts.Password,
 		}),
 		configMgr: newConfigManager(),
-		retries:   NewRetryManagerDefault(),
+		retries:   NewRetryManagerFastFail(),
 	}
 
 	var err error
