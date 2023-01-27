@@ -22,7 +22,8 @@ type KvClientManager interface {
 type NewKvClientProviderFunc func(clientOpts *KvClientPoolConfig) (KvClientPool, error)
 
 type KvClientManagerConfig struct {
-	Clients map[string]*KvClientPoolConfig
+	NumPoolConnections uint
+	Clients            map[string]*KvClientConfig
 }
 
 type KvClientManagerOptions struct {
@@ -100,7 +101,10 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
 	}
 
 	for endpoint, endpointConfig := range config.Clients {
-		clientPool, err := m.newKvClientProvider(endpointConfig)
+		clientPool, err := m.newKvClientProvider(&KvClientPoolConfig{
+			NumConnections: config.NumPoolConnections,
+			ClientOpts:     *endpointConfig,
+		})
 		if err != nil {
 			return err
 		}

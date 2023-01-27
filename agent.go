@@ -66,21 +66,19 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		retries:   NewRetryManagerFastFail(),
 	}
 
-	clients := make(map[string]*KvClientPoolConfig)
+	clients := make(map[string]*KvClientConfig)
 	for _, addr := range opts.MemdAddrs {
-		clients[addr] = &KvClientPoolConfig{
-			NumConnections: 1,
-			ClientOpts: KvClientConfig{
-				Address:        addr,
-				TlsConfig:      agent.config.tlsConfig,
-				SelectedBucket: agent.config.bucket,
-				Username:       agent.config.username,
-				Password:       agent.config.password,
-			},
+		clients[addr] = &KvClientConfig{
+			Address:        addr,
+			TlsConfig:      agent.config.tlsConfig,
+			SelectedBucket: agent.config.bucket,
+			Username:       agent.config.username,
+			Password:       agent.config.password,
 		}
 	}
 	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
-		Clients: clients,
+		NumPoolConnections: 1,
+		Clients:            clients,
 	}, nil)
 	if err != nil {
 		return nil, err
@@ -145,21 +143,19 @@ func (agent *Agent) updateStateLocked() {
 	// vbucket map, and then reconfigure again to drop the old endpoints.  Otherwise
 	// vbucket mapping and connection dispatch will race and loop.
 
-	clients := make(map[string]*KvClientPoolConfig)
+	clients := make(map[string]*KvClientConfig)
 	for _, addr := range serverList {
-		clients[addr] = &KvClientPoolConfig{
-			NumConnections: 1,
-			ClientOpts: KvClientConfig{
-				Address:        addr,
-				TlsConfig:      agent.config.tlsConfig,
-				SelectedBucket: agent.config.bucket,
-				Username:       agent.config.username,
-				Password:       agent.config.password,
-			},
+		clients[addr] = &KvClientConfig{
+			Address:        addr,
+			TlsConfig:      agent.config.tlsConfig,
+			SelectedBucket: agent.config.bucket,
+			Username:       agent.config.username,
+			Password:       agent.config.password,
 		}
 	}
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
-		Clients: clients,
+		NumPoolConnections: 1,
+		Clients:            clients,
 	})
 
 	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
