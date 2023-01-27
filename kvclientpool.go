@@ -14,15 +14,21 @@ var (
 	ErrPoolStillConnecting = contextualDeadline{"still waiting for a connection in the pool"}
 )
 
-type KvClientProvider interface {
+type NewKvClientFunc func(context.Context, *KvClientConfig) (KvClient, error)
+
+type KvClientPool interface {
+	Reconfigure(config *KvClientPoolConfig) error
 	GetClient(ctx context.Context) (KvClient, error)
 	ShutdownClient(client KvClient)
 }
 
-type KvClientPoolOptions struct {
-	NewKvClient    func(context.Context, *KvClientOptions) (KvClient, error)
+type KvClientPoolConfig struct {
 	NumConnections uint
-	ClientOpts     KvClientOptions
+	ClientOpts     KvClientConfig
+}
+
+type KvClientPoolOptions struct {
+	NewKvClient NewKvClientFunc
 }
 
 type kvClientPoolFastMap struct {
@@ -30,21 +36,22 @@ type kvClientPoolFastMap struct {
 }
 
 type pendingConnectionState struct {
-	NewKvClient func(context.Context, *KvClientOptions) (KvClient, error)
-	ClientOpts  KvClientOptions
+	NewKvClient NewKvClientFunc
+	ClientOpts  KvClientConfig
 
 	IsReady bool
 	Err     error
 	Client  KvClient
 }
 
-type KvClientPool struct {
-	config KvClientPoolOptions
+type kvClientPool struct {
+	newKvClient NewKvClientFunc
 
 	clientIdx uint64
 	fastMap   AtomicPointer[kvClientPoolFastMap]
 
 	lock                sync.Mutex
+	config              KvClientPoolConfig
 	connectErr          error
 	pendingConnection   *pendingConnectionState
 	reconfigConnections []KvClient
@@ -56,21 +63,26 @@ type KvClientPool struct {
 	closeSigCh       chan struct{}
 }
 
-func NewKvClientPool(opts *KvClientPoolOptions) (*KvClientPool, error) {
+func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kvClientPool, error) {
+	if config == nil {
+		return nil, errors.New("must pass config")
+	}
 	if opts == nil {
-		return nil, errors.New("must pass options")
+		opts = &KvClientPoolOptions{}
 	}
 
-	config := *opts
-
-	if config.NewKvClient == nil {
-		config.NewKvClient = func(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
-			return newKvClient(ctx, opts)
+	var newKvClient NewKvClientFunc
+	if opts.NewKvClient != nil {
+		newKvClient = opts.NewKvClient
+	} else {
+		newKvClient = func(ctx context.Context, opts *KvClientConfig) (KvClient, error) {
+			return NewKvClient(ctx, opts)
 		}
 	}
 
-	p := &KvClientPool{
-		config: config,
+	p := &kvClientPool{
+		newKvClient: newKvClient,
+		config:      *config,
 
 		wakeManagerSigCh: nil, // manager defaults to 'awake'
 		needClientSigCh:  make(chan struct{}, 1),
@@ -81,14 +93,14 @@ func NewKvClientPool(opts *KvClientPoolOptions) (*KvClientPool, error) {
 	return p, nil
 }
 
-func (p *KvClientPool) sleepManagerLocked() <-chan struct{} {
+func (p *kvClientPool) sleepManagerLocked() <-chan struct{} {
 	if p.wakeManagerSigCh == nil {
 		p.wakeManagerSigCh = make(chan struct{}, 1)
 	}
 	return p.wakeManagerSigCh
 }
 
-func (p *KvClientPool) wakeManagerLocked() {
+func (p *kvClientPool) wakeManagerLocked() {
 	if p.wakeManagerSigCh == nil {
 		// manager is already awake
 		return
@@ -102,7 +114,7 @@ func (p *KvClientPool) wakeManagerLocked() {
 	}
 }
 
-func (p *KvClientPool) sleepClientWaiterLocked() (<-chan struct{}, error) {
+func (p *kvClientPool) sleepClientWaiterLocked() (<-chan struct{}, error) {
 	if p.needClientSigCh == nil {
 		return nil, errors.New("illegal state: client sleep wait channel")
 	}
@@ -110,7 +122,7 @@ func (p *KvClientPool) sleepClientWaiterLocked() (<-chan struct{}, error) {
 	return p.needClientSigCh, nil
 }
 
-func (p *KvClientPool) notifyClientWaitersLocked() {
+func (p *kvClientPool) notifyClientWaitersLocked() {
 	needClientSigCh := p.needClientSigCh
 	p.needClientSigCh = nil
 
@@ -119,14 +131,14 @@ func (p *KvClientPool) notifyClientWaitersLocked() {
 	}
 }
 
-func (p *KvClientPool) startPendingConnectionLocked() {
+func (p *kvClientPool) startPendingConnectionLocked() {
 	if p.pendingConnection != nil {
 		return
 	}
 
 	// setup the new pending connection state
 	pendingConn := &pendingConnectionState{
-		NewKvClient: p.config.NewKvClient,
+		NewKvClient: p.newKvClient,
 		ClientOpts:  p.config.ClientOpts,
 	}
 	p.pendingConnection = pendingConn
@@ -157,7 +169,7 @@ func (p *KvClientPool) startPendingConnectionLocked() {
 	}()
 }
 
-func (p *KvClientPool) checkPendingConnectionLocked() {
+func (p *kvClientPool) checkPendingConnectionLocked() {
 	if p.pendingConnection == nil {
 		return
 	}
@@ -193,7 +205,7 @@ func (p *KvClientPool) checkPendingConnectionLocked() {
 	p.notifyClientWaitersLocked()
 }
 
-func (p *KvClientPool) checkNumConnectionsLocked() {
+func (p *kvClientPool) checkNumConnectionsLocked() {
 	numWantedConns := int(p.config.NumConnections)
 	numActiveConns := len(p.activeConnections)
 	numReconfigureConns := len(p.reconfigConnections)
@@ -220,7 +232,7 @@ func (p *KvClientPool) checkNumConnectionsLocked() {
 	}
 }
 
-func (p *KvClientPool) managerThread() {
+func (p *kvClientPool) managerThread() {
 ManagerLoop:
 	for {
 		p.lock.Lock()
@@ -245,7 +257,7 @@ ManagerLoop:
 	}
 }
 
-func (p *KvClientPool) reconfigureClientThread(client KvClient) {
+func (p *kvClientPool) reconfigureClientThread(client KvClient) {
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
 	go func() {
 		select {
@@ -308,11 +320,11 @@ func (p *KvClientPool) reconfigureClientThread(client KvClient) {
 	}
 }
 
-func (p *KvClientPool) defunctClientThread(client KvClient) {
+func (p *kvClientPool) defunctClientThread(client KvClient) {
 	// TODO(brett19): Actually shut down defunct clients...
 }
 
-func (p *KvClientPool) ShutdownClient(client KvClient) {
+func (p *kvClientPool) ShutdownClient(client KvClient) {
 	p.lock.Lock()
 
 	// find the index in our active connections
@@ -344,7 +356,7 @@ func (p *KvClientPool) ShutdownClient(client KvClient) {
 
 }
 
-func (p *KvClientPool) rebuildFastMapLocked() {
+func (p *kvClientPool) rebuildFastMapLocked() {
 	// this function rebuilds the fast map by simply copying all the active
 	// connections from the slow data into the fast map data and storing it.
 
@@ -355,14 +367,14 @@ func (p *KvClientPool) rebuildFastMapLocked() {
 	})
 }
 
-func (p *KvClientPool) Reconfigure(opts *KvClientPoolOptions) error {
-	if opts == nil {
-		return errors.New("you must pass options")
+func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig) error {
+	if config == nil {
+		return errors.New("invalid arguments: cant reconfigure kvClientPool to nil")
 	}
 	// there are no options that make reconfiguring fail
 
 	p.lock.Lock()
-	p.config = *opts
+	p.config = *config
 
 	// move all the active connections to reconfiguring
 	reconfigureClients := p.activeConnections
@@ -385,7 +397,7 @@ func (p *KvClientPool) Reconfigure(opts *KvClientPoolOptions) error {
 	return nil
 }
 
-func (p *KvClientPool) GetClient(ctx context.Context) (KvClient, error) {
+func (p *kvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 	fastMap := p.fastMap.Load()
 	if fastMap != nil {
 		fastMapNumConns := uint64(len(fastMap.activeConnections))
@@ -399,7 +411,7 @@ func (p *KvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 	return p.getClientSlow(ctx)
 }
 
-func (p *KvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
+func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	p.lock.Lock()
 
 	numConns := uint64(len(p.activeConnections))
@@ -439,10 +451,10 @@ func (p *KvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	return p.getClientSlow(ctx)
 }
 
-func (p *KvClientPool) Shutdown(ctx context.Context) {
+func (p *kvClientPool) Shutdown(ctx context.Context) {
 	// TODO(brett19): Implement graceful shutdown of a pool...
 }
 
-func (p *KvClientPool) Close() {
+func (p *kvClientPool) Close() {
 	// TODO(brett19): Implementing closing a client pool
 }

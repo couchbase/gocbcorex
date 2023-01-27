@@ -59,3 +59,11 @@ func (e retrierDeadline) Error() string {
 func (e retrierDeadline) Unwrap() error {
 	return e.Cause
 }
+
+type illegalStateError struct {
+	Message string
+}
+
+func (e illegalStateError) Error() string {
+	return fmt.Sprintf("illegal state: %s", e.Message)
+}

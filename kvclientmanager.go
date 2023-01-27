@@ -2,165 +2,174 @@ package core
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
-	"strings"
-
-	"golang.org/x/exp/slices"
+	"fmt"
+	"sync"
 )
 
+var (
+	ErrNoClientsAvailable = errors.New("no clients available")
+	ErrInvalidClient      = errors.New("invalid client requested")
+)
+
+type KvClientManager interface {
+	ShutdownClient(endpoint string, client KvClient)
+	GetClient(ctx context.Context, endpoint string) (KvClient, error)
+	Reconfigure(opts *KvClientManagerConfig) error
+	GetRandomClient(ctx context.Context) (KvClient, error)
+}
+
+type NewKvClientProviderFunc func(clientOpts *KvClientPoolConfig) (KvClientPool, error)
+
+type KvClientManagerConfig struct {
+	Clients map[string]*KvClientPoolConfig
+}
+
 type KvClientManagerOptions struct {
-	NewConnectionProvider func(endpoint string) (KvClientProvider, error)
-	Endpoints             []string
-	TLSConfig             *tls.Config
-	SelectedBucket        string
-	Username              string
-	Password              string
+	NewKvClientProviderFn NewKvClientProviderFunc
 }
 
-type KvClientManager struct {
-	config                KvClientManagerOptions
-	newConnectionProvider func(endpoint string) (KvClientProvider, error)
-	endpoints             AtomicPointer[map[string]KvClientProvider]
+type kvClientManagerState struct {
+	ClientPools map[string]KvClientPool
 }
 
-var _ (NodeKvClientProvider) = (*KvClientManager)(nil)
+type kvClientManager struct {
+	newKvClientProviderFn NewKvClientProviderFunc
 
-func NewKvClientManager(opts *KvClientManagerOptions) (*KvClientManager, error) {
+	lock          sync.Mutex
+	currentConfig KvClientManagerConfig
+	state         AtomicPointer[kvClientManagerState]
+}
+
+var _ (KvClientManager) = (*kvClientManager)(nil)
+
+func NewKvClientManager(
+	config *KvClientManagerConfig,
+	opts *KvClientManagerOptions,
+) (*kvClientManager, error) {
+	if config == nil {
+		return nil, errors.New("must pass config for KvClientManager")
+	}
 	if opts == nil {
-		return nil, errors.New("must pass options")
+		opts = &KvClientManagerOptions{}
 	}
 
-	config := *opts
-
-	mgr := &KvClientManager{
-		config: config,
+	mgr := &kvClientManager{
+		newKvClientProviderFn: opts.NewKvClientProviderFn,
 	}
 
-	if config.NewConnectionProvider == nil {
-		config.NewConnectionProvider = func(endpoint string) (KvClientProvider, error) {
-			hostname := trimSchemePrefix(endpoint)
-			return NewKvClientPool(&KvClientPoolOptions{
-				NewKvClient:    nil,
-				NumConnections: 1,
-				ClientOpts: KvClientOptions{
-					Address:        hostname,
-					TlsConfig:      mgr.config.TLSConfig,
-					SelectedBucket: mgr.config.SelectedBucket,
-					Username:       mgr.config.Username,
-					Password:       mgr.config.Password,
-				},
-			})
-		}
-	}
-	mgr.newConnectionProvider = config.NewConnectionProvider
+	// initialize the client manager to having no clients
+	mgr.currentConfig = KvClientManagerConfig{}
+	mgr.state.Store(&kvClientManagerState{})
 
-	endpoints := make(map[string]KvClientProvider)
-	for _, ep := range config.Endpoints {
-		var err error
-		endpoints[ep], err = mgr.newConnectionProvider(ep)
-		if err != nil {
-			// TODO: Would need to tidy up here.
-			return nil, err
-		}
+	err := mgr.Reconfigure(config)
+	if err != nil {
+		return nil, err
 	}
-	mgr.endpoints.Store(&endpoints)
 
 	return mgr, nil
 }
 
-func (m *KvClientManager) Reconfigure(opts *KvClientManagerOptions) error {
-	if opts == nil {
-		// Nothing we can do here
-		return nil
+func (m *kvClientManager) newKvClientProvider(poolOpts *KvClientPoolConfig) (KvClientPool, error) {
+	if m.newKvClientProviderFn != nil {
+		return m.newKvClientProviderFn(poolOpts)
+	}
+	return NewKvClientPool(poolOpts, nil)
+}
+
+func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
+	if config == nil {
+		return errors.New("invalid arguments: cant reconfigure kvClientManager to nil")
 	}
 
-	m.config = *opts
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
-	// TODO: Need to think about whether Reconfigure is going to be called concurrently.
-	endpointsPtr := m.endpoints.Load()
-	if endpointsPtr == nil {
-		return nil
+	state := m.state.Load()
+	if state == nil {
+		return illegalStateError{"KvClientManager reconfigure expected state"}
 	}
 
-	newEndpoints := make(map[string]KvClientProvider)
-	endpoints := *endpointsPtr
-	for _, ep := range m.config.Endpoints {
-		pool, ok := endpoints[ep]
-		if ok {
-			newEndpoints[ep] = pool
-		} else {
-			var err error
-			hostname := trimSchemePrefix(ep)
-			newEndpoints[ep], err = m.newConnectionProvider(hostname)
-			if err != nil {
-				// TODO: Would need to tidy up here.
-				return err
-			}
+	if len(state.ClientPools) != 0 {
+		// TODO(brett19): add reconfigure support
+		return errors.New("reconfiguring the KvClientManager is not currently supported")
+	}
+
+	newState := &kvClientManagerState{
+		ClientPools: make(map[string]KvClientPool),
+	}
+
+	for endpoint, endpointConfig := range config.Clients {
+		clientPool, err := m.newKvClientProvider(endpointConfig)
+		if err != nil {
+			return err
 		}
+
+		newState.ClientPools[endpoint] = clientPool
 	}
 
-	for ep, _ := range endpoints {
-		if !slices.Contains(m.config.Endpoints, ep) {
-			// TODO: Shutdown the pool I guess?
-		}
-	}
-
-	m.endpoints.Store(&newEndpoints)
+	m.state.Store(newState)
 
 	return nil
 }
 
-func (m *KvClientManager) GetRandomEndpoint() (KvClientProvider, error) {
-	endpointsPtr := m.endpoints.Load()
-	if endpointsPtr == nil {
-		return nil, placeholderError{"no endpoints known, shutdown?"}
+func (m *kvClientManager) getState() (*kvClientManagerState, error) {
+	state := m.state.Load()
+	if state == nil {
+		return nil, illegalStateError{"no state data for KvClientManager"}
 	}
 
-	endpoints := *endpointsPtr
+	return state, nil
+}
+
+func (m *kvClientManager) GetRandomEndpoint() (KvClientPool, error) {
+	state, err := m.getState()
+	if err != nil {
+		return nil, err
+	}
 
 	// Just pick one at random for now
-	for _, pool := range endpoints {
+	for _, pool := range state.ClientPools {
 		return pool, nil
 	}
 
 	return nil, placeholderError{"no endpoints known, shutdown?"}
 }
 
-func (m *KvClientManager) GetEndpoint(endpoint string) (KvClientProvider, error) {
+func (m *kvClientManager) GetEndpoint(endpoint string) (KvClientPool, error) {
 	if endpoint == "" {
 		return nil, placeholderError{"endpoint must be specified for GetEndpoint"}
 	}
 
-	endpointsPtr := m.endpoints.Load()
-	if endpointsPtr == nil {
-		return nil, placeholderError{"no endpoints known, shutdown?"}
+	state, err := m.getState()
+	if err != nil {
+		return nil, err
 	}
 
-	endpoints := *endpointsPtr
-
-	pool, ok := endpoints[endpoint]
+	pool, ok := state.ClientPools[endpoint]
 	if !ok {
-		return nil, placeholderError{"endpoint not known"}
+		var validKeys []string
+		for validEndpoint := range state.ClientPools {
+			validKeys = append(validKeys, validEndpoint)
+		}
+		return nil, placeholderError{fmt.Sprintf("endpoint not known `%s` in %+v", endpoint, validKeys)}
 	}
 
 	return pool, nil
 }
 
-func (m *KvClientManager) shutdownRandomClient(client KvClient) {
-	endpointsPtr := m.endpoints.Load()
-	if endpointsPtr == nil {
+func (m *kvClientManager) shutdownRandomClient(client KvClient) {
+	state, err := m.getState()
+	if err != nil {
 		return
 	}
 
-	endpoints := *endpointsPtr
-
-	for _, endpoint := range endpoints {
+	for _, endpoint := range state.ClientPools {
 		endpoint.ShutdownClient(client)
 	}
 }
 
-func (m *KvClientManager) ShutdownClient(endpoint string, client KvClient) {
+func (m *kvClientManager) ShutdownClient(endpoint string, client KvClient) {
 	if endpoint == "" {
 		// we don't know which endpoint this belongs to, so we need to send the
 		// shutdown request to all of the possibilities...
@@ -176,7 +185,7 @@ func (m *KvClientManager) ShutdownClient(endpoint string, client KvClient) {
 	connProvider.ShutdownClient(client)
 }
 
-func (m *KvClientManager) GetRandomClient(ctx context.Context) (KvClient, error) {
+func (m *kvClientManager) GetRandomClient(ctx context.Context) (KvClient, error) {
 	connProvider, err := m.GetRandomEndpoint()
 	if err != nil {
 		return nil, err
@@ -185,7 +194,7 @@ func (m *KvClientManager) GetRandomClient(ctx context.Context) (KvClient, error)
 	return connProvider.GetClient(ctx)
 }
 
-func (m *KvClientManager) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
+func (m *kvClientManager) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
 	connProvider, err := m.GetEndpoint(endpoint)
 	if err != nil {
 		return nil, err
@@ -194,11 +203,61 @@ func (m *KvClientManager) GetClient(ctx context.Context, endpoint string) (KvCli
 	return connProvider.GetClient(ctx)
 }
 
-func trimSchemePrefix(address string) string {
-	idx := strings.Index(address, "://")
-	if idx < 0 {
-		return address
-	}
+func OrchestrateMemdClient[RespT any](
+	ctx context.Context,
+	cm KvClientManager,
+	endpoint string,
+	fn func(client KvClient) (RespT, error),
+) (RespT, error) {
+	for {
+		cli, err := cm.GetClient(ctx, endpoint)
+		if err != nil {
+			var emptyResp RespT
+			return emptyResp, err
+		}
 
-	return address[idx+len("://"):]
+		res, err := fn(cli)
+		if err != nil {
+			var dispatchErr KvClientDispatchError
+			if errors.As(err, &dispatchErr) {
+				// this was a dispatch error, so we can just try with
+				// a different client instead...
+				cm.ShutdownClient(endpoint, cli)
+				continue
+			}
+
+			return res, err
+		}
+
+		return res, nil
+	}
+}
+
+func OrchestrateRandomMemdClient[RespT any](
+	ctx context.Context,
+	cm KvClientManager,
+	fn func(client KvClient) (RespT, error),
+) (RespT, error) {
+	for {
+		cli, err := cm.GetRandomClient(ctx)
+		if err != nil {
+			var emptyResp RespT
+			return emptyResp, err
+		}
+
+		res, err := fn(cli)
+		if err != nil {
+			var dispatchErr KvClientDispatchError
+			if errors.As(err, &dispatchErr) {
+				// this was a dispatch error, so we can just try with
+				// a different client instead...
+				cm.ShutdownClient("", cli)
+				continue
+			}
+
+			return res, err
+		}
+
+		return res, nil
+	}
 }

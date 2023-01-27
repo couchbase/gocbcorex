@@ -10,7 +10,7 @@ type CrudComponent struct {
 	collections CollectionResolver
 	cfgmanager  ConfigManager
 	retries     RetryManager
-	connManager NodeKvClientProvider
+	connManager KvClientManager
 	vbs         VbucketRouter
 }
 
@@ -20,7 +20,7 @@ func OrchestrateSimpleCrud[RespT any](
 	cr CollectionResolver,
 	vb VbucketRouter,
 	cm ConfigManager,
-	nkcp NodeKvClientProvider,
+	nkcp KvClientManager,
 	scopeName, collectionName string,
 	key []byte,
 	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),

@@ -12,7 +12,7 @@ import (
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
-type KvClientOptions struct {
+type KvClientConfig struct {
 	Address        string
 	TlsConfig      *tls.Config
 	SelectedBucket string
@@ -20,7 +20,7 @@ type KvClientOptions struct {
 	Password       string
 }
 
-func (o KvClientOptions) Equals(b *KvClientOptions) bool {
+func (o KvClientConfig) Equals(b *KvClientConfig) bool {
 	return o.Address == b.Address &&
 		o.TlsConfig == b.TlsConfig &&
 		o.SelectedBucket == b.SelectedBucket &&
@@ -29,7 +29,7 @@ func (o KvClientOptions) Equals(b *KvClientOptions) bool {
 }
 
 type KvClient interface {
-	Reconfigure(ctx context.Context, opts *KvClientOptions) error
+	Reconfigure(ctx context.Context, opts *KvClientConfig) error
 
 	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
 	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
@@ -58,7 +58,7 @@ type kvClient struct {
 
 var _ KvClient = (*kvClient)(nil)
 
-func newKvClient(ctx context.Context, opts *KvClientOptions) (*kvClient, error) {
+func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	conn, err := memdx.DialConn(ctx, opts.Address, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func newKvClient(ctx context.Context, opts *KvClientOptions) (*kvClient, error) 
 	return kvCli, nil
 }
 
-func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientOptions) error {
+func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientConfig) error {
 	return errors.New("kv client does not currently support reconfiguring")
 }
 

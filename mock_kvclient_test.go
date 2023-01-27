@@ -63,7 +63,7 @@ type KvClientMock struct {
 	LoadFactorFunc func() float64
 
 	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(ctx context.Context, opts *KvClientOptions) error
+	ReconfigureFunc func(ctx context.Context, opts *KvClientConfig) error
 
 	// SetFunc mocks the Set method.
 	SetFunc func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
@@ -102,7 +102,7 @@ type KvClientMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Opts is the opts argument value.
-			Opts *KvClientOptions
+			Opts *KvClientConfig
 		}
 		// Set holds details about calls to the Set method.
 		Set []struct {
@@ -284,13 +284,13 @@ func (mock *KvClientMock) LoadFactorCalls() []struct {
 }
 
 // Reconfigure calls ReconfigureFunc.
-func (mock *KvClientMock) Reconfigure(ctx context.Context, opts *KvClientOptions) error {
+func (mock *KvClientMock) Reconfigure(ctx context.Context, opts *KvClientConfig) error {
 	if mock.ReconfigureFunc == nil {
 		panic("KvClientMock.ReconfigureFunc: method is nil but KvClient.Reconfigure was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
-		Opts *KvClientOptions
+		Opts *KvClientConfig
 	}{
 		Ctx:  ctx,
 		Opts: opts,
@@ -307,11 +307,11 @@ func (mock *KvClientMock) Reconfigure(ctx context.Context, opts *KvClientOptions
 //	len(mockedKvClient.ReconfigureCalls())
 func (mock *KvClientMock) ReconfigureCalls() []struct {
 	Ctx  context.Context
-	Opts *KvClientOptions
+	Opts *KvClientConfig
 } {
 	var calls []struct {
 		Ctx  context.Context
-		Opts *KvClientOptions
+		Opts *KvClientConfig
 	}
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure

@@ -101,8 +101,6 @@ func OrchestrateMemdRouting[RespT any](
 		// Implement me properly
 		res, err := fn(endpoint, vbID)
 		if err != nil {
-			log.Printf("ERROR: %+v", err)
-
 			if errors.Is(err, memdx.ErrNotMyVbucket) {
 				var nmvErr memdx.ServerErrorWithConfig
 				if !errors.As(err, &nmvErr) {

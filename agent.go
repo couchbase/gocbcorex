@@ -25,7 +25,7 @@ type Agent struct {
 
 	poller      ConfigPoller
 	configMgr   *RouteConfigManager
-	connMgr     NodeKvClientProvider
+	connMgr     KvClientManager
 	collections CollectionResolver
 	retries     RetryManager
 	vbs         *vbucketRouter
@@ -66,19 +66,28 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		retries:   NewRetryManagerFastFail(),
 	}
 
-	var err error
-	agent.connMgr, err = NewKvClientManager(&KvClientManagerOptions{
-		Endpoints:      opts.MemdAddrs,
-		TLSConfig:      agent.config.tlsConfig,
-		SelectedBucket: opts.BucketName,
-		Username:       opts.Username,
-		Password:       opts.Password,
-	})
+	clients := make(map[string]*KvClientPoolConfig)
+	for _, addr := range opts.MemdAddrs {
+		clients[addr] = &KvClientPoolConfig{
+			NumConnections: 1,
+			ClientOpts: KvClientConfig{
+				Address:        addr,
+				TlsConfig:      agent.config.tlsConfig,
+				SelectedBucket: agent.config.bucket,
+				Username:       agent.config.username,
+				Password:       agent.config.password,
+			},
+		}
+	}
+	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
+		Clients: clients,
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
+	agent.connMgr = connMgr
 
-	agent.collections, err = NewCollectionResolverCached(&CollectionResolverCachedOptions{
+	collections, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
 		Resolver: &CollectionResolverMemd{
 			connMgr: agent.connMgr,
 		},
@@ -87,6 +96,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
+	agent.collections = collections
 
 	agent.vbs = newVbucketRouter()
 
@@ -114,7 +124,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 }
 
 func (agent *Agent) updateStateLocked() {
-	log.Printf("updating config: %+v", agent.config)
+	log.Printf("updating config: %+v %+v", agent.config, *agent.config.latestConfig)
 	routeCfg := agent.config.latestConfig
 
 	var mgmtList []string
@@ -131,17 +141,25 @@ func (agent *Agent) updateStateLocked() {
 		copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
 	}
 
-	// TODO(brett19): Need to make connmgr's TLSConfig be per-endpoint, and then
-	// need to modify this to ADD the new endpoints first, then update the vbucket
-	// map, and then reconfigure again to drop the old endpoints.  Otherwise vbucket
-	// mapping and connection dispatch will race and loop.
+	// TODO(brett19): Need to make this ADD the new endpoints first, then update the
+	// vbucket map, and then reconfigure again to drop the old endpoints.  Otherwise
+	// vbucket mapping and connection dispatch will race and loop.
 
-	agent.connMgr.Reconfigure(&KvClientManagerOptions{
-		Endpoints:      serverList,
-		TLSConfig:      agent.config.tlsConfig,
-		SelectedBucket: agent.config.bucket,
-		Username:       agent.config.username,
-		Password:       agent.config.password,
+	clients := make(map[string]*KvClientPoolConfig)
+	for _, addr := range serverList {
+		clients[addr] = &KvClientPoolConfig{
+			NumConnections: 1,
+			ClientOpts: KvClientConfig{
+				Address:        addr,
+				TlsConfig:      agent.config.tlsConfig,
+				SelectedBucket: agent.config.bucket,
+				Username:       agent.config.username,
+				Password:       agent.config.password,
+			},
+		}
+	}
+	agent.connMgr.Reconfigure(&KvClientManagerConfig{
+		Clients: clients,
 	})
 
 	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
