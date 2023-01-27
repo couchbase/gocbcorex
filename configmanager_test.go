@@ -84,6 +84,7 @@ func TestOrchestrateConfigReturnsErrorFromDispatch(t *testing.T) {
 func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 	expectedEndpoint := "endpoint1"
 	expectedVbID := uint16(22)
+	newExpectedVbID := uint16(113)
 	expectedKey := []byte("aweasel")
 	expectedResult := 322
 
@@ -99,7 +100,11 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 			timesDispatched++
 			assert.Equal(t, expectedKey, key)
 
-			return expectedEndpoint, expectedVbID, nil
+			if timesDispatched == 1 {
+				return expectedEndpoint, expectedVbID, nil
+			} else {
+				return expectedEndpoint, newExpectedVbID, nil
+			}
 		},
 	}
 	mgrMock := &ConfigManagerMock{
@@ -114,11 +119,12 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 	res, err := OrchestrateMemdRouting(context.Background(), mock, mgrMock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
 		timesFnCalled++
 		assert.Equal(t, expectedEndpoint, endpoint)
-		assert.Equal(t, expectedVbID, vbID)
 
 		if timesFnCalled == 1 {
-			return 0, memdx.NotMyVbucketError{ConfigValue: cfgBytes}
+			assert.Equal(t, expectedVbID, vbID)
+			return 0, memdx.ServerErrorWithConfig{Cause: memdx.ErrNotMyVbucket, ConfigJson: cfgBytes}
 		} else if timesFnCalled == 2 {
+			assert.Equal(t, newExpectedVbID, vbID)
 			return expectedResult, nil
 		}
 

@@ -31,7 +31,7 @@ func OrchestrateMemdCollectionID[RespT any](
 				invalidatingEndpoint := ""
 				invalidatingManifestRev := uint64(0)
 
-				var serverErr memdx.ServerError
+				var serverErr memdx.ServerErrorWithContext
 				if errors.As(err, &serverErr) {
 					serverCtx := serverErr.ParseContext()
 					invalidatingManifestRev = serverCtx.ManifestRev

@@ -34,16 +34,17 @@ func (e protocolError) Unwrap() error {
 	return ErrProtocol
 }
 
-type NotMyVbucketError struct {
-	ConfigValue []byte
+type ServerErrorWithConfig struct {
+	Cause      error
+	ConfigJson []byte
 }
 
-func (e NotMyVbucketError) Error() string {
-	return ErrNotMyVbucket.Error()
+func (e ServerErrorWithConfig) Error() string {
+	return fmt.Sprintf("server error: %s (config was attached)", e.Cause)
 }
 
-func (e NotMyVbucketError) Unwrap() error {
-	return ErrNotMyVbucket
+func (e ServerErrorWithConfig) Unwrap() error {
+	return e.Cause
 }
 
 type ServerErrorContext struct {
@@ -52,20 +53,20 @@ type ServerErrorContext struct {
 	ManifestRev uint64
 }
 
-type ServerError struct {
+type ServerErrorWithContext struct {
 	Cause       error
 	ContextJson json.RawMessage
 }
 
-func (e ServerError) Error() string {
+func (e ServerErrorWithContext) Error() string {
 	return fmt.Sprintf("server error: %s (context: `%s`)", e.Cause, e.ContextJson)
 }
 
-func (e ServerError) Unwrap() error {
+func (e ServerErrorWithContext) Unwrap() error {
 	return e.Cause
 }
 
-func (o ServerError) ParseContext() ServerErrorContext {
+func (o ServerErrorWithContext) ParseContext() ServerErrorContext {
 	var contextOut ServerErrorContext
 
 	if len(o.ContextJson) == 0 {

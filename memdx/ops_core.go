@@ -10,20 +10,33 @@ type OpsCore struct {
 }
 
 func (o OpsCore) decodeErrorContext(resp *Packet, err error) error {
-	return ServerError{
-		Cause:       err,
-		ContextJson: resp.Value,
+	if len(resp.Value) > 0 {
+		if resp.Status == StatusNotMyVBucket {
+			return ServerErrorWithConfig{
+				Cause:      err,
+				ConfigJson: resp.Value,
+			}
+		}
+
+		return ServerErrorWithContext{
+			Cause:       err,
+			ContextJson: resp.Value,
+		}
 	}
+
+	return err
 }
 
 func (o OpsCore) decodeError(resp *Packet) error {
-	if resp.Status == StatusNotMyVBucket {
-		return NotMyVbucketError{
-			ConfigValue: resp.Value,
-		}
-	}
 	// TODO(brett19): Do better...
-	return o.decodeErrorContext(resp, errors.New("unexpected status: "+resp.Status.String()))
+	var err error
+	if resp.Status == StatusNotMyVBucket {
+		err = ErrNotMyVbucket
+	} else {
+		err = errors.New("unexpected status: " + resp.Status.String())
+	}
+
+	return o.decodeErrorContext(resp, err)
 }
 
 type HelloRequest struct {

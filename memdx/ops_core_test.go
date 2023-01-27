@@ -43,7 +43,7 @@ func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrUnknownCollectionName)
 
-	var serverErr ServerError
+	var serverErr ServerErrorWithContext
 	require.ErrorAs(t, err, &serverErr)
 	serverCtx := serverErr.ParseContext()
 
@@ -65,7 +65,7 @@ func TestOpsCoreGetCollectionIDScopeMissing(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrUnknownScopeName)
 
-	var serverErr ServerError
+	var serverErr ServerErrorWithContext
 	require.ErrorAs(t, err, &serverErr)
 	serverCtx := serverErr.ParseContext()
 

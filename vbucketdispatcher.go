@@ -91,24 +91,53 @@ func OrchestrateMemdRouting[RespT any](
 	key []byte,
 	fn func(endpoint string, vbID uint16) (RespT, error),
 ) (RespT, error) {
-	for {
-		endpoint, vbID, err := vb.DispatchByKey(ctx, key)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
+	endpoint, vbID, err := vb.DispatchByKey(ctx, key)
+	if err != nil {
+		var emptyResp RespT
+		return emptyResp, err
+	}
 
+	for {
 		// Implement me properly
 		res, err := fn(endpoint, vbID)
 		if err != nil {
+			log.Printf("ERROR: %+v", err)
+
 			if errors.Is(err, memdx.ErrNotMyVbucket) {
-				nmvberr := err.(memdx.NotMyVbucketError)
-				cfg, parseErr := parseConfig(nmvberr.ConfigValue, endpoint)
-				if parseErr == nil {
-					cm.ApplyConfig(cfg.SourceHostname, cfg.Config)
-					continue
+				var nmvErr memdx.ServerErrorWithConfig
+				if !errors.As(err, &nmvErr) {
+					// if there is no new config available, we cant make any assumptions
+					// about the meaning of this error and propagate it upwards.
+					log.Printf("received a not-my-vbucket without config information")
+					return res, err
 				}
-				log.Printf("Failed to parse not my vbucket response: %s", parseErr)
+
+				cfg, parseErr := parseConfig(nmvErr.ConfigJson, endpoint)
+				if parseErr != nil {
+					// similar to above, if we can't parse the config, we cant make any
+					// assumptions and need to propagate it.
+					log.Printf("failed to parse not my vbucket response: %s", parseErr)
+					return res, err
+				}
+
+				cm.ApplyConfig(cfg.SourceHostname, cfg.Config)
+
+				newEndpoint, newVbID, err := vb.DispatchByKey(ctx, key)
+				if err != nil {
+					var emptyResp RespT
+					return emptyResp, err
+				}
+
+				if newEndpoint == endpoint && newVbID == vbID {
+					// if after the update we are going to be sending the request back
+					// to the place that rejected it, we consider this non-deterministic
+					// and fall back to the application to deal with (or retries).
+					return res, err
+				}
+
+				endpoint = newEndpoint
+				vbID = newVbID
+				continue
 			}
 
 			return res, err
