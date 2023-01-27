@@ -2,8 +2,9 @@ package core
 
 import (
 	"context"
-	"github.com/couchbase/stellar-nebula/core/testutils"
 	"testing"
+
+	"github.com/couchbase/stellar-nebula/core/testutils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestBasicSnAgent(t *testing.T) {
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
 
-	agent, err := CreateAgent(opts)
+	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
 
 	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{

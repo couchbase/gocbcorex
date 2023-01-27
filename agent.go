@@ -33,7 +33,7 @@ type Agent struct {
 	crud *CrudComponent
 }
 
-func CreateAgent(opts AgentOptions) (*Agent, error) {
+func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	var srcHTTPAddrs []string
 	for _, hostPort := range opts.HTTPAddrs {
 		if opts.TLSConfig == nil {
@@ -97,7 +97,7 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 		agent.lock.Unlock()
 	})
 
-	err = agent.startConfigWatcher(context.Background())
+	err = agent.startConfigWatcher(ctx)
 	if err != nil {
 		return nil, err
 	}
