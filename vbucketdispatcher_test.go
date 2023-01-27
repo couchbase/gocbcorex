@@ -96,29 +96,6 @@ func TestVbucketRouterWaitToDispatch(t *testing.T) {
 	assert.Equal(t, uint16(1), vbID)
 }
 
-func TestVbucketRouterCancelWaitingToDispatch(t *testing.T) {
-	dispatcher := newVbucketRouter()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var err error
-	var endpoint string
-	var vbID uint16
-	wait := make(chan struct{}, 1)
-	go func() {
-		endpoint, vbID, err = dispatcher.DispatchByKey(ctx, []byte("key1"))
-		wait <- struct{}{}
-	}()
-
-	cancel()
-
-	<-wait
-
-	assert.ErrorIs(t, err, context.Canceled)
-
-	assert.Equal(t, "", endpoint)
-	assert.Equal(t, uint16(0), vbID)
-}
-
 func TestVbucketRouterDeadlinedWaitingToDispatch(t *testing.T) {
 	dispatcher := newVbucketRouter()
 

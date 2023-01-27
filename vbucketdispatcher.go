@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"log"
-	"sync"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 var (
-	ErrWaitingForVbucketMap = contextualDeadline{"still waiting for a vbucket map"}
+	ErrNoVbucketMap = contextualDeadline{"no vbucket map is available"}
 )
 
 type VbucketRouter interface {
@@ -25,64 +24,25 @@ type vbucketRoutingInfo struct {
 
 type vbucketRouter struct {
 	routingInfo AtomicPointer[vbucketRoutingInfo]
-	lock        sync.Mutex
-	readyCh     chan struct{}
 }
 
 func newVbucketRouter() *vbucketRouter {
-	vbd := &vbucketRouter{
-		readyCh: make(chan struct{}, 1),
-	}
+	vbd := &vbucketRouter{}
 
 	return vbd
 }
 
 func (vbd *vbucketRouter) UpdateRoutingInfo(info *vbucketRoutingInfo) {
-	vbd.lock.Lock()
-	defer vbd.lock.Unlock()
-
 	vbd.routingInfo.Store(info)
-
-	if vbd.readyCh != nil {
-		close(vbd.readyCh)
-		vbd.readyCh = nil
-	}
 }
 
 func (vbd *vbucketRouter) getRoutingInfo(ctx context.Context) (*vbucketRoutingInfo, error) {
 	routing := vbd.routingInfo.Load()
-	if routing != nil {
-		return routing, nil
+	if routing == nil {
+		return nil, ErrNoVbucketMap
 	}
 
-	return vbd.getRoutingInfoSlow(ctx)
-}
-
-func (vbd *vbucketRouter) getRoutingInfoSlow(ctx context.Context) (*vbucketRoutingInfo, error) {
-	vbd.lock.Lock()
-
-	routing := vbd.routingInfo.Load()
-	if routing != nil {
-		vbd.lock.Unlock()
-		return routing, nil
-	}
-
-	readyCh := vbd.readyCh
-
-	vbd.lock.Unlock()
-
-	select {
-	case <-readyCh:
-	case <-ctx.Done():
-		ctxErr := ctx.Err()
-		if errors.Is(ctxErr, context.DeadlineExceeded) {
-			return nil, ErrWaitingForVbucketMap
-		} else {
-			return nil, ctxErr
-		}
-	}
-
-	return vbd.getRoutingInfoSlow(ctx)
+	return routing, nil
 }
 
 func (vbd *vbucketRouter) DispatchByKey(ctx context.Context, key []byte) (string, uint16, error) {

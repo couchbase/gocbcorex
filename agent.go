@@ -97,7 +97,10 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 		agent.lock.Unlock()
 	})
 
-	go agent.WatchConfigs()
+	err = agent.startConfigWatcher(context.Background())
+	if err != nil {
+		return nil, err
+	}
 
 	agent.crud = &CrudComponent{
 		collections: agent.collections,
@@ -149,14 +152,27 @@ func (agent *Agent) updateStateLocked() {
 	agent.poller.UpdateEndpoints(mgmtList)
 }
 
-func (agent *Agent) WatchConfigs() {
-	configCh, err := agent.poller.Watch(context.Background()) // TODO: this context probably needs to be linked with agent shutdown
+func (agent *Agent) startConfigWatcher(ctx context.Context) error {
+	configCh, err := agent.poller.Watch(ctx)
 	if err != nil {
-		// TODO: Errr, panic?
-		return
+		return err
 	}
 
-	for config := range configCh {
-		agent.configMgr.ApplyConfig(config.SourceHostname, config.Config)
+	var firstConfig *TerseConfigJsonWithSource
+	select {
+	case config := <-configCh:
+		firstConfig = config
+	case <-ctx.Done():
+		return ctx.Err()
 	}
+
+	agent.configMgr.ApplyConfig(firstConfig.SourceHostname, firstConfig.Config)
+
+	go func() {
+		for config := range configCh {
+			agent.configMgr.ApplyConfig(config.SourceHostname, config.Config)
+		}
+	}()
+
+	return nil
 }
