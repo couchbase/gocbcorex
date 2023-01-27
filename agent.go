@@ -4,21 +4,31 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net/http"
+	"sync"
 	"time"
 )
 
-type Agent struct {
+type agentConfigLocked struct {
 	bucket    string
 	tlsConfig *tls.Config
 	username  string
 	password  string
 
+	latestConfig *routeConfig
+}
+
+type Agent struct {
+	lock   sync.Mutex
+	config agentConfigLocked
+
 	poller      ConfigPoller
-	configMgr   ConfigManager
+	configMgr   *RouteConfigManager
 	connMgr     NodeKvClientProvider
 	collections CollectionResolver
 	retries     RetryManager
+	vbs         *vbucketRouter
 
 	crud *CrudComponent
 }
@@ -36,10 +46,12 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 	}
 
 	agent := &Agent{
-		bucket:    opts.BucketName,
-		tlsConfig: opts.TLSConfig,
-		username:  opts.Username,
-		password:  opts.Password,
+		config: agentConfigLocked{
+			bucket:    opts.BucketName,
+			tlsConfig: opts.TLSConfig,
+			username:  opts.Username,
+			password:  opts.Password,
+		},
 
 		poller: newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
 			ConfHTTPRetryDelay:   10 * time.Second,
@@ -50,14 +62,14 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 			Username:             opts.Username,
 			Password:             opts.Password,
 		}),
-		configMgr: newConfigManager(opts.TLSConfig),
+		configMgr: newConfigManager(),
 		retries:   NewRetryManagerDefault(),
 	}
 
 	var err error
 	agent.connMgr, err = NewNodeKvClientManager(&NodeKvClientManagerOptions{
 		Endpoints:      opts.MemdAddrs,
-		TLSConfig:      agent.tlsConfig,
+		TLSConfig:      agent.config.tlsConfig,
 		SelectedBucket: opts.BucketName,
 		Username:       opts.Username,
 		Password:       opts.Password,
@@ -76,16 +88,65 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 		return nil, err
 	}
 
+	agent.vbs = newVbucketRouter()
+
+	agent.configMgr.RegisterCallback(func(rc *routeConfig) {
+		agent.lock.Lock()
+		agent.config.latestConfig = rc
+		agent.updateStateLocked()
+		agent.lock.Unlock()
+	})
+
+	go agent.WatchConfigs()
+
 	agent.crud = &CrudComponent{
 		collections: agent.collections,
 		retries:     agent.retries,
 		// errorResolver: new,
 		connManager: agent.connMgr,
+		vbs:         agent.vbs,
 	}
 
-	go agent.WatchConfigs()
-
 	return agent, nil
+}
+
+func (agent *Agent) updateStateLocked() {
+	log.Printf("updating config: %+v", agent.config)
+	routeCfg := agent.config.latestConfig
+
+	var mgmtList []string
+	var serverList []string
+	if agent.config.tlsConfig == nil {
+		serverList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
+		copy(serverList, routeCfg.kvServerList.NonSSLEndpoints)
+		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
+		copy(mgmtList, routeCfg.mgmtEpList.NonSSLEndpoints)
+	} else {
+		serverList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
+		copy(serverList, routeCfg.kvServerList.SSLEndpoints)
+		mgmtList = make([]string, len(routeCfg.mgmtEpList.SSLEndpoints))
+		copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
+	}
+
+	// TODO(brett19): Need to make connmgr's TLSConfig be per-endpoint, and then
+	// need to modify this to ADD the new endpoints first, then update the vbucket
+	// map, and then reconfigure again to drop the old endpoints.  Otherwise vbucket
+	// mapping and connection dispatch will race and loop.
+
+	agent.connMgr.Reconfigure(&NodeKvClientManagerOptions{
+		Endpoints:      serverList,
+		TLSConfig:      agent.config.tlsConfig,
+		SelectedBucket: agent.config.bucket,
+		Username:       agent.config.username,
+		Password:       agent.config.password,
+	})
+
+	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
+		vbmap:      routeCfg.vbMap,
+		serverList: serverList,
+	})
+
+	agent.poller.UpdateEndpoints(mgmtList)
 }
 
 func (agent *Agent) WatchConfigs() {
@@ -96,34 +157,6 @@ func (agent *Agent) WatchConfigs() {
 	}
 
 	for config := range configCh {
-		routeCfg, configOK := agent.configMgr.ApplyConfig(config.SourceHostname, config.Config)
-		if !configOK {
-			// Either the config is invalid or the config manager has already seen a config with an equal
-			// or newer revision, so we wait for the next config.
-			continue
-		}
-
-		var mgmtList []string
-		var serverList []string
-		if agent.tlsConfig == nil {
-			serverList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
-			copy(serverList, routeCfg.kvServerList.NonSSLEndpoints)
-			mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
-			copy(mgmtList, routeCfg.mgmtEpList.NonSSLEndpoints)
-		} else {
-			serverList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
-			copy(serverList, routeCfg.kvServerList.SSLEndpoints)
-			mgmtList = make([]string, len(routeCfg.mgmtEpList.SSLEndpoints))
-			copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
-		}
-
-		agent.connMgr.Reconfigure(&NodeKvClientManagerOptions{
-			Endpoints:      serverList,
-			TLSConfig:      agent.tlsConfig,
-			SelectedBucket: agent.bucket,
-			Username:       agent.username,
-			Password:       agent.password,
-		})
-		agent.poller.UpdateEndpoints(mgmtList)
+		agent.configMgr.ApplyConfig(config.SourceHostname, config.Config)
 	}
 }

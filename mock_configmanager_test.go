@@ -4,8 +4,6 @@
 package core
 
 import (
-	"context"
-	"crypto/tls"
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 	"sync"
 )
@@ -20,20 +18,8 @@ var _ ConfigManager = &ConfigManagerMock{}
 //
 //		// make and configure a mocked ConfigManager
 //		mockedConfigManager := &ConfigManagerMock{
-//			ApplyConfigFunc: func(sourceHostname string, json *cbconfig.TerseConfigJson) (*routeConfig, bool) {
+//			ApplyConfigFunc: func(sourceHostname string, json *cbconfig.TerseConfigJson)  {
 //				panic("mock out the ApplyConfig method")
-//			},
-//			CloseFunc: func() error {
-//				panic("mock out the Close method")
-//			},
-//			DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
-//				panic("mock out the DispatchByKey method")
-//			},
-//			DispatchToVbucketFunc: func(ctx context.Context, vbID uint16) (string, error) {
-//				panic("mock out the DispatchToVbucket method")
-//			},
-//			ReconfigureFunc: func(tlsConfig *tls.Config)  {
-//				panic("mock out the Reconfigure method")
 //			},
 //		}
 //
@@ -43,19 +29,7 @@ var _ ConfigManager = &ConfigManagerMock{}
 //	}
 type ConfigManagerMock struct {
 	// ApplyConfigFunc mocks the ApplyConfig method.
-	ApplyConfigFunc func(sourceHostname string, json *cbconfig.TerseConfigJson) (*routeConfig, bool)
-
-	// CloseFunc mocks the Close method.
-	CloseFunc func() error
-
-	// DispatchByKeyFunc mocks the DispatchByKey method.
-	DispatchByKeyFunc func(ctx context.Context, key []byte) (string, uint16, error)
-
-	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
-	DispatchToVbucketFunc func(ctx context.Context, vbID uint16) (string, error)
-
-	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(tlsConfig *tls.Config)
+	ApplyConfigFunc func(sourceHostname string, json *cbconfig.TerseConfigJson)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -66,38 +40,12 @@ type ConfigManagerMock struct {
 			// JSON is the json argument value.
 			JSON *cbconfig.TerseConfigJson
 		}
-		// Close holds details about calls to the Close method.
-		Close []struct {
-		}
-		// DispatchByKey holds details about calls to the DispatchByKey method.
-		DispatchByKey []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Key is the key argument value.
-			Key []byte
-		}
-		// DispatchToVbucket holds details about calls to the DispatchToVbucket method.
-		DispatchToVbucket []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// VbID is the vbID argument value.
-			VbID uint16
-		}
-		// Reconfigure holds details about calls to the Reconfigure method.
-		Reconfigure []struct {
-			// TlsConfig is the tlsConfig argument value.
-			TlsConfig *tls.Config
-		}
 	}
-	lockApplyConfig       sync.RWMutex
-	lockClose             sync.RWMutex
-	lockDispatchByKey     sync.RWMutex
-	lockDispatchToVbucket sync.RWMutex
-	lockReconfigure       sync.RWMutex
+	lockApplyConfig sync.RWMutex
 }
 
 // ApplyConfig calls ApplyConfigFunc.
-func (mock *ConfigManagerMock) ApplyConfig(sourceHostname string, json *cbconfig.TerseConfigJson) (*routeConfig, bool) {
+func (mock *ConfigManagerMock) ApplyConfig(sourceHostname string, json *cbconfig.TerseConfigJson) {
 	if mock.ApplyConfigFunc == nil {
 		panic("ConfigManagerMock.ApplyConfigFunc: method is nil but ConfigManager.ApplyConfig was just called")
 	}
@@ -111,7 +59,7 @@ func (mock *ConfigManagerMock) ApplyConfig(sourceHostname string, json *cbconfig
 	mock.lockApplyConfig.Lock()
 	mock.calls.ApplyConfig = append(mock.calls.ApplyConfig, callInfo)
 	mock.lockApplyConfig.Unlock()
-	return mock.ApplyConfigFunc(sourceHostname, json)
+	mock.ApplyConfigFunc(sourceHostname, json)
 }
 
 // ApplyConfigCalls gets all the calls that were made to ApplyConfig.
@@ -129,136 +77,5 @@ func (mock *ConfigManagerMock) ApplyConfigCalls() []struct {
 	mock.lockApplyConfig.RLock()
 	calls = mock.calls.ApplyConfig
 	mock.lockApplyConfig.RUnlock()
-	return calls
-}
-
-// Close calls CloseFunc.
-func (mock *ConfigManagerMock) Close() error {
-	if mock.CloseFunc == nil {
-		panic("ConfigManagerMock.CloseFunc: method is nil but ConfigManager.Close was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockClose.Lock()
-	mock.calls.Close = append(mock.calls.Close, callInfo)
-	mock.lockClose.Unlock()
-	return mock.CloseFunc()
-}
-
-// CloseCalls gets all the calls that were made to Close.
-// Check the length with:
-//
-//	len(mockedConfigManager.CloseCalls())
-func (mock *ConfigManagerMock) CloseCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockClose.RLock()
-	calls = mock.calls.Close
-	mock.lockClose.RUnlock()
-	return calls
-}
-
-// DispatchByKey calls DispatchByKeyFunc.
-func (mock *ConfigManagerMock) DispatchByKey(ctx context.Context, key []byte) (string, uint16, error) {
-	if mock.DispatchByKeyFunc == nil {
-		panic("ConfigManagerMock.DispatchByKeyFunc: method is nil but ConfigManager.DispatchByKey was just called")
-	}
-	callInfo := struct {
-		Ctx context.Context
-		Key []byte
-	}{
-		Ctx: ctx,
-		Key: key,
-	}
-	mock.lockDispatchByKey.Lock()
-	mock.calls.DispatchByKey = append(mock.calls.DispatchByKey, callInfo)
-	mock.lockDispatchByKey.Unlock()
-	return mock.DispatchByKeyFunc(ctx, key)
-}
-
-// DispatchByKeyCalls gets all the calls that were made to DispatchByKey.
-// Check the length with:
-//
-//	len(mockedConfigManager.DispatchByKeyCalls())
-func (mock *ConfigManagerMock) DispatchByKeyCalls() []struct {
-	Ctx context.Context
-	Key []byte
-} {
-	var calls []struct {
-		Ctx context.Context
-		Key []byte
-	}
-	mock.lockDispatchByKey.RLock()
-	calls = mock.calls.DispatchByKey
-	mock.lockDispatchByKey.RUnlock()
-	return calls
-}
-
-// DispatchToVbucket calls DispatchToVbucketFunc.
-func (mock *ConfigManagerMock) DispatchToVbucket(ctx context.Context, vbID uint16) (string, error) {
-	if mock.DispatchToVbucketFunc == nil {
-		panic("ConfigManagerMock.DispatchToVbucketFunc: method is nil but ConfigManager.DispatchToVbucket was just called")
-	}
-	callInfo := struct {
-		Ctx  context.Context
-		VbID uint16
-	}{
-		Ctx:  ctx,
-		VbID: vbID,
-	}
-	mock.lockDispatchToVbucket.Lock()
-	mock.calls.DispatchToVbucket = append(mock.calls.DispatchToVbucket, callInfo)
-	mock.lockDispatchToVbucket.Unlock()
-	return mock.DispatchToVbucketFunc(ctx, vbID)
-}
-
-// DispatchToVbucketCalls gets all the calls that were made to DispatchToVbucket.
-// Check the length with:
-//
-//	len(mockedConfigManager.DispatchToVbucketCalls())
-func (mock *ConfigManagerMock) DispatchToVbucketCalls() []struct {
-	Ctx  context.Context
-	VbID uint16
-} {
-	var calls []struct {
-		Ctx  context.Context
-		VbID uint16
-	}
-	mock.lockDispatchToVbucket.RLock()
-	calls = mock.calls.DispatchToVbucket
-	mock.lockDispatchToVbucket.RUnlock()
-	return calls
-}
-
-// Reconfigure calls ReconfigureFunc.
-func (mock *ConfigManagerMock) Reconfigure(tlsConfig *tls.Config) {
-	if mock.ReconfigureFunc == nil {
-		panic("ConfigManagerMock.ReconfigureFunc: method is nil but ConfigManager.Reconfigure was just called")
-	}
-	callInfo := struct {
-		TlsConfig *tls.Config
-	}{
-		TlsConfig: tlsConfig,
-	}
-	mock.lockReconfigure.Lock()
-	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
-	mock.lockReconfigure.Unlock()
-	mock.ReconfigureFunc(tlsConfig)
-}
-
-// ReconfigureCalls gets all the calls that were made to Reconfigure.
-// Check the length with:
-//
-//	len(mockedConfigManager.ReconfigureCalls())
-func (mock *ConfigManagerMock) ReconfigureCalls() []struct {
-	TlsConfig *tls.Config
-} {
-	var calls []struct {
-		TlsConfig *tls.Config
-	}
-	mock.lockReconfigure.RLock()
-	calls = mock.calls.Reconfigure
-	mock.lockReconfigure.RUnlock()
 	return calls
 }

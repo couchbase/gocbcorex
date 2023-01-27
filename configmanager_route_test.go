@@ -1,109 +1,118 @@
 package core
 
 import (
-	"context"
-	"crypto/tls"
 	"fmt"
+	"testing"
+
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestConfigManagerAppliesFirstConfig(t *testing.T) {
-	manager := newConfigManager(nil)
+	manager := newConfigManager()
+	var routeCfg *routeConfig
+	manager.RegisterCallback(func(rc *routeConfig) {
+		routeCfg = rc
+	})
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied := manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
 func TestConfigManagerAppliesNewerRevConfig(t *testing.T) {
-	manager := newConfigManager(nil)
+	manager := newConfigManager()
+	var routeCfg *routeConfig
+	manager.RegisterCallback(func(rc *routeConfig) {
+		routeCfg = rc
+	})
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied := manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	cfg = GenTerseClusterConfig(2, 1, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied = manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
 func TestConfigManagerAppliesNewerRevEpochConfig(t *testing.T) {
-	manager := newConfigManager(nil)
+	manager := newConfigManager()
+	var routeCfg *routeConfig
+	manager.RegisterCallback(func(rc *routeConfig) {
+		routeCfg = rc
+	})
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied := manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	cfg = GenTerseClusterConfig(1, 2, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied = manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
 func TestConfigManagerIgnoresOlderConfig(t *testing.T) {
-	manager := newConfigManager(nil)
+	manager := newConfigManager()
+	var routeCfg *routeConfig
+	manager.RegisterCallback(func(rc *routeConfig) {
+		routeCfg = rc
+	})
 
 	cfg := GenTerseClusterConfig(2, 2, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied := manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
+	oldCfg := cfg
 	cfg = GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
-	_, applied = manager.ApplyConfig("endpoint1", cfg)
-	require.False(t, applied)
+	manager.ApplyConfig("endpoint1", cfg)
+	assertRouteConfigForTerseConfig(t, oldCfg, routeCfg)
 }
 
 func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
-	manager := newConfigManager(nil)
+	manager := newConfigManager()
+	var routeCfg *routeConfig
+	manager.RegisterCallback(func(rc *routeConfig) {
+		routeCfg = rc
+	})
 
 	cfg := GenTerseClusterConfig(2, 2, []string{"endpoint1", "endpoint2"})
 
 	cfg.UUID = "123"
 	cfg.NodeLocator = ""
 
-	_, applied := manager.ApplyConfig("endpoint1", cfg)
-	require.False(t, applied)
+	manager.ApplyConfig("endpoint1", cfg)
+	require.Nil(t, routeCfg)
 }
 
 func TestConfigManagerAppliesBucketConfigOverCluster(t *testing.T) {
-	manager := newConfigManager(nil)
+	manager := newConfigManager()
+	var routeCfg *routeConfig
+	manager.RegisterCallback(func(rc *routeConfig) {
+		routeCfg = rc
+	})
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied := manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	cfg = GenTerseBucketConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
-	routeCfg, applied = manager.ApplyConfig("endpoint1", cfg)
-	require.True(t, applied)
-
+	manager.ApplyConfig("endpoint1", cfg)
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
+/*
+TODO(brett19): Disabled these tests because they don't make sense, but should be moved.
 func TestConfigManagerDispatchToKey(t *testing.T) {
 	manager := newConfigManager(nil)
 
@@ -152,7 +161,6 @@ func TestConfigManagerDispatchToKeyAfterReconfigure(t *testing.T) {
 	require.NoError(t, err)
 }
 
-//
 // TODO: This test needs to somehow become more deterministic.
 func TestConfigManagertDispatcherWaitToDispatch(t *testing.T) {
 	manager := newConfigManager(nil)
@@ -231,6 +239,7 @@ func TestVbucketDispatcherDeadlinedWaitingToDispatch(t *testing.T) {
 	err = manager.Close()
 	require.NoError(t, err)
 }
+*/
 
 // TODO: Once we consolidate all of our config stuff across projects we should also provide utils for generating configs.
 func GenTerseClusterConfig(rev, revEpoch int, baseHostnames []string) *cbconfig.TerseConfigJson {

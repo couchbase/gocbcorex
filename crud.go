@@ -11,6 +11,7 @@ type CrudComponent struct {
 	cfgmanager  ConfigManager
 	retries     RetryManager
 	connManager NodeKvClientProvider
+	vbs         VbucketRouter
 }
 
 type GetOptions struct {
@@ -28,7 +29,7 @@ type GetResult struct {
 
 func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult, error) {
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.cfgmanager, cc.connManager,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
 			resp, err := client.Get(ctx, &memdx.GetRequest{
@@ -64,7 +65,7 @@ type UpsertResult struct {
 
 func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.cfgmanager, cc.connManager,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
 			resp, err := client.Set(ctx, &memdx.SetRequest{

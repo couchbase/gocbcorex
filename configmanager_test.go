@@ -4,28 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"testing"
+
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 	"github.com/couchbase/stellar-nebula/core/memdx"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestOrchestrateConfigReturnsResult(t *testing.T) {
+func TestOrchestrateMemdRoutingReturnsResult(t *testing.T) {
 	expectedEndpoint := "endpoint1"
 	expectedVbID := uint16(22)
 	expectedKey := []byte("aweasel")
 	expectedResult := 322
 
-	mock := &ConfigManagerMock{
+	mock := &VbucketRouterMock{
 		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return expectedEndpoint, expectedVbID, nil
 		},
 	}
 
-	res, err := OrchestrateConfig(context.Background(), mock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	res, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, func(endpoint string, vbID uint16) (int, error) {
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)
 
@@ -42,14 +43,14 @@ func TestOrchestrateConfigReturnsError(t *testing.T) {
 	expectedKey := []byte("aweasel")
 	expectedErr := errors.New("imanerror")
 
-	mock := &ConfigManagerMock{
+	mock := &VbucketRouterMock{
 		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return expectedEndpoint, expectedVbID, nil
 		},
 	}
 
-	_, err := OrchestrateConfig(context.Background(), mock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	_, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, func(endpoint string, vbID uint16) (int, error) {
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)
 
@@ -64,14 +65,14 @@ func TestOrchestrateConfigReturnsErrorFromDispatch(t *testing.T) {
 	expectedKey := []byte("aweasel")
 	expectedErr := errors.New("imanerror")
 
-	mock := &ConfigManagerMock{
+	mock := &VbucketRouterMock{
 		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return "", 0, expectedErr
 		},
 	}
 
-	_, err := OrchestrateConfig(context.Background(), mock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	_, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, func(endpoint string, vbID uint16) (int, error) {
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)
 
@@ -93,24 +94,24 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 	var timesDispatched int
 	var timesConfigApplied int
 
-	mock := &ConfigManagerMock{
+	mock := &VbucketRouterMock{
 		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
 			timesDispatched++
 			assert.Equal(t, expectedKey, key)
 
 			return expectedEndpoint, expectedVbID, nil
 		},
-		ApplyConfigFunc: func(sourceHostname string, json *cbconfig.TerseConfigJson) (*routeConfig, bool) {
+	}
+	mgrMock := &ConfigManagerMock{
+		ApplyConfigFunc: func(sourceHostname string, json *cbconfig.TerseConfigJson) {
 			timesConfigApplied++
 			assert.Equal(t, expectedEndpoint, sourceHostname)
 			assert.Equal(t, cfg, json)
-
-			return &routeConfig{}, true
 		},
 	}
 
 	var timesFnCalled int
-	res, err := OrchestrateConfig(context.Background(), mock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	res, err := OrchestrateMemdRouting(context.Background(), mock, mgrMock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
 		timesFnCalled++
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)

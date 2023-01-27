@@ -1,184 +1,85 @@
 package core
 
 import (
-	"context"
-	"crypto/tls"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
-	"sync/atomic"
+	"sync"
 
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 )
 
-var (
-	ErrWaitingForConfig = contextualDeadline{"still waiting for a cluster config"}
-)
+type RouteConfigHandler func(*routeConfig)
 
 type RouteConfigManager struct {
-	currentConfig AtomicPointer[routeConfig]
-	tlsConfig     AtomicPointer[tls.Config]
-
-	ready    uint32
-	readyCh  chan struct{}
-	closedCh chan struct{}
+	lock          sync.Mutex
+	currentConfig *routeConfig
+	listeners     []RouteConfigHandler
 }
 
-func newConfigManager(tlsConfig *tls.Config) *RouteConfigManager {
-	mgr := &RouteConfigManager{
-		readyCh:  make(chan struct{}),
-		closedCh: make(chan struct{}),
-	}
-	mgr.tlsConfig.Store(tlsConfig)
+func newConfigManager() *RouteConfigManager {
+	mgr := &RouteConfigManager{}
 
 	return mgr
 }
 
-func (cm *RouteConfigManager) Close() error {
-	close(cm.closedCh)
+func (cm *RouteConfigManager) RegisterCallback(fn RouteConfigHandler) {
+	cm.lock.Lock()
+	defer cm.lock.Unlock()
 
-	return nil
+	// TODO(brett19): Make this so we can unregister callbacks...
+	cm.listeners = append(cm.listeners, fn)
+
+	if cm.currentConfig != nil {
+		fn(cm.currentConfig)
+	}
 }
 
-func (cm *RouteConfigManager) Reconfigure(tlsConfig *tls.Config) {
-	cm.tlsConfig.Store(tlsConfig)
-}
+func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) {
+	cm.lock.Lock()
+	defer cm.lock.Unlock()
 
-func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) (*routeConfig, bool) {
-	for {
-		oldConfig := cm.currentConfig.Load()
+	oldConfig := cm.currentConfig
 
-		newConfig := cm.applyConfig(sourceHostname, cfg)
-		if !newConfig.IsValid() {
-			return nil, false
-		}
+	newConfig := cm.parseConfig(sourceHostname, cfg)
+	if !newConfig.IsValid() {
+		return
+	}
 
-		if oldConfig != nil {
-			// Check some basic things to ensure consistency!
-			// If oldCfg name was empty and the new cfg isn't then we're moving from cluster to bucket connection.
-			if oldConfig.revID > -1 && (oldConfig.name != "" && newConfig.name != "") {
-				if (newConfig.vbMap == nil) != (oldConfig.vbMap == nil) {
-					log.Printf("Received a configuration with a different number of vbuckets %s-%s.  Ignoring.", oldConfig.name, newConfig.name)
-					return nil, false
-				}
-
-				if newConfig.vbMap != nil && newConfig.vbMap.NumVbuckets() != oldConfig.vbMap.NumVbuckets() {
-					log.Printf("Received a configuration with a different number of vbuckets %s-%s.  Ignoring.", oldConfig.name, newConfig.name)
-					return nil, false
-				}
+	if oldConfig != nil {
+		// Check some basic things to ensure consistency!
+		// If oldCfg name was empty and the new cfg isn't then we're moving from cluster to bucket connection.
+		if oldConfig.revID > -1 && (oldConfig.name != "" && newConfig.name != "") {
+			if (newConfig.vbMap == nil) != (oldConfig.vbMap == nil) {
+				log.Printf("Received a configuration with a different number of vbuckets %s-%s.  Ignoring.", oldConfig.name, newConfig.name)
+				return
 			}
 
-			// Check that the new config data is newer than the current one, in the case where we've done a select bucket
-			// against an existing connection then the revisions could be the same. In that case the configuration still
-			// needs to be applied.
-			// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
-			// than the old one then we ignore it, if it's newer then we apply the new config.
-			if newConfig.bktType != oldConfig.bktType {
-				fmt.Printf("Configuration data changed bucket type, switching.")
-			} else if !newConfig.IsNewerThan(oldConfig) {
-				return nil, false
+			if newConfig.vbMap != nil && newConfig.vbMap.NumVbuckets() != oldConfig.vbMap.NumVbuckets() {
+				log.Printf("Received a configuration with a different number of vbuckets %s-%s.  Ignoring.", oldConfig.name, newConfig.name)
+				return
 			}
 		}
 
-		if cm.currentConfig.CompareAndSwap(oldConfig, newConfig) {
-			// TODO: so gross
-			if atomic.CompareAndSwapUint32(&cm.ready, 0, 1) {
-				close(cm.readyCh)
-			}
-
-			return newConfig, true
-		} else if oldConfig == nil {
-			// This would be odd.
-			return nil, false
+		// Check that the new config data is newer than the current one, in the case where we've done a select bucket
+		// against an existing connection then the revisions could be the same. In that case the configuration still
+		// needs to be applied.
+		// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
+		// than the old one then we ignore it, if it's newer then we apply the new config.
+		if newConfig.bktType != oldConfig.bktType {
+			fmt.Printf("Configuration data changed bucket type, switching.")
+		} else if !newConfig.IsNewerThan(oldConfig) {
+			return
 		}
 	}
-}
 
-func (cm *RouteConfigManager) DispatchByKey(ctx context.Context, key []byte) (string, uint16, error) {
-	if err := cm.waitToBeReady(ctx); err != nil {
-		return "", 0, err
-	}
-
-	cfg := cm.loadConfig()
-	if cfg == nil {
-		return "", 0, placeholderError{"imnotgood"}
-	}
-
-	vbID := cfg.vbMap.VbucketByKey(key)
-	idx, err := cfg.vbMap.NodeByVbucket(vbID, 0)
-	if err != nil {
-		return "", 0, err
-	}
-
-	var serverList []string
-	tlsConfig := cm.tlsConfig.Load()
-	if tlsConfig == nil {
-		serverList = cfg.kvServerList.NonSSLEndpoints
-	} else {
-		serverList = cfg.kvServerList.SSLEndpoints
-	}
-
-	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
-	if idx > len(serverList) {
-		return "", 0, placeholderError{"imnotgood"}
-	}
-
-	return serverList[idx], vbID, nil
-}
-
-func (cm *RouteConfigManager) DispatchToVbucket(ctx context.Context, vbID uint16) (string, error) {
-	if err := cm.waitToBeReady(ctx); err != nil {
-		return "", err
-	}
-
-	cfg := cm.loadConfig()
-	if cfg == nil {
-		return "", placeholderError{"imnotgood"}
-	}
-
-	idx, err := cfg.vbMap.NodeByVbucket(vbID, 0)
-	if err != nil {
-		return "", err
-	}
-
-	var serverList []string
-	tlsConfig := cm.tlsConfig.Load()
-	if tlsConfig == nil {
-		serverList = cfg.kvServerList.NonSSLEndpoints
-	} else {
-		serverList = cfg.kvServerList.SSLEndpoints
-	}
-
-	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
-	if idx > len(serverList) {
-		return "", placeholderError{"imnotgood"}
-	}
-
-	return serverList[idx], nil
-}
-
-func (cm *RouteConfigManager) loadConfig() *routeConfig {
-	return cm.currentConfig.Load()
-}
-
-func (cm *RouteConfigManager) waitToBeReady(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		ctxErr := ctx.Err()
-		if errors.Is(ctxErr, context.DeadlineExceeded) {
-			return ErrWaitingForConfig
-		} else {
-			return ctxErr
-		}
-	case <-cm.readyCh:
-		return nil
-	case <-cm.closedCh:
-		return nil
+	cm.currentConfig = newConfig
+	for _, fn := range cm.listeners {
+		fn(newConfig)
 	}
 }
 
-func (cm *RouteConfigManager) applyConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) *routeConfig {
+func (cm *RouteConfigManager) parseConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) *routeConfig {
 	var (
 		kvServerList   = routeEndpoints{}
 		capiEpList     = routeEndpoints{}

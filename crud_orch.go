@@ -50,6 +50,7 @@ func OrchestrateSimpleCrud[RespT any](
 	ctx context.Context,
 	rs RetryManager,
 	cr CollectionResolver,
+	vb VbucketRouter,
 	cm ConfigManager,
 	nkcp NodeKvClientProvider,
 	scopeName, collectionName string,
@@ -62,14 +63,13 @@ func OrchestrateSimpleCrud[RespT any](
 			return OrchestrateMemdCollectionID(
 				ctx, cr, scopeName, collectionName,
 				func(collectionID uint32, manifestID uint64) (RespT, error) {
-					return OrchestrateConfig(
-						ctx, cm, key,
+					return OrchestrateMemdRouting(
+						ctx, vb, cm, key,
 						func(endpoint string, vbID uint16) (RespT, error) {
 							return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
 								return fn(collectionID, manifestID, endpoint, vbID, client)
 							})
 						})
-
 				})
 		})
 }
