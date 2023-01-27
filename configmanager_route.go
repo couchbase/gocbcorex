@@ -271,59 +271,59 @@ func endpointsFromPorts(ports map[string]int, hostname string) *serverEps {
 	lists := &serverEps{}
 
 	if ports["kvSSL"] > 0 {
-		lists.kvServerSSL = fmt.Sprintf("couchbases://%s:%d", hostname, ports["kvSSL"])
+		lists.kvServerSSL = fmt.Sprintf("%s:%d", hostname, ports["kvSSL"])
 	}
 	if ports["capiSSL"] > 0 {
-		lists.capiEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["capiSSL"])
+		lists.capiEpSSL = fmt.Sprintf("%s:%d", hostname, ports["capiSSL"])
 	}
 	if ports["mgmtSSL"] > 0 {
-		lists.mgmtEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["mgmtSSL"])
+		lists.mgmtEpSSL = fmt.Sprintf("%s:%d", hostname, ports["mgmtSSL"])
 	}
 	if ports["n1qlSSL"] > 0 {
-		lists.n1qlEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["n1qlSSL"])
+		lists.n1qlEpSSL = fmt.Sprintf("%s:%d", hostname, ports["n1qlSSL"])
 	}
 	if ports["ftsSSL"] > 0 {
-		lists.ftsEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["ftsSSL"])
+		lists.ftsEpSSL = fmt.Sprintf("%s:%d", hostname, ports["ftsSSL"])
 	}
 	if ports["cbasSSL"] > 0 {
-		lists.cbasEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["cbasSSL"])
+		lists.cbasEpSSL = fmt.Sprintf("%s:%d", hostname, ports["cbasSSL"])
 	}
 	if ports["eventingSSL"] > 0 {
-		lists.eventingEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["eventingSSL"])
+		lists.eventingEpSSL = fmt.Sprintf("%s:%d", hostname, ports["eventingSSL"])
 	}
 	if ports["indexHttps"] > 0 {
-		lists.gsiEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["indexHttps"])
+		lists.gsiEpSSL = fmt.Sprintf("%s:%d", hostname, ports["indexHttps"])
 	}
 	if ports["backupSSL"] > 0 {
-		lists.backupEpSSL = fmt.Sprintf("https://%s:%d", hostname, ports["backupSSL"])
+		lists.backupEpSSL = fmt.Sprintf("%s:%d", hostname, ports["backupSSL"])
 	}
 
 	if ports["kv"] > 0 {
-		lists.kvServer = fmt.Sprintf("couchbase://%s:%d", hostname, ports["kv"])
+		lists.kvServer = fmt.Sprintf("%s:%d", hostname, ports["kv"])
 	}
 	if ports["capi"] > 0 {
-		lists.capiEp = fmt.Sprintf("http://%s:%d", hostname, ports["capi"])
+		lists.capiEp = fmt.Sprintf("%s:%d", hostname, ports["capi"])
 	}
 	if ports["mgmt"] > 0 {
-		lists.mgmtEp = fmt.Sprintf("http://%s:%d", hostname, ports["mgmt"])
+		lists.mgmtEp = fmt.Sprintf("%s:%d", hostname, ports["mgmt"])
 	}
 	if ports["n1ql"] > 0 {
-		lists.n1qlEp = fmt.Sprintf("http://%s:%d", hostname, ports["n1ql"])
+		lists.n1qlEp = fmt.Sprintf("%s:%d", hostname, ports["n1ql"])
 	}
 	if ports["fts"] > 0 {
-		lists.ftsEp = fmt.Sprintf("http://%s:%d", hostname, ports["fts"])
+		lists.ftsEp = fmt.Sprintf("%s:%d", hostname, ports["fts"])
 	}
 	if ports["cbas"] > 0 {
-		lists.cbasEp = fmt.Sprintf("http://%s:%d", hostname, ports["cbas"])
+		lists.cbasEp = fmt.Sprintf("%s:%d", hostname, ports["cbas"])
 	}
 	if ports["eventing"] > 0 {
-		lists.eventingEp = fmt.Sprintf("http://%s:%d", hostname, ports["eventing"])
+		lists.eventingEp = fmt.Sprintf("%s:%d", hostname, ports["eventing"])
 	}
 	if ports["indexHttp"] > 0 {
-		lists.gsiEp = fmt.Sprintf("http://%s:%d", hostname, ports["indexHttp"])
+		lists.gsiEp = fmt.Sprintf("%s:%d", hostname, ports["indexHttp"])
 	}
 	if ports["backup"] > 0 {
-		lists.backupEp = fmt.Sprintf("http://%s:%d", hostname, ports["backup"])
+		lists.backupEp = fmt.Sprintf("%s:%d", hostname, ports["backup"])
 	}
 	return lists
 }

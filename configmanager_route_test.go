@@ -357,35 +357,35 @@ func assertRouteConfigForTerseConfig(t *testing.T, terse *cbconfig.TerseConfigJs
 	for _, n := range terse.NodesExt {
 		if n.Services["kv"] > 0 {
 			kvList.NonSSLEndpoints = append(kvList.NonSSLEndpoints,
-				fmt.Sprintf("couchbase://%s:%d", n.Hostname, n.Services["kv"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["kv"]))
 		}
 		if n.Services["kvSSL"] > 0 {
 			kvList.SSLEndpoints = append(kvList.SSLEndpoints,
-				fmt.Sprintf("couchbases://%s:%d", n.Hostname, n.Services["kvSSL"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["kvSSL"]))
 		}
 		if n.Services["fts"] > 0 {
 			ftsList.NonSSLEndpoints = append(ftsList.NonSSLEndpoints,
-				fmt.Sprintf("http://%s:%d", n.Hostname, n.Services["fts"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["fts"]))
 		}
 		if n.Services["ftsSSL"] > 0 {
 			ftsList.SSLEndpoints = append(ftsList.SSLEndpoints,
-				fmt.Sprintf("https://%s:%d", n.Hostname, n.Services["ftsSSL"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["ftsSSL"]))
 		}
 		if n.Services["n1ql"] > 0 {
 			n1qlList.NonSSLEndpoints = append(n1qlList.NonSSLEndpoints,
-				fmt.Sprintf("http://%s:%d", n.Hostname, n.Services["n1ql"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["n1ql"]))
 		}
 		if n.Services["n1qlSSL"] > 0 {
 			n1qlList.SSLEndpoints = append(n1qlList.SSLEndpoints,
-				fmt.Sprintf("https://%s:%d", n.Hostname, n.Services["n1qlSSL"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["n1qlSSL"]))
 		}
 		if n.Services["mgmt"] > 0 {
 			mgmtList.NonSSLEndpoints = append(mgmtList.NonSSLEndpoints,
-				fmt.Sprintf("http://%s:%d", n.Hostname, n.Services["mgmt"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["mgmt"]))
 		}
 		if n.Services["mgmtSSL"] > 0 {
 			mgmtList.SSLEndpoints = append(mgmtList.SSLEndpoints,
-				fmt.Sprintf("https://%s:%d", n.Hostname, n.Services["mgmtSSL"]))
+				fmt.Sprintf("%s:%d", n.Hostname, n.Services["mgmtSSL"]))
 		}
 	}
 
