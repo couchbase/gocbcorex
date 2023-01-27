@@ -14,6 +14,34 @@ type CrudComponent struct {
 	vbs         VbucketRouter
 }
 
+func OrchestrateSimpleCrud[RespT any](
+	ctx context.Context,
+	rs RetryManager,
+	cr CollectionResolver,
+	vb VbucketRouter,
+	cm ConfigManager,
+	nkcp NodeKvClientProvider,
+	scopeName, collectionName string,
+	key []byte,
+	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),
+) (RespT, error) {
+	return OrchestrateMemdRetries(
+		ctx, rs,
+		func() (RespT, error) {
+			return OrchestrateMemdCollectionID(
+				ctx, cr, scopeName, collectionName,
+				func(collectionID uint32, manifestID uint64) (RespT, error) {
+					return OrchestrateMemdRouting(
+						ctx, vb, cm, key,
+						func(endpoint string, vbID uint16) (RespT, error) {
+							return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
+								return fn(collectionID, manifestID, endpoint, vbID, client)
+							})
+						})
+				})
+		})
+}
+
 type GetOptions struct {
 	Key            []byte
 	ScopeName      string

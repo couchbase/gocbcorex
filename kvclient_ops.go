@@ -2,10 +2,23 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
+
+type KvClientDispatchError struct {
+	Cause error
+}
+
+func (e KvClientDispatchError) Error() string {
+	return fmt.Sprintf("dispatch error: %s", e.Cause)
+}
+
+func (e KvClientDispatchError) Unwrap() error {
+	return e.Cause
+}
 
 type syncCrudResult struct {
 	Result interface{}
@@ -48,7 +61,7 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 	})
 	if err != nil {
 		var emptyResp RespT
-		return emptyResp, err
+		return emptyResp, KvClientDispatchError{err}
 	}
 
 	select {

@@ -67,7 +67,7 @@ func CreateAgent(opts AgentOptions) (*Agent, error) {
 	}
 
 	var err error
-	agent.connMgr, err = NewNodeKvClientManager(&NodeKvClientManagerOptions{
+	agent.connMgr, err = NewKvClientManager(&KvClientManagerOptions{
 		Endpoints:      opts.MemdAddrs,
 		TLSConfig:      agent.config.tlsConfig,
 		SelectedBucket: opts.BucketName,
@@ -133,7 +133,7 @@ func (agent *Agent) updateStateLocked() {
 	// map, and then reconfigure again to drop the old endpoints.  Otherwise vbucket
 	// mapping and connection dispatch will race and loop.
 
-	agent.connMgr.Reconfigure(&NodeKvClientManagerOptions{
+	agent.connMgr.Reconfigure(&KvClientManagerOptions{
 		Endpoints:      serverList,
 		TLSConfig:      agent.config.tlsConfig,
 		SelectedBucket: agent.config.bucket,

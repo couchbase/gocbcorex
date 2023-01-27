@@ -9,14 +9,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type NodeKvClientProvider interface {
-	ShutdownClient(endpoint string, client KvClient)
-	GetClient(ctx context.Context, endpoint string) (KvClient, error)
-	Reconfigure(opts *NodeKvClientManagerOptions) error
-	GetRandomClient(ctx context.Context) (KvClient, error)
-}
-
-type NodeKvClientManagerOptions struct {
+type KvClientManagerOptions struct {
 	NewConnectionProvider func(endpoint string) (KvClientProvider, error)
 	Endpoints             []string
 	TLSConfig             *tls.Config
@@ -25,22 +18,22 @@ type NodeKvClientManagerOptions struct {
 	Password              string
 }
 
-type NodeKvClientManager struct {
-	config                NodeKvClientManagerOptions
+type KvClientManager struct {
+	config                KvClientManagerOptions
 	newConnectionProvider func(endpoint string) (KvClientProvider, error)
 	endpoints             AtomicPointer[map[string]KvClientProvider]
 }
 
-var _ (NodeKvClientProvider) = (*NodeKvClientManager)(nil)
+var _ (NodeKvClientProvider) = (*KvClientManager)(nil)
 
-func NewNodeKvClientManager(opts *NodeKvClientManagerOptions) (*NodeKvClientManager, error) {
+func NewKvClientManager(opts *KvClientManagerOptions) (*KvClientManager, error) {
 	if opts == nil {
 		return nil, errors.New("must pass options")
 	}
 
 	config := *opts
 
-	mgr := &NodeKvClientManager{
+	mgr := &KvClientManager{
 		config: config,
 	}
 
@@ -76,7 +69,7 @@ func NewNodeKvClientManager(opts *NodeKvClientManagerOptions) (*NodeKvClientMana
 	return mgr, nil
 }
 
-func (m *NodeKvClientManager) Reconfigure(opts *NodeKvClientManagerOptions) error {
+func (m *KvClientManager) Reconfigure(opts *KvClientManagerOptions) error {
 	if opts == nil {
 		// Nothing we can do here
 		return nil
@@ -118,7 +111,7 @@ func (m *NodeKvClientManager) Reconfigure(opts *NodeKvClientManagerOptions) erro
 	return nil
 }
 
-func (m *NodeKvClientManager) GetRandomEndpoint() (KvClientProvider, error) {
+func (m *KvClientManager) GetRandomEndpoint() (KvClientProvider, error) {
 	endpointsPtr := m.endpoints.Load()
 	if endpointsPtr == nil {
 		return nil, placeholderError{"no endpoints known, shutdown?"}
@@ -134,7 +127,7 @@ func (m *NodeKvClientManager) GetRandomEndpoint() (KvClientProvider, error) {
 	return nil, placeholderError{"no endpoints known, shutdown?"}
 }
 
-func (m *NodeKvClientManager) GetEndpoint(endpoint string) (KvClientProvider, error) {
+func (m *KvClientManager) GetEndpoint(endpoint string) (KvClientProvider, error) {
 	if endpoint == "" {
 		return nil, placeholderError{"endpoint must be specified for GetEndpoint"}
 	}
@@ -154,7 +147,27 @@ func (m *NodeKvClientManager) GetEndpoint(endpoint string) (KvClientProvider, er
 	return pool, nil
 }
 
-func (m *NodeKvClientManager) ShutdownClient(endpoint string, client KvClient) {
+func (m *KvClientManager) shutdownRandomClient(client KvClient) {
+	endpointsPtr := m.endpoints.Load()
+	if endpointsPtr == nil {
+		return
+	}
+
+	endpoints := *endpointsPtr
+
+	for _, endpoint := range endpoints {
+		endpoint.ShutdownClient(client)
+	}
+}
+
+func (m *KvClientManager) ShutdownClient(endpoint string, client KvClient) {
+	if endpoint == "" {
+		// we don't know which endpoint this belongs to, so we need to send the
+		// shutdown request to all of the possibilities...
+		m.shutdownRandomClient(client)
+		return
+	}
+
 	connProvider, err := m.GetEndpoint(endpoint)
 	if err != nil {
 		return
@@ -163,7 +176,7 @@ func (m *NodeKvClientManager) ShutdownClient(endpoint string, client KvClient) {
 	connProvider.ShutdownClient(client)
 }
 
-func (m *NodeKvClientManager) GetRandomClient(ctx context.Context) (KvClient, error) {
+func (m *KvClientManager) GetRandomClient(ctx context.Context) (KvClient, error) {
 	connProvider, err := m.GetRandomEndpoint()
 	if err != nil {
 		return nil, err
@@ -172,7 +185,7 @@ func (m *NodeKvClientManager) GetRandomClient(ctx context.Context) (KvClient, er
 	return connProvider.GetClient(ctx)
 }
 
-func (m *NodeKvClientManager) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
+func (m *KvClientManager) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
 	connProvider, err := m.GetEndpoint(endpoint)
 	if err != nil {
 		return nil, err
