@@ -128,25 +128,34 @@ func (agent *Agent) updateStateLocked() {
 	log.Printf("updating config: %+v %+v", agent.state, *agent.state.latestConfig)
 	routeCfg := agent.state.latestConfig
 
+	var memdTlsConfig *tls.Config
+	var memdList []string
 	var mgmtList []string
-	var serverList []string
 	if agent.state.tlsConfig == nil {
-		serverList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
-		copy(serverList, routeCfg.kvServerList.NonSSLEndpoints)
+		memdList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
+		copy(memdList, routeCfg.kvServerList.NonSSLEndpoints)
+		memdTlsConfig = nil
+
 		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
-		copy(mgmtList, routeCfg.mgmtEpList.NonSSLEndpoints)
+		for epIdx, ep := range routeCfg.mgmtEpList.NonSSLEndpoints {
+			mgmtList[epIdx] = "http://" + ep
+		}
 	} else {
-		serverList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
-		copy(serverList, routeCfg.kvServerList.SSLEndpoints)
-		mgmtList = make([]string, len(routeCfg.mgmtEpList.SSLEndpoints))
-		copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
+		memdList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
+		copy(memdList, routeCfg.kvServerList.SSLEndpoints)
+		memdTlsConfig = agent.state.tlsConfig
+
+		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
+		for epIdx, ep := range routeCfg.mgmtEpList.NonSSLEndpoints {
+			mgmtList[epIdx] = "https://" + ep
+		}
 	}
 
 	clients := make(map[string]*KvClientConfig)
-	for _, addr := range serverList {
+	for _, addr := range memdList {
 		clients[addr] = &KvClientConfig{
 			Address:        addr,
-			TlsConfig:      agent.state.tlsConfig,
+			TlsConfig:      memdTlsConfig,
 			SelectedBucket: agent.state.bucket,
 			Username:       agent.state.username,
 			Password:       agent.state.password,
@@ -179,7 +188,7 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
 		vbmap:      routeCfg.vbMap,
-		serverList: serverList,
+		serverList: memdList,
 	})
 
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
