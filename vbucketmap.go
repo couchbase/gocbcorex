@@ -1,6 +1,8 @@
 package core
 
-import "hash/crc32"
+import (
+	"hash/crc32"
+)
 
 type vbucketMap struct {
 	entries     [][]int
@@ -34,12 +36,24 @@ func (vbMap vbucketMap) VbucketByKey(key []byte) uint16 {
 }
 
 func (vbMap vbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error) {
-	if vbID >= uint16(len(vbMap.entries)) {
-		return 0, placeholderError{"errInvalidVBucket"}
+	numVbs := uint16(len(vbMap.entries))
+	if vbID >= numVbs {
+		return 0, invalidVbucketError{
+			RequestedVbId: vbID,
+			NumVbuckets:   numVbs,
+		}
+	}
+
+	numServers := uint32(vbMap.numReplicas) + 1
+	if replicaID >= numServers {
+		return 0, invalidReplicaError{
+			RequestedReplica: replicaID,
+			NumServers:       numServers,
+		}
 	}
 
 	if replicaID >= uint32(len(vbMap.entries[vbID])) {
-		return 0, placeholderError{"errInvalidVBucket"}
+		return -1, nil
 	}
 
 	return vbMap.entries[vbID][replicaID], nil

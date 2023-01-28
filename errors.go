@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -66,4 +67,48 @@ type illegalStateError struct {
 
 func (e illegalStateError) Error() string {
 	return fmt.Sprintf("illegal state: %s", e.Message)
+}
+
+var ErrInvalidVbucket = errors.New("invalid vbucket")
+
+type invalidVbucketError struct {
+	RequestedVbId uint16
+	NumVbuckets   uint16
+}
+
+func (e invalidVbucketError) Error() string {
+	return fmt.Sprintf("invalid vbucket requested (%d >= %d)", e.RequestedVbId, e.NumVbuckets)
+}
+
+func (e invalidVbucketError) Unwrap() error {
+	return ErrInvalidVbucket
+}
+
+var ErrInvalidReplica = errors.New("invalid replica")
+
+type invalidReplicaError struct {
+	RequestedReplica uint32
+	NumServers       uint32
+}
+
+func (e invalidReplicaError) Error() string {
+	return fmt.Sprintf("invalid replica requested (%d >= %d)", e.RequestedReplica, e.NumServers)
+}
+
+func (e invalidReplicaError) Unwrap() error {
+	return ErrInvalidReplica
+}
+
+var ErrNoServerAssigned = errors.New("no server assigned to vbucket")
+
+type noServerAssignedError struct {
+	RequestedVbId uint16
+}
+
+func (e noServerAssignedError) Error() string {
+	return fmt.Sprintf("vbucket %d has no assigned server", e.RequestedVbId)
+}
+
+func (e noServerAssignedError) Unwrap() error {
+	return ErrNoServerAssigned
 }

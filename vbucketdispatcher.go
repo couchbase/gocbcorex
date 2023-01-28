@@ -57,9 +57,10 @@ func (vbd *vbucketRouter) DispatchByKey(ctx context.Context, key []byte) (string
 		return "", 0, err
 	}
 
-	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
-	if idx > len(info.serverList) {
-		return "", 0, placeholderError{"imnotgood"}
+	if idx < 0 || idx >= len(info.serverList) {
+		return "", 0, noServerAssignedError{
+			RequestedVbId: vbID,
+		}
 	}
 
 	return info.serverList[idx], vbID, nil
@@ -76,9 +77,10 @@ func (vbd *vbucketRouter) DispatchToVbucket(ctx context.Context, vbID uint16) (s
 		return "", err
 	}
 
-	// TODO: This really shouldn't be possible, and should possibly also be a panic condition?
-	if idx > len(info.serverList) {
-		return "", placeholderError{"imnotgood"}
+	if idx < 0 || idx >= len(info.serverList) {
+		return "", noServerAssignedError{
+			RequestedVbId: vbID,
+		}
 	}
 
 	return info.serverList[idx], nil
