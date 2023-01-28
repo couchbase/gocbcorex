@@ -52,7 +52,6 @@ type kvClient struct {
 	username string
 	password string
 
-	requestedFeatures []memdx.HelloFeature
 	supportedFeatures []memdx.HelloFeature
 }
 
@@ -70,19 +69,35 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	})
 
 	kvCli := &kvClient{
-		cli:               cli,
-		hostname:          opts.Address,
-		tlsConfig:         opts.TlsConfig,
-		requestedFeatures: nil, // TODO(brett19): fix this
-		username:          opts.Username,
-		password:          opts.Password,
-		bucket:            opts.SelectedBucket,
+		cli:       cli,
+		hostname:  opts.Address,
+		tlsConfig: opts.TlsConfig,
+		username:  opts.Username,
+		password:  opts.Password,
+		bucket:    opts.SelectedBucket,
+	}
+
+	requestedFeatures := []memdx.HelloFeature{
+		memdx.HelloFeatureDatatype,
+		memdx.HelloFeatureSeqNo,
+		memdx.HelloFeatureXattr,
+		memdx.HelloFeatureXerror,
+		memdx.HelloFeatureSnappy,
+		memdx.HelloFeatureJSON,
+		memdx.HelloFeatureUnorderedExec,
+		memdx.HelloFeatureDurations,
+		memdx.HelloFeaturePreserveExpiry,
+		memdx.HelloFeatureReplaceBodyWithXattr,
+		memdx.HelloFeatureSelectBucket,
+		memdx.HelloFeatureCreateAsDeleted,
+		memdx.HelloFeatureAltRequests,
+		memdx.HelloFeatureCollections,
 	}
 
 	res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
 		Hello: &memdx.HelloRequest{
 			ClientName:        []byte("core"),
-			RequestedFeatures: kvCli.requestedFeatures,
+			RequestedFeatures: requestedFeatures,
 		},
 		GetErrorMap: &memdx.GetErrorMapRequest{
 			Version: 2,
@@ -102,6 +117,8 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	}
 
 	log.Printf("bootstrapped: %+v", res.Hello)
+
+	kvCli.supportedFeatures = res.Hello.EnabledFeatures
 
 	return kvCli, nil
 }
