@@ -11,11 +11,13 @@ import (
 )
 
 type agentState struct {
-	bucket    string
-	tlsConfig *tls.Config
-	username  string
-	password  string
+	bucket             string
+	tlsConfig          *tls.Config
+	username           string
+	password           string
+	numPoolConnections uint
 
+	lastClients  map[string]*KvClientConfig
 	latestConfig *routeConfig
 }
 
@@ -47,10 +49,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 	agent := &Agent{
 		state: agentState{
-			bucket:    opts.BucketName,
-			tlsConfig: opts.TLSConfig,
-			username:  opts.Username,
-			password:  opts.Password,
+			bucket:             opts.BucketName,
+			tlsConfig:          opts.TLSConfig,
+			username:           opts.Username,
+			password:           opts.Password,
+			numPoolConnections: 1,
 		},
 
 		poller: newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
@@ -77,7 +80,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		}
 	}
 	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
-		NumPoolConnections: 1,
+		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            clients,
 	}, nil)
 	if err != nil {
@@ -139,10 +142,6 @@ func (agent *Agent) updateStateLocked() {
 		copy(mgmtList, routeCfg.mgmtEpList.SSLEndpoints)
 	}
 
-	// TODO(brett19): Need to make this ADD the new endpoints first, then update the
-	// vbucket map, and then reconfigure again to drop the old endpoints.  Otherwise
-	// vbucket mapping and connection dispatch will race and loop.
-
 	clients := make(map[string]*KvClientConfig)
 	for _, addr := range serverList {
 		clients[addr] = &KvClientConfig{
@@ -153,14 +152,39 @@ func (agent *Agent) updateStateLocked() {
 			Password:       agent.state.password,
 		}
 	}
+
+	// In order to avoid race conditions between operations selecting the
+	// endpoint they need to send the request to, and fetching an actual
+	// client which can send to that endpoint.  We must first ensure that
+	// all the new endpoints are available in the manager.  Then update
+	// the routing table.  Then go back and remove the old entries from
+	// the connection manager list.
+
+	oldClients := make(map[string]*KvClientConfig)
+	if agent.state.lastClients != nil {
+		for clientName, client := range agent.state.lastClients {
+			oldClients[clientName] = client
+		}
+	}
+	for clientName, client := range clients {
+		if oldClients[clientName] == nil {
+			oldClients[clientName] = client
+		}
+	}
+
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
-		NumPoolConnections: 1,
-		Clients:            clients,
+		NumPoolConnections: agent.state.numPoolConnections,
+		Clients:            oldClients,
 	})
 
 	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
 		vbmap:      routeCfg.vbMap,
 		serverList: serverList,
+	})
+
+	agent.connMgr.Reconfigure(&KvClientManagerConfig{
+		NumPoolConnections: agent.state.numPoolConnections,
+		Clients:            clients,
 	})
 
 	agent.poller.UpdateEndpoints(mgmtList)
