@@ -13,8 +13,8 @@ var (
 )
 
 type VbucketRouter interface {
-	DispatchByKey(ctx context.Context, key []byte) (string, uint16, error)
-	DispatchToVbucket(ctx context.Context, vbID uint16) (string, error)
+	DispatchByKey(key []byte) (string, uint16, error)
+	DispatchToVbucket(vbID uint16) (string, error)
 }
 
 type vbucketRoutingInfo struct {
@@ -26,6 +26,8 @@ type vbucketRouter struct {
 	routingInfo AtomicPointer[vbucketRoutingInfo]
 }
 
+var _ VbucketRouter = (*vbucketRouter)(nil)
+
 func newVbucketRouter() *vbucketRouter {
 	vbd := &vbucketRouter{}
 
@@ -36,7 +38,7 @@ func (vbd *vbucketRouter) UpdateRoutingInfo(info *vbucketRoutingInfo) {
 	vbd.routingInfo.Store(info)
 }
 
-func (vbd *vbucketRouter) getRoutingInfo(ctx context.Context) (*vbucketRoutingInfo, error) {
+func (vbd *vbucketRouter) getRoutingInfo() (*vbucketRoutingInfo, error) {
 	routing := vbd.routingInfo.Load()
 	if routing == nil {
 		return nil, ErrNoVbucketMap
@@ -45,8 +47,8 @@ func (vbd *vbucketRouter) getRoutingInfo(ctx context.Context) (*vbucketRoutingIn
 	return routing, nil
 }
 
-func (vbd *vbucketRouter) DispatchByKey(ctx context.Context, key []byte) (string, uint16, error) {
-	info, err := vbd.getRoutingInfo(ctx)
+func (vbd *vbucketRouter) DispatchByKey(key []byte) (string, uint16, error) {
+	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return "", 0, err
 	}
@@ -66,8 +68,8 @@ func (vbd *vbucketRouter) DispatchByKey(ctx context.Context, key []byte) (string
 	return info.serverList[idx], vbID, nil
 }
 
-func (vbd *vbucketRouter) DispatchToVbucket(ctx context.Context, vbID uint16) (string, error) {
-	info, err := vbd.getRoutingInfo(ctx)
+func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16) (string, error) {
+	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return "", err
 	}
@@ -93,7 +95,7 @@ func OrchestrateMemdRouting[RespT any](
 	key []byte,
 	fn func(endpoint string, vbID uint16) (RespT, error),
 ) (RespT, error) {
-	endpoint, vbID, err := vb.DispatchByKey(ctx, key)
+	endpoint, vbID, err := vb.DispatchByKey(key)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
@@ -122,7 +124,7 @@ func OrchestrateMemdRouting[RespT any](
 
 				cm.ApplyConfig(cfg.SourceHostname, cfg.Config)
 
-				newEndpoint, newVbID, err := vb.DispatchByKey(ctx, key)
+				newEndpoint, newVbID, err := vb.DispatchByKey(key)
 				if err != nil {
 					var emptyResp RespT
 					return emptyResp, err

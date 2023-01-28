@@ -34,7 +34,7 @@ var _ KvClient = &KvClientMock{}
 //			LoadFactorFunc: func() float64 {
 //				panic("mock out the LoadFactor method")
 //			},
-//			ReconfigureFunc: func(ctx context.Context, opts *KvClientOptions) error {
+//			ReconfigureFunc: func(ctx context.Context, opts *KvClientConfig) error {
 //				panic("mock out the Reconfigure method")
 //			},
 //			SetFunc: func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {

@@ -20,7 +20,7 @@ func TestOrchestrateMemdRoutingReturnsResult(t *testing.T) {
 	expectedResult := 322
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return expectedEndpoint, expectedVbID, nil
 		},
@@ -44,7 +44,7 @@ func TestOrchestrateConfigReturnsError(t *testing.T) {
 	expectedErr := errors.New("imanerror")
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return expectedEndpoint, expectedVbID, nil
 		},
@@ -66,7 +66,7 @@ func TestOrchestrateConfigReturnsErrorFromDispatch(t *testing.T) {
 	expectedErr := errors.New("imanerror")
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return "", 0, expectedErr
 		},
@@ -96,7 +96,7 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 	var timesConfigApplied int
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(ctx context.Context, key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
 			timesDispatched++
 			assert.Equal(t, expectedKey, key)
 

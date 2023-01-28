@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,13 +35,13 @@ func TestVbucketRouterDispatchToKey(t *testing.T) {
 
 	dispatcher.UpdateRoutingInfo(routingInfo)
 
-	endpoint, vbID, err := dispatcher.DispatchByKey(context.Background(), []byte("key1"))
+	endpoint, vbID, err := dispatcher.DispatchByKey([]byte("key1"))
 	require.NoError(t, err)
 
 	assert.Equal(t, "endpoint2", endpoint)
 	assert.Equal(t, uint16(1), vbID)
 
-	endpoint, vbID, err = dispatcher.DispatchByKey(context.Background(), []byte("key2"))
+	endpoint, vbID, err = dispatcher.DispatchByKey([]byte("key2"))
 	require.NoError(t, err)
 
 	assert.Equal(t, "endpoint1", endpoint)
