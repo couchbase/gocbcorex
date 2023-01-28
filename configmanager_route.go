@@ -215,7 +215,7 @@ func (cm *RouteConfigManager) parseConfig(sourceHostname string, cfg *cbconfig.T
 	if bktType == bktTypeCouchbase {
 		vbMap := cfg.VBucketServerMap.VBucketMap
 		numReplicas := cfg.VBucketServerMap.NumReplicas
-		rc.vbMap = newVbucketMap(vbMap, numReplicas)
+		rc.vbMap = NewVbucketMap(vbMap, numReplicas)
 	}
 	// } else if bktType == bktTypeMemcached {
 	// 	var endpoints []routeEndpoint

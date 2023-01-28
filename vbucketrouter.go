@@ -13,17 +13,18 @@ var (
 )
 
 type VbucketRouter interface {
+	UpdateRoutingInfo(*VbucketRoutingInfo)
 	DispatchByKey(key []byte) (string, uint16, error)
 	DispatchToVbucket(vbID uint16) (string, error)
 }
 
-type vbucketRoutingInfo struct {
-	vbmap      *vbucketMap
-	serverList []string
+type VbucketRoutingInfo struct {
+	VbMap      *VbucketMap
+	ServerList []string
 }
 
 type vbucketRouter struct {
-	routingInfo AtomicPointer[vbucketRoutingInfo]
+	routingInfo AtomicPointer[VbucketRoutingInfo]
 }
 
 var _ VbucketRouter = (*vbucketRouter)(nil)
@@ -34,11 +35,11 @@ func newVbucketRouter() *vbucketRouter {
 	return vbd
 }
 
-func (vbd *vbucketRouter) UpdateRoutingInfo(info *vbucketRoutingInfo) {
+func (vbd *vbucketRouter) UpdateRoutingInfo(info *VbucketRoutingInfo) {
 	vbd.routingInfo.Store(info)
 }
 
-func (vbd *vbucketRouter) getRoutingInfo() (*vbucketRoutingInfo, error) {
+func (vbd *vbucketRouter) getRoutingInfo() (*VbucketRoutingInfo, error) {
 	routing := vbd.routingInfo.Load()
 	if routing == nil {
 		return nil, ErrNoVbucketMap
@@ -53,19 +54,19 @@ func (vbd *vbucketRouter) DispatchByKey(key []byte) (string, uint16, error) {
 		return "", 0, err
 	}
 
-	vbID := info.vbmap.VbucketByKey(key)
-	idx, err := info.vbmap.NodeByVbucket(vbID, 0)
+	vbID := info.VbMap.VbucketByKey(key)
+	idx, err := info.VbMap.NodeByVbucket(vbID, 0)
 	if err != nil {
 		return "", 0, err
 	}
 
-	if idx < 0 || idx >= len(info.serverList) {
+	if idx < 0 || idx >= len(info.ServerList) {
 		return "", 0, noServerAssignedError{
 			RequestedVbId: vbID,
 		}
 	}
 
-	return info.serverList[idx], vbID, nil
+	return info.ServerList[idx], vbID, nil
 }
 
 func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16) (string, error) {
@@ -74,18 +75,18 @@ func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16) (string, error) {
 		return "", err
 	}
 
-	idx, err := info.vbmap.NodeByVbucket(vbID, 0)
+	idx, err := info.VbMap.NodeByVbucket(vbID, 0)
 	if err != nil {
 		return "", err
 	}
 
-	if idx < 0 || idx >= len(info.serverList) {
+	if idx < 0 || idx >= len(info.ServerList) {
 		return "", noServerAssignedError{
 			RequestedVbId: vbID,
 		}
 	}
 
-	return info.serverList[idx], nil
+	return info.ServerList[idx], nil
 }
 
 func OrchestrateMemdRouting[RespT any](

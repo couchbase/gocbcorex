@@ -4,38 +4,38 @@ import (
 	"hash/crc32"
 )
 
-type vbucketMap struct {
+type VbucketMap struct {
 	entries     [][]int
 	numReplicas int
 }
 
-func newVbucketMap(entries [][]int, numReplicas int) *vbucketMap {
-	vbMap := vbucketMap{
+func NewVbucketMap(entries [][]int, numReplicas int) *VbucketMap {
+	vbMap := VbucketMap{
 		entries:     entries,
 		numReplicas: numReplicas,
 	}
 	return &vbMap
 }
 
-func (vbMap vbucketMap) IsValid() bool {
+func (vbMap VbucketMap) IsValid() bool {
 	return len(vbMap.entries) > 0 && len(vbMap.entries[0]) > 0
 }
 
-func (vbMap vbucketMap) NumVbuckets() int {
+func (vbMap VbucketMap) NumVbuckets() int {
 	return len(vbMap.entries)
 }
 
-func (vbMap vbucketMap) NumReplicas() int {
+func (vbMap VbucketMap) NumReplicas() int {
 	return vbMap.numReplicas
 }
 
-func (vbMap vbucketMap) VbucketByKey(key []byte) uint16 {
+func (vbMap VbucketMap) VbucketByKey(key []byte) uint16 {
 	crc := crc32.ChecksumIEEE(key)
 	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
 	return crcMidBits % uint16(len(vbMap.entries))
 }
 
-func (vbMap vbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error) {
+func (vbMap VbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error) {
 	numVbs := uint16(len(vbMap.entries))
 	if vbID >= numVbs {
 		return 0, invalidVbucketError{
@@ -59,7 +59,7 @@ func (vbMap vbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error
 	return vbMap.entries[vbID][replicaID], nil
 }
 
-func (vbMap vbucketMap) VbucketsOnServer(index int) ([]uint16, error) {
+func (vbMap VbucketMap) VbucketsOnServer(index int) ([]uint16, error) {
 	vbList, err := vbMap.VbucketsByServer(0)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (vbMap vbucketMap) VbucketsOnServer(index int) ([]uint16, error) {
 	return vbList[index], nil
 }
 
-func (vbMap vbucketMap) VbucketsByServer(replicaID int) ([][]uint16, error) {
+func (vbMap VbucketMap) VbucketsByServer(replicaID int) ([][]uint16, error) {
 	var vbList [][]uint16
 
 	// We do not currently support listing for all replicas at once
@@ -100,6 +100,6 @@ func (vbMap vbucketMap) VbucketsByServer(replicaID int) ([][]uint16, error) {
 	return vbList, nil
 }
 
-func (vbMap vbucketMap) NodeByKey(key []byte, replicaID uint32) (int, error) {
+func (vbMap VbucketMap) NodeByKey(key []byte, replicaID uint32) (int, error) {
 	return vbMap.NodeByVbucket(vbMap.VbucketByKey(key), replicaID)
 }

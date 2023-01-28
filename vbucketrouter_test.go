@@ -9,8 +9,8 @@ import (
 
 func TestVbucketRouterDispatchToKey(t *testing.T) {
 	dispatcher := newVbucketRouter()
-	routingInfo := &vbucketRoutingInfo{
-		vbmap: &vbucketMap{
+	routingInfo := &VbucketRoutingInfo{
+		VbMap: &VbucketMap{
 			entries: [][]int{
 				{
 					0,
@@ -30,7 +30,7 @@ func TestVbucketRouterDispatchToKey(t *testing.T) {
 			},
 			numReplicas: 0,
 		},
-		serverList: []string{"endpoint1", "endpoint2"},
+		ServerList: []string{"endpoint1", "endpoint2"},
 	}
 
 	dispatcher.UpdateRoutingInfo(routingInfo)

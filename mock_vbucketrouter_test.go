@@ -23,6 +23,9 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //			DispatchToVbucketFunc: func(vbID uint16) (string, error) {
 //				panic("mock out the DispatchToVbucket method")
 //			},
+//			UpdateRoutingInfoFunc: func(vbucketRoutingInfo *VbucketRoutingInfo)  {
+//				panic("mock out the UpdateRoutingInfo method")
+//			},
 //		}
 //
 //		// use mockedVbucketRouter in code that requires VbucketRouter
@@ -36,6 +39,9 @@ type VbucketRouterMock struct {
 	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
 	DispatchToVbucketFunc func(vbID uint16) (string, error)
 
+	// UpdateRoutingInfoFunc mocks the UpdateRoutingInfo method.
+	UpdateRoutingInfoFunc func(vbucketRoutingInfo *VbucketRoutingInfo)
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// DispatchByKey holds details about calls to the DispatchByKey method.
@@ -48,9 +54,15 @@ type VbucketRouterMock struct {
 			// VbID is the vbID argument value.
 			VbID uint16
 		}
+		// UpdateRoutingInfo holds details about calls to the UpdateRoutingInfo method.
+		UpdateRoutingInfo []struct {
+			// VbucketRoutingInfo is the vbucketRoutingInfo argument value.
+			VbucketRoutingInfo *VbucketRoutingInfo
+		}
 	}
 	lockDispatchByKey     sync.RWMutex
 	lockDispatchToVbucket sync.RWMutex
+	lockUpdateRoutingInfo sync.RWMutex
 }
 
 // DispatchByKey calls DispatchByKeyFunc.
@@ -114,5 +126,37 @@ func (mock *VbucketRouterMock) DispatchToVbucketCalls() []struct {
 	mock.lockDispatchToVbucket.RLock()
 	calls = mock.calls.DispatchToVbucket
 	mock.lockDispatchToVbucket.RUnlock()
+	return calls
+}
+
+// UpdateRoutingInfo calls UpdateRoutingInfoFunc.
+func (mock *VbucketRouterMock) UpdateRoutingInfo(vbucketRoutingInfo *VbucketRoutingInfo) {
+	if mock.UpdateRoutingInfoFunc == nil {
+		panic("VbucketRouterMock.UpdateRoutingInfoFunc: method is nil but VbucketRouter.UpdateRoutingInfo was just called")
+	}
+	callInfo := struct {
+		VbucketRoutingInfo *VbucketRoutingInfo
+	}{
+		VbucketRoutingInfo: vbucketRoutingInfo,
+	}
+	mock.lockUpdateRoutingInfo.Lock()
+	mock.calls.UpdateRoutingInfo = append(mock.calls.UpdateRoutingInfo, callInfo)
+	mock.lockUpdateRoutingInfo.Unlock()
+	mock.UpdateRoutingInfoFunc(vbucketRoutingInfo)
+}
+
+// UpdateRoutingInfoCalls gets all the calls that were made to UpdateRoutingInfo.
+// Check the length with:
+//
+//	len(mockedVbucketRouter.UpdateRoutingInfoCalls())
+func (mock *VbucketRouterMock) UpdateRoutingInfoCalls() []struct {
+	VbucketRoutingInfo *VbucketRoutingInfo
+} {
+	var calls []struct {
+		VbucketRoutingInfo *VbucketRoutingInfo
+	}
+	mock.lockUpdateRoutingInfo.RLock()
+	calls = mock.calls.UpdateRoutingInfo
+	mock.lockUpdateRoutingInfo.RUnlock()
 	return calls
 }

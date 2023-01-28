@@ -31,7 +31,7 @@ type Agent struct {
 	connMgr     KvClientManager
 	collections CollectionResolver
 	retries     RetryManager
-	vbs         *vbucketRouter
+	vbRouter    VbucketRouter
 
 	crud *CrudComponent
 }
@@ -101,7 +101,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 	agent.collections = collections
 
-	agent.vbs = newVbucketRouter()
+	agent.vbRouter = newVbucketRouter()
 
 	agent.configMgr.RegisterCallback(func(rc *routeConfig) {
 		agent.lock.Lock()
@@ -120,7 +120,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		retries:     agent.retries,
 		// errorResolver: new,
 		connManager: agent.connMgr,
-		vbs:         agent.vbs,
+		vbs:         agent.vbRouter,
 	}
 
 	return agent, nil
@@ -215,9 +215,9 @@ func (agent *Agent) updateStateLocked() {
 		Clients:            oldClients,
 	})
 
-	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
-		vbmap:      routeCfg.vbMap,
-		serverList: nodeNames,
+	agent.vbRouter.UpdateRoutingInfo(&VbucketRoutingInfo{
+		VbMap:      routeCfg.vbMap,
+		ServerList: nodeNames,
 	})
 
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{

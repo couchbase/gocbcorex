@@ -30,7 +30,7 @@ type routeConfig struct {
 	eventingEpList routeEndpoints
 	gsiEpList      routeEndpoints
 	backupEpList   routeEndpoints
-	vbMap          *vbucketMap
+	vbMap          *VbucketMap
 
 	clusterCapabilitiesVer []int
 	clusterCapabilities    map[string][]string
