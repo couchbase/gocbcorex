@@ -27,7 +27,7 @@ type Agent struct {
 	state agentState
 
 	poller      ConfigPoller
-	configMgr   *RouteConfigManager
+	configMgr   ConfigManager
 	connMgr     KvClientManager
 	collections CollectionResolver
 	retries     RetryManager
@@ -66,7 +66,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			Username:             opts.Username,
 			Password:             opts.Password,
 		}),
-		configMgr: newConfigManager(),
+		configMgr: NewConfigManager(),
 		retries:   NewRetryManagerFastFail(),
 	}
 

@@ -9,15 +9,15 @@ import (
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 )
 
-type RouteConfigHandler func(*routeConfig)
-
 type RouteConfigManager struct {
 	lock          sync.Mutex
 	currentConfig *routeConfig
 	listeners     []RouteConfigHandler
 }
 
-func newConfigManager() *RouteConfigManager {
+var _ ConfigManager = (*RouteConfigManager)(nil)
+
+func NewConfigManager() ConfigManager {
 	mgr := &RouteConfigManager{}
 
 	return mgr
