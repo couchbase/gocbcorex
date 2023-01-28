@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/couchbase/stellar-nebula/core/memdx"
 	"github.com/couchbase/stellar-nebula/core/testutils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBasicSnAgent(t *testing.T) {
+func TestAgentBasic(t *testing.T) {
 	if !testutils.TestOpts.LongTest {
 		t.SkipNow()
 	}
@@ -44,6 +45,38 @@ func TestBasicSnAgent(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, getRes.Cas)
 	assert.NotEmpty(t, getRes.Value)
+}
+
+func TestAgentBadCollection(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	opts := AgentOptions{
+		TLSConfig:  nil,
+		BucketName: "default",
+		Username:   "Administrator",
+		Password:   "password",
+		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
+		MemdAddrs:  testutils.TestOpts.MemdAddrs,
+	}
+
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
+
+	_, err = agent.Get(context.Background(), &GetOptions{
+		Key:            []byte("test"),
+		ScopeName:      "invalid-scope",
+		CollectionName: "invalid-collection",
+	})
+	require.ErrorIs(t, err, memdx.ErrUnknownScopeName)
+
+	_, err = agent.Get(context.Background(), &GetOptions{
+		Key:            []byte("test"),
+		ScopeName:      "_default",
+		CollectionName: "invalid-collection",
+	})
+	require.ErrorIs(t, err, memdx.ErrUnknownCollectionName)
 }
 
 func BenchmarkBasicGet(b *testing.B) {
