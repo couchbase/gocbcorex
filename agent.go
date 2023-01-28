@@ -71,8 +71,9 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	clients := make(map[string]*KvClientConfig)
-	for _, addr := range opts.MemdAddrs {
-		clients[addr] = &KvClientConfig{
+	for addrIdx, addr := range opts.MemdAddrs {
+		nodeId := fmt.Sprintf("bootstrap-%d", addrIdx)
+		clients[nodeId] = &KvClientConfig{
 			Address:        addr,
 			TlsConfig:      agent.state.tlsConfig,
 			SelectedBucket: agent.state.bucket,
@@ -149,8 +150,15 @@ func (agent *Agent) updateStateLocked() {
 	routeCfg := agent.state.latestConfig
 
 	var memdTlsConfig *tls.Config
+	var nodeNames []string
 	var memdList []string
 	var mgmtList []string
+
+	nodeNames = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
+	for nodeIdx, addr := range routeCfg.kvServerList.NonSSLEndpoints {
+		nodeNames[nodeIdx] = fmt.Sprintf("node@%s", addr)
+	}
+
 	if agent.state.tlsConfig == nil {
 		memdList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
 		copy(memdList, routeCfg.kvServerList.NonSSLEndpoints)
@@ -172,8 +180,9 @@ func (agent *Agent) updateStateLocked() {
 	}
 
 	clients := make(map[string]*KvClientConfig)
-	for _, addr := range memdList {
-		clients[addr] = &KvClientConfig{
+	for addrIdx, addr := range memdList {
+		nodeName := nodeNames[addrIdx]
+		clients[nodeName] = &KvClientConfig{
 			Address:        addr,
 			TlsConfig:      memdTlsConfig,
 			SelectedBucket: agent.state.bucket,
@@ -208,7 +217,7 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.vbs.UpdateRoutingInfo(&vbucketRoutingInfo{
 		vbmap:      routeCfg.vbMap,
-		serverList: memdList,
+		serverList: nodeNames,
 	})
 
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
