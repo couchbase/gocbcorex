@@ -12,3 +12,10 @@ type AgentOptions struct {
 	HTTPAddrs []string
 	MemdAddrs []string
 }
+
+type AgentReconfigureOptions struct {
+	TLSConfig  *tls.Config
+	BucketName string
+	Username   string
+	Password   string
+}

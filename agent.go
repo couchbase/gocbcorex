@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -122,6 +123,25 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	return agent, nil
+}
+
+func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
+	agent.lock.Lock()
+	defer agent.lock.Unlock()
+
+	if agent.state.bucket != "" {
+		if opts.BucketName != agent.state.bucket {
+			return errors.New("cannot change an already-specified bucket name")
+		}
+	}
+
+	agent.state.tlsConfig = opts.TLSConfig
+	agent.state.username = opts.Username
+	agent.state.password = opts.Password
+	agent.state.bucket = opts.BucketName
+	agent.updateStateLocked()
+
+	return nil
 }
 
 func (agent *Agent) updateStateLocked() {
