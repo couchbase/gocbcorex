@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -30,8 +31,13 @@ type KvClientManagerOptions struct {
 	NewKvClientProviderFn NewKvClientProviderFunc
 }
 
+type kvClientManagerPool struct {
+	Config *KvClientPoolConfig
+	Pool   KvClientPool
+}
+
 type kvClientManagerState struct {
-	ClientPools map[string]KvClientPool
+	ClientPools map[string]*kvClientManagerPool
 }
 
 type kvClientManager struct {
@@ -91,26 +97,58 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
 		return illegalStateError{"KvClientManager reconfigure expected state"}
 	}
 
-	if len(state.ClientPools) != 0 {
-		// TODO(brett19): add reconfigure support
-		return errors.New("reconfiguring the KvClientManager is not currently supported")
+	oldPools := make(map[string]*kvClientManagerPool)
+	for poolName, pool := range state.ClientPools {
+		oldPools[poolName] = pool
 	}
 
 	newState := &kvClientManagerState{
-		ClientPools: make(map[string]KvClientPool),
+		ClientPools: make(map[string]*kvClientManagerPool),
 	}
 
 	for endpoint, endpointConfig := range config.Clients {
-		clientPool, err := m.newKvClientProvider(&KvClientPoolConfig{
+		poolConfig := &KvClientPoolConfig{
 			NumConnections: config.NumPoolConnections,
 			ClientOpts:     *endpointConfig,
-		})
-		if err != nil {
-			return err
 		}
 
-		newState.ClientPools[endpoint] = clientPool
+		var pool KvClientPool
+
+		oldPool := oldPools[endpoint]
+		if oldPool != nil {
+			err := oldPool.Pool.Reconfigure(poolConfig)
+			if err != nil {
+				log.Printf("failed to reconfigure pool: %s", err)
+			} else {
+				pool = oldPool.Pool
+			}
+			delete(oldPools, endpoint)
+		}
+
+		if pool == nil {
+			newPool, err := m.newKvClientProvider(poolConfig)
+			if err != nil {
+				return err
+			}
+
+			pool = newPool
+		}
+
+		newState.ClientPools[endpoint] = &kvClientManagerPool{
+			Config: poolConfig,
+			Pool:   pool,
+		}
 	}
+
+	// TODO(brett19): Clean up the pools that were destroyed.
+	// we will need to keep track of them to support doing a full shut
+	// down, similar to how KvClientPool handles it.
+
+	// TODO(brett19): optimize this to avoid recreating pools
+	// right now, if the name of the pool changes, it causes a new pool
+	// to be created and the old one destroyed.  We should try to match
+	// any dead pools to the new pools being created, and reuse them
+	// instead.
 
 	m.state.Store(newState)
 
@@ -134,7 +172,7 @@ func (m *kvClientManager) GetRandomEndpoint() (KvClientPool, error) {
 
 	// Just pick one at random for now
 	for _, pool := range state.ClientPools {
-		return pool, nil
+		return pool.Pool, nil
 	}
 
 	return nil, placeholderError{"no endpoints known, shutdown?"}
@@ -159,7 +197,7 @@ func (m *kvClientManager) GetEndpoint(endpoint string) (KvClientPool, error) {
 		return nil, placeholderError{fmt.Sprintf("endpoint not known `%s` in %+v", endpoint, validKeys)}
 	}
 
-	return pool, nil
+	return pool.Pool, nil
 }
 
 func (m *kvClientManager) shutdownRandomClient(client KvClient) {
@@ -169,7 +207,7 @@ func (m *kvClientManager) shutdownRandomClient(client KvClient) {
 	}
 
 	for _, endpoint := range state.ClientPools {
-		endpoint.ShutdownClient(client)
+		endpoint.Pool.ShutdownClient(client)
 	}
 }
 
