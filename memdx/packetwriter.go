@@ -7,9 +7,6 @@ import (
 )
 
 type PacketWriter struct {
-	// we use a heap-allocated write buffer since io.Write will cause
-	// the buffer to escape regardless of what we want.
-	writeBuf []byte
 }
 
 func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
@@ -84,23 +81,17 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 
 	binary.BigEndian.PutUint64(headerBuf[16:], pak.Cas)
 
-	// if the writeBuf isn't big enough, do a single resize so
-	// we dont incrementally increase its size on each append.
-	if cap(pw.writeBuf) < totalLen {
-		pw.writeBuf = make([]byte, totalLen)
-	}
-
 	// build the packet in the write buffer
-	pw.writeBuf = pw.writeBuf[:0]
-	pw.writeBuf = append(pw.writeBuf, headerBuf...)
-	pw.writeBuf = append(pw.writeBuf, pak.FramingExtras...)
-	pw.writeBuf = append(pw.writeBuf, pak.Extras...)
-	pw.writeBuf = append(pw.writeBuf, pak.Key...)
-	pw.writeBuf = append(pw.writeBuf, pak.Value...)
+	writeBuf := make([]byte, 0, totalLen)
+	writeBuf = append(writeBuf, headerBuf...)
+	writeBuf = append(writeBuf, pak.FramingExtras...)
+	writeBuf = append(writeBuf, pak.Extras...)
+	writeBuf = append(writeBuf, pak.Key...)
+	writeBuf = append(writeBuf, pak.Value...)
 
 	// Write guarentees that err is returned if n<len, so we can just ignore
 	// n and only inspect the error to determine if something went wrong...
-	_, err := w.Write(pw.writeBuf)
+	_, err := w.Write(writeBuf)
 	if err != nil {
 		return err
 	}
