@@ -2,14 +2,19 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
+	"go.uber.org/zap"
 )
 
+type RouteConfigManagerOptions struct {
+	Logger *zap.Logger
+}
+
 type RouteConfigManager struct {
+	logger        *zap.Logger
 	lock          sync.Mutex
 	currentConfig *routeConfig
 	listeners     []RouteConfigHandler
@@ -17,8 +22,14 @@ type RouteConfigManager struct {
 
 var _ ConfigManager = (*RouteConfigManager)(nil)
 
-func NewConfigManager() ConfigManager {
-	mgr := &RouteConfigManager{}
+func NewConfigManager(opts *RouteConfigManagerOptions) ConfigManager {
+	if opts == nil {
+		opts = &RouteConfigManagerOptions{}
+	}
+
+	mgr := &RouteConfigManager{
+		logger: loggerOrNop(opts.Logger),
+	}
 
 	return mgr
 }
@@ -49,14 +60,19 @@ func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.T
 	if oldConfig != nil {
 		// Check some basic things to ensure consistency!
 		// If oldCfg name was empty and the new cfg isn't then we're moving from cluster to bucket connection.
+		// TODO(brett19): Fix these checks. The log messages don't make sense either.
 		if oldConfig.revID > -1 && (oldConfig.name != "" && newConfig.name != "") {
 			if (newConfig.vbMap == nil) != (oldConfig.vbMap == nil) {
-				log.Printf("Received a configuration with a different number of vbuckets %s-%s.  Ignoring.", oldConfig.name, newConfig.name)
+				cm.logger.Debug("vbucket mapping changes are not supported",
+					zap.String("oldBucketName", oldConfig.name),
+					zap.String("newBucketName", newConfig.name))
 				return
 			}
 
 			if newConfig.vbMap != nil && newConfig.vbMap.NumVbuckets() != oldConfig.vbMap.NumVbuckets() {
-				log.Printf("Received a configuration with a different number of vbuckets %s-%s.  Ignoring.", oldConfig.name, newConfig.name)
+				cm.logger.Debug("vbucket count changes are not supported",
+					zap.String("oldBucketName", oldConfig.name),
+					zap.String("newBucketName", newConfig.name))
 				return
 			}
 		}
@@ -67,16 +83,16 @@ func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.T
 		// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
 		// than the old one then we ignore it, if it's newer then we apply the new config.
 		if newConfig.bktType != oldConfig.bktType {
-			log.Printf("Configuration data changed bucket type, switching.")
+			cm.logger.Debug("switching config due to changed bucket type")
 		} else if !oldConfig.IsVersioned() {
-			log.Printf("Old configuration was unversioned. Applying.")
+			cm.logger.Debug("switching config due to unversioned old config")
 		} else {
 			delta := oldConfig.Compare(newConfig)
 			if delta > 0 {
-				log.Printf("Old configuration is newer.  Skipping.")
+				cm.logger.Debug("skipping config due to new config being an older revision")
 				return
 			} else if delta == 0 {
-				log.Printf("Configurations have matching versions.  Skipping.")
+				cm.logger.Debug("skipping config due to matching revisions")
 				return
 			}
 		}

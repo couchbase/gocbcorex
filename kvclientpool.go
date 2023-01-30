@@ -3,10 +3,10 @@ package core
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"sync/atomic"
 
+	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
 
@@ -28,6 +28,7 @@ type KvClientPoolConfig struct {
 }
 
 type KvClientPoolOptions struct {
+	Logger      *zap.Logger
 	NewKvClient NewKvClientFunc
 }
 
@@ -45,6 +46,7 @@ type pendingConnectionState struct {
 }
 
 type kvClientPool struct {
+	logger      *zap.Logger
 	newKvClient NewKvClientFunc
 
 	clientIdx uint64
@@ -81,6 +83,7 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 	}
 
 	p := &kvClientPool{
+		logger:      loggerOrNop(opts.Logger),
 		newKvClient: newKvClient,
 		config:      *config,
 
@@ -182,7 +185,7 @@ func (p *kvClientPool) checkPendingConnectionLocked() {
 
 	newClient, err := pendingConn.Client, pendingConn.Err
 	if err != nil {
-		log.Printf("async connect failed: %s", err)
+		p.logger.Debug("failed to perform async client connect", zap.Error(err))
 
 		p.connectErr = err
 		p.notifyClientWaitersLocked()

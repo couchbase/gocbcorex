@@ -1,7 +1,5 @@
 package memdx
 
-import "log"
-
 type OpBootstrapEncoder interface {
 	Hello(Dispatcher, *HelloRequest, func(*HelloResponse, error)) (PendingOp, error)
 	GetErrorMap(Dispatcher, *GetErrorMapRequest, func([]byte, error)) (PendingOp, error)
@@ -87,7 +85,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			return
 		}
 
-		log.Printf("Hello sending...")
 		a.Encoder.Hello(d, opts.Hello, func(resp *HelloResponse, err error) {
 			if currentStage != stageHello {
 				return
@@ -112,7 +109,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			return
 		}
 
-		log.Printf("GetErrorMap sending...")
 		a.Encoder.GetErrorMap(d, opts.GetErrorMap, func(errorMap []byte, err error) {
 			if currentStage != stageErrorMap {
 				return
@@ -137,7 +133,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			return
 		}
 
-		log.Printf("Authenticate sending...")
 		OpSaslAuthAuto{
 			Encoder: a.Encoder,
 		}.SASLAuthAuto(d, opts.Auth, func() {
@@ -163,7 +158,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			return
 		}
 
-		log.Printf("SelectBucket sending...")
 		a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
 			if currentStage != stageSelectBucket {
 				return
@@ -186,7 +180,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			return
 		}
 
-		log.Printf("GetClusterConfig sending...")
 		a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, func(clusterConfig []byte, err error) {
 			if currentStage != stageClusterConfig {
 				return

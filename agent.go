@@ -5,10 +5,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type agentState struct {
@@ -23,8 +24,9 @@ type agentState struct {
 }
 
 type Agent struct {
-	lock  sync.Mutex
-	state agentState
+	logger *zap.Logger
+	lock   sync.Mutex
+	state  agentState
 
 	poller      ConfigPoller
 	configMgr   ConfigManager
@@ -49,6 +51,8 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	agent := &Agent{
+		logger: loggerOrNop(opts.Logger),
+
 		state: agentState{
 			bucket:             opts.BucketName,
 			tlsConfig:          opts.TLSConfig,
@@ -58,6 +62,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 
 		poller: newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
+			Logger:               opts.Logger,
 			ConfHTTPRetryDelay:   10 * time.Second,
 			ConfHTTPRedialPeriod: 10 * time.Second,
 			ConfHTTPMaxWait:      5 * time.Second,
@@ -66,14 +71,17 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			Username:             opts.Username,
 			Password:             opts.Password,
 		}),
-		configMgr: NewConfigManager(),
-		retries:   NewRetryManagerFastFail(),
+		configMgr: NewConfigManager(&RouteConfigManagerOptions{
+			Logger: opts.Logger,
+		}),
+		retries: NewRetryManagerFastFail(),
 	}
 
 	clients := make(map[string]*KvClientConfig)
 	for addrIdx, addr := range opts.MemdAddrs {
 		nodeId := fmt.Sprintf("bootstrap-%d", addrIdx)
 		clients[nodeId] = &KvClientConfig{
+			Logger:         agent.logger,
 			Address:        addr,
 			TlsConfig:      agent.state.tlsConfig,
 			SelectedBucket: agent.state.bucket,
@@ -84,16 +92,24 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            clients,
-	}, nil)
+	}, &KvClientManagerOptions{
+		Logger: agent.logger,
+	})
 	if err != nil {
 		return nil, err
 	}
 	agent.connMgr = connMgr
 
+	coreCollections, err := NewCollectionResolverMemd(&CollectionResolverMemdOptions{
+		Logger:  agent.logger,
+		ConnMgr: agent.connMgr,
+	})
+	if err != nil {
+		return nil, err
+	}
 	collections, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
-		Resolver: &CollectionResolverMemd{
-			connMgr: agent.connMgr,
-		},
+		Logger:         agent.logger,
+		Resolver:       coreCollections,
 		ResolveTimeout: 10 * time.Second,
 	})
 	if err != nil {
@@ -101,7 +117,9 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 	agent.collections = collections
 
-	agent.vbRouter = newVbucketRouter()
+	agent.vbRouter = NewVbucketRouter(&VbucketRouterOptions{
+		Logger: agent.logger,
+	})
 
 	agent.configMgr.RegisterCallback(func(rc *routeConfig) {
 		agent.lock.Lock()
@@ -116,6 +134,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	agent.crud = &CrudComponent{
+		logger:      agent.logger,
 		collections: agent.collections,
 		retries:     agent.retries,
 		// errorResolver: new,
@@ -146,7 +165,10 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 }
 
 func (agent *Agent) updateStateLocked() {
-	log.Printf("updating config: %+v %+v", agent.state, *agent.state.latestConfig)
+	agent.logger.Debug("updating components",
+		zap.Reflect("state", agent.state),
+		zap.Reflect("config", *agent.state.latestConfig))
+
 	routeCfg := agent.state.latestConfig
 
 	var memdTlsConfig *tls.Config

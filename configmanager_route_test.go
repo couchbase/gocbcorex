@@ -10,7 +10,7 @@ import (
 )
 
 func TestConfigManagerAppliesFirstConfig(t *testing.T) {
-	manager := NewConfigManager()
+	manager := NewConfigManager(nil)
 	var routeCfg *routeConfig
 	manager.RegisterCallback(func(rc *routeConfig) {
 		routeCfg = rc
@@ -23,7 +23,7 @@ func TestConfigManagerAppliesFirstConfig(t *testing.T) {
 }
 
 func TestConfigManagerAppliesNewerRevConfig(t *testing.T) {
-	manager := NewConfigManager()
+	manager := NewConfigManager(nil)
 	var routeCfg *routeConfig
 	manager.RegisterCallback(func(rc *routeConfig) {
 		routeCfg = rc
@@ -41,7 +41,7 @@ func TestConfigManagerAppliesNewerRevConfig(t *testing.T) {
 }
 
 func TestConfigManagerAppliesNewerRevEpochConfig(t *testing.T) {
-	manager := NewConfigManager()
+	manager := NewConfigManager(nil)
 	var routeCfg *routeConfig
 	manager.RegisterCallback(func(rc *routeConfig) {
 		routeCfg = rc
@@ -59,7 +59,7 @@ func TestConfigManagerAppliesNewerRevEpochConfig(t *testing.T) {
 }
 
 func TestConfigManagerIgnoresOlderConfig(t *testing.T) {
-	manager := NewConfigManager()
+	manager := NewConfigManager(nil)
 	var routeCfg *routeConfig
 	manager.RegisterCallback(func(rc *routeConfig) {
 		routeCfg = rc
@@ -78,7 +78,7 @@ func TestConfigManagerIgnoresOlderConfig(t *testing.T) {
 }
 
 func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
-	manager := NewConfigManager()
+	manager := NewConfigManager(nil)
 	var routeCfg *routeConfig
 	manager.RegisterCallback(func(rc *routeConfig) {
 		routeCfg = rc
@@ -94,7 +94,7 @@ func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
 }
 
 func TestConfigManagerAppliesBucketConfigOverCluster(t *testing.T) {
-	manager := NewConfigManager()
+	manager := NewConfigManager(nil)
 	var routeCfg *routeConfig
 	manager.RegisterCallback(func(rc *routeConfig) {
 		routeCfg = rc

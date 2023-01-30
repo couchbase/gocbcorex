@@ -8,7 +8,7 @@ import (
 )
 
 func TestVbucketRouterDispatchToKey(t *testing.T) {
-	dispatcher := newVbucketRouter()
+	dispatcher := NewVbucketRouter(nil)
 	routingInfo := &VbucketRoutingInfo{
 		VbMap: &VbucketMap{
 			entries: [][]int{

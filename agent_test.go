@@ -6,6 +6,7 @@ import (
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
 	"github.com/couchbase/stellar-nebula/core/testutils"
+	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,10 @@ func TestAgentBasic(t *testing.T) {
 		t.SkipNow()
 	}
 
+	logger, _ := zap.NewDevelopment()
+
 	opts := AgentOptions{
+		Logger:     logger,
 		TLSConfig:  nil,
 		BucketName: "default",
 		Username:   "Administrator",

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
 	"github.com/couchbase/stellar-nebula/utils/latestonlychannel"
+	"go.uber.org/zap"
 )
 
 type configStreamBlock struct {
@@ -43,6 +43,8 @@ func hostnameFromURI(uri string) string {
 }
 
 type httpConfigPoller struct {
+	logger *zap.Logger
+
 	confHTTPRetryDelay   time.Duration
 	confHTTPRedialPeriod time.Duration
 	confHTTPMaxWait      time.Duration
@@ -58,6 +60,7 @@ type httpConfigPoller struct {
 }
 
 type httpPollerProperties struct {
+	Logger               *zap.Logger
 	ConfHTTPRetryDelay   time.Duration
 	ConfHTTPRedialPeriod time.Duration
 	ConfHTTPMaxWait      time.Duration
@@ -69,6 +72,7 @@ type httpPollerProperties struct {
 
 func newhttpConfigPoller(endpoints []string, props httpPollerProperties) *httpConfigPoller {
 	return &httpConfigPoller{
+		logger:               loggerOrNop(props.Logger),
 		confHTTPRedialPeriod: props.ConfHTTPRedialPeriod,
 		confHTTPRetryDelay:   props.ConfHTTPRetryDelay,
 		confHTTPMaxWait:      props.ConfHTTPMaxWait,
@@ -95,9 +99,11 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 	iterSawConfig := false
 
 	outputCh := make(chan *TerseConfigJsonWithSource)
-	log.Printf("HTTP Looper starting.")
+	hcc.logger.Info("http config looper starting")
 	go func() {
 		for {
+			hcc.logger.Debug("starting config poll iteration")
+
 			var path string
 			if hcc.bucketName == "" {
 				path = "/pools/default/nodeServices"
@@ -114,11 +120,11 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 			pickedSrv := hcc.pickEndpoint(iterNum)
 
 			if pickedSrv == "" {
-				log.Printf("Pick Failed.")
+				hcc.logger.Warn("failed to pick a server")
 				// All servers have been visited during this iteration
 
 				if !iterSawConfig {
-					log.Printf("Looper waiting...")
+					hcc.logger.Debug("waiting for config")
 					// Wait for a period before trying again if there was a problem...
 					// We also watch for the client being shut down.
 					select {
@@ -127,17 +133,15 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					case <-time.After(waitPeriod):
 					}
 				}
-				log.Printf("Looping again.")
+
 				// Go to next iteration and try all servers again
 				iterNum++
 				iterSawConfig = false
 				continue
 			}
 
-			log.Printf("Http Picked: %s.", pickedSrv)
-
+			hcc.logger.Debug("selected server to poll", zap.String("server", pickedSrv))
 			hostname := hostnameFromURI(pickedSrv)
-			log.Printf("HTTP Hostname: %s.", hostname)
 
 			var resp *http.Response
 			// 1 on success, 0 on failure for node, -1 for generic failure
@@ -148,13 +152,15 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 				if is2x {
 					streamPath = "bucketsStreaming"
 				}
+
 				// HTTP request time!
 				uri := fmt.Sprintf("/pools/default/%s/%s", streamPath, url.PathEscape(hcc.bucketName))
-				log.Printf("Requesting config from: %s/%s.", pickedSrv, uri)
+				hcc.logger.Debug("requesting config",
+					zap.String("server", pickedSrv),
+					zap.String("uri", uri))
 
 				req, err := http.NewRequestWithContext(ctx, "GET", pickedSrv+path, nil)
 				if err != nil {
-					log.Printf("Failed to create request. %v", err)
 					return 0
 				}
 
@@ -162,27 +168,30 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 
 				resp, err = hcc.httpClient.Do(req)
 				if err != nil {
-					log.Printf("Failed to connect to host. %v", err)
+					hcc.logger.Warn("http request failed", zap.Error(err))
 					return 0
 				}
 
 				if resp.StatusCode != 200 {
 					err := resp.Body.Close()
 					if err != nil {
-						log.Printf("Socket close failed handling status code != 200 (%s)", err)
+						hcc.logger.Warn("failed to close failed response body", zap.Error(err))
 					}
+
 					if resp.StatusCode == 401 {
-						log.Printf("Failed to connect to host, bad auth.")
+						hcc.logger.Warn("failed to fetch config, bad auth")
 						return -1
 					} else if resp.StatusCode == 404 {
 						if is2x {
-							log.Printf("Failed to connect to host, bad bucket.")
+							hcc.logger.Warn("Failed to fetch config, bad bucket")
 							return -1
 						}
 
 						return doConfigRequest(true)
 					}
-					log.Printf("Failed to connect to host, unexpected status code: %v.", resp.StatusCode)
+
+					hcc.logger.Warn("failed to fetch config, unexpected status code",
+						zap.Int("statusCode", resp.StatusCode))
 					return 0
 				}
 				return 1
@@ -195,7 +204,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 				continue
 			}
 
-			log.Printf("Connected.")
+			hcc.logger.Debug("connected")
 
 			var autoDisconnected int32
 
@@ -206,13 +215,13 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 				case <-ctx.Done():
 				}
 
-				log.Printf("Automatically resetting our HTTP connection")
+				hcc.logger.Debug("automatically resetting http connection")
 
 				atomic.StoreInt32(&autoDisconnected, 1)
 
 				err := resp.Body.Close()
 				if err != nil {
-					log.Printf("Socket close failed during auto-dc (%s)", err)
+					hcc.logger.Debug("auto-dc failed to close response body", zap.Error(err))
 				}
 			}()
 
@@ -228,40 +237,37 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 						break
 					}
 
-					log.Printf("Config block decode failure (%s)", err)
+					hcc.logger.Warn("failed to decode config block", zap.Error(err))
 
 					if err != io.EOF {
 						err = resp.Body.Close()
 						if err != nil {
-							log.Printf("Socket close failed after decode fail (%s)", err)
+							hcc.logger.Warn("failed to close response body after decode error", zap.Error(err))
 						}
 					}
 
 					break
 				}
 
-				log.Printf("Got Block: %v", string(configBlock.Bytes))
+				hcc.logger.Warn("received config block", zap.ByteString("config", configBlock.Bytes))
 
 				bkCfg, err := parseConfig(configBlock.Bytes, hostname)
 				if err != nil {
-					log.Printf("Got error while parsing config: %v", err)
+					hcc.logger.Warn("failed to parse config", zap.Error(err))
 
 					err = resp.Body.Close()
 					if err != nil {
-						log.Printf("Socket close failed after parsing fail (%s)", err)
+						hcc.logger.Warn("failed to close response body after parse error", zap.Error(err))
 					}
 
 					break
 				}
 
-				log.Printf("Got Config.")
+				hcc.logger.Debug("new config received successfully")
 
 				iterSawConfig = true
-				log.Printf("HTTP Config Update")
 				outputCh <- bkCfg
 			}
-
-			log.Printf("HTTP, Setting %s to iter %d", pickedSrv, iterNum)
 		}
 	}()
 

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -28,6 +29,7 @@ type KvClientManagerConfig struct {
 }
 
 type KvClientManagerOptions struct {
+	Logger                *zap.Logger
 	NewKvClientProviderFn NewKvClientProviderFunc
 }
 
@@ -41,6 +43,7 @@ type kvClientManagerState struct {
 }
 
 type kvClientManager struct {
+	logger                *zap.Logger
 	newKvClientProviderFn NewKvClientProviderFunc
 
 	lock          sync.Mutex
@@ -62,6 +65,7 @@ func NewKvClientManager(
 	}
 
 	mgr := &kvClientManager{
+		logger:                loggerOrNop(opts.Logger),
 		newKvClientProviderFn: opts.NewKvClientProviderFn,
 	}
 
@@ -118,7 +122,7 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
 		if oldPool != nil {
 			err := oldPool.Pool.Reconfigure(poolConfig)
 			if err != nil {
-				log.Printf("failed to reconfigure pool: %s", err)
+				m.logger.Debug("failed to reconfigure pool", zap.Error(err))
 			} else {
 				pool = oldPool.Pool
 			}

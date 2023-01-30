@@ -3,7 +3,6 @@ package memdx
 import (
 	"crypto"
 	"errors"
-	"log"
 
 	"github.com/couchbase/stellar-nebula/core/scram"
 )
@@ -52,7 +51,7 @@ func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, 
 		}
 
 		if !resp.NeedsMoreSteps {
-			log.Printf("WARN: server accepted auth before client expected")
+			// log.Printf("WARN: server accepted auth before client expected")
 			cb(nil)
 			return
 		}

@@ -4,9 +4,11 @@ import (
 	"context"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
+	"go.uber.org/zap"
 )
 
 type CrudComponent struct {
+	logger      *zap.Logger
 	collections CollectionResolver
 	cfgmanager  ConfigManager
 	retries     RetryManager

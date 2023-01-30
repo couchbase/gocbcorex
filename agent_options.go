@@ -1,9 +1,15 @@
 package core
 
-import "crypto/tls"
+import (
+	"crypto/tls"
+
+	"go.uber.org/zap"
+)
 
 // Temporary options.
 type AgentOptions struct {
+	Logger *zap.Logger
+
 	TLSConfig  *tls.Config
 	BucketName string
 	Username   string

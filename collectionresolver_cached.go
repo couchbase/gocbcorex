@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -38,11 +40,13 @@ type collectionCacheEntry struct {
 }
 
 type CollectionResolverCachedOptions struct {
+	Logger         *zap.Logger
 	Resolver       CollectionResolver
 	ResolveTimeout time.Duration
 }
 
 type CollectionResolverCached struct {
+	logger         *zap.Logger
 	resolver       CollectionResolver
 	resolveTimeout time.Duration
 
@@ -68,6 +72,7 @@ func NewCollectionResolverCached(opts *CollectionResolverCachedOptions) (*Collec
 	}
 
 	return &CollectionResolverCached{
+		logger:         loggerOrNop(opts.Logger),
 		resolver:       opts.Resolver,
 		resolveTimeout: opts.ResolveTimeout,
 		slowMap:        make(map[string]*collectionCacheEntry),

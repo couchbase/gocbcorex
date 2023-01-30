@@ -4,13 +4,31 @@ import (
 	"context"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
+	"go.uber.org/zap"
 )
 
+type CollectionResolverMemdOptions struct {
+	Logger  *zap.Logger
+	ConnMgr KvClientManager
+}
+
 type CollectionResolverMemd struct {
+	logger  *zap.Logger
 	connMgr KvClientManager
 }
 
 var _ CollectionResolver = (*CollectionResolverMemd)(nil)
+
+func NewCollectionResolverMemd(opts *CollectionResolverMemdOptions) (*CollectionResolverMemd, error) {
+	if opts == nil {
+		opts = &CollectionResolverMemdOptions{}
+	}
+
+	return &CollectionResolverMemd{
+		logger:  loggerOrNop(opts.Logger),
+		connMgr: opts.ConnMgr,
+	}, nil
+}
 
 func (cr *CollectionResolverMemd) ResolveCollectionID(
 	ctx context.Context, scopeName, collectionName string,

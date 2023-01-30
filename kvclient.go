@@ -4,15 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"log"
 	"sync/atomic"
 
+	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
 )
 
 type KvClientConfig struct {
+	Logger         *zap.Logger
 	Address        string
 	TlsConfig      *tls.Config
 	SelectedBucket string
@@ -42,6 +43,8 @@ type KvClient interface {
 }
 
 type kvClient struct {
+	logger *zap.Logger
+
 	pendingOperations uint64
 	cli               *memdx.Client
 
@@ -69,6 +72,7 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	})
 
 	kvCli := &kvClient{
+		logger:    loggerOrNop(opts.Logger),
 		cli:       cli,
 		hostname:  opts.Address,
 		tlsConfig: opts.TlsConfig,
@@ -116,7 +120,8 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		return nil, err
 	}
 
-	log.Printf("bootstrapped: %+v", res.Hello)
+	kvCli.logger.Debug("successfully bootstrapped new KvClient",
+		zap.Any("features", res.Hello.EnabledFeatures))
 
 	kvCli.supportedFeatures = res.Hello.EnabledFeatures
 

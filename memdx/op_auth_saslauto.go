@@ -2,7 +2,6 @@ package memdx
 
 import (
 	"errors"
-	"log"
 
 	"golang.org/x/exp/slices"
 )
@@ -41,7 +40,7 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 
 	a.Encoder.SASLListMechs(d, func(resp *SASLListMechsResponse, err error) {
 		if err != nil {
-			log.Printf("failed to list available authentication mechanisms: %s", err)
+			// log.Printf("failed to list available authentication mechanisms: %s", err)
 			return
 		}
 

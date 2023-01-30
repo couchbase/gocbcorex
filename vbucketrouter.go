@@ -3,9 +3,9 @@ package core
 import (
 	"context"
 	"errors"
-	"log"
 
 	"github.com/couchbase/stellar-nebula/core/memdx"
+	"go.uber.org/zap"
 )
 
 var (
@@ -23,14 +23,25 @@ type VbucketRoutingInfo struct {
 	ServerList []string
 }
 
+type VbucketRouterOptions struct {
+	Logger *zap.Logger
+}
+
 type vbucketRouter struct {
+	logger      *zap.Logger
 	routingInfo AtomicPointer[VbucketRoutingInfo]
 }
 
 var _ VbucketRouter = (*vbucketRouter)(nil)
 
-func newVbucketRouter() *vbucketRouter {
-	vbd := &vbucketRouter{}
+func NewVbucketRouter(opts *VbucketRouterOptions) *vbucketRouter {
+	if opts == nil {
+		opts = &VbucketRouterOptions{}
+	}
+
+	vbd := &vbucketRouter{
+		logger: loggerOrNop(opts.Logger),
+	}
 
 	return vbd
 }
@@ -111,7 +122,7 @@ func OrchestrateMemdRouting[RespT any](
 				if !errors.As(err, &nmvErr) {
 					// if there is no new config available, we cant make any assumptions
 					// about the meaning of this error and propagate it upwards.
-					log.Printf("received a not-my-vbucket without config information")
+					// log.Printf("received a not-my-vbucket without config information")
 					return res, err
 				}
 
@@ -119,7 +130,7 @@ func OrchestrateMemdRouting[RespT any](
 				if parseErr != nil {
 					// similar to above, if we can't parse the config, we cant make any
 					// assumptions and need to propagate it.
-					log.Printf("failed to parse not my vbucket response: %s", parseErr)
+					// log.Printf("failed to parse not my vbucket response: %s", parseErr)
 					return res, err
 				}
 
