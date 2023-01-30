@@ -67,9 +67,18 @@ func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.T
 		// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
 		// than the old one then we ignore it, if it's newer then we apply the new config.
 		if newConfig.bktType != oldConfig.bktType {
-			fmt.Printf("Configuration data changed bucket type, switching.")
-		} else if !newConfig.IsNewerThan(oldConfig) {
-			return
+			log.Printf("Configuration data changed bucket type, switching.")
+		} else if !oldConfig.IsVersioned() {
+			log.Printf("Old configuration was unversioned. Applying.")
+		} else {
+			delta := oldConfig.Compare(newConfig)
+			if delta > 0 {
+				log.Printf("Old configuration is newer.  Skipping.")
+				return
+			} else if delta == 0 {
+				log.Printf("Configurations have matching versions.  Skipping.")
+				return
+			}
 		}
 	}
 

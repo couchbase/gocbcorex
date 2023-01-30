@@ -1,7 +1,5 @@
 package core
 
-import "log"
-
 type bucketType int
 
 const (
@@ -56,21 +54,26 @@ func (config *routeConfig) IsValid() bool {
 	}
 }
 
-func (config *routeConfig) IsNewerThan(oldCfg *routeConfig) bool {
-	if config.revEpoch < oldCfg.revEpoch {
-		log.Printf("Ignoring new configuration as it has an older revision epoch")
-		return false
-	} else if config.revEpoch == oldCfg.revEpoch {
-		if config.revID == 0 {
-			log.Printf("Unversioned configuration data, switching.")
-		} else if config.revID == oldCfg.revID {
-			log.Printf("Ignoring configuration with identical revision number")
-			return false
-		} else if config.revID < oldCfg.revID {
-			log.Printf("Ignoring new configuration as it has an older revision id")
-			return false
-		}
+func (config *routeConfig) IsVersioned() bool {
+	return config.revEpoch > 0 || config.revID > 0
+}
+
+func (config *routeConfig) Compare(oconfig *routeConfig) int {
+	if config.revEpoch < oconfig.revEpoch {
+		// this config is an older epoch
+		return -2
+	} else if config.revEpoch > oconfig.revEpoch {
+		// this config is a newer epoch
+		return +2
 	}
 
-	return true
+	if config.revID < oconfig.revID {
+		// this config is an older config
+		return -1
+	} else if config.revID > oconfig.revID {
+		// this config is a newer config
+		return +1
+	}
+
+	return 0
 }
