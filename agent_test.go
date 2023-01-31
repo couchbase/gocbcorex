@@ -2,11 +2,10 @@ package core
 
 import (
 	"context"
-	"testing"
-
 	"github.com/couchbase/stellar-nebula/core/memdx"
 	"github.com/couchbase/stellar-nebula/core/testutils"
 	"go.uber.org/zap"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

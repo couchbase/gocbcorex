@@ -135,7 +135,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		agent.lock.Unlock()
 	})
 
-	agent.poller = newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
+	agent.poller = newhttpConfigPoller(httpPollerProperties{
 		Logger:               opts.Logger,
 		ConfHTTPRetryDelay:   10 * time.Second,
 		ConfHTTPRedialPeriod: 10 * time.Second,
@@ -276,8 +276,6 @@ func (agent *Agent) updateStateLocked() {
 		},
 		TLSConfig: nil,
 	})
-
-	agent.poller.UpdateEndpoints(mgmtList)
 }
 
 func (agent *Agent) startConfigWatcher(ctx context.Context) error {

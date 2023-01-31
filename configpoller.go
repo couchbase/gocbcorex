@@ -13,5 +13,4 @@ type TerseConfigJsonWithSource struct {
 
 type ConfigPoller interface {
 	Watch(ctx context.Context) (<-chan *TerseConfigJsonWithSource, error)
-	UpdateEndpoints(endpoints []string)
 }

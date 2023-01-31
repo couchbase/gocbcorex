@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/url"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -50,9 +49,6 @@ type httpConfigPoller struct {
 	httpClient           HTTPClientManager
 	bucketName           string
 	seenNodes            map[string]uint64
-
-	lock      sync.Mutex
-	endpoints []string
 }
 
 type httpPollerProperties struct {
@@ -64,23 +60,16 @@ type httpPollerProperties struct {
 	BucketName           string
 }
 
-func newhttpConfigPoller(endpoints []string, props httpPollerProperties) *httpConfigPoller {
+func newhttpConfigPoller(props httpPollerProperties) *httpConfigPoller {
 	return &httpConfigPoller{
 		logger:               loggerOrNop(props.Logger),
 		confHTTPRedialPeriod: props.ConfHTTPRedialPeriod,
 		confHTTPRetryDelay:   props.ConfHTTPRetryDelay,
 		confHTTPMaxWait:      props.ConfHTTPMaxWait,
 		httpClient:           props.HTTPClient,
-		endpoints:            endpoints,
 		bucketName:           props.BucketName,
 		seenNodes:            make(map[string]uint64),
 	}
-}
-
-func (hcc *httpConfigPoller) UpdateEndpoints(endpoints []string) {
-	hcc.lock.Lock()
-	hcc.endpoints = endpoints
-	hcc.lock.Unlock()
 }
 
 func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJsonWithSource, error) {
@@ -109,7 +98,14 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 			default:
 			}
 
-			pickedSrv := hcc.pickEndpoint(iterNum)
+			client, err := hcc.httpClient.GetClient()
+			if err != nil {
+				hcc.logger.Warn("failed to get http client", zap.Error(err))
+				continue
+			}
+
+			endpoints := client.ManagementEndpoints()
+			pickedSrv := hcc.pickEndpoint(iterNum, endpoints)
 
 			if pickedSrv == "" {
 				hcc.logger.Warn("failed to pick a server")
@@ -149,12 +145,6 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					Endpoint: pickedSrv,
 					Path:     path,
 					Method:   "GET",
-				}
-
-				client, err := hcc.httpClient.GetClient()
-				if err != nil {
-					hcc.logger.Warn("failed to get http client", zap.Error(err))
-					return 0
 				}
 
 				resp, err = client.Do(ctx, req)
@@ -265,12 +255,8 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 	return latestonlychannel.Wrap(outputCh), nil
 }
 
-func (hcc *httpConfigPoller) pickEndpoint(iterNum uint64) string {
+func (hcc *httpConfigPoller) pickEndpoint(iterNum uint64, endpoints []string) string {
 	var pickedSrv string
-	hcc.lock.Lock()
-	endpoints := make([]string, len(hcc.endpoints))
-	copy(endpoints, hcc.endpoints)
-	hcc.lock.Unlock()
 
 	for _, srv := range endpoints {
 		if hcc.seenNodes[srv] >= iterNum {

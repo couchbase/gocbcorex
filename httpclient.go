@@ -18,6 +18,7 @@ import (
 type HTTPClient interface {
 	Do(ctx context.Context, request *HTTPRequest) (*HTTPResponse, error)
 	Reconfigure(config *HTTPClientConfig) error
+	ManagementEndpoints() []string
 }
 
 // HTTPRequest contains the description of an HTTP request to perform.
@@ -202,6 +203,15 @@ func (c *httpClient) Reconfigure(config *HTTPClientConfig) error {
 	c.state.Store(newState)
 
 	return nil
+}
+
+func (c *httpClient) ManagementEndpoints() []string {
+	state := c.state.Load()
+
+	eps := make([]string, len(state.mgmtEndpoints))
+	copy(eps, state.mgmtEndpoints)
+
+	return eps
 }
 
 func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) {

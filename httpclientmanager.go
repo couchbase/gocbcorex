@@ -117,8 +117,11 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 	}
 
 	cli, err := mgr.newHTTPClient(&HTTPClientConfig{
-		Username: config.Username,
-		Password: config.Password,
+		Username:        config.Username,
+		Password:        config.Password,
+		MgmtEndpoints:   config.MgmtEndpoints,
+		QueryEndpoints:  config.QueryEndpoints,
+		SearchEndpoints: config.SearchEndpoints,
 	}, &HTTPClientOptions{
 		Logger:              mgr.logger,
 		TLSConfig:           config.TLSConfig,
