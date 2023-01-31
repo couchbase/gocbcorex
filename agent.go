@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -63,16 +62,6 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			numPoolConnections: 1,
 		},
 
-		poller: newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
-			Logger:               opts.Logger,
-			ConfHTTPRetryDelay:   10 * time.Second,
-			ConfHTTPRedialPeriod: 10 * time.Second,
-			ConfHTTPMaxWait:      5 * time.Second,
-			HttpClient:           http.DefaultClient,
-			BucketName:           opts.BucketName,
-			Username:             opts.Username,
-			Password:             opts.Password,
-		}),
 		configMgr: NewConfigManager(&RouteConfigManagerOptions{
 			Logger: opts.Logger,
 		}),
@@ -144,6 +133,15 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		agent.state.latestConfig = rc
 		agent.updateStateLocked()
 		agent.lock.Unlock()
+	})
+
+	agent.poller = newhttpConfigPoller(srcHTTPAddrs, httpPollerProperties{
+		Logger:               opts.Logger,
+		ConfHTTPRetryDelay:   10 * time.Second,
+		ConfHTTPRedialPeriod: 10 * time.Second,
+		ConfHTTPMaxWait:      5 * time.Second,
+		BucketName:           opts.BucketName,
+		HTTPClient:           agent.httpMgr,
 	})
 
 	err = agent.startConfigWatcher(ctx)

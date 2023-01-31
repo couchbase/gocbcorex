@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -48,12 +47,9 @@ type httpConfigPoller struct {
 	confHTTPRetryDelay   time.Duration
 	confHTTPRedialPeriod time.Duration
 	confHTTPMaxWait      time.Duration
-	httpClient           *http.Client
+	httpClient           HTTPClientManager
 	bucketName           string
 	seenNodes            map[string]uint64
-
-	username string
-	password string
 
 	lock      sync.Mutex
 	endpoints []string
@@ -64,10 +60,8 @@ type httpPollerProperties struct {
 	ConfHTTPRetryDelay   time.Duration
 	ConfHTTPRedialPeriod time.Duration
 	ConfHTTPMaxWait      time.Duration
-	HttpClient           *http.Client // TODO: when a http component exists, use it.
+	HTTPClient           HTTPClientManager
 	BucketName           string
-	Username             string // TODO: when a http component exists, use it instead of passing auth in here.
-	Password             string // TODO: when a http component exists, use it instead of passing auth in here.
 }
 
 func newhttpConfigPoller(endpoints []string, props httpPollerProperties) *httpConfigPoller {
@@ -76,12 +70,10 @@ func newhttpConfigPoller(endpoints []string, props httpPollerProperties) *httpCo
 		confHTTPRedialPeriod: props.ConfHTTPRedialPeriod,
 		confHTTPRetryDelay:   props.ConfHTTPRetryDelay,
 		confHTTPMaxWait:      props.ConfHTTPMaxWait,
-		httpClient:           props.HttpClient,
+		httpClient:           props.HTTPClient,
 		endpoints:            endpoints,
 		bucketName:           props.BucketName,
 		seenNodes:            make(map[string]uint64),
-		username:             props.Username,
-		password:             props.Password,
 	}
 }
 
@@ -143,45 +135,44 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 			hcc.logger.Debug("selected server to poll", zap.String("server", pickedSrv))
 			hostname := hostnameFromURI(pickedSrv)
 
-			var resp *http.Response
+			var resp *HTTPResponse
 			// 1 on success, 0 on failure for node, -1 for generic failure
 			var doConfigRequest func(bool) int
 
 			doConfigRequest = func(is2x bool) int {
-				streamPath := "bs"
-				if is2x {
-					streamPath = "bucketsStreaming"
-				}
-
 				// HTTP request time!
-				uri := fmt.Sprintf("/pools/default/%s/%s", streamPath, url.PathEscape(hcc.bucketName))
 				hcc.logger.Debug("requesting config",
 					zap.String("server", pickedSrv),
-					zap.String("uri", uri))
+					zap.String("uri", path))
 
-				req, err := http.NewRequestWithContext(ctx, "GET", pickedSrv+path, nil)
+				req := &HTTPRequest{
+					Endpoint: pickedSrv,
+					Path:     path,
+					Method:   "GET",
+				}
+
+				client, err := hcc.httpClient.GetClient()
 				if err != nil {
+					hcc.logger.Warn("failed to get http client", zap.Error(err))
 					return 0
 				}
 
-				req.SetBasicAuth(hcc.username, hcc.password)
-
-				resp, err = hcc.httpClient.Do(req)
+				resp, err = client.Do(ctx, req)
 				if err != nil {
 					hcc.logger.Warn("http request failed", zap.Error(err))
 					return 0
 				}
 
-				if resp.StatusCode != 200 {
-					err := resp.Body.Close()
+				if resp.Raw.StatusCode != 200 {
+					err := resp.Raw.Body.Close()
 					if err != nil {
 						hcc.logger.Warn("failed to close failed response body", zap.Error(err))
 					}
 
-					if resp.StatusCode == 401 {
+					if resp.Raw.StatusCode == 401 {
 						hcc.logger.Warn("failed to fetch config, bad auth")
 						return -1
-					} else if resp.StatusCode == 404 {
+					} else if resp.Raw.StatusCode == 404 {
 						if is2x {
 							hcc.logger.Warn("Failed to fetch config, bad bucket")
 							return -1
@@ -191,7 +182,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					}
 
 					hcc.logger.Warn("failed to fetch config, unexpected status code",
-						zap.Int("statusCode", resp.StatusCode))
+						zap.Int("statusCode", resp.Raw.StatusCode))
 					return 0
 				}
 				return 1
@@ -219,13 +210,13 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 
 				atomic.StoreInt32(&autoDisconnected, 1)
 
-				err := resp.Body.Close()
+				err := resp.Raw.Body.Close()
 				if err != nil {
 					hcc.logger.Debug("auto-dc failed to close response body", zap.Error(err))
 				}
 			}()
 
-			dec := json.NewDecoder(resp.Body)
+			dec := json.NewDecoder(resp.Raw.Body)
 			configBlock := new(configStreamBlock)
 			for {
 				err := dec.Decode(configBlock)
@@ -240,7 +231,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					hcc.logger.Warn("failed to decode config block", zap.Error(err))
 
 					if err != io.EOF {
-						err = resp.Body.Close()
+						err = resp.Raw.Body.Close()
 						if err != nil {
 							hcc.logger.Warn("failed to close response body after decode error", zap.Error(err))
 						}
@@ -255,7 +246,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 				if err != nil {
 					hcc.logger.Warn("failed to parse config", zap.Error(err))
 
-					err = resp.Body.Close()
+					err = resp.Raw.Body.Close()
 					if err != nil {
 						hcc.logger.Warn("failed to close response body after parse error", zap.Error(err))
 					}
