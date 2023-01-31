@@ -34,8 +34,10 @@ type Agent struct {
 	collections CollectionResolver
 	retries     RetryManager
 	vbRouter    VbucketRouter
+	httpMgr     HTTPClientManager
 
 	crud *CrudComponent
+	http *HTTPComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -117,6 +119,22 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 	agent.collections = collections
 
+	httpMgr, err := NewHTTPClientManager(&HTTPClientManagerConfig{
+		HTTPClientConfig: HTTPClientConfig{
+			Username:      opts.Username,
+			Password:      opts.Password,
+			MgmtEndpoints: srcHTTPAddrs,
+		},
+		TLSConfig: opts.TLSConfig,
+	}, &HTTPClientManagerOptions{
+		Logger:              agent.logger,
+		ConnectTimeout:      0,
+		MaxIdleConns:        0,
+		MaxIdleConnsPerHost: 0,
+		IdleTimeout:         0,
+	})
+	agent.httpMgr = httpMgr
+
 	agent.vbRouter = NewVbucketRouter(&VbucketRouterOptions{
 		Logger: agent.logger,
 	})
@@ -140,6 +158,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		// errorResolver: new,
 		connManager: agent.connMgr,
 		vbs:         agent.vbRouter,
+	}
+	agent.http = &HTTPComponent{
+		logger:  agent.logger,
+		httpMgr: agent.httpMgr,
+		retries: agent.retries,
 	}
 
 	return agent, nil
@@ -245,6 +268,15 @@ func (agent *Agent) updateStateLocked() {
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            clients,
+	})
+
+	agent.httpMgr.Reconfigure(&HTTPClientManagerConfig{
+		HTTPClientConfig: HTTPClientConfig{
+			Username:      agent.state.username,
+			Password:      agent.state.password,
+			MgmtEndpoints: mgmtList,
+		},
+		TLSConfig: nil,
 	})
 
 	agent.poller.UpdateEndpoints(mgmtList)

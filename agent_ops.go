@@ -9,3 +9,7 @@ func (agent *Agent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertRes
 func (agent *Agent) Get(ctx context.Context, opts *GetOptions) (*GetResult, error) {
 	return agent.crud.Get(ctx, opts)
 }
+
+func (agent *Agent) SendHTTPRequest(ctx context.Context, req *HTTPRequest) (*HTTPResponse, error) {
+	return agent.http.SendHTTPRequest(ctx, req)
+}
