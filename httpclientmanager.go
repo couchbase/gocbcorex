@@ -14,13 +14,16 @@ type HTTPClientManager interface {
 	Reconfigure(*HTTPClientManagerConfig) error
 }
 
+type NewHTTPClientFunc func(clientConfig *HTTPClientConfig, clientOpts *HTTPClientOptions) (HTTPClient, error)
+
 type httpClientManagerState struct {
 	tlsConfig *tls.Config
 	client    HTTPClient
 }
 
 type HTTPClientManagerOptions struct {
-	Logger *zap.Logger
+	Logger          *zap.Logger
+	NewHTTPClientFn NewHTTPClientFunc
 
 	ConnectTimeout      time.Duration
 	MaxIdleConns        int
@@ -38,8 +41,9 @@ type httpClientManager struct {
 	lock  sync.Mutex
 	state AtomicPointer[httpClientManagerState]
 
-	logger        *zap.Logger
-	clientOptions *HTTPClientOptions
+	newHTTPClientFn NewHTTPClientFunc
+	logger          *zap.Logger
+	clientOptions   *HTTPClientOptions
 
 	defunctClients []HTTPClient
 }
@@ -53,7 +57,8 @@ func NewHTTPClientManager(config *HTTPClientManagerConfig, opts *HTTPClientManag
 	}
 
 	mgr := &httpClientManager{
-		logger: opts.Logger,
+		logger:          opts.Logger,
+		newHTTPClientFn: opts.NewHTTPClientFn,
 		clientOptions: &HTTPClientOptions{
 			Logger:              opts.Logger, // TODO(chvck): This isn't right
 			ConnectTimeout:      opts.ConnectTimeout,
@@ -111,7 +116,7 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 		return nil
 	}
 
-	cli, err := NewHTTPClient(&HTTPClientConfig{
+	cli, err := mgr.newHTTPClient(&HTTPClientConfig{
 		Username: config.Username,
 		Password: config.Password,
 	}, &HTTPClientOptions{
@@ -133,4 +138,11 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 	// TODO(chvck): handle storing/closing the old client
 
 	return nil
+}
+
+func (mgr *httpClientManager) newHTTPClient(clientConfig *HTTPClientConfig, clientOpts *HTTPClientOptions) (HTTPClient, error) {
+	if mgr.newHTTPClientFn != nil {
+		return mgr.newHTTPClientFn(clientConfig, clientOpts)
+	}
+	return NewHTTPClient(clientConfig, clientOpts)
 }
