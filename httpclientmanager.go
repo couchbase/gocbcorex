@@ -60,7 +60,7 @@ func NewHTTPClientManager(config *HTTPClientManagerConfig, opts *HTTPClientManag
 		logger:          opts.Logger,
 		newHTTPClientFn: opts.NewHTTPClientFn,
 		clientOptions: &HTTPClientOptions{
-			Logger:              opts.Logger, // TODO(chvck): This isn't right
+			Logger:              loggerOrNop(opts.Logger), // TODO(chvck): This isn't right
 			ConnectTimeout:      opts.ConnectTimeout,
 			MaxIdleConns:        opts.MaxIdleConns,
 			MaxIdleConnsPerHost: opts.MaxIdleConnsPerHost,

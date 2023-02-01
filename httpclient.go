@@ -96,7 +96,7 @@ func NewHTTPClient(config *HTTPClientConfig, opts *HTTPClientOptions) (*httpClie
 	}
 
 	cli := &httpClient{
-		logger:        opts.Logger,
+		logger:        loggerOrNop(opts.Logger),
 		newClientFunc: opts.NewClientFunc,
 	}
 
