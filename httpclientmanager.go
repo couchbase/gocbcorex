@@ -138,7 +138,9 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 
 	mgr.state.Store(newState)
 
-	// TODO(chvck): handle storing/closing the old client
+	if oldState.client != nil {
+		oldState.client.Close()
+	}
 
 	return nil
 }

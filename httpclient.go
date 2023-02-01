@@ -19,6 +19,7 @@ type HTTPClient interface {
 	Do(ctx context.Context, request *HTTPRequest) (*HTTPResponse, error)
 	Reconfigure(config *HTTPClientConfig) error
 	ManagementEndpoints() []string
+	Close() error
 }
 
 // HTTPRequest contains the description of an HTTP request to perform.
@@ -70,6 +71,7 @@ type httpClientState struct {
 
 type baseHTTPClient interface {
 	Do(r *http.Request) (*http.Response, error)
+	CloseIdleConnections()
 }
 
 type httpClient struct {
@@ -214,6 +216,12 @@ func (c *httpClient) ManagementEndpoints() []string {
 	return eps
 }
 
+func (c *httpClient) Close() error {
+	c.cli.CloseIdleConnections()
+
+	return nil
+}
+
 func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) {
 	httpDialer := &net.Dialer{
 		Timeout:   opts.ConnectTimeout,
@@ -243,6 +251,7 @@ func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) {
 		MaxIdleConnsPerHost: opts.MaxIdleConnsPerHost,
 		IdleConnTimeout:     opts.IdleTimeout,
 	}
+	httpTransport.CloseIdleConnections()
 
 	c.cli = &http.Client{
 		Transport: httpTransport,
