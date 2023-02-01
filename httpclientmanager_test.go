@@ -220,6 +220,10 @@ func TestHTTPClientManagerReconfigureDifferentTLSConfig(t *testing.T) {
 // TODO(chvck): I'm not actually sure what this is testing, really we need a way to test that the client transport
 //  is closed after we close the body.
 func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
 	logger, _ := zap.NewDevelopment()
 
 	mgmtEndpoints := make([]string, len(testutils.TestOpts.HTTPAddrs))
