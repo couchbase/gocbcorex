@@ -22,6 +22,8 @@ type HTTPClient interface {
 	Close() error
 }
 
+type NewBaseHTTPClientFunc func(clientOpts *HTTPClientOptions) (BaseHTTPClient, error)
+
 // HTTPRequest contains the description of an HTTP request to perform.
 type HTTPRequest struct {
 	Service      ServiceType
@@ -59,6 +61,8 @@ type HTTPClientOptions struct {
 	MaxIdleConns        int
 	MaxIdleConnsPerHost int
 	IdleTimeout         time.Duration
+
+	NewClientFunc NewBaseHTTPClientFunc
 }
 
 type httpClientState struct {
@@ -69,16 +73,17 @@ type httpClientState struct {
 	searchEndpoints []string
 }
 
-type baseHTTPClient interface {
+type BaseHTTPClient interface {
 	Do(r *http.Request) (*http.Response, error)
 	CloseIdleConnections()
 }
 
 type httpClient struct {
-	cli    baseHTTPClient
+	cli    BaseHTTPClient
 	logger *zap.Logger
 
-	state AtomicPointer[httpClientState]
+	state         AtomicPointer[httpClientState]
+	newClientFunc NewBaseHTTPClientFunc
 }
 
 func NewHTTPClient(config *HTTPClientConfig, opts *HTTPClientOptions) (*httpClient, error) {
@@ -91,7 +96,8 @@ func NewHTTPClient(config *HTTPClientConfig, opts *HTTPClientOptions) (*httpClie
 	}
 
 	cli := &httpClient{
-		logger: opts.Logger,
+		logger:        opts.Logger,
+		newClientFunc: opts.NewClientFunc,
 	}
 
 	cli.state.Store(&httpClientState{})
@@ -101,7 +107,10 @@ func NewHTTPClient(config *HTTPClientConfig, opts *HTTPClientOptions) (*httpClie
 		return nil, err
 	}
 
-	cli.setupBaseHTTPClient(opts)
+	cli.cli, err = cli.newBaseHTTPClient(opts)
+	if err != nil {
+		return nil, err
+	}
 
 	return cli, nil
 }
@@ -162,6 +171,8 @@ func (c *httpClient) Do(ctx context.Context, req *HTTPRequest) (*HTTPResponse, e
 		return nil, err
 	}
 
+	hreq.Header = header
+
 	if req.Username == "" && req.Password == "" {
 		hreq.SetBasicAuth(state.username, state.password)
 	} else {
@@ -195,12 +206,18 @@ func (c *httpClient) Reconfigure(config *HTTPClientConfig) error {
 		newState.password = config.Password
 	}
 
-	newState.mgmtEndpoints = make([]string, len(config.MgmtEndpoints))
-	copy(newState.mgmtEndpoints, config.MgmtEndpoints)
-	newState.queryEndpoints = make([]string, len(config.QueryEndpoints))
-	copy(newState.queryEndpoints, config.QueryEndpoints)
-	newState.searchEndpoints = make([]string, len(config.SearchEndpoints))
-	copy(newState.searchEndpoints, config.SearchEndpoints)
+	if len(config.MgmtEndpoints) > 0 {
+		newState.mgmtEndpoints = make([]string, len(config.MgmtEndpoints))
+		copy(newState.mgmtEndpoints, config.MgmtEndpoints)
+	}
+	if len(config.QueryEndpoints) > 0 {
+		newState.queryEndpoints = make([]string, len(config.QueryEndpoints))
+		copy(newState.queryEndpoints, config.QueryEndpoints)
+	}
+	if len(config.SearchEndpoints) > 0 {
+		newState.searchEndpoints = make([]string, len(config.SearchEndpoints))
+		copy(newState.searchEndpoints, config.SearchEndpoints)
+	}
 
 	c.state.Store(newState)
 
@@ -216,13 +233,31 @@ func (c *httpClient) ManagementEndpoints() []string {
 	return eps
 }
 
+func (c *httpClient) QueryEndpoints() []string {
+	state := c.state.Load()
+
+	eps := make([]string, len(state.queryEndpoints))
+	copy(eps, state.queryEndpoints)
+
+	return eps
+}
+
+func (c *httpClient) SearchEndpoints() []string {
+	state := c.state.Load()
+
+	eps := make([]string, len(state.searchEndpoints))
+	copy(eps, state.searchEndpoints)
+
+	return eps
+}
+
 func (c *httpClient) Close() error {
 	c.cli.CloseIdleConnections()
 
 	return nil
 }
 
-func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) {
+func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) (BaseHTTPClient, error) {
 	httpDialer := &net.Dialer{
 		Timeout:   opts.ConnectTimeout,
 		KeepAlive: 30 * time.Second,
@@ -251,9 +286,8 @@ func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) {
 		MaxIdleConnsPerHost: opts.MaxIdleConnsPerHost,
 		IdleConnTimeout:     opts.IdleTimeout,
 	}
-	httpTransport.CloseIdleConnections()
 
-	c.cli = &http.Client{
+	return &http.Client{
 		Transport: httpTransport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// All that we're doing here is setting auth on any redirects.
@@ -271,7 +305,14 @@ func (c *httpClient) setupBaseHTTPClient(opts *HTTPClientOptions) {
 
 			return nil
 		},
+	}, nil
+}
+
+func (c *httpClient) newBaseHTTPClient(clientOpts *HTTPClientOptions) (BaseHTTPClient, error) {
+	if c.newClientFunc != nil {
+		return c.newClientFunc(clientOpts)
 	}
+	return c.setupBaseHTTPClient(clientOpts)
 }
 
 /* #nosec G404 */
