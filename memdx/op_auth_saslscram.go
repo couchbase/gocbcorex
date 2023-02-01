@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"errors"
 
-	"github.com/couchbase/stellar-nebula/core/scram"
+	"github.com/couchbase/gocbcorex/scram"
 )
 
 type OpSaslAuthScramEncoder interface {

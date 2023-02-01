@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
-	"github.com/couchbase/stellar-nebula/utils/latestonlychannel"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
+	"github.com/couchbase/gocbcorex/contrib/latestonlychannel"
 	"go.uber.org/zap"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/couchbase/stellar-nebula/core/memdx"
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 type CollectionResolver interface {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/couchbase/stellar-nebula/core/memdx"
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 type KvClientDispatchError struct {

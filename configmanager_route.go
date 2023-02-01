@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"go.uber.org/zap"
 )
 

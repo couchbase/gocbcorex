@@ -3,7 +3,7 @@ package memdx
 import (
 	"testing"
 
-	"github.com/couchbase/stellar-nebula/core/testutils"
+	"github.com/couchbase/gocbcorex/testutils"
 )
 
 func TestMain(m *testing.M) {

@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 	"errors"
-	"github.com/couchbase/stellar-nebula/core/memdx"
+	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"

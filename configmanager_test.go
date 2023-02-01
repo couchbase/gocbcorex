@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
-	"github.com/couchbase/stellar-nebula/core/memdx"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
+	"github.com/couchbase/gocbcorex/memdx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

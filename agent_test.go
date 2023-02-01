@@ -2,8 +2,8 @@ package core
 
 import (
 	"context"
-	"github.com/couchbase/stellar-nebula/core/memdx"
-	"github.com/couchbase/stellar-nebula/core/testutils"
+	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/couchbase/gocbcorex/testutils"
 	"go.uber.org/zap"
 	"testing"
 

@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
 
 type TerseConfigJsonWithSource struct {

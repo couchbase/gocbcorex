@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 
-	"github.com/couchbase/stellar-nebula/core/memdx"
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 type KvClientConfig struct {

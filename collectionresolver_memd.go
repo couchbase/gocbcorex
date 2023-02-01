@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/couchbase/stellar-nebula/core/memdx"
+	"github.com/couchbase/gocbcorex/memdx"
 	"go.uber.org/zap"
 )
 

@@ -4,7 +4,7 @@
 package core
 
 import (
-	"github.com/couchbase/stellar-nebula/contrib/cbconfig"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"sync"
 )
 

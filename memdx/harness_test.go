@@ -2,7 +2,7 @@ package memdx
 
 import (
 	"context"
-	"github.com/couchbase/stellar-nebula/core/testutils"
+	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
