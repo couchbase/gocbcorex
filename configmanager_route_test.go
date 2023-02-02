@@ -2,87 +2,96 @@ package core
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
+
+type testRouteConfigHandler struct {
+	config *routeConfig
+}
+
+func (ach *testRouteConfigHandler) HandleRouteConfig(config *routeConfig) {
+	ach.config = config
+}
+
+func (ach *testRouteConfigHandler) RouteConfig() *routeConfig {
+	return ach.config
+}
 
 func TestConfigManagerAppliesFirstConfig(t *testing.T) {
 	manager := NewConfigManager(nil)
-	var routeCfg *routeConfig
-	manager.RegisterCallback(func(rc *routeConfig) {
-		routeCfg = rc
-	})
+	handler := &testRouteConfigHandler{}
+	manager.RegisterCallback(handler)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg := handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
 func TestConfigManagerAppliesNewerRevConfig(t *testing.T) {
 	manager := NewConfigManager(nil)
-	var routeCfg *routeConfig
-	manager.RegisterCallback(func(rc *routeConfig) {
-		routeCfg = rc
-	})
+	handler := &testRouteConfigHandler{}
+	manager.RegisterCallback(handler)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg := handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	cfg = GenTerseClusterConfig(2, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg = handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
 func TestConfigManagerAppliesNewerRevEpochConfig(t *testing.T) {
 	manager := NewConfigManager(nil)
-	var routeCfg *routeConfig
-	manager.RegisterCallback(func(rc *routeConfig) {
-		routeCfg = rc
-	})
+	handler := &testRouteConfigHandler{}
+	manager.RegisterCallback(handler)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg := handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	cfg = GenTerseClusterConfig(1, 2, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg = handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 
 func TestConfigManagerIgnoresOlderConfig(t *testing.T) {
 	manager := NewConfigManager(nil)
-	var routeCfg *routeConfig
-	manager.RegisterCallback(func(rc *routeConfig) {
-		routeCfg = rc
-	})
+	handler := &testRouteConfigHandler{}
+	manager.RegisterCallback(handler)
 
 	cfg := GenTerseClusterConfig(2, 2, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg := handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	oldCfg := cfg
 	cfg = GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg = handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, oldCfg, routeCfg)
 }
 
 func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
 	manager := NewConfigManager(nil)
-	var routeCfg *routeConfig
-	manager.RegisterCallback(func(rc *routeConfig) {
-		routeCfg = rc
-	})
+	handler := &testRouteConfigHandler{}
+	manager.RegisterCallback(handler)
 
 	cfg := GenTerseClusterConfig(2, 2, []string{"endpoint1", "endpoint2"})
 
@@ -90,24 +99,25 @@ func TestConfigManagerIgnoresInvalidConfig(t *testing.T) {
 	cfg.NodeLocator = ""
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg := handler.RouteConfig()
 	require.Nil(t, routeCfg)
 }
 
 func TestConfigManagerAppliesBucketConfigOverCluster(t *testing.T) {
 	manager := NewConfigManager(nil)
-	var routeCfg *routeConfig
-	manager.RegisterCallback(func(rc *routeConfig) {
-		routeCfg = rc
-	})
+	handler := &testRouteConfigHandler{}
+	manager.RegisterCallback(handler)
 
 	cfg := GenTerseClusterConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg := handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 
 	cfg = GenTerseBucketConfig(1, 1, []string{"endpoint1", "endpoint2"})
 
 	manager.ApplyConfig("endpoint1", cfg)
+	routeCfg = handler.RouteConfig()
 	assertRouteConfigForTerseConfig(t, cfg, routeCfg)
 }
 

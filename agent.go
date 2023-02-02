@@ -35,6 +35,8 @@ type Agent struct {
 	vbRouter    VbucketRouter
 	httpMgr     HTTPClientManager
 
+	cfgHandler *agentConfigHandler
+
 	crud *CrudComponent
 	http *HTTPComponent
 }
@@ -67,6 +69,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		}),
 		retries: NewRetryManagerFastFail(),
 	}
+	agent.cfgHandler = &agentConfigHandler{agent: agent}
 
 	clients := make(map[string]*KvClientConfig)
 	for addrIdx, addr := range opts.MemdAddrs {
@@ -128,12 +131,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		Logger: agent.logger,
 	})
 
-	agent.configMgr.RegisterCallback(func(rc *routeConfig) {
-		agent.lock.Lock()
-		agent.state.latestConfig = rc
-		agent.updateStateLocked()
-		agent.lock.Unlock()
-	})
+	agent.configMgr.RegisterCallback(agent.cfgHandler)
 
 	agent.poller = newhttpConfigPoller(httpPollerProperties{
 		Logger:               opts.Logger,
@@ -183,6 +181,13 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	agent.updateStateLocked()
 
 	return nil
+}
+
+func (agent *Agent) handleRouteConfig(rc *routeConfig) {
+	agent.lock.Lock()
+	agent.state.latestConfig = rc
+	agent.updateStateLocked()
+	agent.lock.Unlock()
 }
 
 func (agent *Agent) updateStateLocked() {
@@ -301,4 +306,14 @@ func (agent *Agent) startConfigWatcher(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+// agentConfigHandler exists for the purpose of satisfying the HandleRouteConfig interface for Agent, with having
+// to publicly expose the function on Agent itself.
+type agentConfigHandler struct {
+	agent *Agent
+}
+
+func (ach *agentConfigHandler) HandleRouteConfig(config *routeConfig) {
+	ach.agent.handleRouteConfig(config)
 }

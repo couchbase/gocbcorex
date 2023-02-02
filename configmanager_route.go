@@ -7,6 +7,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 type RouteConfigManagerOptions struct {
@@ -34,16 +35,28 @@ func NewConfigManager(opts *RouteConfigManagerOptions) ConfigManager {
 	return mgr
 }
 
-func (cm *RouteConfigManager) RegisterCallback(fn RouteConfigHandler) {
+func (cm *RouteConfigManager) RegisterCallback(handler RouteConfigHandler) {
 	cm.lock.Lock()
 	defer cm.lock.Unlock()
 
-	// TODO(brett19): Make this so we can unregister callbacks...
-	cm.listeners = append(cm.listeners, fn)
+	cm.listeners = append(cm.listeners, handler)
 
 	if cm.currentConfig != nil {
-		fn(cm.currentConfig)
+		handler.HandleRouteConfig(cm.currentConfig)
 	}
+}
+
+func (cm *RouteConfigManager) UnregisterCallback(handler RouteConfigHandler) {
+	cm.lock.Lock()
+	defer cm.lock.Unlock()
+
+	handlerIdx := slices.IndexFunc(cm.listeners, func(listener RouteConfigHandler) bool { return listener == handler })
+	if handlerIdx == -1 {
+		return
+	}
+
+	cm.listeners[handlerIdx] = cm.listeners[len(cm.listeners)-1]
+	cm.listeners = cm.listeners[:len(cm.listeners)-1]
 }
 
 func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.TerseConfigJson) {
@@ -99,8 +112,8 @@ func (cm *RouteConfigManager) ApplyConfig(sourceHostname string, cfg *cbconfig.T
 	}
 
 	cm.currentConfig = newConfig
-	for _, fn := range cm.listeners {
-		fn(newConfig)
+	for _, handler := range cm.listeners {
+		handler.HandleRouteConfig(newConfig)
 	}
 }
 

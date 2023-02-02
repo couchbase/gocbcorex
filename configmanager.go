@@ -4,9 +4,12 @@ import (
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
 
-type RouteConfigHandler func(*routeConfig)
+type RouteConfigHandler interface {
+	HandleRouteConfig(config *routeConfig)
+}
 
 type ConfigManager interface {
-	RegisterCallback(fn RouteConfigHandler)
+	RegisterCallback(handler RouteConfigHandler)
+	UnregisterCallback(handler RouteConfigHandler)
 	ApplyConfig(sourceHostname string, json *cbconfig.TerseConfigJson)
 }
