@@ -37,8 +37,9 @@ type Agent struct {
 
 	cfgHandler *agentConfigHandler
 
-	crud *CrudComponent
-	http *HTTPComponent
+	crud  *CrudComponent
+	http  *HTTPComponent
+	query *QueryComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -160,6 +161,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		httpMgr: agent.httpMgr,
 		retries: agent.retries,
 	}
+	agent.query = &QueryComponent{
+		httpCmpt:   agent.http,
+		logger:     agent.logger,
+		queryCache: make(map[string]string),
+	}
 
 	return agent, nil
 }
@@ -190,6 +196,24 @@ func (agent *Agent) handleRouteConfig(rc *routeConfig) {
 	agent.lock.Unlock()
 }
 
+func (agent *Agent) makeHTTPEndpoints(endpoints routeEndpoints, useTLS bool) []string {
+	if useTLS {
+		l := make([]string, len(endpoints.SSLEndpoints))
+		for epIdx, ep := range endpoints.SSLEndpoints {
+			l[epIdx] = "https://" + ep
+		}
+
+		return l
+	}
+
+	l := make([]string, len(endpoints.NonSSLEndpoints))
+	for epIdx, ep := range endpoints.NonSSLEndpoints {
+		l[epIdx] = "http://" + ep
+	}
+
+	return l
+}
+
 func (agent *Agent) updateStateLocked() {
 	agent.logger.Debug("updating components",
 		zap.Reflect("state", agent.state),
@@ -200,31 +224,25 @@ func (agent *Agent) updateStateLocked() {
 	var memdTlsConfig *tls.Config
 	var nodeNames []string
 	var memdList []string
-	var mgmtList []string
+
+	useTLS := agent.state.tlsConfig != nil
+	mgmtList := agent.makeHTTPEndpoints(routeCfg.mgmtEpList, useTLS)
+	queryList := agent.makeHTTPEndpoints(routeCfg.n1qlEpList, useTLS)
+	searchList := agent.makeHTTPEndpoints(routeCfg.ftsEpList, useTLS)
 
 	nodeNames = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
 	for nodeIdx, addr := range routeCfg.kvServerList.NonSSLEndpoints {
 		nodeNames[nodeIdx] = fmt.Sprintf("node@%s", addr)
 	}
 
-	if agent.state.tlsConfig == nil {
-		memdList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
-		copy(memdList, routeCfg.kvServerList.NonSSLEndpoints)
-		memdTlsConfig = nil
-
-		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
-		for epIdx, ep := range routeCfg.mgmtEpList.NonSSLEndpoints {
-			mgmtList[epIdx] = "http://" + ep
-		}
-	} else {
+	if useTLS {
 		memdList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
 		copy(memdList, routeCfg.kvServerList.SSLEndpoints)
 		memdTlsConfig = agent.state.tlsConfig
-
-		mgmtList = make([]string, len(routeCfg.mgmtEpList.NonSSLEndpoints))
-		for epIdx, ep := range routeCfg.mgmtEpList.NonSSLEndpoints {
-			mgmtList[epIdx] = "https://" + ep
-		}
+	} else {
+		memdList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
+		copy(memdList, routeCfg.kvServerList.NonSSLEndpoints)
+		memdTlsConfig = nil
 	}
 
 	clients := make(map[string]*KvClientConfig)
@@ -275,9 +293,11 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.httpMgr.Reconfigure(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      agent.state.username,
-			Password:      agent.state.password,
-			MgmtEndpoints: mgmtList,
+			Username:        agent.state.username,
+			Password:        agent.state.password,
+			MgmtEndpoints:   mgmtList,
+			QueryEndpoints:  queryList,
+			SearchEndpoints: searchList,
 		},
 		TLSConfig: nil,
 	})

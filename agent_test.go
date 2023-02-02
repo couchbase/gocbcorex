@@ -2,20 +2,16 @@ package core
 
 import (
 	"context"
-	"github.com/couchbase/gocbcorex/memdx"
-	"github.com/couchbase/gocbcorex/testutils"
-	"go.uber.org/zap"
 	"testing"
 
+	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
-func TestAgentBasic(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
-
+func CreateDefaultAgent(t *testing.T) *Agent {
 	logger, _ := zap.NewDevelopment()
 
 	opts := AgentOptions{
@@ -30,6 +26,16 @@ func TestAgentBasic(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+
+	return agent
+}
+
+func TestAgentBasic(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	agent := CreateDefaultAgent(t)
 
 	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
 		Key:            []byte("test"),
@@ -55,19 +61,9 @@ func TestAgentBadCollection(t *testing.T) {
 		t.SkipNow()
 	}
 
-	opts := AgentOptions{
-		TLSConfig:  nil,
-		BucketName: testutils.TestOpts.BucketName,
-		Username:   testutils.TestOpts.Username,
-		Password:   testutils.TestOpts.Password,
-		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
-		MemdAddrs:  testutils.TestOpts.MemdAddrs,
-	}
+	agent := CreateDefaultAgent(t)
 
-	agent, err := CreateAgent(context.Background(), opts)
-	require.NoError(t, err)
-
-	_, err = agent.Get(context.Background(), &GetOptions{
+	_, err := agent.Get(context.Background(), &GetOptions{
 		Key:            []byte("test"),
 		ScopeName:      "invalid-scope",
 		CollectionName: "invalid-collection",
@@ -87,20 +83,7 @@ func TestAgentBasicHTTP(t *testing.T) {
 		t.SkipNow()
 	}
 
-	logger, _ := zap.NewDevelopment()
-
-	opts := AgentOptions{
-		Logger:     logger,
-		TLSConfig:  nil,
-		BucketName: testutils.TestOpts.BucketName,
-		Username:   testutils.TestOpts.Username,
-		Password:   testutils.TestOpts.Password,
-		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
-		MemdAddrs:  testutils.TestOpts.MemdAddrs,
-	}
-
-	agent, err := CreateAgent(context.Background(), opts)
-	require.NoError(t, err)
+	agent := CreateDefaultAgent(t)
 
 	resp, err := agent.SendHTTPRequest(context.Background(), &HTTPRequest{
 		Service: MgmtService,

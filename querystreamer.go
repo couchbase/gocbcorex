@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-// QueryResult allows access to the results of a N1QL query.
+// QueryRowReader allows access to the results of a N1QL query.
 type queryStreamer struct {
 	metaDataBytes []byte
 	err           error

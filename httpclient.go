@@ -41,7 +41,8 @@ type HTTPRequest struct {
 
 // HTTPResponse encapsulates the response from an HTTP request.
 type HTTPResponse struct {
-	Raw *http.Response
+	Raw      *http.Response
+	Endpoint string
 }
 
 type HTTPClientConfig struct {
@@ -128,13 +129,13 @@ func (c *httpClient) Do(ctx context.Context, req *HTTPRequest) (*HTTPResponse, e
 			}
 		case QueryService:
 			var err error
-			req.Endpoint, err = randFromServiceEndpoints(state.queryEndpoints)
+			endpoint, err = randFromServiceEndpoints(state.queryEndpoints)
 			if err != nil {
 				return nil, err
 			}
 		case SearchService:
 			var err error
-			req.Endpoint, err = randFromServiceEndpoints(state.searchEndpoints)
+			endpoint, err = randFromServiceEndpoints(state.searchEndpoints)
 			if err != nil {
 				return nil, err
 			}
@@ -184,7 +185,10 @@ func (c *httpClient) Do(ctx context.Context, req *HTTPRequest) (*HTTPResponse, e
 		return nil, err
 	}
 
-	return &HTTPResponse{Raw: resp}, nil
+	return &HTTPResponse{
+		Raw:      resp,
+		Endpoint: endpoint,
+	}, nil
 }
 
 func (c *httpClient) Reconfigure(config *HTTPClientConfig) error {
