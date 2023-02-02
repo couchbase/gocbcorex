@@ -9,9 +9,9 @@ import (
 
 func createTestClient(t *testing.T) *Client {
 	testAddress := testutils.TestOpts.MemdAddrs[0]
-	testUsername := "Administrator"
-	testPassword := "password"
-	testBucket := "default"
+	testUsername := testutils.TestOpts.Username
+	testPassword := testutils.TestOpts.Password
+	testBucket := testutils.TestOpts.BucketName
 
 	conn, err := DialConn(context.Background(), testAddress, nil)
 	require.NoError(t, err, "failed to dial connection")

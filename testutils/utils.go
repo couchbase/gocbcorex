@@ -12,14 +12,23 @@ import (
 var TestOpts TestOptions
 
 type TestOptions struct {
-	MemdAddrs []string
-	HTTPAddrs []string
-	LongTest  bool
+	MemdAddrs  []string
+	HTTPAddrs  []string
+	LongTest   bool
+	Username   string
+	Password   string
+	BucketName string
 }
 
 func SetupTests(m *testing.M) {
 	connStr := envFlagString("GCBCONNSTR", "connstr", "",
 		"Connection string to run tests with")
+	user := envFlagString("GOCBUSER", "user", "",
+		"The username to use to authenticate when using a real server")
+	password := envFlagString("GOCBPASS", "pass", "",
+		"The password to use to authenticate when using a real server")
+	bucketName := envFlagString("GOCBBUCKET", "bucket", "default",
+		"The bucket to use to test against")
 	flag.Parse()
 
 	if *connStr != "" && !testing.Short() {
@@ -27,6 +36,23 @@ func SetupTests(m *testing.M) {
 		err := parseConnStr(*connStr)
 		if err != nil {
 			panic("failed to parse connection string")
+		}
+
+		TestOpts.Username = *user
+		if TestOpts.Username == "" {
+			TestOpts.Username = "Administrator"
+		}
+
+		TestOpts.Password = *password
+		if TestOpts.Password == "" {
+			TestOpts.Password = "password"
+		}
+
+		if TestOpts.BucketName == "" {
+			TestOpts.BucketName = *bucketName
+		}
+		if TestOpts.BucketName == "" {
+			TestOpts.BucketName = "default"
 		}
 	}
 
@@ -66,6 +92,10 @@ func parseConnStr(connStr string) error {
 
 	TestOpts.MemdAddrs = memdHosts
 	TestOpts.HTTPAddrs = httpHosts
+
+	if spec.Bucket != "" {
+		TestOpts.BucketName = spec.Bucket
+	}
 
 	return nil
 }

@@ -233,8 +233,8 @@ func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
 
 	mgr, err := NewHTTPClientManager(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator",
-			Password:      "password",
+			Username:      testutils.TestOpts.Username,
+			Password:      testutils.TestOpts.Password,
 			MgmtEndpoints: mgmtEndpoints,
 		},
 	}, &HTTPClientManagerOptions{
@@ -250,14 +250,14 @@ func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
 	resp := sendHTTPRequest(t, mgr, &HTTPRequest{
 		Service: MgmtService,
 		Method:  "GET",
-		Path:    "/pools/default/bs/default",
+		Path:    "/pools/default/bs/" + testutils.TestOpts.BucketName,
 	})
 	require.Equal(t, 200, resp.Raw.StatusCode)
 
 	err = mgr.Reconfigure(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator",
-			Password:      "password",
+			Username:      testutils.TestOpts.Username,
+			Password:      testutils.TestOpts.Password,
 			MgmtEndpoints: testutils.TestOpts.HTTPAddrs,
 		},
 		TLSConfig: &tls.Config{},

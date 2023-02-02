@@ -21,9 +21,9 @@ func TestAgentBasic(t *testing.T) {
 	opts := AgentOptions{
 		Logger:     logger,
 		TLSConfig:  nil,
-		BucketName: "default",
-		Username:   "Administrator",
-		Password:   "password",
+		BucketName: testutils.TestOpts.BucketName,
+		Username:   testutils.TestOpts.Username,
+		Password:   testutils.TestOpts.Password,
 		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
@@ -57,9 +57,9 @@ func TestAgentBadCollection(t *testing.T) {
 
 	opts := AgentOptions{
 		TLSConfig:  nil,
-		BucketName: "default",
-		Username:   "Administrator",
-		Password:   "password",
+		BucketName: testutils.TestOpts.BucketName,
+		Username:   testutils.TestOpts.Username,
+		Password:   testutils.TestOpts.Password,
 		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
@@ -92,9 +92,9 @@ func TestAgentBasicHTTP(t *testing.T) {
 	opts := AgentOptions{
 		Logger:     logger,
 		TLSConfig:  nil,
-		BucketName: "default",
-		Username:   "Administrator",
-		Password:   "password",
+		BucketName: testutils.TestOpts.BucketName,
+		Username:   testutils.TestOpts.Username,
+		Password:   testutils.TestOpts.Password,
 		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
@@ -117,9 +117,9 @@ func TestAgentBasicHTTP(t *testing.T) {
 func BenchmarkBasicGet(b *testing.B) {
 	opts := AgentOptions{
 		TLSConfig:  nil,
-		BucketName: "default",
-		Username:   "Administrator",
-		Password:   "password",
+		BucketName: testutils.TestOpts.BucketName,
+		Username:   testutils.TestOpts.Username,
+		Password:   testutils.TestOpts.Password,
 		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
