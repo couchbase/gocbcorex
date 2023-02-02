@@ -23,6 +23,28 @@ func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []b
 	return AppendCollectionIDAndKey(collectionID, key, buf)
 }
 
+// TODO(brett19): This exists in OpsUtils too, we should probably deduplicate the implementation.
+func (o OpsCrud) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []byte, error) {
+	var err error
+
+	if onBehalfOf != "" {
+		buf, err = AppendExtFrame(ExtFrameCodeReqOnBehalfOf, []byte(onBehalfOf), buf)
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+
+	if len(buf) > 0 {
+		if !o.ExtFramesEnabled {
+			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+		}
+
+		return MagicReqExt, buf, nil
+	}
+
+	return MagicReq, nil, nil
+}
+
 func (o OpsCrud) decodeCommonError(resp *Packet) error {
 	switch resp.Status {
 	case StatusCollectionUnknown:
@@ -36,6 +58,8 @@ type GetRequest struct {
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
+
+	OnBehalfOf string
 }
 
 type GetResponse struct {
@@ -46,16 +70,22 @@ type GetResponse struct {
 }
 
 func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
-		OpCode:    OpCodeGet,
-		Key:       reqKey,
-		VbucketID: req.VbucketID,
+		Magic:         reqMagic,
+		OpCode:        OpCodeGet,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -94,6 +124,7 @@ type GetAndTouchRequest struct {
 	Expiry       uint32
 	Key          []byte
 	VbucketID    uint16
+	OnBehalfOf   string
 }
 
 type GetAndTouchResponse struct {
@@ -104,6 +135,11 @@ type GetAndTouchResponse struct {
 }
 
 func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*GetAndTouchResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
@@ -113,11 +149,12 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
-		OpCode:    OpCodeGAT,
-		Key:       reqKey,
-		Extras:    extraBuf,
-		VbucketID: req.VbucketID,
+		Magic:         reqMagic,
+		OpCode:        OpCodeGAT,
+		Key:           reqKey,
+		Extras:        extraBuf,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -158,6 +195,8 @@ type GetAndLockRequest struct {
 	LockTime     uint32
 	Key          []byte
 	VbucketID    uint16
+
+	OnBehalfOf string
 }
 
 type GetAndLockResponse struct {
@@ -168,6 +207,11 @@ type GetAndLockResponse struct {
 }
 
 func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAndLockResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
@@ -177,11 +221,12 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 	binary.BigEndian.PutUint32(extraBuf[0:], req.LockTime)
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
-		OpCode:    OpCodeGetLocked,
-		Key:       reqKey,
-		Extras:    extraBuf,
-		VbucketID: req.VbucketID,
+		Magic:         reqMagic,
+		OpCode:        OpCodeGetLocked,
+		Key:           reqKey,
+		Extras:        extraBuf,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -219,6 +264,8 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 
 type GetRandomRequest struct {
 	CollectionID uint32
+
+	OnBehalfOf string
 }
 
 type GetRandomResponse struct {
@@ -230,6 +277,11 @@ type GetRandomResponse struct {
 }
 
 func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	var extrasBuf []byte
 	if o.CollectionsEnabled {
 		extrasBuf = make([]byte, 4)
@@ -243,9 +295,10 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
-		OpCode: OpCodeGetRandom,
-		Extras: extrasBuf,
+		Magic:         reqMagic,
+		OpCode:        OpCodeGetRandom,
+		Extras:        extrasBuf,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -283,6 +336,7 @@ type SetRequest struct {
 	Value        []byte
 	Datatype     uint8
 	Expiry       uint32
+	OnBehalfOf   string
 }
 
 type SetResponse struct {
@@ -290,6 +344,11 @@ type SetResponse struct {
 }
 
 func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
@@ -300,13 +359,14 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
-		OpCode:    OpCodeSet,
-		Key:       reqKey,
-		VbucketID: req.VbucketID,
-		Datatype:  req.Datatype,
-		Extras:    extraBuf,
-		Value:     req.Value,
+		Magic:         reqMagic,
+		OpCode:        OpCodeSet,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Datatype:      req.Datatype,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -337,23 +397,31 @@ type UnlockRequest struct {
 	Cas          uint64
 	Key          []byte
 	VbucketID    uint16
+
+	OnBehalfOf string
 }
 
 type UnlockResponse struct {
 }
 
 func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
-		OpCode:    OpCodeUnlockKey,
-		Key:       reqKey,
-		VbucketID: req.VbucketID,
-		Cas:       req.Cas,
+		Magic:         reqMagic,
+		OpCode:        OpCodeUnlockKey,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Cas:           req.Cas,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -389,6 +457,7 @@ type TouchRequest struct {
 	Key          []byte
 	VbucketID    uint16
 	Expiry       uint32
+	OnBehalfOf   string
 }
 
 type TouchResponse struct {
@@ -396,6 +465,11 @@ type TouchResponse struct {
 }
 
 func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
@@ -405,11 +479,12 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
-		OpCode:    OpCodeTouch,
-		Key:       reqKey,
-		VbucketID: req.VbucketID,
-		Extras:    extraBuf,
+		Magic:         reqMagic,
+		OpCode:        OpCodeTouch,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Extras:        extraBuf,
+		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
