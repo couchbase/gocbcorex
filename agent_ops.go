@@ -17,3 +17,11 @@ func (agent *Agent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteRes
 func (agent *Agent) SendHTTPRequest(ctx context.Context, req *HTTPRequest) (*HTTPResponse, error) {
 	return agent.http.SendHTTPRequest(ctx, req)
 }
+
+func (agent *Agent) Query(ctx context.Context, opts *QueryOptions) (*QueryRowReader, error) {
+	return agent.query.Query(ctx, opts)
+}
+
+func (agent *Agent) PreparedQuery(ctx context.Context, opts *QueryOptions) (*QueryRowReader, error) {
+	return agent.query.PreparedQuery(ctx, opts)
+}
