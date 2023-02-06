@@ -516,3 +516,63 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 		return false
 	})
 }
+
+type DeleteRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	OnBehalfOf   string
+	Cas          uint64
+}
+
+type DeleteResponse struct {
+	Cas uint64
+}
+
+func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeDelete,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+		Cas:           req.Cas,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Extras) == 16 {
+			// parse mutation token
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&DeleteResponse{
+			Cas: resp.Cas,
+		}, nil)
+		return false
+	})
+}

@@ -114,7 +114,7 @@ func TestOpsCrudGets(t *testing.T) {
 	}
 }
 
-func TestOpsCrudGetKeyNotFound(t *testing.T) {
+func TestOpsCrudKeyNotFound(t *testing.T) {
 	if !testutils.TestOpts.LongTest {
 		t.SkipNow()
 	}
@@ -181,6 +181,16 @@ func TestOpsCrudGetKeyNotFound(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Delete",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key: key,
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -202,7 +212,7 @@ func TestOpsCrudGetKeyNotFound(t *testing.T) {
 	}
 }
 
-func TestOpsCrudGetCollectionNotKnown(t *testing.T) {
+func TestOpsCrudCollectionNotKnown(t *testing.T) {
 	if !testutils.TestOpts.LongTest {
 		t.SkipNow()
 	}
@@ -292,6 +302,17 @@ func TestOpsCrudGetCollectionNotKnown(t *testing.T) {
 					Key:          key,
 					Expiry:       60,
 				}, func(resp *TouchResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Delete",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					CollectionID: 2222,
+					Key:          key,
+				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
 			},
@@ -400,4 +421,50 @@ func TestOpsCrudTouch(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotZero(t, res.Cas)
+}
+
+func TestOpsCrudDelete(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte(uuid.NewString())
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+	})
+	require.NoError(t, err)
+
+	res, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Delete, cli, &DeleteRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+	})
+	require.NoError(t, err)
+
+	assert.NotZero(t, res.Cas)
+
+	_, err = syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Get, cli, &GetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+	})
+	require.ErrorIs(t, err, ErrDocNotFound)
 }
