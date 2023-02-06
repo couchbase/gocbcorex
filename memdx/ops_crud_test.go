@@ -468,3 +468,92 @@ func TestOpsCrudDelete(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrDocNotFound)
 }
+
+func TestOpsCrudMutationTokens(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op   func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error)
+		Name string
+	}
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Set(cli, &SetRequest{
+					Key:       key,
+					Value:     key,
+					VbucketID: 1,
+				}, func(resp *SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		// {	TODO(chvck): this probably needs the doc to be locked first?
+		// 	Name: "Unlock",
+		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.Unlock(cli, &UnlockRequest{
+		// 			Key:       key,
+		// 			Cas:       cas,
+		// 			VbucketID: 1,
+		// 		}, func(resp *UnlockResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
+		{
+			Name: "Delete",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			waiterr := make(chan error, 1)
+			waitres := make(chan interface{}, 1)
+
+			key := []byte(uuid.NewString())
+
+			setRes, err := syncUnaryCall(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, OpsCrud.Set, cli, &SetRequest{
+				Key:       key,
+				VbucketID: 1,
+				Value:     key,
+				Datatype:  uint8(0x01),
+			})
+			require.NoError(t, err)
+
+			_, err = test.Op(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, key, setRes.Cas, func(i interface{}, err error) {
+				waiterr <- err
+				waitres <- i
+			})
+			require.NoError(tt, err)
+
+			require.NoError(tt, <-waiterr)
+
+			res := <-waitres
+
+			elem := reflect.ValueOf(res).Elem()
+			mutationToken := elem.FieldByName("MutationToken").Interface().(MutationToken)
+			assert.NotZero(tt, mutationToken.VbUuid)
+			assert.NotZero(tt, mutationToken.SeqNo)
+		})
+	}
+}

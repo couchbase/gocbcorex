@@ -340,7 +340,8 @@ type SetRequest struct {
 }
 
 type SetResponse struct {
-	Cas uint64
+	Cas           uint64
+	MutationToken MutationToken
 }
 
 func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)) (PendingOp, error) {
@@ -378,15 +379,18 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 			return false
 		}
 
+		mutToken := MutationToken{}
 		if len(resp.Extras) == 16 {
-			// parse mutation token
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
 
 		cb(&SetResponse{
-			Cas: resp.Cas,
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
 		}, nil)
 		return false
 	})
@@ -402,6 +406,7 @@ type UnlockRequest struct {
 }
 
 type UnlockResponse struct {
+	MutationToken MutationToken
 }
 
 func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockResponse, error)) (PendingOp, error) {
@@ -440,14 +445,18 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 			return false
 		}
 
+		mutToken := MutationToken{}
 		if len(resp.Extras) == 16 {
-			// parse mutation token
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
 
-		cb(&UnlockResponse{}, nil)
+		cb(&UnlockResponse{
+			MutationToken: mutToken,
+		}, nil)
 		return false
 	})
 }
@@ -503,9 +512,7 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 			return false
 		}
 
-		if len(resp.Extras) == 16 {
-			// parse mutation token
-		} else if len(resp.Extras) != 0 {
+		if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
@@ -526,7 +533,8 @@ type DeleteRequest struct {
 }
 
 type DeleteResponse struct {
-	Cas uint64
+	Cas           uint64
+	MutationToken MutationToken
 }
 
 func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteResponse, error)) (PendingOp, error) {
@@ -563,15 +571,18 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 			return false
 		}
 
+		mutToken := MutationToken{}
 		if len(resp.Extras) == 16 {
-			// parse mutation token
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
 
 		cb(&DeleteResponse{
-			Cas: resp.Cas,
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
 		}, nil)
 		return false
 	})
