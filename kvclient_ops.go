@@ -120,6 +120,31 @@ func (c *kvClient) GetClusterConfig(ctx context.Context, req *memdx.GetClusterCo
 	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.GetClusterConfig, req)
 }
 
+func (c *kvClient) SelectBucket(ctx context.Context, req *memdx.SelectBucketRequest) error {
+	resulter := allocSyncCrudResulter()
+
+	pendingOp, err := memdx.OpsCore{}.SelectBucket(c.cli, req, func(err error) {
+		resulter.Ch <- syncCrudResult{
+			Err: err,
+		}
+	})
+	if err != nil {
+		return KvClientDispatchError{err}
+	}
+
+	select {
+	case res := <-resulter.Ch:
+		releaseSyncCrudResulter(resulter)
+		return res.Err
+	case <-ctx.Done():
+		if !pendingOp.Cancel() {
+			<-resulter.Ch
+		}
+		releaseSyncCrudResulter(resulter)
+		return ctx.Err()
+	}
+}
+
 func (c *kvClient) GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error) {
 	return kvClient_SimpleUtilsCall(ctx, c, memdx.OpsUtils.GetCollectionID, req)
 }

@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"sync/atomic"
 
 	"go.uber.org/zap"
@@ -99,7 +98,7 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		memdx.HelloFeatureCollections,
 	}
 
-	res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
+	bootstrapOpts := &memdx.BootstrapOptions{
 		Hello: &memdx.HelloRequest{
 			ClientName:        []byte("core"),
 			RequestedFeatures: requestedFeatures,
@@ -112,11 +111,16 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 			Password:     opts.Password,
 			EnabledMechs: []memdx.AuthMechanism{memdx.ScramSha512AuthMechanism, memdx.ScramSha256AuthMechanism},
 		},
-		SelectBucket: &memdx.SelectBucketRequest{
-			BucketName: opts.SelectedBucket,
-		},
 		GetClusterConfig: &memdx.GetClusterConfigRequest{},
-	})
+	}
+
+	if opts.SelectedBucket != "" {
+		bootstrapOpts.SelectBucket = &memdx.SelectBucketRequest{
+			BucketName: opts.SelectedBucket,
+		}
+	}
+
+	res, err := kvCli.bootstrap(ctx, bootstrapOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +134,31 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 }
 
 func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientConfig) error {
-	return errors.New("kv client does not currently support reconfiguring")
+	if opts == nil {
+		return nil
+	}
+
+	if opts.TlsConfig != c.tlsConfig {
+		return placeholderError{"cannot reconfigure tls config"}
+	}
+	if opts.Address != c.hostname {
+		return placeholderError{"cannot reconfigure address"}
+	}
+	if opts.Username != c.username {
+		return placeholderError{"cannot reconfigure username"}
+	}
+	if opts.Password != c.password {
+		return placeholderError{"cannot reconfigure password"}
+	}
+	if opts.SelectedBucket != c.bucket {
+		c.bucket = opts.SelectedBucket
+		if err := c.SelectBucket(ctx, &memdx.SelectBucketRequest{
+			BucketName: c.bucket,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
