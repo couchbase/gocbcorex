@@ -44,8 +44,6 @@ type httpClientManager struct {
 	newHTTPClientFn NewHTTPClientFunc
 	logger          *zap.Logger
 	clientOptions   *HTTPClientOptions
-
-	defunctClients []HTTPClient
 }
 
 func NewHTTPClientManager(config *HTTPClientManagerConfig, opts *HTTPClientManagerOptions) (*httpClientManager, error) {
@@ -56,11 +54,12 @@ func NewHTTPClientManager(config *HTTPClientManagerConfig, opts *HTTPClientManag
 		opts = &HTTPClientManagerOptions{}
 	}
 
+	logger := loggerOrNop(opts.Logger)
 	mgr := &httpClientManager{
-		logger:          opts.Logger,
+		logger:          logger,
 		newHTTPClientFn: opts.NewHTTPClientFn,
 		clientOptions: &HTTPClientOptions{
-			Logger:              loggerOrNop(opts.Logger), // TODO(chvck): This isn't right
+			Logger:              logger,
 			ConnectTimeout:      opts.ConnectTimeout,
 			MaxIdleConns:        opts.MaxIdleConns,
 			MaxIdleConnsPerHost: opts.MaxIdleConnsPerHost,
