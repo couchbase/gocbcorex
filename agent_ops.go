@@ -10,6 +10,10 @@ func (agent *Agent) Get(ctx context.Context, opts *GetOptions) (*GetResult, erro
 	return agent.crud.Get(ctx, opts)
 }
 
+func (agent *Agent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteResult, error) {
+	return agent.crud.Delete(ctx, opts)
+}
+
 func (agent *Agent) SendHTTPRequest(ctx context.Context, req *HTTPRequest) (*HTTPResponse, error) {
 	return agent.http.SendHTTPRequest(ctx, req)
 }

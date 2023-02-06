@@ -22,6 +22,9 @@ var _ KvClient = &KvClientMock{}
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
 //			},
+//			DeleteFunc: func(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error) {
+//				panic("mock out the Delete method")
+//			},
 //			GetFunc: func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error) {
 //				panic("mock out the Get method")
 //			},
@@ -50,6 +53,9 @@ type KvClientMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
 
+	// DeleteFunc mocks the Delete method.
+	DeleteFunc func(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
+
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 
@@ -72,6 +78,13 @@ type KvClientMock struct {
 	calls struct {
 		// Close holds details about calls to the Close method.
 		Close []struct {
+		}
+		// Delete holds details about calls to the Delete method.
+		Delete []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.DeleteRequest
 		}
 		// Get holds details about calls to the Get method.
 		Get []struct {
@@ -113,6 +126,7 @@ type KvClientMock struct {
 		}
 	}
 	lockClose            sync.RWMutex
+	lockDelete           sync.RWMutex
 	lockGet              sync.RWMutex
 	lockGetClusterConfig sync.RWMutex
 	lockGetCollectionID  sync.RWMutex
@@ -145,6 +159,42 @@ func (mock *KvClientMock) CloseCalls() []struct {
 	mock.lockClose.RLock()
 	calls = mock.calls.Close
 	mock.lockClose.RUnlock()
+	return calls
+}
+
+// Delete calls DeleteFunc.
+func (mock *KvClientMock) Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error) {
+	if mock.DeleteFunc == nil {
+		panic("KvClientMock.DeleteFunc: method is nil but KvClient.Delete was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.DeleteRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockDelete.Lock()
+	mock.calls.Delete = append(mock.calls.Delete, callInfo)
+	mock.lockDelete.Unlock()
+	return mock.DeleteFunc(ctx, req)
+}
+
+// DeleteCalls gets all the calls that were made to Delete.
+// Check the length with:
+//
+//	len(mockedKvClient.DeleteCalls())
+func (mock *KvClientMock) DeleteCalls() []struct {
+	Ctx context.Context
+	Req *memdx.DeleteRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.DeleteRequest
+	}
+	mock.lockDelete.RLock()
+	calls = mock.calls.Delete
+	mock.lockDelete.RUnlock()
 	return calls
 }
 

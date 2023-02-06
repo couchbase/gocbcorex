@@ -36,6 +36,7 @@ type KvClient interface {
 	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
+	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
 
 	Close() error
 

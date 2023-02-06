@@ -116,3 +116,34 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 			}, nil
 		})
 }
+
+type DeleteOptions struct {
+	Key            []byte
+	ScopeName      string
+	CollectionName string
+	Cas            uint64
+}
+
+type DeleteResult struct {
+	Cas uint64
+}
+
+func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteResult, error) {
+	return OrchestrateSimpleCrud(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
+		opts.ScopeName, opts.CollectionName, opts.Key,
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
+			resp, err := client.Delete(ctx, &memdx.DeleteRequest{
+				CollectionID: collectionID,
+				Key:          opts.Key,
+				VbucketID:    vbID,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			return &DeleteResult{
+				Cas: resp.Cas,
+			}, nil
+		})
+}
