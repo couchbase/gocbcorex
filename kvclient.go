@@ -106,12 +106,17 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		GetErrorMap: &memdx.GetErrorMapRequest{
 			Version: 2,
 		},
-		Auth: &memdx.SaslAuthAutoOptions{
-			Username:     opts.Username,
-			Password:     opts.Password,
-			EnabledMechs: []memdx.AuthMechanism{memdx.ScramSha512AuthMechanism, memdx.ScramSha256AuthMechanism},
-		},
 		GetClusterConfig: &memdx.GetClusterConfigRequest{},
+	}
+
+	if opts.Username != "" || opts.Password != "" {
+		bootstrapOpts.Auth = &memdx.SaslAuthAutoOptions{
+			Username: opts.Username,
+			Password: opts.Password,
+			EnabledMechs: []memdx.AuthMechanism{
+				memdx.ScramSha512AuthMechanism,
+				memdx.ScramSha256AuthMechanism},
+		}
 	}
 
 	if opts.SelectedBucket != "" {
