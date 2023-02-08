@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
-	"github.com/couchbase/gocbcorex/contrib/latestonlychannel"
 	"go.uber.org/zap"
 )
 
@@ -252,7 +251,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 		}
 	}()
 
-	return latestonlychannel.Wrap(outputCh), nil
+	return outputCh, nil
 }
 
 func (hcc *httpConfigPoller) pickEndpoint(iterNum uint64, endpoints []string) string {
