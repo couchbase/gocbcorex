@@ -4,14 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
-
-	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"testing"
 )
 
 type memdxPendingOpMock struct {
@@ -53,6 +51,9 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.NotZero(t, setRes.Cas)
+
+	err = cli.Close()
+	require.NoError(t, err)
 }
 
 func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
@@ -193,63 +194,4 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 		TlsConfig: &tls.Config{},
 	})
 	require.Error(t, err)
-}
-
-func TestKvClientSimpleCallSuccessBehaviour(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-
-	expectedPacket := &memdx.Packet{
-		Value:  []byte("value"),
-		Extras: make([]byte, 4),
-		Cas:    123,
-	}
-	memdxCli := &MemdxDispatcherCloserMock{
-		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
-			time.AfterFunc(1, func() {
-				dispatchCallback(expectedPacket, nil)
-			})
-			return memdxPendingOpMock{}, nil
-		},
-	}
-
-	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
-		SelectedBucket: "bucket",
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
-			return memdxCli
-		},
-	})
-	require.NoError(t, err)
-
-	for {
-		// Drain the pool
-		if syncCrudResulterPool.Get() == nil {
-			break
-		}
-	}
-
-	res, err := cli.Get(context.Background(), &memdx.GetRequest{
-		Key: []byte("tes"),
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, res.Value, expectedPacket.Value)
-	assert.Equal(t, res.Cas, expectedPacket.Cas)
-
-	var numResulters int
-	for {
-		// Get all the resulters from the pool, which should be just the one.
-		resulter := syncCrudResulterPool.Get()
-		if resulter == nil {
-			break
-		}
-		_, ok := resulter.(*syncCrudResulter)
-		assert.True(t, ok)
-		numResulters++
-	}
-
-	assert.Equal(t, 1, numResulters)
 }

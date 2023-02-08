@@ -60,6 +60,7 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 		}
 	})
 	if err != nil {
+		releaseSyncCrudResulter(resulter)
 		var emptyResp RespT
 		return emptyResp, KvClientDispatchError{err}
 	}
