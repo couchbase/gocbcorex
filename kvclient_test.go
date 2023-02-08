@@ -135,7 +135,7 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 		Address:   "endpoint1",
 		Username:  "user2",
 		Password:  "pass",
-		TlsConfig: &tls.Config{},
+		TlsConfig: nil,
 	})
 	require.Error(t, err)
 }
@@ -163,7 +163,7 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 		Address:   "endpoint1",
 		Username:  "user",
 		Password:  "pass2",
-		TlsConfig: &tls.Config{},
+		TlsConfig: nil,
 	})
 	require.Error(t, err)
 }
@@ -191,7 +191,7 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 		Address:   "endpoint2",
 		Username:  "user",
 		Password:  "pass",
-		TlsConfig: &tls.Config{},
+		TlsConfig: nil,
 	})
 	require.Error(t, err)
 }
