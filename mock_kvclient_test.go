@@ -404,3 +404,112 @@ func (mock *KvClientMock) SetCalls() []struct {
 	mock.lockSet.RUnlock()
 	return calls
 }
+
+// Ensure, that MemdxDispatcherCloserMock does implement MemdxDispatcherCloser.
+// If this is not the case, regenerate this file with moq.
+var _ MemdxDispatcherCloser = &MemdxDispatcherCloserMock{}
+
+// MemdxDispatcherCloserMock is a mock implementation of MemdxDispatcherCloser.
+//
+//	func TestSomethingThatUsesMemdxDispatcherCloser(t *testing.T) {
+//
+//		// make and configure a mocked MemdxDispatcherCloser
+//		mockedMemdxDispatcherCloser := &MemdxDispatcherCloserMock{
+//			CloseFunc: func() error {
+//				panic("mock out the Close method")
+//			},
+//			DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+//				panic("mock out the Dispatch method")
+//			},
+//		}
+//
+//		// use mockedMemdxDispatcherCloser in code that requires MemdxDispatcherCloser
+//		// and then make assertions.
+//
+//	}
+type MemdxDispatcherCloserMock struct {
+	// CloseFunc mocks the Close method.
+	CloseFunc func() error
+
+	// DispatchFunc mocks the Dispatch method.
+	DispatchFunc func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error)
+
+	// calls tracks calls to the methods.
+	calls struct {
+		// Close holds details about calls to the Close method.
+		Close []struct {
+		}
+		// Dispatch holds details about calls to the Dispatch method.
+		Dispatch []struct {
+			// Packet is the packet argument value.
+			Packet *memdx.Packet
+			// DispatchCallback is the dispatchCallback argument value.
+			DispatchCallback memdx.DispatchCallback
+		}
+	}
+	lockClose    sync.RWMutex
+	lockDispatch sync.RWMutex
+}
+
+// Close calls CloseFunc.
+func (mock *MemdxDispatcherCloserMock) Close() error {
+	if mock.CloseFunc == nil {
+		panic("MemdxDispatcherCloserMock.CloseFunc: method is nil but MemdxDispatcherCloser.Close was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockClose.Lock()
+	mock.calls.Close = append(mock.calls.Close, callInfo)
+	mock.lockClose.Unlock()
+	return mock.CloseFunc()
+}
+
+// CloseCalls gets all the calls that were made to Close.
+// Check the length with:
+//
+//	len(mockedMemdxDispatcherCloser.CloseCalls())
+func (mock *MemdxDispatcherCloserMock) CloseCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockClose.RLock()
+	calls = mock.calls.Close
+	mock.lockClose.RUnlock()
+	return calls
+}
+
+// Dispatch calls DispatchFunc.
+func (mock *MemdxDispatcherCloserMock) Dispatch(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+	if mock.DispatchFunc == nil {
+		panic("MemdxDispatcherCloserMock.DispatchFunc: method is nil but MemdxDispatcherCloser.Dispatch was just called")
+	}
+	callInfo := struct {
+		Packet           *memdx.Packet
+		DispatchCallback memdx.DispatchCallback
+	}{
+		Packet:           packet,
+		DispatchCallback: dispatchCallback,
+	}
+	mock.lockDispatch.Lock()
+	mock.calls.Dispatch = append(mock.calls.Dispatch, callInfo)
+	mock.lockDispatch.Unlock()
+	return mock.DispatchFunc(packet, dispatchCallback)
+}
+
+// DispatchCalls gets all the calls that were made to Dispatch.
+// Check the length with:
+//
+//	len(mockedMemdxDispatcherCloser.DispatchCalls())
+func (mock *MemdxDispatcherCloserMock) DispatchCalls() []struct {
+	Packet           *memdx.Packet
+	DispatchCallback memdx.DispatchCallback
+} {
+	var calls []struct {
+		Packet           *memdx.Packet
+		DispatchCallback memdx.DispatchCallback
+	}
+	mock.lockDispatch.RLock()
+	calls = mock.calls.Dispatch
+	mock.lockDispatch.RUnlock()
+	return calls
+}

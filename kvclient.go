@@ -11,6 +11,8 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
+type GetMemdxClientFunc func(opts *memdx.ClientOptions) MemdxDispatcherCloser
+
 type KvClientConfig struct {
 	Logger         *zap.Logger
 	Address        string
@@ -18,6 +20,8 @@ type KvClientConfig struct {
 	SelectedBucket string
 	Username       string
 	Password       string
+
+	NewMemdxClient GetMemdxClientFunc
 }
 
 func (o KvClientConfig) Equals(b *KvClientConfig) bool {
@@ -42,11 +46,16 @@ type KvClient interface {
 	LoadFactor() float64
 }
 
+type MemdxDispatcherCloser interface {
+	memdx.Dispatcher
+	Close() error
+}
+
 type kvClient struct {
 	logger *zap.Logger
 
 	pendingOperations uint64
-	cli               *memdx.Client
+	cli               MemdxDispatcherCloser
 
 	hostname  string
 	tlsConfig *tls.Config
@@ -61,19 +70,8 @@ type kvClient struct {
 var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
-	conn, err := memdx.DialConn(ctx, opts.Address, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
-	if err != nil {
-		return nil, err
-	}
-
-	cli := memdx.NewClient(conn, &memdx.ClientOptions{
-		OrphanHandler: nil,
-		CloseHandler:  nil,
-	})
-
 	kvCli := &kvClient{
 		logger:    loggerOrNop(opts.Logger),
-		cli:       cli,
 		hostname:  opts.Address,
 		tlsConfig: opts.TlsConfig,
 		username:  opts.Username,
@@ -125,15 +123,30 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		}
 	}
 
-	res, err := kvCli.bootstrap(ctx, bootstrapOpts)
-	if err != nil {
-		return nil, err
+	memdxClientOpts := &memdx.ClientOptions{
+		OrphanHandler: nil,
+		CloseHandler:  nil,
 	}
+	if opts.NewMemdxClient == nil {
+		conn, err := memdx.DialConn(ctx, opts.Address, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
+		if err != nil {
+			return nil, err
+		}
 
-	kvCli.logger.Debug("successfully bootstrapped new KvClient",
-		zap.Any("features", res.Hello.EnabledFeatures))
+		kvCli.cli = memdx.NewClient(conn, memdxClientOpts)
 
-	kvCli.supportedFeatures = res.Hello.EnabledFeatures
+		res, err := kvCli.bootstrap(ctx, bootstrapOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		kvCli.logger.Debug("successfully bootstrapped new KvClient",
+			zap.Any("features", res.Hello.EnabledFeatures))
+
+		kvCli.supportedFeatures = res.Hello.EnabledFeatures
+	} else {
+		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
+	}
 
 	return kvCli, nil
 }
