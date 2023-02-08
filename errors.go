@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 type placeholderError struct {
@@ -30,6 +31,19 @@ type CollectionNotFoundError struct {
 
 func (e CollectionNotFoundError) Error() string {
 	return e.InnerError.Error()
+}
+
+type ServerManifestOutdatedError struct {
+	ManifestUid       uint64
+	ServerManifestUid uint64
+}
+
+func (e ServerManifestOutdatedError) Error() string {
+	return fmt.Sprintf("server manifest outdated: our manifest uid: %d, server manifest uid: %d", e.ManifestUid, e.ServerManifestUid)
+}
+
+func (e ServerManifestOutdatedError) Unwrap() error {
+	return memdx.ErrUnknownCollectionID
 }
 
 type contextualDeadline struct {

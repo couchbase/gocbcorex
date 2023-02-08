@@ -92,7 +92,7 @@ func (o ServerErrorWithContext) ParseContext() ServerErrorContext {
 	}
 	if parsedJson.ManifestUID != "" {
 		val, err := strconv.ParseUint(parsedJson.ManifestUID, 16, 64)
-		if err != nil {
+		if err == nil {
 			contextOut.ManifestRev = val
 		}
 	}

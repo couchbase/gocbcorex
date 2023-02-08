@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/stretchr/testify/assert"
@@ -132,5 +133,63 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundError(t *testing.T) {
 
 	assert.Equal(t, 1, called)
 	assert.Equal(t, 1, numInvalidateCalls)
+	assert.Zero(t, res)
+}
+
+func TestOrchestrateMemdCollectionIDCollectionNotFoundErrorServerHasOlderManifest(t *testing.T) {
+	cid := uint32(5)
+	rev := uint64(2)
+	var numInvalidateCalls int
+	expectedScopeName := "testScope"
+	expectedCollectionName := "testCol"
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			return cid, rev, nil
+		},
+		InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			numInvalidateCalls++
+		},
+	}
+
+	errorContext := struct {
+		Context     string `json:"context"`
+		Ref         string `json:"ref"`
+		ManifestUID string `json:"manifest_uid"`
+	}{
+		ManifestUID: "1",
+	}
+
+	contextBytes, err := json.Marshal(errorContext)
+	require.NoError(t, err)
+
+	var called int
+	ctx := context.Background()
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32, manifestID uint64) (int, error) {
+		called++
+
+		assert.Equal(t, cid, collectionID)
+		assert.Equal(t, rev, manifestID)
+
+		return 0, memdx.ServerErrorWithContext{
+			Cause:       memdx.ErrUnknownCollectionID,
+			ContextJson: contextBytes,
+		}
+	})
+	require.ErrorIs(t, err, memdx.ErrUnknownCollectionID)
+
+	var errorT ServerManifestOutdatedError
+	if assert.ErrorAs(t, err, &errorT) {
+		assert.Equal(t, rev, errorT.ManifestUid)
+		assert.Equal(t, uint64(1), errorT.ServerManifestUid)
+	}
+
+	assert.Equal(t, 1, called)
+	assert.Equal(t, 0, numInvalidateCalls)
 	assert.Zero(t, res)
 }

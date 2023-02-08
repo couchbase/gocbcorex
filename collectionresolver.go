@@ -39,9 +39,11 @@ func OrchestrateMemdCollectionID[RespT any](
 
 				if invalidatingManifestRev > 0 &&
 					invalidatingManifestRev < manifestRev {
-					// TODO(brett19): we should return an error that indicates server out of date...
 					var emptyResp RespT
-					return emptyResp, err
+					return emptyResp, ServerManifestOutdatedError{
+						ManifestUid:       manifestRev,
+						ServerManifestUid: invalidatingManifestRev,
+					}
 				}
 
 				cr.InvalidateCollectionID(
