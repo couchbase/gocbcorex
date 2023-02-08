@@ -40,6 +40,9 @@ var _ KvClient = &KvClientMock{}
 //			GetFunc: func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error) {
 //				panic("mock out the Get method")
 //			},
+//			GetAndLockFunc: func(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error) {
+//				panic("mock out the GetAndLock method")
+//			},
 //			GetAndTouchFunc: func(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error) {
 //				panic("mock out the GetAndTouch method")
 //			},
@@ -118,6 +121,9 @@ type KvClientMock struct {
 
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
+
+	// GetAndLockFunc mocks the GetAndLock method.
+	GetAndLockFunc func(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error)
 
 	// GetAndTouchFunc mocks the GetAndTouch method.
 	GetAndTouchFunc func(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error)
@@ -216,6 +222,13 @@ type KvClientMock struct {
 			Ctx context.Context
 			// Req is the req argument value.
 			Req *memdx.GetRequest
+		}
+		// GetAndLock holds details about calls to the GetAndLock method.
+		GetAndLock []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.GetAndLockRequest
 		}
 		// GetAndTouch holds details about calls to the GetAndTouch method.
 		GetAndTouch []struct {
@@ -340,6 +353,7 @@ type KvClientMock struct {
 	lockDelete           sync.RWMutex
 	lockDeleteMeta       sync.RWMutex
 	lockGet              sync.RWMutex
+	lockGetAndLock       sync.RWMutex
 	lockGetAndTouch      sync.RWMutex
 	lockGetClusterConfig sync.RWMutex
 	lockGetCollectionID  sync.RWMutex
@@ -599,6 +613,42 @@ func (mock *KvClientMock) GetCalls() []struct {
 	mock.lockGet.RLock()
 	calls = mock.calls.Get
 	mock.lockGet.RUnlock()
+	return calls
+}
+
+// GetAndLock calls GetAndLockFunc.
+func (mock *KvClientMock) GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error) {
+	if mock.GetAndLockFunc == nil {
+		panic("KvClientMock.GetAndLockFunc: method is nil but KvClient.GetAndLock was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.GetAndLockRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockGetAndLock.Lock()
+	mock.calls.GetAndLock = append(mock.calls.GetAndLock, callInfo)
+	mock.lockGetAndLock.Unlock()
+	return mock.GetAndLockFunc(ctx, req)
+}
+
+// GetAndLockCalls gets all the calls that were made to GetAndLock.
+// Check the length with:
+//
+//	len(mockedKvClient.GetAndLockCalls())
+func (mock *KvClientMock) GetAndLockCalls() []struct {
+	Ctx context.Context
+	Req *memdx.GetAndLockRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.GetAndLockRequest
+	}
+	mock.lockGetAndLock.RLock()
+	calls = mock.calls.GetAndLock
+	mock.lockGetAndLock.RUnlock()
 	return calls
 }
 

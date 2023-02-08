@@ -140,6 +140,10 @@ func (c *kvClient) Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetRe
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Get, req)
 }
 
+func (c *kvClient) GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetAndLock, req)
+}
+
 func (c *kvClient) GetAndTouch(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetAndTouch, req)
 }

@@ -40,6 +40,7 @@ type KvClient interface {
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
+	GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error)
 	GetAndTouch(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error)
 	GetReplica(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error)
 	GetRandom(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error)

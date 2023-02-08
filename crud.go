@@ -147,3 +147,38 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 			}, nil
 		})
 }
+
+type GetAndLockOptions struct {
+	Key            []byte
+	LockTime       uint32
+	CollectionName string
+	ScopeName      string
+	CollectionID   uint32
+}
+
+type GetAndLockResult struct {
+	Value    []byte
+	Flags    uint32
+	Datatype uint8
+	Cas      uint64
+}
+
+func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions) (*GetAndLockResult, error) {
+	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager, opts.ScopeName, opts.CollectionName, opts.Key,
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
+			resp, err := client.GetAndLock(ctx, &memdx.GetAndLockRequest{
+				CollectionID: collectionID,
+				LockTime:     opts.LockTime,
+				Key:          opts.Key,
+				VbucketID:    vbID,
+			})
+
+			if err != nil {
+				return nil, err
+			}
+
+			return &GetAndLockResult{
+				Cas: resp.Cas,
+			}, nil
+		})
+}
