@@ -40,6 +40,7 @@ type KvClient interface {
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
+	GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error)
 
 	Close() error
 

@@ -147,3 +147,7 @@ func (c *kvClient) Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetRe
 func (c *kvClient) Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Delete, req)
 }
+
+func (c *kvClient) GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetAndLock, req)
+}
