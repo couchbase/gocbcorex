@@ -155,7 +155,12 @@ func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientConfig) error 
 	if opts.Password != c.password {
 		return placeholderError{"cannot reconfigure password"}
 	}
-	if opts.SelectedBucket != c.bucket {
+
+	if opts.SelectedBucket != "" {
+		if c.bucket != "" {
+			return placeholderError{"cannot perform select bucket on an already bucket bound kvclient"}
+		}
+
 		c.bucket = opts.SelectedBucket
 		if err := c.SelectBucket(ctx, &memdx.SelectBucketRequest{
 			BucketName: c.bucket,
