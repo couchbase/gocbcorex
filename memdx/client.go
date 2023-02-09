@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// a basic memd client that provides opaque mapping and request dispatch...
+// Client is a basic memd client that provides opaque mapping and request dispatch...
 // note that it is not thread-safe, but does use locks to prevent internal races
 // between operations that are being sent and responses being received.
 type Client struct {
@@ -60,11 +60,8 @@ func (c *Client) run() {
 		}
 	}
 
-	// TODO: closeErr is always not nil here
-	if closeErr != nil {
-		if c.closeHandler != nil {
-			c.closeHandler(closeErr)
-		}
+	if c.closeHandler != nil {
+		c.closeHandler(closeErr)
 	}
 }
 
@@ -134,6 +131,10 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 
 	err := c.conn.WritePacket(req)
 	if err != nil {
+		c.lock.Lock()
+		delete(c.opaqueMap, opaqueID)
+		c.lock.Unlock()
+
 		return nil, err
 	}
 
