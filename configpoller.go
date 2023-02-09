@@ -1,8 +1,6 @@
 package core
 
 import (
-	"context"
-
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
 
@@ -12,5 +10,6 @@ type TerseConfigJsonWithSource struct {
 }
 
 type ConfigPoller interface {
-	Watch(ctx context.Context) (<-chan *TerseConfigJsonWithSource, error)
+	Watch() (<-chan *TerseConfigJsonWithSource, error)
+	Close() error
 }

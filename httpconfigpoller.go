@@ -48,6 +48,8 @@ type httpConfigPoller struct {
 	httpClient           HTTPClientManager
 	bucketName           string
 	seenNodes            map[string]uint64
+
+	shutdownSig chan struct{}
 }
 
 type httpPollerProperties struct {
@@ -68,10 +70,19 @@ func newhttpConfigPoller(props httpPollerProperties) *httpConfigPoller {
 		httpClient:           props.HTTPClient,
 		bucketName:           props.BucketName,
 		seenNodes:            make(map[string]uint64),
+		shutdownSig:          make(chan struct{}),
 	}
 }
 
-func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJsonWithSource, error) {
+func (hcc *httpConfigPoller) Close() error {
+	// We don't just close the sig so that we can wait on it to be read, signalling that the poller
+	// has stopped.
+	hcc.shutdownSig <- struct{}{}
+
+	return nil
+}
+
+func (hcc *httpConfigPoller) Watch() (<-chan *TerseConfigJsonWithSource, error) {
 	waitPeriod := hcc.confHTTPRetryDelay
 	maxConnPeriod := hcc.confHTTPRedialPeriod
 
@@ -92,7 +103,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 			}
 
 			select {
-			case <-ctx.Done():
+			case <-hcc.shutdownSig:
 				return
 			default:
 			}
@@ -115,7 +126,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					// Wait for a period before trying again if there was a problem...
 					// We also watch for the client being shut down.
 					select {
-					case <-ctx.Done():
+					case <-hcc.shutdownSig:
 						return
 					case <-time.After(waitPeriod):
 					}
@@ -133,6 +144,15 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 			var resp *HTTPResponse
 			// 1 on success, 0 on failure for node, -1 for generic failure
 			var doConfigRequest func(bool) int
+			var cancel context.CancelFunc
+
+			closeBody := func(failMsg string) {
+				cancel()
+				err := resp.Raw.Body.Close()
+				if err != nil {
+					hcc.logger.Debug(failMsg, zap.Error(err))
+				}
+			}
 
 			doConfigRequest = func(is2x bool) int {
 				// HTTP request time!
@@ -146,13 +166,17 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					Method:   "GET",
 				}
 
+				var ctx context.Context
+				ctx, cancel = context.WithTimeout(context.Background(), hcc.confHTTPMaxWait)
 				resp, err = client.Do(ctx, req)
 				if err != nil {
+					cancel()
 					hcc.logger.Warn("http request failed", zap.Error(err))
 					return 0
 				}
 
 				if resp.Raw.StatusCode != 200 {
+					cancel()
 					err := resp.Raw.Body.Close()
 					if err != nil {
 						hcc.logger.Warn("failed to close failed response body", zap.Error(err))
@@ -192,17 +216,14 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 			go func() {
 				select {
 				case <-time.After(maxConnPeriod):
-				case <-ctx.Done():
+				case <-hcc.shutdownSig:
 				}
 
 				hcc.logger.Debug("automatically resetting http connection")
 
 				atomic.StoreInt32(&autoDisconnected, 1)
 
-				err := resp.Raw.Body.Close()
-				if err != nil {
-					hcc.logger.Debug("auto-dc failed to close response body", zap.Error(err))
-				}
+				closeBody("auto-dc failed to close response body")
 			}()
 
 			dec := json.NewDecoder(resp.Raw.Body)
@@ -220,10 +241,7 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 					hcc.logger.Warn("failed to decode config block", zap.Error(err))
 
 					if err != io.EOF {
-						err = resp.Raw.Body.Close()
-						if err != nil {
-							hcc.logger.Warn("failed to close response body after decode error", zap.Error(err))
-						}
+						closeBody("failed to close response body after decode error")
 					}
 
 					break
@@ -234,11 +252,6 @@ func (hcc *httpConfigPoller) Watch(ctx context.Context) (<-chan *TerseConfigJson
 				bkCfg, err := parseConfig(configBlock.Bytes, hostname)
 				if err != nil {
 					hcc.logger.Warn("failed to parse config", zap.Error(err))
-
-					err = resp.Raw.Body.Close()
-					if err != nil {
-						hcc.logger.Warn("failed to close response body after parse error", zap.Error(err))
-					}
 
 					break
 				}

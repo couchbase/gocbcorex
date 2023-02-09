@@ -189,6 +189,14 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	return nil
 }
 
+func (agent *Agent) Close() error {
+	if err := agent.poller.Close(); err != nil {
+		agent.logger.Debug("failed to close poller", zap.Error(err))
+	}
+
+	return nil
+}
+
 func (agent *Agent) handleRouteConfig(rc *routeConfig) {
 	agent.lock.Lock()
 	agent.state.latestConfig = rc
@@ -304,7 +312,7 @@ func (agent *Agent) updateStateLocked() {
 }
 
 func (agent *Agent) startConfigWatcher(ctx context.Context) error {
-	configCh, err := agent.poller.Watch(ctx)
+	configCh, err := agent.poller.Watch()
 	if err != nil {
 		return err
 	}
@@ -314,6 +322,9 @@ func (agent *Agent) startConfigWatcher(ctx context.Context) error {
 	case config := <-configCh:
 		firstConfig = config
 	case <-ctx.Done():
+		if err := agent.poller.Close(); err != nil {
+			agent.logger.Debug("failed to close poller", zap.Error(err))
+		}
 		return ctx.Err()
 	}
 

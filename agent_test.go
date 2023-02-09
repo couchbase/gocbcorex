@@ -54,6 +54,9 @@ func TestAgentBasic(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, getRes.Cas)
 	assert.NotEmpty(t, getRes.Value)
+
+	err = agent.Close()
+	require.NoError(t, err)
 }
 
 func TestAgentBadCollection(t *testing.T) {
@@ -76,6 +79,9 @@ func TestAgentBadCollection(t *testing.T) {
 		CollectionName: "invalid-collection",
 	})
 	require.ErrorIs(t, err, memdx.ErrUnknownCollectionName)
+
+	err = agent.Close()
+	require.NoError(t, err)
 }
 
 func TestAgentBasicHTTP(t *testing.T) {
@@ -95,6 +101,9 @@ func TestAgentBasicHTTP(t *testing.T) {
 
 	err = resp.Raw.Body.Close()
 	require.NoError(t, err)
+
+	err = agent.Close()
+	require.NoError(t, err)
 }
 
 func BenchmarkBasicGet(b *testing.B) {
@@ -111,6 +120,7 @@ func BenchmarkBasicGet(b *testing.B) {
 	if err != nil {
 		b.Errorf("failed to create agent: %s", err)
 	}
+	defer agent.Close()
 
 	_, err = agent.Upsert(context.Background(), &UpsertOptions{
 		Key:            []byte("test"),
@@ -130,4 +140,5 @@ func BenchmarkBasicGet(b *testing.B) {
 		})
 	}
 	b.ReportAllocs()
+
 }
