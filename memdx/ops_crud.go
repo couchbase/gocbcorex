@@ -637,14 +637,10 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 		if resp.Status == StatusKeyExists {
 			cb(nil, ErrCasMismatch)
 			return false
-		}
-
-		if resp.Status == StatusKeyNotFound {
+		} else if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		}
-
-		if resp.Status != StatusSuccess {
+		} else if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
@@ -1413,9 +1409,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		} else if resp.Status == StatusSubDocBadMulti {
 			cb(nil, ErrSubDocBadMulti)
 			return false
-		}
-
-		if resp.Status != StatusSuccess && resp.Status != StatusSubDocSuccessDeleted &&
+		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocSuccessDeleted &&
 			resp.Status != StatusSubDocMultiPathFailureDeleted {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
@@ -1462,9 +1456,15 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		return nil, err
 	}
 
-	extraBuf := make([]byte, 8)
-	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
-	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+	var extraBuf []byte
+	if req.Expiry != 0 {
+		tmpBuf := make([]byte, 4)
+		binary.BigEndian.PutUint32(tmpBuf[0:], req.Expiry)
+		extraBuf = append(extraBuf, tmpBuf...)
+	}
+	if req.Flags != 0 {
+		extraBuf = append(extraBuf, uint8(req.Flags))
+	}
 
 	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
@@ -1474,15 +1474,26 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		Extras:        extraBuf,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
-		Cas:           0,
+		Cas:           req.Cas,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
 			return false
 		}
 
-		// TODO(chvck): there's a bunch of special error handling to do here.
-		if resp.Status != StatusSuccess {
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusKeyExists && req.Flags&0x02 == 2 { // Only doc exists error if flags are add
+			cb(nil, ErrDocExists)
+			return false
+		} else if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
+			return false
+		} else if resp.Status == StatusSubDocBadMulti {
+			cb(nil, ErrSubDocBadMulti)
+			return false
+		} else if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}

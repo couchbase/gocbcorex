@@ -336,6 +336,20 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte("value"))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     valueBuf,
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -584,6 +598,21 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte("value"))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					CollectionID: 2222,
+					Key:          key,
+					VbucketID:    1,
+					Value:        valueBuf,
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -630,6 +659,21 @@ func TestOpsCrudDocExists(t *testing.T) {
 					Value:     []byte("value"),
 					VbucketID: 1,
 				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     valueBuf,
+					Flags:     0x02, // perform the mutation as an insert
+				}, func(resp *MutateInResponse, err error) {
 					cb(resp, err)
 				})
 			},
@@ -744,6 +788,38 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 					Cas:       1,
 					VbucketID: 1,
 				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Cas:       1,
+					Value:     valueBuf,
+					Flags:     0x01, // perform the mutation as a set
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "MutateInDefaultFlags",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Cas:       1,
+					Value:     valueBuf,
+					Flags:     0, // no flags should just passthrough, server will treat as set
+				}, func(resp *MutateInResponse, err error) {
 					cb(resp, err)
 				})
 			},
@@ -1061,6 +1137,20 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value2"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     valueBuf,
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1078,7 +1168,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
 					VbucketID: 1,
-					Value:     key,
+					Value:     []byte(`{"key":"value"}`),
 					Datatype:  uint8(0x01),
 				})
 				require.NoError(t, err)
@@ -1121,8 +1211,8 @@ func TestOpsCrudMutations(t *testing.T) {
 		ExpectedValue   []byte
 	}
 
-	usualExpectedValue := []byte("expectedvalue")
-	initialValue := []byte(uuid.NewString())
+	usualExpectedValue := []byte(`{"key":"value2"}`)
+	initialValue := []byte(`{"key":"value"}`)
 
 	tests := []test{
 		{
@@ -1286,6 +1376,21 @@ func TestOpsCrudMutations(t *testing.T) {
 			},
 			ExpectDeleted: true,
 		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value2"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     valueBuf,
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
 	}
 
 	for _, test := range tests {
@@ -1400,4 +1505,16 @@ func parseSingleLookupInGet(res *LookupInResponse) (Status, []byte) {
 	value := res.Value[6 : 6+resValueLen]
 
 	return resStatus, value
+}
+
+func makeSingleMutateInSet(path, value []byte) []byte {
+	valueBuf := make([]byte, 8+len(path)+len(value))
+	valueBuf[0] = uint8(OpCodeSubDocDictSet)
+	valueBuf[1] = 0
+	binary.BigEndian.PutUint16(valueBuf[2:], uint16(len(path)))
+	binary.BigEndian.PutUint32(valueBuf[4:], uint32(len(value)))
+	copy(valueBuf[8:], path)
+	copy(valueBuf[8+len(path):], value)
+
+	return valueBuf
 }
