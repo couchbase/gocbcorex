@@ -122,7 +122,10 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 
 		if timesFnCalled == 1 {
 			assert.Equal(t, expectedVbID, vbID)
-			return 0, memdx.ServerErrorWithConfig{Cause: memdx.ErrNotMyVbucket, ConfigJson: cfgBytes}
+			return 0, memdx.ServerErrorWithConfig{
+				Cause:      memdx.ServerError{Cause: memdx.ErrNotMyVbucket},
+				ConfigJson: cfgBytes,
+			}
 		} else if timesFnCalled == 2 {
 			assert.Equal(t, newExpectedVbID, vbID)
 			return expectedResult, nil

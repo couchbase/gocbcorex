@@ -61,3 +61,11 @@ func (c *Conn) ReadPacket(pak *Packet) error {
 func (c *Conn) Close() error {
 	return c.conn.Close()
 }
+
+func (c *Conn) LocalAddr() string {
+	return c.conn.LocalAddr().String()
+}
+
+func (c *Conn) RemoteAddr() string {
+	return c.conn.RemoteAddr().String()
+}

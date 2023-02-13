@@ -177,7 +177,9 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundErrorServerHasOlderManifes
 		assert.Equal(t, rev, manifestID)
 
 		return 0, memdx.ServerErrorWithContext{
-			Cause:       memdx.ErrUnknownCollectionID,
+			Cause: memdx.ServerError{
+				Cause: memdx.ErrUnknownCollectionID,
+			},
 			ContextJson: contextBytes,
 		}
 	})

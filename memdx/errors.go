@@ -36,13 +36,34 @@ func (e protocolError) Unwrap() error {
 	return ErrProtocol
 }
 
+type ServerError struct {
+	Cause          error
+	DispatchedTo   string
+	DispatchedFrom string
+	Opaque         uint32
+}
+
+func (e ServerError) Error() string {
+	return fmt.Sprintf(
+		"server error: %s, dispatched from: %s, dispatched to: %s, opaque: %d",
+		e.Cause,
+		e.DispatchedFrom,
+		e.DispatchedTo,
+		e.Opaque,
+	)
+}
+
+func (e ServerError) Unwrap() error {
+	return e.Cause
+}
+
 type ServerErrorWithConfig struct {
-	Cause      error
+	Cause      ServerError
 	ConfigJson []byte
 }
 
 func (e ServerErrorWithConfig) Error() string {
-	return fmt.Sprintf("server error: %s (config was attached)", e.Cause)
+	return fmt.Sprintf("%s (config was attached)", e.Cause)
 }
 
 func (e ServerErrorWithConfig) Unwrap() error {
@@ -56,12 +77,12 @@ type ServerErrorContext struct {
 }
 
 type ServerErrorWithContext struct {
-	Cause       error
+	Cause       ServerError
 	ContextJson json.RawMessage
 }
 
 func (e ServerErrorWithContext) Error() string {
-	return fmt.Sprintf("server error: %s (context: `%s`)", e.Cause, e.ContextJson)
+	return fmt.Sprintf("%s (context: `%s`)", e.Cause, e.ContextJson)
 }
 
 func (e ServerErrorWithContext) Unwrap() error {
