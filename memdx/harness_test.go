@@ -26,7 +26,7 @@ func createTestClient(t *testing.T) *Client {
 	}, OpBootstrap.Bootstrap, cli, &BootstrapOptions{
 		Hello: &HelloRequest{
 			ClientName:        []byte("memdx-test-harness"),
-			RequestedFeatures: []HelloFeature{HelloFeatureCollections, HelloFeatureJSON, HelloFeatureSeqNo},
+			RequestedFeatures: []HelloFeature{HelloFeatureCollections, HelloFeatureJSON, HelloFeatureSeqNo, HelloFeatureXattr},
 		},
 		GetErrorMap: &GetErrorMapRequest{
 			Version: 2,

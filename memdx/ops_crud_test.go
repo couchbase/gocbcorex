@@ -16,7 +16,7 @@ func TestOpsCrudGets(t *testing.T) {
 	}
 
 	key := []byte(uuid.NewString())
-	value := []byte(uuid.NewString())
+	value := []byte("{\"key\": \"value\"}")
 	datatype := uint8(0x01)
 
 	cli := createTestClient(t)
@@ -69,6 +69,31 @@ func TestOpsCrudGets(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "GetMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.GetMeta(cli, &GetMetaRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *GetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			CheckOverride: func(t *testing.T, res interface{}) {
+				randRes, ok := res.(*GetMetaResponse)
+				if !ok {
+					t.Fatalf("Result of GetRandom was not *GetRandomResponse: %v", res)
+				}
+
+				assert.Empty(t, randRes.Value)
+				assert.NotZero(t, randRes.Cas)
+				assert.Zero(t, randRes.Flags)
+				assert.NotZero(t, randRes.Expiry)
+				assert.NotZero(t, randRes.SeqNo)
+				assert.Equal(t, uint32(0), randRes.Deleted)
+				assert.Equal(t, datatype, randRes.Datatype)
+			},
+		},
 	}
 
 	_, err := syncUnaryCall(OpsCrud{
@@ -80,6 +105,7 @@ func TestOpsCrudGets(t *testing.T) {
 		VbucketID:    1,
 		Value:        value,
 		Datatype:     datatype,
+		Expiry:       60,
 	})
 	require.NoError(t, err)
 
@@ -187,6 +213,81 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key: key,
 				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:   key,
+					Value: []byte("value"),
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:   key,
+					Value: []byte("value"),
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:   key,
+					Value: []byte("value"),
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Increment",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					Key:     key,
+					Initial: uint64(0xFFFFFFFFFFFFFFFF),
+				}, func(resp *IncrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Decrement",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					Key:     key,
+					Initial: uint64(0xFFFFFFFFFFFFFFFF),
+				}, func(resp *DecrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "GetMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.GetMeta(cli, &GetMetaRequest{
+					Key: key,
+				}, func(resp *GetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "DeleteMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+					Key: key,
+				}, func(resp *DeleteMetaResponse, err error) {
 					cb(resp, err)
 				})
 			},
@@ -317,6 +418,113 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Add",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Value:        []byte("value"),
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Value:        []byte("value"),
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Value:        []byte("value"),
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Value:        []byte("value"),
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Increment",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
+				}, func(resp *IncrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Decrement",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
+				}, func(resp *DecrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "GetMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.GetMeta(cli, &GetMetaRequest{
+					CollectionID: 2222,
+					Key:          key,
+				}, func(resp *GetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "SetMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.SetMeta(cli, &SetMetaRequest{
+					CollectionID: 2222,
+					Key:          key,
+					Value:        []byte("value"),
+					Cas:          1, // For some reason Cas is required here.
+				}, func(resp *SetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "DeleteMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+					CollectionID: 2222,
+					Key:          key,
+				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -334,6 +542,183 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 			}
 
 			assert.ErrorIs(tt, <-wait, ErrUnknownCollectionID)
+		})
+	}
+}
+
+func TestOpsCrudDocExists(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte("{\"key\": \"value\"}")
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op   func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error)
+		Name string
+	}
+
+	tests := []test{
+		{
+			Name: "Add",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+	}
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+		Expiry:       60,
+	})
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			wait := make(chan error, 1)
+
+			_, err := test.Op(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, func(i interface{}, err error) {
+				wait <- err
+			})
+			if !assert.NoError(tt, err) {
+				return
+			}
+
+			assert.ErrorIs(tt, <-wait, ErrDocExists)
+		})
+	}
+}
+
+func TestOpsCrudCollectionCasMismatch(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte("{\"key\": \"value\"}")
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op   func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error)
+		Name string
+	}
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Set(cli, &SetRequest{
+					Key:       key,
+					Value:     key,
+					Cas:       1,
+					VbucketID: 1,
+				}, func(resp *SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Delete",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key:       key,
+					Cas:       1,
+					VbucketID: 1,
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					Cas:       1,
+					VbucketID: 1,
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "SetMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.SetMeta(cli, &SetMetaRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					Cas:       1,
+					VbucketID: 1,
+				}, func(resp *SetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "DeleteMeta",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+					Key:       key,
+					Cas:       1,
+					VbucketID: 1,
+				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+	}
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+		Expiry:       60,
+	})
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			wait := make(chan error, 1)
+
+			_, err := test.Op(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, func(i interface{}, err error) {
+				wait <- err
+			})
+			if !assert.NoError(tt, err) {
+				return
+			}
+
+			assert.ErrorIs(tt, <-wait, ErrCasMismatch)
 		})
 	}
 }
@@ -384,6 +769,54 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 		Cas:          res.Cas,
 	})
 	require.NoError(t, err)
+}
+
+func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte(uuid.NewString())
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+	})
+	require.NoError(t, err)
+
+	res, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.GetAndLock, cli, &GetAndLockRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, value, res.Value)
+	assert.NotZero(t, res.Cas)
+
+	_, err = syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Unlock, cli, &UnlockRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Cas:          222,
+	})
+	require.ErrorIs(t, err, ErrDocLocked)
 }
 
 func TestOpsCrudTouch(t *testing.T) {
@@ -477,8 +910,9 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 	cli := createTestClient(t)
 
 	type test struct {
-		Op   func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error)
-		Name string
+		Op              func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error)
+		Name            string
+		SkipDocCreation bool
 	}
 
 	tests := []test{
@@ -517,6 +951,103 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				})
 			},
 		},
+		{
+			Name: "Add",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Increment",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *IncrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+		},
+		{
+			Name: "Decrement",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *DecrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+		},
+		// { TODO(chvck): this is adament it doesn't want to work.
+		// 	Name: "SetMeta",
+		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.SetMeta(cli, &SetMetaRequest{
+		// 			Key:   key,
+		// 			Value: []byte("value"),
+		// 			Cas:       cas, // For some reason Cas is required here.
+		// 			VbucketID: 1,
+		// 		}, func(resp *SetMetaResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
+		{
+			Name: "DeleteMeta",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -526,21 +1057,25 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 
 			key := []byte(uuid.NewString())
 
-			setRes, err := syncUnaryCall(OpsCrud{
-				CollectionsEnabled: true,
-				ExtFramesEnabled:   true,
-			}, OpsCrud.Set, cli, &SetRequest{
-				Key:       key,
-				VbucketID: 1,
-				Value:     key,
-				Datatype:  uint8(0x01),
-			})
-			require.NoError(t, err)
+			var cas uint64
+			if !test.SkipDocCreation {
+				setRes, err := syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     key,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(t, err)
+				cas = setRes.Cas
+			}
 
-			_, err = test.Op(OpsCrud{
+			_, err := test.Op(OpsCrud{
 				CollectionsEnabled: true,
 				ExtFramesEnabled:   true,
-			}, key, setRes.Cas, func(i interface{}, err error) {
+			}, key, cas, func(i interface{}, err error) {
 				waiterr <- err
 				waitres <- i
 			})
@@ -554,6 +1089,245 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 			mutationToken := elem.FieldByName("MutationToken").Interface().(MutationToken)
 			assert.NotZero(tt, mutationToken.VbUuid)
 			assert.NotZero(tt, mutationToken.SeqNo)
+		})
+	}
+}
+
+func TestOpsCrudMutations(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op              func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error)
+		Name            string
+		SkipDocCreation bool
+		ExpectDeleted   bool
+		ExpectedValue   []byte
+	}
+
+	usualExpectedValue := []byte("expectedvalue")
+	initialValue := []byte(uuid.NewString())
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Set(cli, &SetRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					VbucketID: 1,
+				}, func(resp *SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		// {	TODO(chvck): this probably needs the doc to be locked first?
+		// 	Name: "Unlock",
+		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.Unlock(cli, &UnlockRequest{
+		// 			Key:       key,
+		// 			Cas:       cas,
+		// 			VbucketID: 1,
+		// 		}, func(resp *UnlockResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
+		{
+			Name: "Delete",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectDeleted: true,
+		},
+		{
+			Name: "Add",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					VbucketID: 1,
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   usualExpectedValue,
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					VbucketID: 1,
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					VbucketID: 1,
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(initialValue, usualExpectedValue...),
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					VbucketID: 1,
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(usualExpectedValue, initialValue...),
+		},
+		{
+			Name: "Increment",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					Key:       key,
+					Initial:   1,
+					VbucketID: 1,
+				}, func(resp *IncrementResponse, err error) {
+					_, err = opsCrud.Increment(cli, &IncrementRequest{
+						Key:       key,
+						Delta:     2,
+						VbucketID: 1,
+					}, func(response *IncrementResponse, err error) {
+						cb(resp, err)
+					})
+					if err == nil {
+						cb(nil, err)
+					}
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   []byte("3"),
+		},
+		{
+			Name: "Decrement",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					Key:       key,
+					Initial:   5,
+					VbucketID: 1,
+				}, func(resp *DecrementResponse, err error) {
+					_, err = opsCrud.Decrement(cli, &DecrementRequest{
+						Key:       key,
+						Delta:     2,
+						VbucketID: 1,
+					}, func(response *DecrementResponse, err error) {
+						cb(resp, err)
+					})
+					if err == nil {
+						cb(nil, err)
+					}
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   []byte("3"),
+		},
+		// { TODO(chvck): this is adament it doesn't want to work.
+		// 	Name: "SetMeta",
+		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.SetMeta(cli, &SetMetaRequest{
+		// 			Key:   key,
+		// 			Value: []byte("value"),
+		// 			Cas:       cas, // For some reason Cas is required here.
+		// 			VbucketID: 1,
+		// 		}, func(resp *SetMetaResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
+		{
+			Name: "DeleteMeta",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+					Key:       key,
+					VbucketID: 1,
+				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectDeleted: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			waiterr := make(chan error, 1)
+			waitres := make(chan interface{}, 1)
+
+			key := []byte(uuid.NewString())
+
+			var cas uint64
+			if !test.SkipDocCreation {
+				setRes, err := syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     initialValue,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(t, err)
+				cas = setRes.Cas
+			}
+
+			_, err := test.Op(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, key, cas, func(i interface{}, err error) {
+				waiterr <- err
+				waitres <- i
+			})
+			require.NoError(tt, err)
+
+			require.NoError(tt, <-waiterr)
+
+			<-waitres
+
+			getRes, err := syncUnaryCall(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, OpsCrud.Get, cli, &GetRequest{
+				Key:       key,
+				VbucketID: 1,
+			})
+
+			if test.ExpectDeleted {
+				assert.ErrorIs(t, err, ErrDocNotFound)
+			} else {
+				require.NoError(t, err)
+
+				elem := reflect.ValueOf(getRes).Elem()
+				value := elem.FieldByName("Value").Bytes()
+				assert.Equal(tt, test.ExpectedValue, value)
+			}
+
 		})
 	}
 }

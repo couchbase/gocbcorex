@@ -403,6 +403,7 @@ type SetRequest struct {
 	Datatype     uint8
 	Expiry       uint32
 	OnBehalfOf   string
+	Cas          uint64
 }
 
 type SetResponse struct {
@@ -434,9 +435,15 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		Extras:        extraBuf,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
+		Cas:           req.Cas,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
 			return false
 		}
 
@@ -502,8 +509,8 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists {
-			cb(nil, ErrCasMismatch)
+		} else if resp.Status == StatusTmpFail {
+			cb(nil, ErrDocLocked)
 		}
 
 		if resp.Status != StatusSuccess {
@@ -627,6 +634,11 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 			return false
 		}
 
+		if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
+			return false
+		}
+
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
@@ -701,6 +713,11 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 			return false
 		}
 
+		if resp.Status == StatusKeyExists {
+			cb(nil, ErrDocExists)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
@@ -732,6 +749,7 @@ type ReplaceRequest struct {
 	Datatype     uint8
 	Expiry       uint32
 	OnBehalfOf   string
+	Cas          uint64
 }
 
 type ReplaceResponse struct {
@@ -763,9 +781,20 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 		Extras:        extraBuf,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
+		Cas:           req.Cas,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
 			return false
 		}
 
@@ -828,6 +857,11 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 			return false
 		}
 
+		if resp.Status == StatusNotStored {
+			cb(nil, ErrDocNotFound)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
@@ -876,7 +910,7 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 
 	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
-		OpCode:        OpCodeAppend,
+		OpCode:        OpCodePrepend,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
 		Value:         req.Value,
@@ -884,6 +918,11 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusNotStored {
+			cb(nil, ErrDocNotFound)
 			return false
 		}
 
@@ -913,7 +952,6 @@ type IncrementRequest struct {
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
-	Value        []byte
 	OnBehalfOf   string
 	Initial      uint64
 	Delta        uint64
@@ -949,16 +987,20 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 
 	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
-		OpCode:        OpCodeAppend,
+		OpCode:        OpCodeIncrement,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
 		Datatype:      0,
 		Extras:        extraBuf,
-		Value:         req.Value,
 		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
 			return false
 		}
 
@@ -995,7 +1037,6 @@ type DecrementRequest struct {
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
-	Value        []byte
 	OnBehalfOf   string
 	Initial      uint64
 	Delta        uint64
@@ -1031,16 +1072,20 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 
 	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
-		OpCode:        OpCodeAppend,
+		OpCode:        OpCodeDecrement,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
 		Datatype:      0,
 		Extras:        extraBuf,
-		Value:         req.Value,
 		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
 			return false
 		}
 
@@ -1102,12 +1147,18 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 		return nil, err
 	}
 
+	// This appears to be necessary to get the server to include the datatype in the response
+	// extras.
+	extraBuf := make([]byte, 1)
+	extraBuf[0] = 2
+
 	return d.Dispatch(&Packet{
 		Magic:         reqMagic,
 		OpCode:        OpCodeGetMeta,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
 		FramingExtras: extFramesBuf,
+		Extras:        extraBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -1124,7 +1175,7 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			return false
 		}
 
-		if len(resp.Extras) != 20 {
+		if len(resp.Extras) != 21 {
 			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
@@ -1197,6 +1248,11 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
 			return false
 		}
 
@@ -1273,6 +1329,11 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 			return false
 		}
 
+		if resp.Status == StatusKeyExists {
+			cb(nil, ErrCasMismatch)
+			return false
+		}
+
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
@@ -1305,6 +1366,7 @@ type LookupInRequest struct {
 	Key          []byte
 	VbucketID    uint16
 	Flags        uint8
+	Value        []byte
 
 	OnBehalfOf string
 }
@@ -1328,7 +1390,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 
 	var extraBuf []byte
 	if req.Flags != 0 {
-		extraBuf = append(extraBuf, uint8(req.Flags))
+		extraBuf = append(extraBuf, req.Flags)
 	}
 
 	return d.Dispatch(&Packet{
@@ -1338,6 +1400,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		Extras:        extraBuf,
 		VbucketID:     req.VbucketID,
 		FramingExtras: extFramesBuf,
+		Value:         req.Value,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
