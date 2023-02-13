@@ -140,10 +140,74 @@ func (c *kvClient) Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetRe
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Get, req)
 }
 
+func (c *kvClient) GetAndTouch(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetAndTouch, req)
+}
+
+func (c *kvClient) GetReplica(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetReplica, req)
+}
+
+func (c *kvClient) GetRandom(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetRandom, req)
+}
+
 func (c *kvClient) Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Set, req)
 }
 
+func (c *kvClient) Unlock(ctx context.Context, req *memdx.UnlockRequest) (*memdx.UnlockResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Unlock, req)
+}
+
+func (c *kvClient) Touch(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Touch, req)
+}
+
 func (c *kvClient) Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Delete, req)
+}
+
+func (c *kvClient) Add(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Add, req)
+}
+
+func (c *kvClient) Replace(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Replace, req)
+}
+
+func (c *kvClient) Append(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Append, req)
+}
+
+func (c *kvClient) Prepend(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Prepend, req)
+}
+
+func (c *kvClient) Increment(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Increment, req)
+}
+
+func (c *kvClient) Decrement(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Decrement, req)
+}
+
+func (c *kvClient) GetMeta(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetMeta, req)
+}
+
+func (c *kvClient) SetMeta(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.SetMeta, req)
+}
+
+func (c *kvClient) DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.DeleteMeta, req)
+}
+
+func (c *kvClient) LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.LookupIn, req)
+}
+
+func (c *kvClient) MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.MutateIn, req)
 }

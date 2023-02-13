@@ -19,14 +19,29 @@ var _ KvClient = &KvClientMock{}
 //
 //		// make and configure a mocked KvClient
 //		mockedKvClient := &KvClientMock{
+//			AddFunc: func(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error) {
+//				panic("mock out the Add method")
+//			},
+//			AppendFunc: func(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error) {
+//				panic("mock out the Append method")
+//			},
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
+//			},
+//			DecrementFunc: func(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error) {
+//				panic("mock out the Decrement method")
 //			},
 //			DeleteFunc: func(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error) {
 //				panic("mock out the Delete method")
 //			},
+//			DeleteMetaFunc: func(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
+//				panic("mock out the DeleteMeta method")
+//			},
 //			GetFunc: func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error) {
 //				panic("mock out the Get method")
+//			},
+//			GetAndTouchFunc: func(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error) {
+//				panic("mock out the GetAndTouch method")
 //			},
 //			GetClusterConfigFunc: func(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error) {
 //				panic("mock out the GetClusterConfig method")
@@ -34,14 +49,47 @@ var _ KvClient = &KvClientMock{}
 //			GetCollectionIDFunc: func(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error) {
 //				panic("mock out the GetCollectionID method")
 //			},
+//			GetMetaFunc: func(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error) {
+//				panic("mock out the GetMeta method")
+//			},
+//			GetRandomFunc: func(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error) {
+//				panic("mock out the GetRandom method")
+//			},
+//			GetReplicaFunc: func(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error) {
+//				panic("mock out the GetReplica method")
+//			},
+//			IncrementFunc: func(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error) {
+//				panic("mock out the Increment method")
+//			},
 //			LoadFactorFunc: func() float64 {
 //				panic("mock out the LoadFactor method")
+//			},
+//			LookupInFunc: func(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
+//				panic("mock out the LookupIn method")
+//			},
+//			MutateInFunc: func(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error) {
+//				panic("mock out the MutateIn method")
+//			},
+//			PrependFunc: func(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error) {
+//				panic("mock out the Prepend method")
 //			},
 //			ReconfigureFunc: func(ctx context.Context, opts *KvClientConfig) error {
 //				panic("mock out the Reconfigure method")
 //			},
+//			ReplaceFunc: func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
+//				panic("mock out the Replace method")
+//			},
 //			SetFunc: func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
 //				panic("mock out the Set method")
+//			},
+//			SetMetaFunc: func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
+//				panic("mock out the SetMeta method")
+//			},
+//			TouchFunc: func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error) {
+//				panic("mock out the Touch method")
+//			},
+//			UnlockFunc: func(ctx context.Context, req *memdx.UnlockRequest) (*memdx.UnlockResponse, error) {
+//				panic("mock out the Unlock method")
 //			},
 //		}
 //
@@ -50,14 +98,29 @@ var _ KvClient = &KvClientMock{}
 //
 //	}
 type KvClientMock struct {
+	// AddFunc mocks the Add method.
+	AddFunc func(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error)
+
+	// AppendFunc mocks the Append method.
+	AppendFunc func(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error)
+
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
+
+	// DecrementFunc mocks the Decrement method.
+	DecrementFunc func(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error)
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
 
+	// DeleteMetaFunc mocks the DeleteMeta method.
+	DeleteMetaFunc func(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error)
+
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
+
+	// GetAndTouchFunc mocks the GetAndTouch method.
+	GetAndTouchFunc func(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error)
 
 	// GetClusterConfigFunc mocks the GetClusterConfig method.
 	GetClusterConfigFunc func(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
@@ -65,19 +128,73 @@ type KvClientMock struct {
 	// GetCollectionIDFunc mocks the GetCollectionID method.
 	GetCollectionIDFunc func(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
 
+	// GetMetaFunc mocks the GetMeta method.
+	GetMetaFunc func(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error)
+
+	// GetRandomFunc mocks the GetRandom method.
+	GetRandomFunc func(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error)
+
+	// GetReplicaFunc mocks the GetReplica method.
+	GetReplicaFunc func(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error)
+
+	// IncrementFunc mocks the Increment method.
+	IncrementFunc func(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error)
+
 	// LoadFactorFunc mocks the LoadFactor method.
 	LoadFactorFunc func() float64
+
+	// LookupInFunc mocks the LookupIn method.
+	LookupInFunc func(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
+
+	// MutateInFunc mocks the MutateIn method.
+	MutateInFunc func(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error)
+
+	// PrependFunc mocks the Prepend method.
+	PrependFunc func(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
 	ReconfigureFunc func(ctx context.Context, opts *KvClientConfig) error
 
+	// ReplaceFunc mocks the Replace method.
+	ReplaceFunc func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
+
 	// SetFunc mocks the Set method.
 	SetFunc func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 
+	// SetMetaFunc mocks the SetMeta method.
+	SetMetaFunc func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error)
+
+	// TouchFunc mocks the Touch method.
+	TouchFunc func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error)
+
+	// UnlockFunc mocks the Unlock method.
+	UnlockFunc func(ctx context.Context, req *memdx.UnlockRequest) (*memdx.UnlockResponse, error)
+
 	// calls tracks calls to the methods.
 	calls struct {
+		// Add holds details about calls to the Add method.
+		Add []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.AddRequest
+		}
+		// Append holds details about calls to the Append method.
+		Append []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.AppendRequest
+		}
 		// Close holds details about calls to the Close method.
 		Close []struct {
+		}
+		// Decrement holds details about calls to the Decrement method.
+		Decrement []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.DecrementRequest
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -86,12 +203,26 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.DeleteRequest
 		}
+		// DeleteMeta holds details about calls to the DeleteMeta method.
+		DeleteMeta []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.DeleteMetaRequest
+		}
 		// Get holds details about calls to the Get method.
 		Get []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Req is the req argument value.
 			Req *memdx.GetRequest
+		}
+		// GetAndTouch holds details about calls to the GetAndTouch method.
+		GetAndTouch []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.GetAndTouchRequest
 		}
 		// GetClusterConfig holds details about calls to the GetClusterConfig method.
 		GetClusterConfig []struct {
@@ -107,8 +238,57 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.GetCollectionIDRequest
 		}
+		// GetMeta holds details about calls to the GetMeta method.
+		GetMeta []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.GetMetaRequest
+		}
+		// GetRandom holds details about calls to the GetRandom method.
+		GetRandom []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.GetRandomRequest
+		}
+		// GetReplica holds details about calls to the GetReplica method.
+		GetReplica []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.GetReplicaRequest
+		}
+		// Increment holds details about calls to the Increment method.
+		Increment []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.IncrementRequest
+		}
 		// LoadFactor holds details about calls to the LoadFactor method.
 		LoadFactor []struct {
+		}
+		// LookupIn holds details about calls to the LookupIn method.
+		LookupIn []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.LookupInRequest
+		}
+		// MutateIn holds details about calls to the MutateIn method.
+		MutateIn []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.MutateInRequest
+		}
+		// Prepend holds details about calls to the Prepend method.
+		Prepend []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.PrependRequest
 		}
 		// Reconfigure holds details about calls to the Reconfigure method.
 		Reconfigure []struct {
@@ -117,6 +297,13 @@ type KvClientMock struct {
 			// Opts is the opts argument value.
 			Opts *KvClientConfig
 		}
+		// Replace holds details about calls to the Replace method.
+		Replace []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.ReplaceRequest
+		}
 		// Set holds details about calls to the Set method.
 		Set []struct {
 			// Ctx is the ctx argument value.
@@ -124,15 +311,124 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.SetRequest
 		}
+		// SetMeta holds details about calls to the SetMeta method.
+		SetMeta []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.SetMetaRequest
+		}
+		// Touch holds details about calls to the Touch method.
+		Touch []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.TouchRequest
+		}
+		// Unlock holds details about calls to the Unlock method.
+		Unlock []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.UnlockRequest
+		}
 	}
+	lockAdd              sync.RWMutex
+	lockAppend           sync.RWMutex
 	lockClose            sync.RWMutex
+	lockDecrement        sync.RWMutex
 	lockDelete           sync.RWMutex
+	lockDeleteMeta       sync.RWMutex
 	lockGet              sync.RWMutex
+	lockGetAndTouch      sync.RWMutex
 	lockGetClusterConfig sync.RWMutex
 	lockGetCollectionID  sync.RWMutex
+	lockGetMeta          sync.RWMutex
+	lockGetRandom        sync.RWMutex
+	lockGetReplica       sync.RWMutex
+	lockIncrement        sync.RWMutex
 	lockLoadFactor       sync.RWMutex
+	lockLookupIn         sync.RWMutex
+	lockMutateIn         sync.RWMutex
+	lockPrepend          sync.RWMutex
 	lockReconfigure      sync.RWMutex
+	lockReplace          sync.RWMutex
 	lockSet              sync.RWMutex
+	lockSetMeta          sync.RWMutex
+	lockTouch            sync.RWMutex
+	lockUnlock           sync.RWMutex
+}
+
+// Add calls AddFunc.
+func (mock *KvClientMock) Add(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error) {
+	if mock.AddFunc == nil {
+		panic("KvClientMock.AddFunc: method is nil but KvClient.Add was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.AddRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockAdd.Lock()
+	mock.calls.Add = append(mock.calls.Add, callInfo)
+	mock.lockAdd.Unlock()
+	return mock.AddFunc(ctx, req)
+}
+
+// AddCalls gets all the calls that were made to Add.
+// Check the length with:
+//
+//	len(mockedKvClient.AddCalls())
+func (mock *KvClientMock) AddCalls() []struct {
+	Ctx context.Context
+	Req *memdx.AddRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.AddRequest
+	}
+	mock.lockAdd.RLock()
+	calls = mock.calls.Add
+	mock.lockAdd.RUnlock()
+	return calls
+}
+
+// Append calls AppendFunc.
+func (mock *KvClientMock) Append(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error) {
+	if mock.AppendFunc == nil {
+		panic("KvClientMock.AppendFunc: method is nil but KvClient.Append was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.AppendRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockAppend.Lock()
+	mock.calls.Append = append(mock.calls.Append, callInfo)
+	mock.lockAppend.Unlock()
+	return mock.AppendFunc(ctx, req)
+}
+
+// AppendCalls gets all the calls that were made to Append.
+// Check the length with:
+//
+//	len(mockedKvClient.AppendCalls())
+func (mock *KvClientMock) AppendCalls() []struct {
+	Ctx context.Context
+	Req *memdx.AppendRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.AppendRequest
+	}
+	mock.lockAppend.RLock()
+	calls = mock.calls.Append
+	mock.lockAppend.RUnlock()
+	return calls
 }
 
 // Close calls CloseFunc.
@@ -159,6 +455,42 @@ func (mock *KvClientMock) CloseCalls() []struct {
 	mock.lockClose.RLock()
 	calls = mock.calls.Close
 	mock.lockClose.RUnlock()
+	return calls
+}
+
+// Decrement calls DecrementFunc.
+func (mock *KvClientMock) Decrement(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error) {
+	if mock.DecrementFunc == nil {
+		panic("KvClientMock.DecrementFunc: method is nil but KvClient.Decrement was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.DecrementRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockDecrement.Lock()
+	mock.calls.Decrement = append(mock.calls.Decrement, callInfo)
+	mock.lockDecrement.Unlock()
+	return mock.DecrementFunc(ctx, req)
+}
+
+// DecrementCalls gets all the calls that were made to Decrement.
+// Check the length with:
+//
+//	len(mockedKvClient.DecrementCalls())
+func (mock *KvClientMock) DecrementCalls() []struct {
+	Ctx context.Context
+	Req *memdx.DecrementRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.DecrementRequest
+	}
+	mock.lockDecrement.RLock()
+	calls = mock.calls.Decrement
+	mock.lockDecrement.RUnlock()
 	return calls
 }
 
@@ -198,6 +530,42 @@ func (mock *KvClientMock) DeleteCalls() []struct {
 	return calls
 }
 
+// DeleteMeta calls DeleteMetaFunc.
+func (mock *KvClientMock) DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
+	if mock.DeleteMetaFunc == nil {
+		panic("KvClientMock.DeleteMetaFunc: method is nil but KvClient.DeleteMeta was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.DeleteMetaRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockDeleteMeta.Lock()
+	mock.calls.DeleteMeta = append(mock.calls.DeleteMeta, callInfo)
+	mock.lockDeleteMeta.Unlock()
+	return mock.DeleteMetaFunc(ctx, req)
+}
+
+// DeleteMetaCalls gets all the calls that were made to DeleteMeta.
+// Check the length with:
+//
+//	len(mockedKvClient.DeleteMetaCalls())
+func (mock *KvClientMock) DeleteMetaCalls() []struct {
+	Ctx context.Context
+	Req *memdx.DeleteMetaRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.DeleteMetaRequest
+	}
+	mock.lockDeleteMeta.RLock()
+	calls = mock.calls.DeleteMeta
+	mock.lockDeleteMeta.RUnlock()
+	return calls
+}
+
 // Get calls GetFunc.
 func (mock *KvClientMock) Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error) {
 	if mock.GetFunc == nil {
@@ -231,6 +599,42 @@ func (mock *KvClientMock) GetCalls() []struct {
 	mock.lockGet.RLock()
 	calls = mock.calls.Get
 	mock.lockGet.RUnlock()
+	return calls
+}
+
+// GetAndTouch calls GetAndTouchFunc.
+func (mock *KvClientMock) GetAndTouch(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error) {
+	if mock.GetAndTouchFunc == nil {
+		panic("KvClientMock.GetAndTouchFunc: method is nil but KvClient.GetAndTouch was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.GetAndTouchRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockGetAndTouch.Lock()
+	mock.calls.GetAndTouch = append(mock.calls.GetAndTouch, callInfo)
+	mock.lockGetAndTouch.Unlock()
+	return mock.GetAndTouchFunc(ctx, req)
+}
+
+// GetAndTouchCalls gets all the calls that were made to GetAndTouch.
+// Check the length with:
+//
+//	len(mockedKvClient.GetAndTouchCalls())
+func (mock *KvClientMock) GetAndTouchCalls() []struct {
+	Ctx context.Context
+	Req *memdx.GetAndTouchRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.GetAndTouchRequest
+	}
+	mock.lockGetAndTouch.RLock()
+	calls = mock.calls.GetAndTouch
+	mock.lockGetAndTouch.RUnlock()
 	return calls
 }
 
@@ -306,6 +710,150 @@ func (mock *KvClientMock) GetCollectionIDCalls() []struct {
 	return calls
 }
 
+// GetMeta calls GetMetaFunc.
+func (mock *KvClientMock) GetMeta(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error) {
+	if mock.GetMetaFunc == nil {
+		panic("KvClientMock.GetMetaFunc: method is nil but KvClient.GetMeta was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.GetMetaRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockGetMeta.Lock()
+	mock.calls.GetMeta = append(mock.calls.GetMeta, callInfo)
+	mock.lockGetMeta.Unlock()
+	return mock.GetMetaFunc(ctx, req)
+}
+
+// GetMetaCalls gets all the calls that were made to GetMeta.
+// Check the length with:
+//
+//	len(mockedKvClient.GetMetaCalls())
+func (mock *KvClientMock) GetMetaCalls() []struct {
+	Ctx context.Context
+	Req *memdx.GetMetaRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.GetMetaRequest
+	}
+	mock.lockGetMeta.RLock()
+	calls = mock.calls.GetMeta
+	mock.lockGetMeta.RUnlock()
+	return calls
+}
+
+// GetRandom calls GetRandomFunc.
+func (mock *KvClientMock) GetRandom(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error) {
+	if mock.GetRandomFunc == nil {
+		panic("KvClientMock.GetRandomFunc: method is nil but KvClient.GetRandom was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.GetRandomRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockGetRandom.Lock()
+	mock.calls.GetRandom = append(mock.calls.GetRandom, callInfo)
+	mock.lockGetRandom.Unlock()
+	return mock.GetRandomFunc(ctx, req)
+}
+
+// GetRandomCalls gets all the calls that were made to GetRandom.
+// Check the length with:
+//
+//	len(mockedKvClient.GetRandomCalls())
+func (mock *KvClientMock) GetRandomCalls() []struct {
+	Ctx context.Context
+	Req *memdx.GetRandomRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.GetRandomRequest
+	}
+	mock.lockGetRandom.RLock()
+	calls = mock.calls.GetRandom
+	mock.lockGetRandom.RUnlock()
+	return calls
+}
+
+// GetReplica calls GetReplicaFunc.
+func (mock *KvClientMock) GetReplica(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error) {
+	if mock.GetReplicaFunc == nil {
+		panic("KvClientMock.GetReplicaFunc: method is nil but KvClient.GetReplica was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.GetReplicaRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockGetReplica.Lock()
+	mock.calls.GetReplica = append(mock.calls.GetReplica, callInfo)
+	mock.lockGetReplica.Unlock()
+	return mock.GetReplicaFunc(ctx, req)
+}
+
+// GetReplicaCalls gets all the calls that were made to GetReplica.
+// Check the length with:
+//
+//	len(mockedKvClient.GetReplicaCalls())
+func (mock *KvClientMock) GetReplicaCalls() []struct {
+	Ctx context.Context
+	Req *memdx.GetReplicaRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.GetReplicaRequest
+	}
+	mock.lockGetReplica.RLock()
+	calls = mock.calls.GetReplica
+	mock.lockGetReplica.RUnlock()
+	return calls
+}
+
+// Increment calls IncrementFunc.
+func (mock *KvClientMock) Increment(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error) {
+	if mock.IncrementFunc == nil {
+		panic("KvClientMock.IncrementFunc: method is nil but KvClient.Increment was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.IncrementRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockIncrement.Lock()
+	mock.calls.Increment = append(mock.calls.Increment, callInfo)
+	mock.lockIncrement.Unlock()
+	return mock.IncrementFunc(ctx, req)
+}
+
+// IncrementCalls gets all the calls that were made to Increment.
+// Check the length with:
+//
+//	len(mockedKvClient.IncrementCalls())
+func (mock *KvClientMock) IncrementCalls() []struct {
+	Ctx context.Context
+	Req *memdx.IncrementRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.IncrementRequest
+	}
+	mock.lockIncrement.RLock()
+	calls = mock.calls.Increment
+	mock.lockIncrement.RUnlock()
+	return calls
+}
+
 // LoadFactor calls LoadFactorFunc.
 func (mock *KvClientMock) LoadFactor() float64 {
 	if mock.LoadFactorFunc == nil {
@@ -330,6 +878,114 @@ func (mock *KvClientMock) LoadFactorCalls() []struct {
 	mock.lockLoadFactor.RLock()
 	calls = mock.calls.LoadFactor
 	mock.lockLoadFactor.RUnlock()
+	return calls
+}
+
+// LookupIn calls LookupInFunc.
+func (mock *KvClientMock) LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
+	if mock.LookupInFunc == nil {
+		panic("KvClientMock.LookupInFunc: method is nil but KvClient.LookupIn was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.LookupInRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockLookupIn.Lock()
+	mock.calls.LookupIn = append(mock.calls.LookupIn, callInfo)
+	mock.lockLookupIn.Unlock()
+	return mock.LookupInFunc(ctx, req)
+}
+
+// LookupInCalls gets all the calls that were made to LookupIn.
+// Check the length with:
+//
+//	len(mockedKvClient.LookupInCalls())
+func (mock *KvClientMock) LookupInCalls() []struct {
+	Ctx context.Context
+	Req *memdx.LookupInRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.LookupInRequest
+	}
+	mock.lockLookupIn.RLock()
+	calls = mock.calls.LookupIn
+	mock.lockLookupIn.RUnlock()
+	return calls
+}
+
+// MutateIn calls MutateInFunc.
+func (mock *KvClientMock) MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error) {
+	if mock.MutateInFunc == nil {
+		panic("KvClientMock.MutateInFunc: method is nil but KvClient.MutateIn was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.MutateInRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockMutateIn.Lock()
+	mock.calls.MutateIn = append(mock.calls.MutateIn, callInfo)
+	mock.lockMutateIn.Unlock()
+	return mock.MutateInFunc(ctx, req)
+}
+
+// MutateInCalls gets all the calls that were made to MutateIn.
+// Check the length with:
+//
+//	len(mockedKvClient.MutateInCalls())
+func (mock *KvClientMock) MutateInCalls() []struct {
+	Ctx context.Context
+	Req *memdx.MutateInRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.MutateInRequest
+	}
+	mock.lockMutateIn.RLock()
+	calls = mock.calls.MutateIn
+	mock.lockMutateIn.RUnlock()
+	return calls
+}
+
+// Prepend calls PrependFunc.
+func (mock *KvClientMock) Prepend(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error) {
+	if mock.PrependFunc == nil {
+		panic("KvClientMock.PrependFunc: method is nil but KvClient.Prepend was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.PrependRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockPrepend.Lock()
+	mock.calls.Prepend = append(mock.calls.Prepend, callInfo)
+	mock.lockPrepend.Unlock()
+	return mock.PrependFunc(ctx, req)
+}
+
+// PrependCalls gets all the calls that were made to Prepend.
+// Check the length with:
+//
+//	len(mockedKvClient.PrependCalls())
+func (mock *KvClientMock) PrependCalls() []struct {
+	Ctx context.Context
+	Req *memdx.PrependRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.PrependRequest
+	}
+	mock.lockPrepend.RLock()
+	calls = mock.calls.Prepend
+	mock.lockPrepend.RUnlock()
 	return calls
 }
 
@@ -369,6 +1025,42 @@ func (mock *KvClientMock) ReconfigureCalls() []struct {
 	return calls
 }
 
+// Replace calls ReplaceFunc.
+func (mock *KvClientMock) Replace(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
+	if mock.ReplaceFunc == nil {
+		panic("KvClientMock.ReplaceFunc: method is nil but KvClient.Replace was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.ReplaceRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockReplace.Lock()
+	mock.calls.Replace = append(mock.calls.Replace, callInfo)
+	mock.lockReplace.Unlock()
+	return mock.ReplaceFunc(ctx, req)
+}
+
+// ReplaceCalls gets all the calls that were made to Replace.
+// Check the length with:
+//
+//	len(mockedKvClient.ReplaceCalls())
+func (mock *KvClientMock) ReplaceCalls() []struct {
+	Ctx context.Context
+	Req *memdx.ReplaceRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.ReplaceRequest
+	}
+	mock.lockReplace.RLock()
+	calls = mock.calls.Replace
+	mock.lockReplace.RUnlock()
+	return calls
+}
+
 // Set calls SetFunc.
 func (mock *KvClientMock) Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
 	if mock.SetFunc == nil {
@@ -402,6 +1094,114 @@ func (mock *KvClientMock) SetCalls() []struct {
 	mock.lockSet.RLock()
 	calls = mock.calls.Set
 	mock.lockSet.RUnlock()
+	return calls
+}
+
+// SetMeta calls SetMetaFunc.
+func (mock *KvClientMock) SetMeta(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
+	if mock.SetMetaFunc == nil {
+		panic("KvClientMock.SetMetaFunc: method is nil but KvClient.SetMeta was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.SetMetaRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockSetMeta.Lock()
+	mock.calls.SetMeta = append(mock.calls.SetMeta, callInfo)
+	mock.lockSetMeta.Unlock()
+	return mock.SetMetaFunc(ctx, req)
+}
+
+// SetMetaCalls gets all the calls that were made to SetMeta.
+// Check the length with:
+//
+//	len(mockedKvClient.SetMetaCalls())
+func (mock *KvClientMock) SetMetaCalls() []struct {
+	Ctx context.Context
+	Req *memdx.SetMetaRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.SetMetaRequest
+	}
+	mock.lockSetMeta.RLock()
+	calls = mock.calls.SetMeta
+	mock.lockSetMeta.RUnlock()
+	return calls
+}
+
+// Touch calls TouchFunc.
+func (mock *KvClientMock) Touch(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error) {
+	if mock.TouchFunc == nil {
+		panic("KvClientMock.TouchFunc: method is nil but KvClient.Touch was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.TouchRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockTouch.Lock()
+	mock.calls.Touch = append(mock.calls.Touch, callInfo)
+	mock.lockTouch.Unlock()
+	return mock.TouchFunc(ctx, req)
+}
+
+// TouchCalls gets all the calls that were made to Touch.
+// Check the length with:
+//
+//	len(mockedKvClient.TouchCalls())
+func (mock *KvClientMock) TouchCalls() []struct {
+	Ctx context.Context
+	Req *memdx.TouchRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.TouchRequest
+	}
+	mock.lockTouch.RLock()
+	calls = mock.calls.Touch
+	mock.lockTouch.RUnlock()
+	return calls
+}
+
+// Unlock calls UnlockFunc.
+func (mock *KvClientMock) Unlock(ctx context.Context, req *memdx.UnlockRequest) (*memdx.UnlockResponse, error) {
+	if mock.UnlockFunc == nil {
+		panic("KvClientMock.UnlockFunc: method is nil but KvClient.Unlock was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.UnlockRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockUnlock.Lock()
+	mock.calls.Unlock = append(mock.calls.Unlock, callInfo)
+	mock.lockUnlock.Unlock()
+	return mock.UnlockFunc(ctx, req)
+}
+
+// UnlockCalls gets all the calls that were made to Unlock.
+// Check the length with:
+//
+//	len(mockedKvClient.UnlockCalls())
+func (mock *KvClientMock) UnlockCalls() []struct {
+	Ctx context.Context
+	Req *memdx.UnlockRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.UnlockRequest
+	}
+	mock.lockUnlock.RLock()
+	calls = mock.calls.Unlock
+	mock.lockUnlock.RUnlock()
 	return calls
 }
 

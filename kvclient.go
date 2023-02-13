@@ -40,6 +40,22 @@ type KvClient interface {
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
+	GetAndTouch(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error)
+	GetReplica(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error)
+	GetRandom(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error)
+	Unlock(ctx context.Context, req *memdx.UnlockRequest) (*memdx.UnlockResponse, error)
+	Touch(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error)
+	Add(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error)
+	Replace(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
+	Append(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error)
+	Prepend(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error)
+	Increment(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error)
+	Decrement(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error)
+	GetMeta(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error)
+	SetMeta(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error)
+	DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error)
+	LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
+	MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error)
 
 	Close() error
 
