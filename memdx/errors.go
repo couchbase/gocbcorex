@@ -14,6 +14,7 @@ var (
 	ErrUnknownCollectionName = errors.New("unknown collection name")
 	ErrCollectionsNotEnabled = errors.New("collections not enabled")
 	ErrDocNotFound           = errors.New("document not found")
+	ErrSubDocBadMulti        = errors.New("command failed on one or more paths")
 	ErrDocExists             = errors.New("document already exists")
 	ErrAuthError             = errors.New("auth error")
 	ErrNotMyVbucket          = errors.New("not my vbucket")

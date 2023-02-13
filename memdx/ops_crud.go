@@ -1410,16 +1410,14 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
+		} else if resp.Status == StatusSubDocBadMulti {
+			cb(nil, ErrSubDocBadMulti)
+			return false
 		}
 
 		if resp.Status != StatusSuccess && resp.Status != StatusSubDocSuccessDeleted &&
 			resp.Status != StatusSubDocMultiPathFailureDeleted {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
-			return false
-		}
-
-		if len(resp.Extras) != 20 {
-			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
 

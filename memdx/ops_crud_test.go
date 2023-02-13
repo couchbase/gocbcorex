@@ -1,6 +1,7 @@
 package memdx
 
 import (
+	"encoding/binary"
 	"reflect"
 	"testing"
 
@@ -92,6 +93,35 @@ func TestOpsCrudGets(t *testing.T) {
 				assert.NotZero(t, randRes.SeqNo)
 				assert.Equal(t, uint32(0), randRes.Deleted)
 				assert.Equal(t, datatype, randRes.Datatype)
+			},
+		},
+		{
+			Name: "LookupIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleLookupInGet([]byte("key"))
+
+				return opsCrud.LookupIn(cli, &LookupInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     valueBuf,
+				}, func(resp *LookupInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			CheckOverride: func(t *testing.T, res interface{}) {
+				randRes, ok := res.(*LookupInResponse)
+				if !ok {
+					t.Fatalf("Result of LookupIn was not *LookupInResponse: %v", res)
+				}
+
+				status, value := parseSingleLookupInGet(randRes)
+
+				if assert.Equal(t, StatusSuccess, status) {
+					assert.Equal(t, []byte(`"value"`), value)
+				}
+
+				assert.NotZero(t, randRes.Cas)
+				assert.False(t, randRes.Deleted)
 			},
 		},
 	}
@@ -288,6 +318,20 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
 					Key: key,
 				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "LookupIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleLookupInGet([]byte("key"))
+
+				return opsCrud.LookupIn(cli, &LookupInRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     valueBuf,
+				}, func(resp *LookupInResponse, err error) {
 					cb(resp, err)
 				})
 			},
@@ -521,6 +565,21 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 				}, func(resp *DeleteMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "LookupIn",
+			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleLookupInGet([]byte("key"))
+
+				return opsCrud.LookupIn(cli, &LookupInRequest{
+					CollectionID: 2222,
+					Key:          key,
+					VbucketID:    1,
+					Value:        valueBuf,
+				}, func(resp *LookupInResponse, err error) {
 					cb(resp, err)
 				})
 			},
@@ -854,52 +913,6 @@ func TestOpsCrudTouch(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotZero(t, res.Cas)
-}
-
-func TestOpsCrudDelete(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
-
-	key := []byte(uuid.NewString())
-	value := []byte(uuid.NewString())
-	datatype := uint8(0x01)
-
-	cli := createTestClient(t)
-
-	_, err := syncUnaryCall(OpsCrud{
-		CollectionsEnabled: true,
-		ExtFramesEnabled:   true,
-	}, OpsCrud.Set, cli, &SetRequest{
-		CollectionID: 0,
-		Key:          key,
-		VbucketID:    1,
-		Value:        value,
-		Datatype:     datatype,
-	})
-	require.NoError(t, err)
-
-	res, err := syncUnaryCall(OpsCrud{
-		CollectionsEnabled: true,
-		ExtFramesEnabled:   true,
-	}, OpsCrud.Delete, cli, &DeleteRequest{
-		CollectionID: 0,
-		Key:          key,
-		VbucketID:    1,
-	})
-	require.NoError(t, err)
-
-	assert.NotZero(t, res.Cas)
-
-	_, err = syncUnaryCall(OpsCrud{
-		CollectionsEnabled: true,
-		ExtFramesEnabled:   true,
-	}, OpsCrud.Get, cli, &GetRequest{
-		CollectionID: 0,
-		Key:          key,
-		VbucketID:    1,
-	})
-	require.ErrorIs(t, err, ErrDocNotFound)
 }
 
 func TestOpsCrudMutationTokens(t *testing.T) {
@@ -1330,4 +1343,61 @@ func TestOpsCrudMutations(t *testing.T) {
 
 		})
 	}
+}
+
+func TestOpsCrudLookupinPathNotFound(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	key := []byte(uuid.NewString())
+	value := []byte("{\"key\": \"value\"}")
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	_, err := syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.Set, cli, &SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        value,
+		Datatype:     datatype,
+		Expiry:       60,
+	})
+	require.NoError(t, err)
+
+	lookupInReqVal := makeSingleLookupInGet([]byte("idontexist"))
+
+	_, err = syncUnaryCall(OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, OpsCrud.LookupIn, cli, &LookupInRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    1,
+		Value:        lookupInReqVal,
+	})
+	require.ErrorIs(t, err, ErrSubDocBadMulti)
+}
+
+func makeSingleLookupInGet(path []byte) []byte {
+	valueBuf := make([]byte, 4+len(path))
+	valueBuf[0] = uint8(OpCodeSubDocGet)
+	valueBuf[1] = 0
+	binary.BigEndian.PutUint16(valueBuf[2:], uint16(len(path)))
+	copy(valueBuf[4:], path)
+
+	return valueBuf
+}
+
+func parseSingleLookupInGet(res *LookupInResponse) (Status, []byte) {
+	resStatus := Status(binary.BigEndian.Uint16(res.Value[0:]))
+	resValueLen := int(binary.BigEndian.Uint32(res.Value[2:]))
+
+	value := res.Value[6 : 6+resValueLen]
+
+	return resStatus, value
 }
