@@ -190,6 +190,72 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 	})
 }
 
+type GetReplicaRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	OnBehalfOf   string
+}
+
+type GetReplicaResponse struct {
+	Cas      uint64
+	Flags    uint32
+	Value    []byte
+	Datatype uint8
+}
+
+func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetReplicaResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeGetReplica,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusKeyExists {
+			cb(nil, ErrDocLocked)
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Extras) != 4 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		flags := binary.BigEndian.Uint32(resp.Extras[0:])
+
+		cb(&GetReplicaResponse{
+			Cas:      resp.Cas,
+			Flags:    flags,
+			Value:    resp.Value,
+			Datatype: resp.Datatype,
+		}, nil)
+		return false
+	})
+}
+
 type GetAndLockRequest struct {
 	CollectionID uint32
 	LockTime     uint32
@@ -583,6 +649,796 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 		cb(&DeleteResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+// TODO(chvck): DRY this lot up a bit.
+type AddRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint32
+	Value        []byte
+	Datatype     uint8
+	Expiry       uint32
+	OnBehalfOf   string
+}
+
+type AddResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 8)
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeAdd,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Datatype:      req.Datatype,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&AddResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+type ReplaceRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint32
+	Value        []byte
+	Datatype     uint8
+	Expiry       uint32
+	OnBehalfOf   string
+}
+
+type ReplaceResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 8)
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeReplace,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Datatype:      req.Datatype,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&ReplaceResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+type AppendRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Value        []byte
+	OnBehalfOf   string
+}
+
+type AppendResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeAppend,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&AppendResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+type PrependRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Value        []byte
+	OnBehalfOf   string
+}
+
+type PrependResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeAppend,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&PrependResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+type IncrementRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Value        []byte
+	OnBehalfOf   string
+	Initial      uint64
+	Delta        uint64
+	Expiry       uint32
+}
+
+type IncrementResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+	Value         uint64
+}
+
+func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*IncrementResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 20)
+	binary.BigEndian.PutUint64(extraBuf[0:], req.Delta)
+	if req.Initial != uint64(0xFFFFFFFFFFFFFFFF) {
+		binary.BigEndian.PutUint64(extraBuf[8:], req.Initial)
+		binary.BigEndian.PutUint32(extraBuf[16:], req.Expiry)
+	} else {
+		binary.BigEndian.PutUint64(extraBuf[8:], 0x0000000000000000)
+		binary.BigEndian.PutUint32(extraBuf[16:], 0xFFFFFFFF)
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeAppend,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Datatype:      0,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Value) != 8 {
+			cb(nil, protocolError{"bad value length"})
+			return false
+		}
+		intVal := binary.BigEndian.Uint64(resp.Value)
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&IncrementResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+			Value:         intVal,
+		}, nil)
+		return false
+	})
+}
+
+type DecrementRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Value        []byte
+	OnBehalfOf   string
+	Initial      uint64
+	Delta        uint64
+	Expiry       uint32
+}
+
+type DecrementResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+	Value         uint64
+}
+
+func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*DecrementResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 20)
+	binary.BigEndian.PutUint64(extraBuf[0:], req.Delta)
+	if req.Initial != uint64(0xFFFFFFFFFFFFFFFF) {
+		binary.BigEndian.PutUint64(extraBuf[8:], req.Initial)
+		binary.BigEndian.PutUint32(extraBuf[16:], req.Expiry)
+	} else {
+		binary.BigEndian.PutUint64(extraBuf[8:], 0x0000000000000000)
+		binary.BigEndian.PutUint32(extraBuf[16:], 0xFFFFFFFF)
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeAppend,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Datatype:      0,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Value) != 8 {
+			cb(nil, protocolError{"bad value length"})
+			return false
+		}
+		intVal := binary.BigEndian.Uint64(resp.Value)
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&DecrementResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+			Value:         intVal,
+		}, nil)
+		return false
+	})
+}
+
+type GetMetaRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+
+	OnBehalfOf string
+}
+
+type GetMetaResponse struct {
+	Value    []byte
+	Flags    uint32
+	Cas      uint64
+	Expiry   uint32
+	SeqNo    uint64
+	Datatype uint8
+	Deleted  uint32
+}
+
+func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeGetMeta,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Extras) != 20 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		res := &GetMetaResponse{
+			Value: resp.Value,
+			Cas:   resp.Cas,
+		}
+		res.Deleted = binary.BigEndian.Uint32(resp.Extras[0:])
+		res.Flags = binary.BigEndian.Uint32(resp.Extras[4:])
+		res.Expiry = binary.BigEndian.Uint32(resp.Extras[8:])
+		res.SeqNo = binary.BigEndian.Uint64(resp.Extras[12:])
+		res.Datatype = resp.Extras[20]
+
+		cb(res, nil)
+		return false
+	})
+}
+
+type SetMetaRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint32
+	Value        []byte
+	Datatype     uint8
+	Expiry       uint32
+	OnBehalfOf   string
+	Extra        []byte
+	RevNo        uint64
+	Cas          uint64
+	Options      uint32
+}
+
+type SetMetaResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 30+len(req.Extra))
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+	binary.BigEndian.PutUint64(extraBuf[8:], req.RevNo)
+	binary.BigEndian.PutUint64(extraBuf[16:], req.Cas)
+	binary.BigEndian.PutUint32(extraBuf[24:], req.Options)
+	binary.BigEndian.PutUint16(extraBuf[28:], uint16(len(req.Extra)))
+	copy(extraBuf[30:], req.Extra)
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeSetMeta,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Datatype:      req.Datatype,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+		Cas:           0,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&SetMetaResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+type DeleteMetaRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint32
+	Expiry       uint32
+	OnBehalfOf   string
+	Cas          uint64
+	Extra        []byte
+	RevNo        uint64
+	Options      uint32
+}
+
+type DeleteMetaResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*DeleteMetaResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 30+len(req.Extra))
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+	binary.BigEndian.PutUint64(extraBuf[8:], req.RevNo)
+	binary.BigEndian.PutUint64(extraBuf[16:], req.Cas)
+	binary.BigEndian.PutUint32(extraBuf[24:], req.Options)
+	binary.BigEndian.PutUint16(extraBuf[28:], uint16(len(req.Extra)))
+	copy(extraBuf[30:], req.Extra)
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeDelete,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+		Cas:           req.Cas,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&DeleteMetaResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+		}, nil)
+		return false
+	})
+}
+
+type LookupInRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint8
+
+	OnBehalfOf string
+}
+
+type LookupInResponse struct {
+	Value   []byte
+	Deleted bool
+	Cas     uint64
+}
+
+func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var extraBuf []byte
+	if req.Flags != 0 {
+		extraBuf = append(extraBuf, uint8(req.Flags))
+	}
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeSubDocMultiLookup,
+		Key:           reqKey,
+		Extras:        extraBuf,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		}
+
+		if resp.Status != StatusSuccess && resp.Status != StatusSubDocSuccessDeleted &&
+			resp.Status != StatusSubDocMultiPathFailureDeleted {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Extras) != 20 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		res := &LookupInResponse{
+			Value: resp.Value,
+			Cas:   resp.Cas,
+		}
+		res.Deleted = resp.Status == StatusSubDocSuccessDeleted ||
+			resp.Status == StatusSubDocMultiPathFailureDeleted
+
+		cb(res, nil)
+		return false
+	})
+}
+
+type MutateInRequest struct {
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	Flags        uint32
+	Value        []byte
+	Expiry       uint32
+	OnBehalfOf   string
+	Extra        []byte
+	Cas          uint64
+}
+
+type MutateInResponse struct {
+	Cas           uint64
+	MutationToken MutationToken
+	Value         []byte
+}
+
+func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInResponse, error)) (PendingOp, error) {
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 8)
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+
+	return d.Dispatch(&Packet{
+		Magic:         reqMagic,
+		OpCode:        OpCodeSubDocMultiMutation,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+		Cas:           0,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		// TODO(chvck): there's a bunch of special error handling to do here.
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		cb(&MutateInResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+			Value:         resp.Value,
 		}, nil)
 		return false
 	})
