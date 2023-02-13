@@ -1271,6 +1271,12 @@ var _ MemdxDispatcherCloser = &MemdxDispatcherCloserMock{}
 //			DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 //				panic("mock out the Dispatch method")
 //			},
+//			LocalAddrFunc: func() string {
+//				panic("mock out the LocalAddr method")
+//			},
+//			RemoteAddrFunc: func() string {
+//				panic("mock out the RemoteAddr method")
+//			},
 //		}
 //
 //		// use mockedMemdxDispatcherCloser in code that requires MemdxDispatcherCloser
@@ -1284,6 +1290,12 @@ type MemdxDispatcherCloserMock struct {
 	// DispatchFunc mocks the Dispatch method.
 	DispatchFunc func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error)
 
+	// LocalAddrFunc mocks the LocalAddr method.
+	LocalAddrFunc func() string
+
+	// RemoteAddrFunc mocks the RemoteAddr method.
+	RemoteAddrFunc func() string
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// Close holds details about calls to the Close method.
@@ -1296,9 +1308,17 @@ type MemdxDispatcherCloserMock struct {
 			// DispatchCallback is the dispatchCallback argument value.
 			DispatchCallback memdx.DispatchCallback
 		}
+		// LocalAddr holds details about calls to the LocalAddr method.
+		LocalAddr []struct {
+		}
+		// RemoteAddr holds details about calls to the RemoteAddr method.
+		RemoteAddr []struct {
+		}
 	}
-	lockClose    sync.RWMutex
-	lockDispatch sync.RWMutex
+	lockClose      sync.RWMutex
+	lockDispatch   sync.RWMutex
+	lockLocalAddr  sync.RWMutex
+	lockRemoteAddr sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -1361,5 +1381,59 @@ func (mock *MemdxDispatcherCloserMock) DispatchCalls() []struct {
 	mock.lockDispatch.RLock()
 	calls = mock.calls.Dispatch
 	mock.lockDispatch.RUnlock()
+	return calls
+}
+
+// LocalAddr calls LocalAddrFunc.
+func (mock *MemdxDispatcherCloserMock) LocalAddr() string {
+	if mock.LocalAddrFunc == nil {
+		panic("MemdxDispatcherCloserMock.LocalAddrFunc: method is nil but MemdxDispatcherCloser.LocalAddr was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockLocalAddr.Lock()
+	mock.calls.LocalAddr = append(mock.calls.LocalAddr, callInfo)
+	mock.lockLocalAddr.Unlock()
+	return mock.LocalAddrFunc()
+}
+
+// LocalAddrCalls gets all the calls that were made to LocalAddr.
+// Check the length with:
+//
+//	len(mockedMemdxDispatcherCloser.LocalAddrCalls())
+func (mock *MemdxDispatcherCloserMock) LocalAddrCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockLocalAddr.RLock()
+	calls = mock.calls.LocalAddr
+	mock.lockLocalAddr.RUnlock()
+	return calls
+}
+
+// RemoteAddr calls RemoteAddrFunc.
+func (mock *MemdxDispatcherCloserMock) RemoteAddr() string {
+	if mock.RemoteAddrFunc == nil {
+		panic("MemdxDispatcherCloserMock.RemoteAddrFunc: method is nil but MemdxDispatcherCloser.RemoteAddr was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockRemoteAddr.Lock()
+	mock.calls.RemoteAddr = append(mock.calls.RemoteAddr, callInfo)
+	mock.lockRemoteAddr.Unlock()
+	return mock.RemoteAddrFunc()
+}
+
+// RemoteAddrCalls gets all the calls that were made to RemoteAddr.
+// Check the length with:
+//
+//	len(mockedMemdxDispatcherCloser.RemoteAddrCalls())
+func (mock *MemdxDispatcherCloserMock) RemoteAddrCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockRemoteAddr.RLock()
+	calls = mock.calls.RemoteAddr
+	mock.lockRemoteAddr.RUnlock()
 	return calls
 }

@@ -9,25 +9,32 @@ import (
 type OpsCore struct {
 }
 
-func (o OpsCore) decodeErrorContext(resp *Packet, err error) error {
+func (o OpsCore) decodeErrorContext(resp *Packet, err error, dispatchedTo string, dispatchedFrom string) error {
+	baseCause := ServerError{
+		Cause:          err,
+		DispatchedTo:   dispatchedTo,
+		DispatchedFrom: dispatchedFrom,
+		Opaque:         resp.Opaque,
+	}
+
 	if len(resp.Value) > 0 {
 		if resp.Status == StatusNotMyVBucket {
 			return ServerErrorWithConfig{
-				Cause:      err,
+				Cause:      baseCause,
 				ConfigJson: resp.Value,
 			}
 		}
 
 		return ServerErrorWithContext{
-			Cause:       err,
+			Cause:       baseCause,
 			ContextJson: resp.Value,
 		}
 	}
 
-	return err
+	return baseCause
 }
 
-func (o OpsCore) decodeError(resp *Packet) error {
+func (o OpsCore) decodeError(resp *Packet, dispatchedTo string, dispatchedFrom string) error {
 	// TODO(brett19): Do better...
 	var err error
 	if resp.Status == StatusNotMyVBucket {
@@ -36,7 +43,7 @@ func (o OpsCore) decodeError(resp *Packet) error {
 		err = errors.New("unexpected status: " + resp.Status.String())
 	}
 
-	return o.decodeErrorContext(resp, err)
+	return o.decodeErrorContext(resp, err, dispatchedTo, dispatchedFrom)
 }
 
 type HelloRequest struct {
@@ -66,7 +73,7 @@ func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, 
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, o.decodeError(resp))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
@@ -107,7 +114,7 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]by
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, o.decodeError(resp))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
@@ -129,7 +136,7 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, o.decodeError(resp))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
@@ -159,7 +166,7 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(er
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(o.decodeError(resp))
+			cb(o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
@@ -183,7 +190,7 @@ func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, err
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, o.decodeError(resp))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
@@ -235,7 +242,7 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, o.decodeError(resp))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
@@ -281,7 +288,7 @@ func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepR
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, o.decodeError(resp))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 

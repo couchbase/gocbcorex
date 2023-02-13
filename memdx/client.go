@@ -143,3 +143,11 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 		opaqueID: opaqueID,
 	}, nil
 }
+
+func (c *Client) LocalAddr() string {
+	return c.conn.LocalAddr()
+}
+
+func (c *Client) RemoteAddr() string {
+	return c.conn.RemoteAddr()
+}
