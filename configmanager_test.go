@@ -20,13 +20,13 @@ func TestOrchestrateMemdRoutingReturnsResult(t *testing.T) {
 	expectedResult := 322
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte, replicaIdx uint32) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return expectedEndpoint, expectedVbID, nil
 		},
 	}
 
-	res, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	res, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, 0, func(endpoint string, vbID uint16) (int, error) {
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)
 
@@ -44,13 +44,13 @@ func TestOrchestrateConfigReturnsError(t *testing.T) {
 	expectedErr := errors.New("imanerror")
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte, replicaIdx uint32) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return expectedEndpoint, expectedVbID, nil
 		},
 	}
 
-	_, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	_, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, 0, func(endpoint string, vbID uint16) (int, error) {
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)
 
@@ -66,13 +66,13 @@ func TestOrchestrateConfigReturnsErrorFromDispatch(t *testing.T) {
 	expectedErr := errors.New("imanerror")
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte, replicaIdx uint32) (string, uint16, error) {
 			assert.Equal(t, expectedKey, key)
 			return "", 0, expectedErr
 		},
 	}
 
-	_, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	_, err := OrchestrateMemdRouting(context.Background(), mock, nil, expectedKey, 0, func(endpoint string, vbID uint16) (int, error) {
 		assert.Equal(t, expectedEndpoint, endpoint)
 		assert.Equal(t, expectedVbID, vbID)
 
@@ -96,7 +96,7 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 	var timesConfigApplied int
 
 	mock := &VbucketRouterMock{
-		DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte, replicaIdx uint32) (string, uint16, error) {
 			timesDispatched++
 			assert.Equal(t, expectedKey, key)
 
@@ -116,7 +116,7 @@ func TestOrchestrateConfigNMVBRetriesAndAppliesConfig(t *testing.T) {
 	}
 
 	var timesFnCalled int
-	res, err := OrchestrateMemdRouting(context.Background(), mock, mgrMock, expectedKey, func(endpoint string, vbID uint16) (int, error) {
+	res, err := OrchestrateMemdRouting(context.Background(), mock, mgrMock, expectedKey, 0, func(endpoint string, vbID uint16) (int, error) {
 		timesFnCalled++
 		assert.Equal(t, expectedEndpoint, endpoint)
 

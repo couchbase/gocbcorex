@@ -13,37 +13,43 @@ func TestVbucketRouterDispatchToKey(t *testing.T) {
 		VbMap: &VbucketMap{
 			entries: [][]int{
 				{
-					0,
+					0, 1,
 				},
 				{
-					1,
+					1, 0,
 				},
 				{
-					0,
+					0, 1,
 				},
 				{
-					0,
+					0, 1,
 				},
 				{
-					1,
+					1, 0,
 				},
 			},
-			numReplicas: 0,
+			numReplicas: 1,
 		},
 		ServerList: []string{"endpoint1", "endpoint2"},
 	}
 
 	dispatcher.UpdateRoutingInfo(routingInfo)
 
-	endpoint, vbID, err := dispatcher.DispatchByKey([]byte("key1"))
+	endpoint, vbID, err := dispatcher.DispatchByKey([]byte("key1"), 0)
 	require.NoError(t, err)
 
 	assert.Equal(t, "endpoint2", endpoint)
 	assert.Equal(t, uint16(1), vbID)
 
-	endpoint, vbID, err = dispatcher.DispatchByKey([]byte("key2"))
+	endpoint, vbID, err = dispatcher.DispatchByKey([]byte("key2"), 0)
 	require.NoError(t, err)
 
 	assert.Equal(t, "endpoint1", endpoint)
+	assert.Equal(t, uint16(3), vbID)
+
+	endpoint, vbID, err = dispatcher.DispatchByKey([]byte("key2"), 1)
+	require.NoError(t, err)
+
+	assert.Equal(t, "endpoint2", endpoint)
 	assert.Equal(t, uint16(3), vbID)
 }
