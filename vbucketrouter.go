@@ -14,7 +14,7 @@ var (
 
 type VbucketRouter interface {
 	UpdateRoutingInfo(*VbucketRoutingInfo)
-	DispatchByKey(key []byte) (string, uint16, error)
+	DispatchByKey(key []byte, replicaID uint32) (string, uint16, error)
 	DispatchToVbucket(vbID uint16) (string, error)
 }
 
@@ -59,14 +59,14 @@ func (vbd *vbucketRouter) getRoutingInfo() (*VbucketRoutingInfo, error) {
 	return routing, nil
 }
 
-func (vbd *vbucketRouter) DispatchByKey(key []byte) (string, uint16, error) {
+func (vbd *vbucketRouter) DispatchByKey(key []byte, replicaIdx uint32) (string, uint16, error) {
 	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return "", 0, err
 	}
 
 	vbID := info.VbMap.VbucketByKey(key)
-	idx, err := info.VbMap.NodeByVbucket(vbID, 0)
+	idx, err := info.VbMap.NodeByVbucket(vbID, replicaIdx)
 	if err != nil {
 		return "", 0, err
 	}
@@ -100,14 +100,9 @@ func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16) (string, error) {
 	return info.ServerList[idx], nil
 }
 
-func OrchestrateMemdRouting[RespT any](
-	ctx context.Context,
-	vb VbucketRouter,
-	cm ConfigManager,
-	key []byte,
-	fn func(endpoint string, vbID uint16) (RespT, error),
-) (RespT, error) {
-	endpoint, vbID, err := vb.DispatchByKey(key)
+func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, cm ConfigManager, key []byte, replicaIdx uint32,
+	fn func(endpoint string, vbID uint16) (RespT, error)) (RespT, error) {
+	endpoint, vbID, err := vb.DispatchByKey(key, replicaIdx)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
@@ -136,7 +131,7 @@ func OrchestrateMemdRouting[RespT any](
 
 				cm.ApplyConfig(cfg.SourceHostname, cfg.Config)
 
-				newEndpoint, newVbID, err := vb.DispatchByKey(key)
+				newEndpoint, newVbID, err := vb.DispatchByKey(key, replicaIdx)
 				if err != nil {
 					var emptyResp RespT
 					return emptyResp, err

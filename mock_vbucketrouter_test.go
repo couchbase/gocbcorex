@@ -17,7 +17,7 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //
 //		// make and configure a mocked VbucketRouter
 //		mockedVbucketRouter := &VbucketRouterMock{
-//			DispatchByKeyFunc: func(key []byte) (string, uint16, error) {
+//			DispatchByKeyFunc: func(key []byte, replicaID uint32) (string, uint16, error) {
 //				panic("mock out the DispatchByKey method")
 //			},
 //			DispatchToVbucketFunc: func(vbID uint16) (string, error) {
@@ -34,7 +34,7 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //	}
 type VbucketRouterMock struct {
 	// DispatchByKeyFunc mocks the DispatchByKey method.
-	DispatchByKeyFunc func(key []byte) (string, uint16, error)
+	DispatchByKeyFunc func(key []byte, replicaID uint32) (string, uint16, error)
 
 	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
 	DispatchToVbucketFunc func(vbID uint16) (string, error)
@@ -48,6 +48,8 @@ type VbucketRouterMock struct {
 		DispatchByKey []struct {
 			// Key is the key argument value.
 			Key []byte
+			// ReplicaID is the replicaID argument value.
+			ReplicaID uint32
 		}
 		// DispatchToVbucket holds details about calls to the DispatchToVbucket method.
 		DispatchToVbucket []struct {
@@ -66,19 +68,21 @@ type VbucketRouterMock struct {
 }
 
 // DispatchByKey calls DispatchByKeyFunc.
-func (mock *VbucketRouterMock) DispatchByKey(key []byte) (string, uint16, error) {
+func (mock *VbucketRouterMock) DispatchByKey(key []byte, replicaID uint32) (string, uint16, error) {
 	if mock.DispatchByKeyFunc == nil {
 		panic("VbucketRouterMock.DispatchByKeyFunc: method is nil but VbucketRouter.DispatchByKey was just called")
 	}
 	callInfo := struct {
-		Key []byte
+		Key       []byte
+		ReplicaID uint32
 	}{
-		Key: key,
+		Key:       key,
+		ReplicaID: replicaID,
 	}
 	mock.lockDispatchByKey.Lock()
 	mock.calls.DispatchByKey = append(mock.calls.DispatchByKey, callInfo)
 	mock.lockDispatchByKey.Unlock()
-	return mock.DispatchByKeyFunc(key)
+	return mock.DispatchByKeyFunc(key, replicaID)
 }
 
 // DispatchByKeyCalls gets all the calls that were made to DispatchByKey.
@@ -86,10 +90,12 @@ func (mock *VbucketRouterMock) DispatchByKey(key []byte) (string, uint16, error)
 //
 //	len(mockedVbucketRouter.DispatchByKeyCalls())
 func (mock *VbucketRouterMock) DispatchByKeyCalls() []struct {
-	Key []byte
+	Key       []byte
+	ReplicaID uint32
 } {
 	var calls []struct {
-		Key []byte
+		Key       []byte
+		ReplicaID uint32
 	}
 	mock.lockDispatchByKey.RLock()
 	calls = mock.calls.DispatchByKey

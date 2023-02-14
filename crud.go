@@ -33,13 +33,11 @@ func OrchestrateSimpleCrud[RespT any](
 			return OrchestrateMemdCollectionID(
 				ctx, cr, scopeName, collectionName,
 				func(collectionID uint32, manifestID uint64) (RespT, error) {
-					return OrchestrateMemdRouting(
-						ctx, vb, cm, key,
-						func(endpoint string, vbID uint16) (RespT, error) {
-							return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
-								return fn(collectionID, manifestID, endpoint, vbID, client)
-							})
+					return OrchestrateMemdRouting(ctx, vb, cm, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
+						return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
+							return fn(collectionID, manifestID, endpoint, vbID, client)
 						})
+					})
 				})
 		})
 }
@@ -79,6 +77,54 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 				Datatype: resp.Datatype,
 				Cas:      resp.Cas,
 			}, nil
+		})
+}
+
+type GetReplicaOptions struct {
+	Key            []byte
+	ScopeName      string
+	CollectionName string
+	ReplicaIdx     uint32
+}
+
+type GetReplicaResult struct {
+	Value    []byte
+	Flags    uint32
+	Datatype uint8
+	Cas      uint64
+}
+
+func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions) (*GetReplicaResult, error) {
+	fn := func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetReplicaResult, error) {
+		resp, err := client.GetReplica(ctx, &memdx.GetReplicaRequest{
+			CollectionID: collectionID,
+			Key:          opts.Key,
+			VbucketID:    vbID,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return &GetReplicaResult{
+			Value:    resp.Value,
+			Flags:    resp.Flags,
+			Datatype: resp.Datatype,
+			Cas:      resp.Cas,
+		}, nil
+	}
+
+	return OrchestrateMemdRetries(
+		ctx, cc.retries,
+		func() (*GetReplicaResult, error) {
+			return OrchestrateMemdCollectionID(
+				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
+				func(collectionID uint32, manifestID uint64) (*GetReplicaResult, error) {
+					return OrchestrateMemdRouting(ctx, cc.vbs, cc.cfgmanager, opts.Key, opts.ReplicaIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
+						return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*GetReplicaResult, error) {
+							return fn(collectionID, manifestID, endpoint, vbID, client)
+						})
+					})
+				})
 		})
 }
 
