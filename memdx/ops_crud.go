@@ -1435,7 +1435,6 @@ type MutateInRequest struct {
 	Value        []byte
 	Expiry       uint32
 	OnBehalfOf   string
-	Extra        []byte
 	Cas          uint64
 }
 
