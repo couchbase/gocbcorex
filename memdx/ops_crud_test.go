@@ -2,13 +2,13 @@ package memdx
 
 import (
 	"encoding/binary"
-	"reflect"
-	"testing"
-
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"reflect"
+	"testing"
+	"time"
 )
 
 func TestOpsCrudGets(t *testing.T) {
@@ -1486,6 +1486,390 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 		Value:        lookupInReqVal,
 	})
 	require.ErrorIs(t, err, ErrSubDocBadMulti)
+}
+
+func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
+	if !testutils.TestOpts.LongTest {
+		t.SkipNow()
+	}
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op              func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error)
+		Name            string
+		SkipDocCreation bool
+		ExpectDeleted   bool
+		ExpectedValue   []byte
+	}
+
+	usualExpectedValue := []byte(`{"key":"value2"}`)
+	initialValue := []byte(`{"key":"value"}`)
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Set(cli, &SetRequest{
+					Key:             key,
+					Value:           usualExpectedValue,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Delete",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key:             key,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectDeleted: true,
+		},
+		{
+			Name: "Add",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					Key:             key,
+					Value:           usualExpectedValue,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   usualExpectedValue,
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:             key,
+					Value:           usualExpectedValue,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:             key,
+					Value:           usualExpectedValue,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(initialValue, usualExpectedValue...),
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:             key,
+					Value:           usualExpectedValue,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(usualExpectedValue, initialValue...),
+		},
+		{
+			Name: "Increment",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					Key:             key,
+					Initial:         1,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *IncrementResponse, err error) {
+					_, err = opsCrud.Increment(cli, &IncrementRequest{
+						Key:       key,
+						Delta:     2,
+						VbucketID: 1,
+					}, func(response *IncrementResponse, err error) {
+						cb(resp, err)
+					})
+					if err == nil {
+						cb(nil, err)
+					}
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   []byte("3"),
+		},
+		{
+			Name: "Decrement",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					Key:             key,
+					Initial:         5,
+					VbucketID:       1,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *DecrementResponse, err error) {
+					_, err = opsCrud.Decrement(cli, &DecrementRequest{
+						Key:       key,
+						Delta:     2,
+						VbucketID: 1,
+					}, func(response *DecrementResponse, err error) {
+						cb(resp, err)
+					})
+					if err == nil {
+						cb(nil, err)
+					}
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   []byte("3"),
+		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value2"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:             key,
+					VbucketID:       1,
+					Value:           valueBuf,
+					DurabilityLevel: DurabilityLevelMajority,
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+
+		{
+			Name: "SetTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Set(cli, &SetRequest{
+					Key:                    key,
+					Value:                  usualExpectedValue,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "DeleteTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key:                    key,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectDeleted: true,
+		},
+		{
+			Name: "AddTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					Key:                    key,
+					Value:                  usualExpectedValue,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   usualExpectedValue,
+		},
+		{
+			Name: "ReplaceTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:                    key,
+					Value:                  usualExpectedValue,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "AppendTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:                    key,
+					Value:                  usualExpectedValue,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(initialValue, usualExpectedValue...),
+		},
+		{
+			Name: "PrependTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:                    key,
+					Value:                  usualExpectedValue,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(usualExpectedValue, initialValue...),
+		},
+		{
+			Name: "IncrementTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					Key:                    key,
+					Initial:                1,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *IncrementResponse, err error) {
+					_, err = opsCrud.Increment(cli, &IncrementRequest{
+						Key:       key,
+						Delta:     2,
+						VbucketID: 1,
+					}, func(response *IncrementResponse, err error) {
+						cb(resp, err)
+					})
+					if err == nil {
+						cb(nil, err)
+					}
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   []byte("3"),
+		},
+		{
+			Name: "DecrementTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					Key:                    key,
+					Initial:                5,
+					VbucketID:              1,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *DecrementResponse, err error) {
+					_, err = opsCrud.Decrement(cli, &DecrementRequest{
+						Key:       key,
+						Delta:     2,
+						VbucketID: 1,
+					}, func(response *DecrementResponse, err error) {
+						cb(resp, err)
+					})
+					if err == nil {
+						cb(nil, err)
+					}
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   []byte("3"),
+		},
+		{
+			Name: "MutateInTimeout",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				valueBuf := makeSingleMutateInSet([]byte("key"), []byte(`"value2"`))
+
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:                    key,
+					VbucketID:              1,
+					Value:                  valueBuf,
+					DurabilityLevel:        DurabilityLevelMajority,
+					DurabilityLevelTimeout: 10 * time.Second,
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			waiterr := make(chan error, 1)
+			waitres := make(chan interface{}, 1)
+
+			key := []byte(uuid.NewString())
+
+			var cas uint64
+			if !test.SkipDocCreation {
+				setRes, err := syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     initialValue,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(t, err)
+				cas = setRes.Cas
+			}
+
+			_, err := test.Op(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, key, cas, func(i interface{}, err error) {
+				waiterr <- err
+				waitres <- i
+			})
+			require.NoError(tt, err)
+
+			require.NoError(tt, <-waiterr)
+
+			<-waitres
+
+			getRes, err := syncUnaryCall(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, OpsCrud.Get, cli, &GetRequest{
+				Key:       key,
+				VbucketID: 1,
+			})
+
+			if test.ExpectDeleted {
+				assert.ErrorIs(t, err, ErrDocNotFound)
+			} else {
+				require.NoError(t, err)
+
+				elem := reflect.ValueOf(getRes).Elem()
+				value := elem.FieldByName("Value").Bytes()
+				assert.Equal(tt, test.ExpectedValue, value)
+			}
+
+		})
+	}
 }
 
 func makeSingleLookupInGet(path []byte) []byte {
