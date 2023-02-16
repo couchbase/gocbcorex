@@ -72,6 +72,9 @@ const (
 	OpCodeSubDocMultiMutation        = OpCode(0xd1)
 	OpCodeSubDocGetCount             = OpCode(0xd2)
 	OpCodeSubDocReplaceBodyWithXattr = OpCode(0xd3)
+	OpCodeRangeScanCreate            = OpCode(0xda)
+	OpCodeRangeScanContinue          = OpCode(0xdb)
+	OpCodeRangeScanCancel            = OpCode(0xdc)
 	OpCodeGetErrorMap                = OpCode(0xfe)
 )
 

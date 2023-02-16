@@ -129,6 +129,18 @@ const (
 	// StatusSyncWriteReCommitInProgress occurs when an SyncWrite is being recommitted.
 	StatusSyncWriteReCommitInProgress = Status(0xa4)
 
+	// StatusRangeScanCancelled occurs during a range scan to indicate that the range scan was cancelled.
+	StatusRangeScanCancelled = Status(0xa5)
+
+	// StatusRangeScanMore occurs during a range scan to indicate that a range scan has more results.
+	StatusRangeScanMore = Status(0xa6)
+
+	// StatusRangeScanComplete occurs during a range scan to indicate that a range scan has completed.
+	StatusRangeScanComplete = Status(0xa7)
+
+	// StatusRangeScanVbUUIDNotEqual occurs during a range scan to indicate that a vb-uuid mismatch has occurred.
+	StatusRangeScanVbUUIDNotEqual = Status(0xa8)
+
 	// StatusSubDocPathNotFound occurs when a sub-document operation targets a path
 	// which does not exist in the specifie document.
 	StatusSubDocPathNotFound = Status(0xc0)

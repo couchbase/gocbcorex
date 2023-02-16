@@ -20,6 +20,12 @@ var (
 	ErrNotMyVbucket          = errors.New("not my vbucket")
 	ErrCasMismatch           = errors.New("cas mismatch")
 	ErrDocLocked             = errors.New("document locked")
+	ErrRangeEmpty            = errors.New("requested range is empty")
+	ErrSeqNoNotFound         = errors.New("sequence number not found")
+	ErrSampleRangeImpossible = errors.New("not enough keys to satify requested sample scan")
+	ErrVbUUIDMismatch        = errors.New("vb-uuid mismatch")
+	ErrScanNotFound          = errors.New("scan uuid not found")
+	ErrRangeScanCancelled    = errors.New("range scan was cancelled")
 )
 
 var ErrProtocol = errors.New("protocol error")
@@ -34,6 +40,20 @@ func (e protocolError) Error() string {
 
 func (e protocolError) Unwrap() error {
 	return ErrProtocol
+}
+
+var ErrInvalidArgument = errors.New("invalid argument")
+
+type invalidArgError struct {
+	message string
+}
+
+func (e invalidArgError) Error() string {
+	return "invalid argument error: " + e.message
+}
+
+func (e invalidArgError) Unwrap() error {
+	return ErrInvalidArgument
 }
 
 type ServerError struct {
