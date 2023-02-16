@@ -2,10 +2,13 @@ package memdx
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
+
+const defaultTestVbucketID = 1
 
 func createTestClient(t *testing.T) *Client {
 	testAddress := testutils.TestOpts.MemdAddrs[0]
@@ -13,7 +16,39 @@ func createTestClient(t *testing.T) *Client {
 	testPassword := testutils.TestOpts.Password
 	testBucket := testutils.TestOpts.BucketName
 
-	conn, err := DialConn(context.Background(), testAddress, nil)
+	cli, resp := dialAndBootstrapClient(t, testAddress, testUsername, testPassword, testBucket)
+
+	// As we tie commands to a vbucket we have to ensure that the client we're returning is
+	// actually connected to the right node.
+	type vbucketServerMap struct {
+		ServerList []string `json:"serverList"`
+		VBucketMap [][]int  `json:"vBucketMap,omitempty"`
+	}
+	type cbConfig struct {
+		VBucketServerMap vbucketServerMap `json:"vBucketServerMap"`
+	}
+	var config cbConfig
+	require.NoError(t, json.Unmarshal(resp.ClusterConfig, &config))
+
+	// This is all a bit rough and can be improved, in time.
+	vbIdx := config.VBucketServerMap.VBucketMap[defaultTestVbucketID][0]
+	address := config.VBucketServerMap.ServerList[vbIdx]
+
+	if testAddress != address {
+		cli.Close()
+
+		cli, _ = dialAndBootstrapClient(t, address, testUsername, testPassword, testBucket)
+	}
+
+	t.Cleanup(func() {
+		cli.Close()
+	})
+
+	return cli
+}
+
+func dialAndBootstrapClient(t *testing.T, addr, user, pass, bucket string) (*Client, *BootstrapResult) {
+	conn, err := DialConn(context.Background(), addr, nil)
 	require.NoError(t, err, "failed to dial connection")
 
 	cli := NewClient(conn, &ClientOptions{
@@ -21,31 +56,32 @@ func createTestClient(t *testing.T) *Client {
 		CloseHandler:  nil,
 	})
 
-	_, err = syncUnaryCall(OpBootstrap{
+	resp, err := syncUnaryCall(OpBootstrap{
 		Encoder: OpsCore{},
 	}, OpBootstrap.Bootstrap, cli, &BootstrapOptions{
 		Hello: &HelloRequest{
-			ClientName:        []byte("memdx-test-harness"),
-			RequestedFeatures: []HelloFeature{HelloFeatureCollections, HelloFeatureJSON, HelloFeatureSeqNo, HelloFeatureXattr},
+			ClientName: []byte("memdx-test-harness"),
+			RequestedFeatures: []HelloFeature{
+				HelloFeatureCollections,
+				HelloFeatureJSON,
+				HelloFeatureSeqNo,
+				HelloFeatureXattr,
+			},
 		},
 		GetErrorMap: &GetErrorMapRequest{
 			Version: 2,
 		},
 		Auth: &SaslAuthAutoOptions{
-			Username:     testUsername,
-			Password:     testPassword,
+			Username:     user,
+			Password:     pass,
 			EnabledMechs: []AuthMechanism{PlainAuthMechanism, ScramSha512AuthMechanism, ScramSha256AuthMechanism},
 		},
 		SelectBucket: &SelectBucketRequest{
-			BucketName: testBucket,
+			BucketName: bucket,
 		},
 		GetClusterConfig: &GetClusterConfigRequest{},
 	})
 	require.NoError(t, err, "failed to bootstrap")
 
-	t.Cleanup(func() {
-		cli.Close()
-	})
-
-	return cli
+	return cli, resp
 }
