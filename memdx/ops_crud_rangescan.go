@@ -1,23 +1,12 @@
 package memdx
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"strconv"
 	"time"
 )
-
-type RangeScanCreateRequest struct {
-	CollectionID uint32
-	VbucketID    uint16
-	Value        []byte
-
-	OnBehalfOf string
-}
-
-type RangeScanCreateResponse struct {
-	ScanUUUID []byte
-}
 
 func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb func(*RangeScanCreateResponse, error)) (PendingOp, error) {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
@@ -25,21 +14,9 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 		return nil, err
 	}
 
-	var value []byte
-	if req.CollectionID > 0 {
-		var reqValue map[string]json.RawMessage
-		if err := json.Unmarshal(req.Value, &reqValue); err != nil {
-			return nil, err
-		}
-
-		reqValue["collection"] = []byte(strconv.FormatUint(uint64(req.CollectionID), 16))
-		value, err = json.Marshal(reqValue)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		value = make([]byte, len(req.Value))
-		copy(value, req.Value)
+	value, err := req.toJSON()
+	if err != nil {
+		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
@@ -77,23 +54,6 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 		}, nil)
 		return false
 	})
-}
-
-type RangeScanContinueRequest struct {
-	ScanUUID  []byte
-	MaxCount  uint32
-	MaxBytes  uint32
-	VbucketID uint16
-	Deadline  time.Time
-
-	OnBehalfOf string
-}
-
-type RangeScanContinueResponse struct {
-	Value    []byte
-	KeysOnly bool
-	More     bool
-	Complete bool
 }
 
 func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, cb func(*RangeScanContinueResponse, error)) (PendingOp, error) {
@@ -147,12 +107,13 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 		}
 
 		keysOnlyFlag := binary.BigEndian.Uint32(resp.Extras[0:])
+		items := o.parseRangeScanData(resp.Value, keysOnlyFlag == 0)
 
 		cb(&RangeScanContinueResponse{
 			KeysOnly: keysOnlyFlag == 0,
 			More:     resp.Status == StatusRangeScanMore,
 			Complete: resp.Status == StatusRangeScanComplete,
-			Value:    resp.Value,
+			Items:    items,
 		}, nil)
 
 		// If range scan responds with status more then the caller must issue another request,
@@ -161,15 +122,6 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 		return resp.Status == StatusRangeScanMore || resp.Status == StatusRangeScanComplete
 	})
 }
-
-type RangeScanCancelRequest struct {
-	ScanUUID  []byte
-	VbucketID uint16
-
-	OnBehalfOf string
-}
-
-type RangeScanCancelResponse struct{}
 
 func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb func(*RangeScanCancelResponse, error)) (PendingOp, error) {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
@@ -207,4 +159,269 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 		cb(&RangeScanCancelResponse{}, nil)
 		return false
 	})
+}
+
+// RangeScanCreateRangeScanConfig is the configuration available for performing a range scan.
+type RangeScanCreateRangeScanConfig struct {
+	Start          []byte
+	End            []byte
+	ExclusiveStart []byte
+	ExclusiveEnd   []byte
+}
+
+func (cfg *RangeScanCreateRangeScanConfig) hasStart() bool {
+	return len(cfg.Start) > 0
+}
+
+func (cfg *RangeScanCreateRangeScanConfig) hasEnd() bool {
+	return len(cfg.End) > 0
+}
+func (cfg *RangeScanCreateRangeScanConfig) hasExclusiveStart() bool {
+	return len(cfg.ExclusiveStart) > 0
+}
+
+func (cfg *RangeScanCreateRangeScanConfig) hasExclusiveEnd() bool {
+	return len(cfg.ExclusiveEnd) > 0
+}
+
+// RangeScanCreateRandomSamplingConfig is the configuration available for performing a random sampling.
+type RangeScanCreateRandomSamplingConfig struct {
+	Seed    uint64
+	Samples uint64
+}
+
+// RangeScanCreateSnapshotRequirements is the set of requirements that the vbucket snapshot must meet in-order for
+// the request to be successful.
+type RangeScanCreateSnapshotRequirements struct {
+	VbUUID      uint64
+	SeqNo       uint64
+	SeqNoExists bool
+	Deadline    time.Time
+}
+
+type RangeScanCreateRequest struct {
+	CollectionID uint32
+	VbucketID    uint16
+
+	Scan     json.RawMessage
+	KeysOnly bool
+	Range    *RangeScanCreateRangeScanConfig
+	Sampling *RangeScanCreateRandomSamplingConfig
+	Snapshot *RangeScanCreateSnapshotRequirements
+
+	OnBehalfOf string
+}
+
+func (opts RangeScanCreateRequest) toJSON() ([]byte, error) {
+	if opts.Range != nil && opts.Sampling != nil {
+		return nil, invalidArgError{"only one of range and sampling can be set"}
+	}
+	if opts.Range == nil && opts.Sampling == nil {
+		return nil, invalidArgError{"one of range and sampling must set"}
+	}
+
+	var collection string
+	if opts.CollectionID != 0 {
+		collection = strconv.FormatUint(uint64(opts.CollectionID), 16)
+	}
+	createReq := &rangeScanCreateRequestJSON{
+		Collection: collection,
+		KeyOnly:    opts.KeysOnly,
+	}
+
+	if opts.Range != nil {
+		if opts.Range.hasStart() && opts.Range.hasExclusiveStart() {
+			return nil, invalidArgError{"only one of start and exclusive start within range can be set"}
+		}
+		if opts.Range.hasEnd() && opts.Range.hasExclusiveEnd() {
+			return nil, invalidArgError{"only one of end and exclusive end within range can be set"}
+		}
+		if !(opts.Range.hasStart() || opts.Range.hasExclusiveStart()) {
+			return nil, invalidArgError{"one of start and exclusive start within range must both be set"}
+		}
+		if !(opts.Range.hasEnd() || opts.Range.hasExclusiveEnd()) {
+			return nil, invalidArgError{"one of end and exclusive end within range must both be set"}
+		}
+
+		createReq.Range = &rangeScanCreateRangeJSON{}
+		if len(opts.Range.Start) > 0 {
+			createReq.Range.Start = base64.StdEncoding.EncodeToString(opts.Range.Start)
+		}
+		if len(opts.Range.End) > 0 {
+			createReq.Range.End = base64.StdEncoding.EncodeToString(opts.Range.End)
+		}
+		if len(opts.Range.ExclusiveStart) > 0 {
+			createReq.Range.ExclusiveStart = base64.StdEncoding.EncodeToString(opts.Range.ExclusiveStart)
+		}
+		if len(opts.Range.ExclusiveEnd) > 0 {
+			createReq.Range.ExclusiveEnd = base64.StdEncoding.EncodeToString(opts.Range.ExclusiveEnd)
+		}
+	}
+
+	if opts.Sampling != nil {
+		if opts.Sampling.Samples == 0 {
+			return nil, invalidArgError{"samples within sampling must be set"}
+		}
+
+		createReq.Sampling = &rangeScanCreateSampleJSON{
+			Seed:    opts.Sampling.Seed,
+			Samples: opts.Sampling.Samples,
+		}
+	}
+
+	if opts.Snapshot != nil {
+		if opts.Snapshot.VbUUID == 0 {
+			return nil, invalidArgError{"vbuuid within snapshot must be set"}
+		}
+		if opts.Snapshot.SeqNo == 0 {
+			return nil, invalidArgError{"seqno within snapshot must be set"}
+		}
+
+		createReq.Snapshot = &rangeScanCreateSnapshotJSON{
+			VbUUID:      strconv.FormatUint(opts.Snapshot.VbUUID, 10),
+			SeqNo:       opts.Snapshot.SeqNo,
+			SeqNoExists: opts.Snapshot.SeqNoExists,
+		}
+		createReq.Snapshot.Timeout = uint64(time.Until(opts.Snapshot.Deadline) / time.Millisecond)
+	}
+
+	return json.Marshal(createReq)
+}
+
+type RangeScanCreateResponse struct {
+	ScanUUUID []byte
+}
+
+// RangeScanItem encapsulates an iterm returned during a range scan.
+type RangeScanItem struct {
+	Value    []byte
+	Key      []byte
+	Flags    uint32
+	Cas      uint64
+	Expiry   uint32
+	SeqNo    uint64
+	Datatype uint8
+}
+
+type RangeScanContinueRequest struct {
+	ScanUUID  []byte
+	MaxCount  uint32
+	MaxBytes  uint32
+	VbucketID uint16
+	Deadline  time.Time
+
+	OnBehalfOf string
+}
+
+type RangeScanContinueResponse struct {
+	Items    []RangeScanItem
+	KeysOnly bool
+	More     bool
+	Complete bool
+}
+
+type RangeScanCancelRequest struct {
+	ScanUUID  []byte
+	VbucketID uint16
+
+	OnBehalfOf string
+}
+
+type RangeScanCancelResponse struct{}
+
+type rangeScanCreateRequestJSON struct {
+	Collection string                       `json:"collection,omitempty"`
+	KeyOnly    bool                         `json:"key_only,omitempty"`
+	Range      *rangeScanCreateRangeJSON    `json:"range,omitempty"`
+	Sampling   *rangeScanCreateSampleJSON   `json:"sampling,omitempty"`
+	Snapshot   *rangeScanCreateSnapshotJSON `json:"snapshot_requirements,omitempty"`
+}
+
+type rangeScanCreateRangeJSON struct {
+	Start          string `json:"start,omitempty"`
+	End            string `json:"end,omitempty"`
+	ExclusiveStart string `json:"excl_start,omitempty"`
+	ExclusiveEnd   string `json:"excl_end,omitempty"`
+}
+
+type rangeScanCreateSampleJSON struct {
+	Seed    uint64 `json:"seed,omitempty"`
+	Samples uint64 `json:"samples"`
+}
+
+type rangeScanCreateSnapshotJSON struct {
+	VbUUID      string `json:"vb_uuid"`
+	SeqNo       uint64 `json:"seqno"`
+	SeqNoExists bool   `json:"seqno_exists,omitempty"`
+	Timeout     uint64 `json:"timeout_ms,omitempty"`
+}
+
+func (o OpsCrud) parseRangeScanData(data []byte, keysOnly bool) []RangeScanItem {
+	if keysOnly {
+		return o.parseRangeScanKeys(data)
+	}
+
+	return o.parseRangeScanDocs(data)
+}
+
+func (o OpsCrud) parseRangeScanLebEncoded(data []byte) ([]byte, uint64) {
+	keyLen, n := binary.Uvarint(data)
+	keyLen = keyLen + uint64(n)
+	return data[uint64(n):keyLen], keyLen
+}
+
+func (o OpsCrud) parseRangeScanKeys(data []byte) []RangeScanItem {
+	var keys []RangeScanItem
+	var i uint64
+	dataLen := uint64(len(data))
+	for {
+		if i >= dataLen {
+			break
+		}
+
+		key, n := o.parseRangeScanLebEncoded(data[i:])
+		keys = append(keys, RangeScanItem{
+			Key: key,
+		})
+		i = i + n
+	}
+
+	return keys
+}
+
+func (o OpsCrud) parseRangeScanItem(data []byte) (RangeScanItem, uint64) {
+	flags := binary.BigEndian.Uint32(data[0:])
+	expiry := binary.BigEndian.Uint32(data[4:])
+	seqno := binary.BigEndian.Uint64(data[8:])
+	cas := binary.BigEndian.Uint64(data[16:])
+	datatype := data[24]
+	key, n := o.parseRangeScanLebEncoded(data[25:])
+	value, n2 := o.parseRangeScanLebEncoded(data[25+n:])
+
+	return RangeScanItem{
+		Value:    value,
+		Key:      key,
+		Flags:    flags,
+		Cas:      cas,
+		Expiry:   expiry,
+		SeqNo:    seqno,
+		Datatype: datatype,
+	}, 25 + n + n2
+}
+
+func (o OpsCrud) parseRangeScanDocs(data []byte) []RangeScanItem {
+	var items []RangeScanItem
+	var i uint64
+	dataLen := uint64(len(data))
+	for {
+		if i >= dataLen {
+			break
+		}
+
+		item, n := o.parseRangeScanItem(data[i:])
+		items = append(items, item)
+		i = i + n
+	}
+
+	return items
 }
