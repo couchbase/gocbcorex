@@ -10,18 +10,16 @@ import (
 type AgentOptions struct {
 	Logger *zap.Logger
 
-	TLSConfig  *tls.Config
-	BucketName string
-	Username   string
-	Password   string
+	TLSConfig     *tls.Config
+	Authenticator Authenticator
+	BucketName    string
 
 	HTTPAddrs []string
 	MemdAddrs []string
 }
 
 type AgentReconfigureOptions struct {
-	TLSConfig  *tls.Config
-	BucketName string
-	Username   string
-	Password   string
+	TLSConfig     *tls.Config
+	Authenticator Authenticator
+	BucketName    string
 }

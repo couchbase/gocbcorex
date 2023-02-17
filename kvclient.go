@@ -17,9 +17,8 @@ type KvClientConfig struct {
 	Logger         *zap.Logger
 	Address        string
 	TlsConfig      *tls.Config
+	Authenticator  Authenticator
 	SelectedBucket string
-	Username       string
-	Password       string
 
 	NewMemdxClient GetMemdxClientFunc
 }
@@ -28,8 +27,7 @@ func (o KvClientConfig) Equals(b *KvClientConfig) bool {
 	return o.Address == b.Address &&
 		o.TlsConfig == b.TlsConfig &&
 		o.SelectedBucket == b.SelectedBucket &&
-		o.Username == b.Username &&
-		o.Password == b.Password
+		o.Authenticator == b.Authenticator
 }
 
 type KvClient interface {
@@ -74,12 +72,10 @@ type kvClient struct {
 	pendingOperations uint64
 	cli               MemdxDispatcherCloser
 
-	hostname  string
-	tlsConfig *tls.Config
-	bucket    string
-
-	username string
-	password string
+	hostname      string
+	tlsConfig     *tls.Config
+	authenticator Authenticator
+	bucket        string
 
 	supportedFeatures []memdx.HelloFeature
 }
@@ -87,13 +83,17 @@ type kvClient struct {
 var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
+	username, password, err := opts.Authenticator.GetCredentials(MemdService, opts.Address)
+	if err != nil {
+		return nil, err
+	}
+
 	kvCli := &kvClient{
-		logger:    loggerOrNop(opts.Logger),
-		hostname:  opts.Address,
-		tlsConfig: opts.TlsConfig,
-		username:  opts.Username,
-		password:  opts.Password,
-		bucket:    opts.SelectedBucket,
+		logger:        loggerOrNop(opts.Logger),
+		hostname:      opts.Address,
+		tlsConfig:     opts.TlsConfig,
+		authenticator: opts.Authenticator,
+		bucket:        opts.SelectedBucket,
 	}
 
 	requestedFeatures := []memdx.HelloFeature{
@@ -124,10 +124,10 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		GetClusterConfig: &memdx.GetClusterConfigRequest{},
 	}
 
-	if opts.Username != "" || opts.Password != "" {
+	if username != "" || password != "" {
 		bootstrapOpts.Auth = &memdx.SaslAuthAutoOptions{
-			Username: opts.Username,
-			Password: opts.Password,
+			Username: username,
+			Password: password,
 			EnabledMechs: []memdx.AuthMechanism{
 				memdx.ScramSha512AuthMechanism,
 				memdx.ScramSha256AuthMechanism},
@@ -179,11 +179,8 @@ func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientConfig) error 
 	if opts.Address != c.hostname {
 		return placeholderError{"cannot reconfigure address"}
 	}
-	if opts.Username != c.username {
-		return placeholderError{"cannot reconfigure username"}
-	}
-	if opts.Password != c.password {
-		return placeholderError{"cannot reconfigure password"}
+	if opts.Authenticator != c.authenticator {
+		return placeholderError{"cannot reconfigure authenticator"}
 	}
 
 	if opts.SelectedBucket != "" {

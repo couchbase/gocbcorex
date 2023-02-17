@@ -46,9 +46,7 @@ type HTTPResponse struct {
 }
 
 type HTTPClientConfig struct {
-	Username string
-	Password string
-
+	Authenticator   Authenticator
 	MgmtEndpoints   []string
 	QueryEndpoints  []string
 	SearchEndpoints []string
@@ -67,8 +65,7 @@ type HTTPClientOptions struct {
 }
 
 type httpClientState struct {
-	username        string
-	password        string
+	authenticator   Authenticator
 	mgmtEndpoints   []string
 	queryEndpoints  []string
 	searchEndpoints []string
@@ -175,7 +172,13 @@ func (c *httpClient) Do(ctx context.Context, req *HTTPRequest) (*HTTPResponse, e
 	hreq.Header = header
 
 	if req.Username == "" && req.Password == "" {
-		hreq.SetBasicAuth(state.username, state.password)
+		username, password, err := state.authenticator.GetCredentials(req.Service, endpoint)
+		if err != nil {
+			// TODO(brett19): We should wrap this error to indicate its a credentials error
+			return nil, err
+		}
+
+		hreq.SetBasicAuth(username, password)
 	} else {
 		hreq.SetBasicAuth(req.Username, req.Password)
 	}
@@ -198,16 +201,11 @@ func (c *httpClient) Reconfigure(config *HTTPClientConfig) error {
 
 	oldState := c.state.Load()
 
-	newState := &httpClientState{
-		username: oldState.username,
-		password: oldState.password,
-	}
+	oldStateCopy := *oldState
+	newState := &oldStateCopy
 
-	if config.Username != "" {
-		newState.username = config.Username
-	}
-	if config.Password != "" {
-		newState.password = config.Password
+	if config.Authenticator != nil {
+		newState.authenticator = config.Authenticator
 	}
 
 	if len(config.MgmtEndpoints) > 0 {

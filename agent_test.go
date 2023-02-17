@@ -18,10 +18,12 @@ func CreateDefaultAgent(t *testing.T) *Agent {
 		Logger:     logger,
 		TLSConfig:  nil,
 		BucketName: testutils.TestOpts.BucketName,
-		Username:   testutils.TestOpts.Username,
-		Password:   testutils.TestOpts.Password,
-		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
-		MemdAddrs:  testutils.TestOpts.MemdAddrs,
+		Authenticator: &PasswordAuthenticator{
+			Username: testutils.TestOpts.Username,
+			Password: testutils.TestOpts.Password,
+		},
+		HTTPAddrs: testutils.TestOpts.HTTPAddrs,
+		MemdAddrs: testutils.TestOpts.MemdAddrs,
 	}
 
 	agent, err := CreateAgent(context.Background(), opts)
@@ -108,10 +110,12 @@ func TestAgentBasicHTTP(t *testing.T) {
 
 func BenchmarkBasicGet(b *testing.B) {
 	opts := AgentOptions{
-		TLSConfig:  nil,
+		TLSConfig: nil,
+		Authenticator: &PasswordAuthenticator{
+			Username: testutils.TestOpts.Username,
+			Password: testutils.TestOpts.Password,
+		},
 		BucketName: testutils.TestOpts.BucketName,
-		Username:   testutils.TestOpts.Username,
-		Password:   testutils.TestOpts.Password,
 		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}

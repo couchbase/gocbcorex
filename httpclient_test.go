@@ -3,17 +3,20 @@ package core
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHTTPClientNewAppliesConfig(t *testing.T) {
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
 		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
@@ -54,8 +57,10 @@ func TestHTTPClientNewNilConfig(t *testing.T) {
 
 func TestHTTPClientNewErrorFromNewBaseClient(t *testing.T) {
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
 		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
@@ -79,15 +84,19 @@ func TestHTTPClientNewErrorFromNewBaseClient(t *testing.T) {
 
 func TestHTTPClientReconfigureAppliesConfig(t *testing.T) {
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
 		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
 	}
 	newCfg := &HTTPClientConfig{
-		Username:        "Administrator2",
-		Password:        "password2",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2", "mgmt3"},
 		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: []string{"search1"},
@@ -120,15 +129,19 @@ func TestHTTPClientReconfigureAppliesConfig(t *testing.T) {
 
 func TestHTTPClientReconfigureAppliesConfigWithoutCreds(t *testing.T) {
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
 		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
 	}
 	newCfg := &HTTPClientConfig{
-		Username:        "",
-		Password:        "",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2", "mgmt3"},
 		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: []string{"search1"},
@@ -155,8 +168,10 @@ func TestHTTPClientReconfigureAppliesConfigWithoutCreds(t *testing.T) {
 	require.NoError(t, err)
 
 	assertHTTPClientState(t, cli, &HTTPClientConfig{
-		Username:        cfg.Username,
-		Password:        cfg.Password,
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   newCfg.MgmtEndpoints,
 		QueryEndpoints:  newCfg.QueryEndpoints,
 		SearchEndpoints: newCfg.SearchEndpoints,
@@ -166,9 +181,12 @@ func TestHTTPClientReconfigureAppliesConfigWithoutCreds(t *testing.T) {
 }
 
 func TestHTTPClientDo(t *testing.T) {
+	auth := &PasswordAuthenticator{
+		Username: "Administrator",
+		Password: "password",
+	}
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator:   auth,
 		MgmtEndpoints:   []string{"http://mgmt1", "http://mgmt2"},
 		QueryEndpoints:  []string{"http://query1"},
 		SearchEndpoints: nil,
@@ -203,8 +221,8 @@ func TestHTTPClientDo(t *testing.T) {
 			assert.Equal(t, req.Method, r.Method)
 			username, password, ok := r.BasicAuth()
 			if assert.True(t, ok) {
-				assert.Equal(t, cfg.Username, username)
-				assert.Equal(t, cfg.Password, password)
+				assert.Equal(t, auth.Username, username)
+				assert.Equal(t, auth.Password, password)
 			}
 			assert.Equal(t, req.Path, r.URL.Path)
 			assert.Contains(t, cfg.MgmtEndpoints, "http://"+r.URL.Host)
@@ -237,8 +255,10 @@ func TestHTTPClientDo(t *testing.T) {
 
 func TestHTTPClientDoPassthroughNonDefaults(t *testing.T) {
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"http://mgmt1", "http://mgmt2"},
 		QueryEndpoints:  []string{"http://query1"},
 		SearchEndpoints: nil,
@@ -301,8 +321,10 @@ func TestHTTPClientDoPassthroughNonDefaults(t *testing.T) {
 
 func TestHTTPClientDoUnsupportedService(t *testing.T) {
 	cfg := &HTTPClientConfig{
-		Username:        "Administrator",
-		Password:        "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "Administrator",
+			Password: "password",
+		},
 		MgmtEndpoints:   []string{"http://mgmt1", "http://mgmt2"},
 		QueryEndpoints:  []string{"http://query1"},
 		SearchEndpoints: nil,
@@ -346,8 +368,7 @@ func assertHTTPClientState(t *testing.T, cli *httpClient, cfg *HTTPClientConfig)
 	// without exposing a bunch of functions that we don't want to.
 	state := cli.state.Load()
 
-	assert.Equal(t, cfg.Username, state.username)
-	assert.Equal(t, cfg.Password, state.password)
+	assert.Equal(t, cfg.Authenticator, state.authenticator)
 	assert.Equal(t, cfg.MgmtEndpoints, state.mgmtEndpoints)
 	assert.Equal(t, cfg.QueryEndpoints, state.queryEndpoints)
 	assert.Equal(t, cfg.SearchEndpoints, state.searchEndpoints)

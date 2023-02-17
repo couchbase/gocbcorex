@@ -100,8 +100,7 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 		newState.client = oldState.client
 
 		err := oldState.client.Reconfigure(&HTTPClientConfig{
-			Username:        config.Username,
-			Password:        config.Password,
+			Authenticator:   config.Authenticator,
 			MgmtEndpoints:   config.MgmtEndpoints,
 			QueryEndpoints:  config.QueryEndpoints,
 			SearchEndpoints: config.SearchEndpoints,
@@ -116,8 +115,7 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 	}
 
 	cli, err := mgr.newHTTPClient(&HTTPClientConfig{
-		Username:        config.Username,
-		Password:        config.Password,
+		Authenticator:   config.Authenticator,
 		MgmtEndpoints:   config.MgmtEndpoints,
 		QueryEndpoints:  config.QueryEndpoints,
 		SearchEndpoints: config.SearchEndpoints,

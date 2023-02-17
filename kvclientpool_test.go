@@ -17,8 +17,10 @@ func TestKvClientPoolGetClient(t *testing.T) {
 		Address:        "endpoint1",
 		TlsConfig:      nil,
 		SelectedBucket: "test",
-		Username:       "username",
-		Password:       "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "username",
+			Password: "password",
+		},
 	}
 	pool, err := NewKvClientPool(&KvClientPoolConfig{
 		NumConnections: 1,
@@ -50,8 +52,10 @@ func TestKvClientPoolGetClientConcurrent(t *testing.T) {
 		Address:        "endpoint1",
 		TlsConfig:      nil,
 		SelectedBucket: "test",
-		Username:       "username",
-		Password:       "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "username",
+			Password: "password",
+		},
 	}
 	pool, err := NewKvClientPool(&KvClientPoolConfig{
 		NumConnections: 1,
@@ -84,8 +88,10 @@ func TestKvClientPoolCreates5Connections(t *testing.T) {
 		Address:        "endpoint1",
 		TlsConfig:      nil,
 		SelectedBucket: "test",
-		Username:       "username",
-		Password:       "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "username",
+			Password: "password",
+		},
 	}
 	var called uint32
 	pool, err := NewKvClientPool(&KvClientPoolConfig{
@@ -121,8 +127,10 @@ func TestKvClientPoolReconfigure(t *testing.T) {
 		Address:        "endpoint1",
 		TlsConfig:      nil,
 		SelectedBucket: "test",
-		Username:       "username",
-		Password:       "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "username",
+			Password: "password",
+		},
 	}
 	pool, err := NewKvClientPool(&KvClientPoolConfig{
 		NumConnections: 3,
@@ -159,8 +167,10 @@ func TestKvClientPoolReconfigureNilOptions(t *testing.T) {
 		Address:        "endpoint1",
 		TlsConfig:      nil,
 		SelectedBucket: "test",
-		Username:       "username",
-		Password:       "password",
+		Authenticator: &PasswordAuthenticator{
+			Username: "username",
+			Password: "password",
+		},
 	}
 	pool, err := NewKvClientPool(&KvClientPoolConfig{
 		NumConnections: 1,
