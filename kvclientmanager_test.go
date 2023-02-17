@@ -26,21 +26,22 @@ func TestNewKvClientManagerNilConfig(t *testing.T) {
 
 func TestNewKvClientManagerApplyConfig(t *testing.T) {
 	expectedNumConns := uint(3)
+	auth := &PasswordAuthenticator{
+		Username: "Administator",
+		Password: "password",
+	}
 	clientConfigs := map[string]*KvClientConfig{
 		"endpoint1": {
-			Address:  "10.112.234.101",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.101",
+			Authenticator: auth,
 		},
 		"endpoint2": {
-			Address:  "10.112.234.102",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.102",
+			Authenticator: auth,
 		},
 		"endpoint3": {
-			Address:  "10.112.234.103",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.103",
+			Authenticator: auth,
 		},
 	}
 
@@ -105,28 +106,28 @@ func TestKvClientManagerReconfigureNilState(t *testing.T) {
 
 func TestKvClientManagerReconfigureAddsEndpoints(t *testing.T) {
 	expectedNumConns := uint(3)
+	auth := &PasswordAuthenticator{
+		Username: "Administator",
+		Password: "password",
+	}
 	startClientConfigs := map[string]*KvClientConfig{
 		"endpoint1": {
-			Address:  "10.112.234.101",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.101",
+			Authenticator: auth,
 		},
 	}
 	reconfigureClientConfigs := map[string]*KvClientConfig{
 		"endpoint1": {
-			Address:  "10.112.234.101",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.101",
+			Authenticator: auth,
 		},
 		"endpoint2": {
-			Address:  "10.112.234.102",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.102",
+			Authenticator: auth,
 		},
 		"endpoint3": {
-			Address:  "10.112.234.103",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.103",
+			Authenticator: auth,
 		},
 	}
 
@@ -178,33 +179,32 @@ func TestKvClientManagerReconfigureAddsEndpoints(t *testing.T) {
 
 func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 	expectedNumConns := uint(3)
+	auth := &PasswordAuthenticator{
+		Username: "Administator",
+		Password: "password",
+	}
 	startClientConfigs := map[string]*KvClientConfig{
 		"endpoint1": {
-			Address:  "10.112.234.101",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.101",
+			Authenticator: auth,
 		},
 		"endpoint2": {
-			Address:  "10.112.234.102",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.102",
+			Authenticator: auth,
 		},
 		"endpoint3": {
-			Address:  "10.112.234.103",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.103",
+			Authenticator: auth,
 		},
 	}
 	reconfigureClientConfigs := map[string]*KvClientConfig{
 		"endpoint1": {
-			Address:  "10.112.234.101",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.101",
+			Authenticator: auth,
 		},
 		"endpoint2": {
-			Address:  "10.112.234.102",
-			Username: "Administator",
-			Password: "password",
+			Address:       "10.112.234.102",
+			Authenticator: auth,
 		},
 	}
 

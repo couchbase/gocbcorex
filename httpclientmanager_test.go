@@ -21,8 +21,10 @@ func TestHTTPClientManagerNewAppliesFirstConfig(t *testing.T) {
 	expectedClient := &HTTPClientMock{}
 	cfg := &HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator",
-			Password:      "password",
+			Authenticator: &PasswordAuthenticator{
+				Username: "Administrator",
+				Password: "password",
+			},
 			MgmtEndpoints: mgmtEndpoints,
 		},
 	}
@@ -64,8 +66,10 @@ func TestHTTPClientManagerNewErrorFromNewHTTPClient(t *testing.T) {
 
 	_, err := NewHTTPClientManager(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator",
-			Password:      "password",
+			Authenticator: &PasswordAuthenticator{
+				Username: "Administrator",
+				Password: "password",
+			},
 			MgmtEndpoints: mgmtEndpoints,
 		},
 	}, &HTTPClientManagerOptions{
@@ -103,16 +107,20 @@ func TestHTTPClientManagerReconfigureSameTLSConfig(t *testing.T) {
 	mgmtEndpoints := []string{"endpoint1", "endpoint2"}
 	cfg := &HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator",
-			Password:      "password",
+			Authenticator: &PasswordAuthenticator{
+				Username: "Administrator",
+				Password: "password",
+			},
 			MgmtEndpoints: mgmtEndpoints,
 		},
 		TLSConfig: nil,
 	}
 	newCfg := &HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator2",
-			Password:      "password2",
+			Authenticator: &PasswordAuthenticator{
+				Username: "Administrator2",
+				Password: "password2",
+			},
 			MgmtEndpoints: append(mgmtEndpoints, "endpoint3"),
 		},
 		TLSConfig: nil,
@@ -161,8 +169,10 @@ func TestHTTPClientManagerReconfigureDifferentTLSConfig(t *testing.T) {
 	mgmtEndpoints := []string{"endpoint1", "endpoint2"}
 	cfg := &HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator",
-			Password:      "password",
+			Authenticator: &PasswordAuthenticator{
+				Username: "Administrator",
+				Password: "password",
+			},
 			MgmtEndpoints: mgmtEndpoints,
 		},
 		TLSConfig: nil,
@@ -170,8 +180,10 @@ func TestHTTPClientManagerReconfigureDifferentTLSConfig(t *testing.T) {
 	newTlsCfg := &tls.Config{}
 	newCfg := &HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      "Administrator2",
-			Password:      "password2",
+			Authenticator: &PasswordAuthenticator{
+				Username: "Administrator2",
+				Password: "password2",
+			},
 			MgmtEndpoints: append(mgmtEndpoints, "endpoint3"),
 		},
 		TLSConfig: newTlsCfg,
@@ -218,7 +230,8 @@ func TestHTTPClientManagerReconfigureDifferentTLSConfig(t *testing.T) {
 }
 
 // TODO(chvck): I'm not actually sure what this is testing, really we need a way to test that the client transport
-//  is closed after we close the body.
+//
+//	is closed after we close the body.
 func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
 	if !testutils.TestOpts.LongTest {
 		t.SkipNow()
@@ -233,8 +246,10 @@ func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
 
 	mgr, err := NewHTTPClientManager(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      testutils.TestOpts.Username,
-			Password:      testutils.TestOpts.Password,
+			Authenticator: &PasswordAuthenticator{
+				Username: testutils.TestOpts.Username,
+				Password: testutils.TestOpts.Password,
+			},
 			MgmtEndpoints: mgmtEndpoints,
 		},
 	}, &HTTPClientManagerOptions{
@@ -256,8 +271,10 @@ func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
 
 	err = mgr.Reconfigure(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      testutils.TestOpts.Username,
-			Password:      testutils.TestOpts.Password,
+			Authenticator: &PasswordAuthenticator{
+				Username: testutils.TestOpts.Username,
+				Password: testutils.TestOpts.Password,
+			},
 			MgmtEndpoints: testutils.TestOpts.HTTPAddrs,
 		},
 		TLSConfig: &tls.Config{},

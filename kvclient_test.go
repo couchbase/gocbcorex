@@ -3,13 +3,14 @@ package core
 import (
 	"context"
 	"crypto/tls"
+	"testing"
+
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"testing"
 )
 
 type memdxPendingOpMock struct {
@@ -27,18 +28,22 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:   logger,
-		Address:  testutils.TestOpts.MemdAddrs[0],
-		Username: testutils.TestOpts.Username,
-		Password: testutils.TestOpts.Password,
+		Logger:  logger,
+		Address: testutils.TestOpts.MemdAddrs[0],
+		Authenticator: &PasswordAuthenticator{
+			Username: testutils.TestOpts.Username,
+			Password: testutils.TestOpts.Password,
+		},
 	})
 	require.NoError(t, err)
 
 	// Select a bucket on a gcccp level request
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address:        testutils.TestOpts.MemdAddrs[0],
-		Username:       testutils.TestOpts.Username,
-		Password:       testutils.TestOpts.Password,
+		Address: testutils.TestOpts.MemdAddrs[0],
+		Authenticator: &PasswordAuthenticator{
+			Username: testutils.TestOpts.Username,
+			Password: testutils.TestOpts.Password,
+		},
 		SelectedBucket: testutils.TestOpts.BucketName,
 	})
 	require.NoError(t, err)
@@ -64,10 +69,12 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -76,9 +83,11 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	require.NoError(t, err)
 
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "imnotarealboy",
 	})
 	require.Error(t, err)
@@ -92,10 +101,12 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -104,9 +115,11 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address:   "endpoint1",
-		Username:  "user",
-		Password:  "pass",
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		TlsConfig: &tls.Config{},
 	})
 	require.Error(t, err)
@@ -120,10 +133,12 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -132,9 +147,11 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 	require.NoError(t, err)
 
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address:   "endpoint1",
-		Username:  "user2",
-		Password:  "pass",
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user2",
+			Password: "pass2",
+		},
 		TlsConfig: nil,
 	})
 	require.Error(t, err)
@@ -148,10 +165,12 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -160,9 +179,11 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 	require.NoError(t, err)
 
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address:   "endpoint1",
-		Username:  "user",
-		Password:  "pass2",
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user2",
+			Password: "pass2",
+		},
 		TlsConfig: nil,
 	})
 	require.Error(t, err)
@@ -176,10 +197,12 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -188,9 +211,11 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	require.NoError(t, err)
 
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address:   "endpoint2",
-		Username:  "user",
-		Password:  "pass",
+		Address: "endpoint2",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		TlsConfig: nil,
 	})
 	require.Error(t, err)

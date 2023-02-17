@@ -14,8 +14,7 @@ import (
 type agentState struct {
 	bucket             string
 	tlsConfig          *tls.Config
-	username           string
-	password           string
+	authenticator      Authenticator
 	numPoolConnections uint
 
 	lastClients  map[string]*KvClientConfig
@@ -60,8 +59,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		state: agentState{
 			bucket:             opts.BucketName,
 			tlsConfig:          opts.TLSConfig,
-			username:           opts.Username,
-			password:           opts.Password,
+			authenticator:      opts.Authenticator,
 			numPoolConnections: 1,
 		},
 
@@ -80,8 +78,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			Address:        addr,
 			TlsConfig:      agent.state.tlsConfig,
 			SelectedBucket: agent.state.bucket,
-			Username:       agent.state.username,
-			Password:       agent.state.password,
+			Authenticator:  agent.state.authenticator,
 		}
 	}
 	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
@@ -114,8 +111,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 	httpMgr, err := NewHTTPClientManager(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:      opts.Username,
-			Password:      opts.Password,
+			Authenticator: opts.Authenticator,
 			MgmtEndpoints: srcHTTPAddrs,
 		},
 		TLSConfig: opts.TLSConfig,
@@ -181,8 +177,7 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	}
 
 	agent.state.tlsConfig = opts.TLSConfig
-	agent.state.username = opts.Username
-	agent.state.password = opts.Password
+	agent.state.authenticator = opts.Authenticator
 	agent.state.bucket = opts.BucketName
 	agent.updateStateLocked()
 
@@ -260,8 +255,7 @@ func (agent *Agent) updateStateLocked() {
 			Address:        addr,
 			TlsConfig:      memdTlsConfig,
 			SelectedBucket: agent.state.bucket,
-			Username:       agent.state.username,
-			Password:       agent.state.password,
+			Authenticator:  agent.state.authenticator,
 		}
 	}
 
@@ -301,8 +295,7 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.httpMgr.Reconfigure(&HTTPClientManagerConfig{
 		HTTPClientConfig: HTTPClientConfig{
-			Username:        agent.state.username,
-			Password:        agent.state.password,
+			Authenticator:   agent.state.authenticator,
 			MgmtEndpoints:   mgmtList,
 			QueryEndpoints:  queryList,
 			SearchEndpoints: searchList,

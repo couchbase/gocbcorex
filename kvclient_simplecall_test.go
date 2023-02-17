@@ -35,10 +35,12 @@ func TestKvClientSimpleCallSuccessBehaviour(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -90,10 +92,12 @@ func TestKvClientSimpleCallCallbackFailureBehaviour(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -139,10 +143,12 @@ func TestKvClientSimpleCallCallFailureBehaviour(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
@@ -190,10 +196,12 @@ func TestKvClientSimpleCallContextCancelBehaviour(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:         logger,
-		Address:        "endpoint1",
-		Username:       "user",
-		Password:       "pass",
+		Logger:  logger,
+		Address: "endpoint1",
+		Authenticator: &PasswordAuthenticator{
+			Username: "user",
+			Password: "pass",
+		},
 		SelectedBucket: "bucket",
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli

@@ -20,11 +20,13 @@ func TestAgentDelete(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
 	opts := AgentOptions{
-		Logger:     logger,
-		TLSConfig:  nil,
+		Logger:    logger,
+		TLSConfig: nil,
+		Authenticator: &PasswordAuthenticator{
+			Username: testutils.TestOpts.Username,
+			Password: testutils.TestOpts.Password,
+		},
 		BucketName: testutils.TestOpts.BucketName,
-		Username:   testutils.TestOpts.Username,
-		Password:   testutils.TestOpts.Password,
 		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
 		MemdAddrs:  testutils.TestOpts.MemdAddrs,
 	}
