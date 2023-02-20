@@ -3,8 +3,8 @@ package memdx
 // this file contains some helpers, mainly used by tests to synchronize
 // the asynchronous calls that memdx uses
 
-type unaryResult struct {
-	Resp interface{}
+type unaryResult[T any] struct {
+	Resp T
 	Err  error
 }
 
@@ -14,10 +14,10 @@ func syncUnaryCall[Encoder any, ReqT any, RespT any](
 	d Dispatcher,
 	req ReqT,
 ) (RespT, error) {
-	waitCh := make(chan unaryResult)
+	waitCh := make(chan unaryResult[RespT])
 
 	_, err := fn(e, d, req, func(resp RespT, err error) {
-		waitCh <- unaryResult{
+		waitCh <- unaryResult[RespT]{
 			Resp: resp,
 			Err:  err,
 		}
@@ -28,5 +28,5 @@ func syncUnaryCall[Encoder any, ReqT any, RespT any](
 	}
 
 	res := <-waitCh
-	return res.Resp.(RespT), res.Err
+	return res.Resp, res.Err
 }
