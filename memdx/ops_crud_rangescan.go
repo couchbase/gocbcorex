@@ -56,7 +56,8 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 	})
 }
 
-func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, cb func(*RangeScanContinueResponse, error)) (PendingOp, error) {
+func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, dataCb func(*RangeScanDataResponse),
+	actionCb func(*RangeScanActionResponse, error)) (PendingOp, error) {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
@@ -85,39 +86,47 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
-			cb(nil, err)
+			actionCb(nil, err)
 			return false
 		}
 
 		if resp.Status == StatusKeyNotFound {
-			cb(nil, ErrScanNotFound)
+			actionCb(nil, ErrScanNotFound)
 			return false
 		} else if resp.Status == StatusRangeScanCancelled {
-			cb(nil, ErrRangeScanCancelled)
+			actionCb(nil, ErrRangeScanCancelled)
 			return false
 		} else if resp.Status != StatusSuccess && resp.Status != StatusRangeScanMore &&
 			resp.Status != StatusRangeScanComplete {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			actionCb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
 		if len(resp.Extras) != 4 {
-			cb(nil, protocolError{"bad extras length"})
+			actionCb(nil, protocolError{"bad extras length"})
 			return false
 		}
 
-		keysOnlyFlag := binary.BigEndian.Uint32(resp.Extras[0:])
-		items := o.parseRangeScanData(resp.Value, keysOnlyFlag == 0)
+		includesContentFlag := binary.BigEndian.Uint32(resp.Extras[0:])
+		items := o.parseRangeScanData(resp.Value, includesContentFlag == 0)
 
-		cb(&RangeScanContinueResponse{
-			KeysOnly: keysOnlyFlag == 0,
-			More:     resp.Status == StatusRangeScanMore,
-			Complete: resp.Status == StatusRangeScanComplete,
-			Items:    items,
-		}, nil)
+		if len(items) > 0 {
+			dataCb(&RangeScanDataResponse{
+				KeysOnly: includesContentFlag == 0,
+				Items:    items,
+			})
+		}
+
+		if resp.Status == StatusRangeScanMore ||
+			resp.Status == StatusRangeScanComplete {
+			actionCb(&RangeScanActionResponse{
+				More:     resp.Status == StatusRangeScanMore,
+				Complete: resp.Status == StatusRangeScanComplete,
+			}, nil)
+		}
 
 		// If range scan responds with status more then the caller must issue another request,
-		// if the status is complete the scan is finished. Otherwise we can expect more
+		// if the status is complete the scan is finished. Otherwise, we can expect more
 		// responses to this request.
 		return resp.Status == StatusRangeScanMore || resp.Status == StatusRangeScanComplete
 	})
@@ -313,9 +322,12 @@ type RangeScanContinueRequest struct {
 	OnBehalfOf string
 }
 
-type RangeScanContinueResponse struct {
+type RangeScanDataResponse struct {
 	Items    []RangeScanItem
 	KeysOnly bool
+}
+
+type RangeScanActionResponse struct {
 	More     bool
 	Complete bool
 }

@@ -57,21 +57,33 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 	scanUUID := createResp.ScanUUUID
 	assert.NotEmpty(t, scanUUID)
 
-	continueResp, err := syncUnaryCall(OpsCrud{
+	var items []RangeScanItem
+	waitAction := make(chan unaryResult[*RangeScanActionResponse], 1)
+	_, err = OpsCrud{
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
-	}, OpsCrud.RangeScanContinue, cli, &RangeScanContinueRequest{
+	}.RangeScanContinue(cli, &RangeScanContinueRequest{
 		VbucketID: 1,
 		ScanUUID:  scanUUID,
+	}, func(response *RangeScanDataResponse) {
+		assert.False(t, response.KeysOnly)
+		items = append(items, response.Items...)
+	}, func(response *RangeScanActionResponse, err error) {
+		waitAction <- unaryResult[*RangeScanActionResponse]{
+			Resp: response,
+			Err:  err,
+		}
 	})
 	require.NoError(t, err)
 
-	assert.False(t, continueResp.KeysOnly)
-	assert.False(t, continueResp.More)
-	assert.True(t, continueResp.Complete)
+	action := <-waitAction
+	require.NoError(t, action.Err)
 
-	assert.Len(t, continueResp.Items, 1)
-	item := continueResp.Items[0]
+	assert.False(t, action.Resp.More)
+	assert.True(t, action.Resp.Complete)
+
+	assert.Len(t, items, 1)
+	item := items[0]
 
 	assert.Equal(t, key, item.Key)
 	assert.Equal(t, value, item.Value)
@@ -82,7 +94,6 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 	assert.Zero(t, item.Flags)
 }
 
-// Failing because of what looks like a server issue.
 func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 	if !testutils.TestOpts.LongTest {
 		t.SkipNow()
@@ -138,22 +149,34 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 	scanUUID := createResp.ScanUUUID
 	assert.NotEmpty(t, scanUUID)
 
-	continueResp, err := syncUnaryCall(OpsCrud{
+	var items []RangeScanItem
+	waitAction := make(chan unaryResult[*RangeScanActionResponse], 1)
+	_, err = OpsCrud{
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
-	}, OpsCrud.RangeScanContinue, cli, &RangeScanContinueRequest{
+	}.RangeScanContinue(cli, &RangeScanContinueRequest{
 		VbucketID: 1,
 		ScanUUID:  scanUUID,
 		MaxCount:  1,
+	}, func(response *RangeScanDataResponse) {
+		assert.False(t, response.KeysOnly)
+		items = append(items, response.Items...)
+	}, func(response *RangeScanActionResponse, err error) {
+		waitAction <- unaryResult[*RangeScanActionResponse]{
+			Resp: response,
+			Err:  err,
+		}
 	})
 	require.NoError(t, err)
 
-	assert.False(t, continueResp.KeysOnly)
-	assert.True(t, continueResp.More)
-	assert.False(t, continueResp.Complete)
+	action := <-waitAction
+	require.NoError(t, action.Err)
 
-	assert.Len(t, continueResp.Items, 1)
-	item := continueResp.Items[0]
+	assert.True(t, action.Resp.More)
+	assert.False(t, action.Resp.Complete)
+
+	assert.Len(t, items, 1)
+	item := items[0]
 
 	assert.Contains(t, string(item.Key), baseKey)
 	assert.Equal(t, value, item.Value)
@@ -219,18 +242,31 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 	scanUUID := createResp.ScanUUUID
 	assert.NotEmpty(t, scanUUID)
 
-	continueResp, err := syncUnaryCall(OpsCrud{
+	var items []RangeScanItem
+	waitAction := make(chan unaryResult[*RangeScanActionResponse], 1)
+	_, err = OpsCrud{
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
-	}, OpsCrud.RangeScanContinue, cli, &RangeScanContinueRequest{
+	}.RangeScanContinue(cli, &RangeScanContinueRequest{
 		VbucketID: 1,
 		ScanUUID:  scanUUID,
 		MaxCount:  1,
+	}, func(response *RangeScanDataResponse) {
+		assert.False(t, response.KeysOnly)
+		items = append(items, response.Items...)
+	}, func(response *RangeScanActionResponse, err error) {
+		waitAction <- unaryResult[*RangeScanActionResponse]{
+			Resp: response,
+			Err:  err,
+		}
 	})
 	require.NoError(t, err)
 
-	assert.True(t, continueResp.More)
-	assert.False(t, continueResp.Complete)
+	action := <-waitAction
+	require.NoError(t, action.Err)
+
+	assert.True(t, action.Resp.More)
+	assert.False(t, action.Resp.Complete)
 
 	_, err = syncUnaryCall(OpsCrud{
 		CollectionsEnabled: true,
