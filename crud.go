@@ -13,6 +13,7 @@ type CrudComponent struct {
 	cfgmanager  ConfigManager
 	retries     RetryManager
 	connManager KvClientManager
+	compression CompressionManager
 	vbs         VbucketRouter
 }
 
@@ -52,7 +53,7 @@ type GetOptions struct {
 type GetResult struct {
 	Value    []byte
 	Flags    uint32
-	Datatype uint8
+	Datatype memdx.DatatypeFlag
 	Cas      uint64
 }
 
@@ -71,10 +72,15 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 				return nil, err
 			}
 
+			value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			return &GetResult{
-				Value:    resp.Value,
+				Value:    value,
 				Flags:    resp.Flags,
-				Datatype: resp.Datatype,
+				Datatype: datatype,
 				Cas:      resp.Cas,
 			}, nil
 		})
@@ -90,7 +96,7 @@ type GetReplicaOptions struct {
 type GetReplicaResult struct {
 	Value    []byte
 	Flags    uint32
-	Datatype uint8
+	Datatype memdx.DatatypeFlag
 	Cas      uint64
 }
 
@@ -105,10 +111,15 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 			return nil, err
 		}
 
+		value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+		if err != nil {
+			return nil, err
+		}
+
 		return &GetReplicaResult{
-			Value:    resp.Value,
+			Value:    value,
 			Flags:    resp.Flags,
-			Datatype: resp.Datatype,
+			Datatype: datatype,
 			Cas:      resp.Cas,
 		}, nil
 	}
@@ -134,7 +145,7 @@ type UpsertOptions struct {
 	CollectionName string
 	Value          []byte
 	Flags          uint32
-	Datatype       uint8
+	Datatype       memdx.DatatypeFlag
 	Cas            uint64
 	OnBehalfOf     string
 }
@@ -149,13 +160,18 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
+			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			resp, err := client.Set(ctx, &memdx.SetRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
-				Value:        opts.Value,
+				Value:        value,
 				Flags:        opts.Flags,
-				Datatype:     opts.Datatype,
+				Datatype:     uint8(datatype),
 				Expiry:       0,
 				Cas:          opts.Cas,
 				OnBehalfOf:   opts.OnBehalfOf,
@@ -218,7 +234,7 @@ type GetAndTouchOptions struct {
 type GetAndTouchResult struct {
 	Value    []byte
 	Flags    uint32
-	Datatype uint8
+	Datatype memdx.DatatypeFlag
 	Cas      uint64
 }
 
@@ -238,10 +254,15 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 				return nil, err
 			}
 
+			value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			return &GetAndTouchResult{
-				Value:    resp.Value,
+				Value:    value,
 				Flags:    resp.Flags,
-				Datatype: resp.Datatype,
+				Datatype: datatype,
 				Cas:      resp.Cas,
 			}, nil
 		})
@@ -257,7 +278,7 @@ type GetRandomResult struct {
 	Key      []byte
 	Value    []byte
 	Flags    uint32
-	Datatype uint8
+	Datatype memdx.DatatypeFlag
 	Cas      uint64
 }
 
@@ -274,10 +295,15 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 				return nil, err
 			}
 
+			value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			return &GetRandomResult{
-				Value:    resp.Value,
+				Value:    value,
 				Flags:    resp.Flags,
-				Datatype: resp.Datatype,
+				Datatype: datatype,
 				Cas:      resp.Cas,
 				Key:      resp.Key,
 			}, nil
@@ -362,7 +388,7 @@ type GetAndLockOptions struct {
 type GetAndLockResult struct {
 	Value    []byte
 	Flags    uint32
-	Datatype uint8
+	Datatype memdx.DatatypeFlag
 	Cas      uint64
 }
 
@@ -379,8 +405,16 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 				return nil, err
 			}
 
+			value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			return &GetAndLockResult{
-				Cas: resp.Cas,
+				Cas:      resp.Cas,
+				Value:    value,
+				Datatype: datatype,
+				Flags:    resp.Flags,
 			}, nil
 		})
 }
@@ -391,7 +425,7 @@ type AddOptions struct {
 	CollectionName string
 	Flags          uint32
 	Value          []byte
-	Datatype       uint8
+	Datatype       memdx.DatatypeFlag
 	Expiry         uint32
 	OnBehalfOf     string
 }
@@ -406,13 +440,18 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AddResult, error) {
+			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			resp, err := client.Add(ctx, &memdx.AddRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Flags:        opts.Flags,
-				Value:        opts.Value,
-				Datatype:     opts.Datatype,
+				Value:        value,
+				Datatype:     uint8(datatype),
 				Expiry:       opts.Expiry,
 				OnBehalfOf:   opts.OnBehalfOf,
 			})
@@ -433,7 +472,7 @@ type ReplaceOptions struct {
 	CollectionName string
 	Flags          uint32
 	Value          []byte
-	Datatype       uint8
+	Datatype       memdx.DatatypeFlag
 	Expiry         uint32
 	Cas            uint64
 	OnBehalfOf     string
@@ -449,13 +488,18 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*ReplaceResult, error) {
+			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			resp, err := client.Replace(ctx, &memdx.ReplaceRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Flags:        opts.Flags,
-				Value:        opts.Value,
-				Datatype:     opts.Datatype,
+				Value:        value,
+				Datatype:     uint8(datatype),
 				Expiry:       opts.Expiry,
 				Cas:          opts.Cas,
 				OnBehalfOf:   opts.OnBehalfOf,
@@ -489,12 +533,18 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AppendResult, error) {
+			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			resp, err := client.Append(ctx, &memdx.AppendRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
-				Value:        opts.Value,
+				Value:        value,
 				OnBehalfOf:   opts.OnBehalfOf,
+				Datatype:     uint8(datatype),
 			})
 			if err != nil {
 				return nil, err
@@ -525,12 +575,18 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*PrependResult, error) {
+			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
+			if err != nil {
+				return nil, err
+			}
+
 			resp, err := client.Prepend(ctx, &memdx.PrependRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
-				Value:        opts.Value,
+				Value:        value,
 				OnBehalfOf:   opts.OnBehalfOf,
+				Datatype:     uint8(datatype),
 			})
 			if err != nil {
 				return nil, err
@@ -642,7 +698,7 @@ type GetMetaResult struct {
 	Cas      uint64
 	Expiry   uint32
 	SeqNo    uint64
-	Datatype uint8
+	Datatype memdx.DatatypeFlag
 	Deleted  uint32
 }
 
@@ -667,7 +723,7 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 				Cas:      resp.Cas,
 				Expiry:   resp.Expiry,
 				SeqNo:    resp.SeqNo,
-				Datatype: resp.Datatype,
+				Datatype: memdx.DatatypeFlag(resp.Datatype),
 				Deleted:  resp.Deleted,
 			}, nil
 		})

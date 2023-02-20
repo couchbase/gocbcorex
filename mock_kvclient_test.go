@@ -61,6 +61,9 @@ var _ KvClient = &KvClientMock{}
 //			GetReplicaFunc: func(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error) {
 //				panic("mock out the GetReplica method")
 //			},
+//			HasFeatureFunc: func(feature memdx.HelloFeature) bool {
+//				panic("mock out the HasFeature method")
+//			},
 //			IncrementFunc: func(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error) {
 //				panic("mock out the Increment method")
 //			},
@@ -142,6 +145,9 @@ type KvClientMock struct {
 
 	// GetReplicaFunc mocks the GetReplica method.
 	GetReplicaFunc func(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error)
+
+	// HasFeatureFunc mocks the HasFeature method.
+	HasFeatureFunc func(feature memdx.HelloFeature) bool
 
 	// IncrementFunc mocks the Increment method.
 	IncrementFunc func(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error)
@@ -272,6 +278,11 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.GetReplicaRequest
 		}
+		// HasFeature holds details about calls to the HasFeature method.
+		HasFeature []struct {
+			// Feature is the feature argument value.
+			Feature memdx.HelloFeature
+		}
 		// Increment holds details about calls to the Increment method.
 		Increment []struct {
 			// Ctx is the ctx argument value.
@@ -360,6 +371,7 @@ type KvClientMock struct {
 	lockGetMeta          sync.RWMutex
 	lockGetRandom        sync.RWMutex
 	lockGetReplica       sync.RWMutex
+	lockHasFeature       sync.RWMutex
 	lockIncrement        sync.RWMutex
 	lockLoadFactor       sync.RWMutex
 	lockLookupIn         sync.RWMutex
@@ -865,6 +877,38 @@ func (mock *KvClientMock) GetReplicaCalls() []struct {
 	mock.lockGetReplica.RLock()
 	calls = mock.calls.GetReplica
 	mock.lockGetReplica.RUnlock()
+	return calls
+}
+
+// HasFeature calls HasFeatureFunc.
+func (mock *KvClientMock) HasFeature(feature memdx.HelloFeature) bool {
+	if mock.HasFeatureFunc == nil {
+		panic("KvClientMock.HasFeatureFunc: method is nil but KvClient.HasFeature was just called")
+	}
+	callInfo := struct {
+		Feature memdx.HelloFeature
+	}{
+		Feature: feature,
+	}
+	mock.lockHasFeature.Lock()
+	mock.calls.HasFeature = append(mock.calls.HasFeature, callInfo)
+	mock.lockHasFeature.Unlock()
+	return mock.HasFeatureFunc(feature)
+}
+
+// HasFeatureCalls gets all the calls that were made to HasFeature.
+// Check the length with:
+//
+//	len(mockedKvClient.HasFeatureCalls())
+func (mock *KvClientMock) HasFeatureCalls() []struct {
+	Feature memdx.HelloFeature
+} {
+	var calls []struct {
+		Feature memdx.HelloFeature
+	}
+	mock.lockHasFeature.RLock()
+	calls = mock.calls.HasFeature
+	mock.lockHasFeature.RUnlock()
 	return calls
 }
 

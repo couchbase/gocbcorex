@@ -56,6 +56,8 @@ type KvClient interface {
 	LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
 	MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error)
 
+	HasFeature(feat memdx.HelloFeature) bool
+
 	Close() error
 
 	LoadFactor() float64
