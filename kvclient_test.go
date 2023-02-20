@@ -27,23 +27,22 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:  logger,
-		Address: testutils.TestOpts.MemdAddrs[0],
-		Authenticator: &PasswordAuthenticator{
-			Username: testutils.TestOpts.Username,
-			Password: testutils.TestOpts.Password,
-		},
+		Logger:        logger,
+		Address:       testutils.TestOpts.MemdAddrs[0],
+		Authenticator: auth,
 	})
 	require.NoError(t, err)
 
 	// Select a bucket on a gcccp level request
 	err = cli.Reconfigure(context.Background(), &KvClientConfig{
-		Address: testutils.TestOpts.MemdAddrs[0],
-		Authenticator: &PasswordAuthenticator{
-			Username: testutils.TestOpts.Username,
-			Password: testutils.TestOpts.Password,
-		},
+		Address:        testutils.TestOpts.MemdAddrs[0],
+		Authenticator:  auth,
 		SelectedBucket: testutils.TestOpts.BucketName,
 	})
 	require.NoError(t, err)

@@ -851,6 +851,7 @@ type AppendRequest struct {
 	VbucketID              uint16
 	Value                  []byte
 	OnBehalfOf             string
+	Datatype               uint8
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
@@ -878,6 +879,7 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		VbucketID:     req.VbucketID,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
+		Datatype:      req.Datatype,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -917,6 +919,7 @@ type PrependRequest struct {
 	VbucketID              uint16
 	Value                  []byte
 	OnBehalfOf             string
+	Datatype               uint8
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
@@ -944,6 +947,7 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 		VbucketID:     req.VbucketID,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
+		Datatype:      req.Datatype,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)

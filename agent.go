@@ -148,9 +148,13 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		logger:      agent.logger,
 		collections: agent.collections,
 		retries:     agent.retries,
-		// errorResolver: new,
 		connManager: agent.connMgr,
 		vbs:         agent.vbRouter,
+		compression: &CompressionManagerDefault{
+			compressionMinSize:   32,
+			compressionMinRatio:  0.83,
+			disableDecompression: false,
+		},
 	}
 	agent.http = &HTTPComponent{
 		logger:  agent.logger,
