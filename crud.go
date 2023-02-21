@@ -152,6 +152,8 @@ type UpsertOptions struct {
 	Value           []byte
 	Flags           uint32
 	Datatype        memdx.DatatypeFlag
+	Expiry          uint32
+	PreserveExpiry  bool
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
 	OnBehalfOf      string
@@ -179,7 +181,8 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 				Value:           value,
 				Flags:           opts.Flags,
 				Datatype:        uint8(datatype),
-				Expiry:          0,
+				Expiry:          opts.Expiry,
+				PreserveExpiry:  opts.PreserveExpiry,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				OnBehalfOf:      opts.OnBehalfOf,
@@ -502,6 +505,7 @@ type ReplaceOptions struct {
 	Value           []byte
 	Datatype        memdx.DatatypeFlag
 	Expiry          uint32
+	PreserveExpiry  bool
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
 	OnBehalfOf      string
@@ -530,6 +534,7 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 				Value:           value,
 				Datatype:        uint8(datatype),
 				Expiry:          opts.Expiry,
+				PreserveExpiry:  opts.PreserveExpiry,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				OnBehalfOf:      opts.OnBehalfOf,
@@ -938,6 +943,7 @@ type MutateInOptions struct {
 	Value           []byte
 	Flags           uint32
 	Expiry          uint32
+	PreserveExpiry  bool
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
 	OnBehalfOf      string
@@ -961,6 +967,7 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 				Flags:           opts.Flags,
 				Value:           opts.Value,
 				Expiry:          opts.Expiry,
+				PreserveExpiry:  opts.PreserveExpiry,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				OnBehalfOf:      opts.OnBehalfOf,

@@ -6,9 +6,10 @@ import (
 )
 
 type OpsCrud struct {
-	ExtFramesEnabled   bool
-	CollectionsEnabled bool
-	DurabilityEnabled  bool
+	ExtFramesEnabled      bool
+	CollectionsEnabled    bool
+	DurabilityEnabled     bool
+	PreserveExpiryEnabled bool
 }
 
 func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []byte) ([]byte, error) {
@@ -26,8 +27,12 @@ func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []b
 }
 
 // TODO(brett19): This exists in OpsUtils too, we should probably deduplicate the implementation.
-func (o OpsCrud) encodeReqExtFrames(onBehalfOf string, durabilityLevel DurabilityLevel,
-	durabilityLevelTimeout time.Duration, buf []byte) (Magic, []byte, error) {
+func (o OpsCrud) encodeReqExtFrames(
+	onBehalfOf string,
+	durabilityLevel DurabilityLevel, durabilityLevelTimeout time.Duration,
+	preserveExpiry bool,
+	buf []byte,
+) (Magic, []byte, error) {
 	var err error
 
 	if onBehalfOf != "" {
@@ -60,6 +65,17 @@ func (o OpsCrud) encodeReqExtFrames(onBehalfOf string, durabilityLevel Durabilit
 		}
 	} else if durabilityLevelTimeout > 0 {
 		return 0, nil, protocolError{"cannot encode durability timeout without durability level"}
+	}
+
+	if preserveExpiry {
+		if !o.PreserveExpiryEnabled {
+			return 0, nil, protocolError{"cannot use preserve expiry when its not enabled"}
+		}
+
+		buf, err = AppendExtFrame(ExtFrameCodeReqPreserveTTL, nil, buf)
+		if err != nil {
+			return 0, nil, err
+		}
 	}
 
 	if len(buf) > 0 {
@@ -100,7 +116,7 @@ type GetResponse struct {
 }
 
 func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +181,7 @@ type GetAndTouchResponse struct {
 }
 
 func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*GetAndTouchResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +251,7 @@ type GetReplicaResponse struct {
 }
 
 func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetReplicaResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +319,7 @@ type GetAndLockResponse struct {
 }
 
 func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAndLockResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +389,7 @@ type GetRandomResponse struct {
 }
 
 func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -432,6 +448,7 @@ type SetRequest struct {
 	Value                  []byte
 	Datatype               uint8
 	Expiry                 uint32
+	PreserveExpiry         bool
 	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
@@ -444,7 +461,12 @@ type SetResponse struct {
 }
 
 func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		req.PreserveExpiry,
+		nil)
+
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +537,7 @@ type UnlockResponse struct {
 }
 
 func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +601,7 @@ type TouchResponse struct {
 }
 
 func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -645,7 +667,11 @@ type DeleteResponse struct {
 }
 
 func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		false,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -715,7 +741,11 @@ type AddResponse struct {
 }
 
 func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		false,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -779,6 +809,7 @@ type ReplaceRequest struct {
 	Value                  []byte
 	Datatype               uint8
 	Expiry                 uint32
+	PreserveExpiry         bool
 	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
@@ -791,7 +822,15 @@ type ReplaceResponse struct {
 }
 
 func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	if req.Expiry != 0 && req.PreserveExpiry {
+		cb(nil, protocolError{"cannot specify expiry and preserve expiry"})
+	}
+
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		req.PreserveExpiry,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -870,7 +909,11 @@ type AppendResponse struct {
 }
 
 func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		false,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -938,7 +981,11 @@ type PrependResponse struct {
 }
 
 func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		false,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1008,7 +1055,11 @@ type IncrementResponse struct {
 }
 
 func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*IncrementResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		false,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1095,7 +1146,11 @@ type DecrementResponse struct {
 }
 
 func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*DecrementResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		false,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1182,7 +1237,7 @@ type GetMetaResponse struct {
 }
 
 func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1261,7 +1316,7 @@ type SetMetaResponse struct {
 }
 
 func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1342,7 +1397,7 @@ type DeleteMetaResponse struct {
 }
 
 func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*DeleteMetaResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1423,7 +1478,7 @@ type LookupInResponse struct {
 }
 
 func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, nil)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1483,6 +1538,7 @@ type MutateInRequest struct {
 	Flags                  uint32
 	Value                  []byte
 	Expiry                 uint32
+	PreserveExpiry         bool
 	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
@@ -1496,7 +1552,15 @@ type MutateInResponse struct {
 }
 
 func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, req.DurabilityLevel, req.DurabilityLevelTimeout, nil)
+	if req.Expiry != 0 && req.PreserveExpiry {
+		cb(nil, protocolError{"cannot specify expiry and preserve expiry"})
+	}
+
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+		req.OnBehalfOf,
+		req.DurabilityLevel, req.DurabilityLevelTimeout,
+		req.PreserveExpiry,
+		nil)
 	if err != nil {
 		return nil, err
 	}

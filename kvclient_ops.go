@@ -106,9 +106,10 @@ func kvClient_SimpleCrudCall[ReqT any, RespT any](
 	req ReqT,
 ) (RespT, error) {
 	return kvClient_SimpleCall(ctx, c, memdx.OpsCrud{
-		ExtFramesEnabled:   c.HasFeature(memdx.HelloFeatureAltRequests),
-		CollectionsEnabled: c.HasFeature(memdx.HelloFeatureCollections),
-		DurabilityEnabled:  c.HasFeature(memdx.HelloFeatureSyncReplication),
+		ExtFramesEnabled:      c.HasFeature(memdx.HelloFeatureAltRequests),
+		CollectionsEnabled:    c.HasFeature(memdx.HelloFeatureCollections),
+		DurabilityEnabled:     c.HasFeature(memdx.HelloFeatureSyncReplication),
+		PreserveExpiryEnabled: c.HasFeature(memdx.HelloFeaturePreserveExpiry),
 	}, execFn, req)
 }
 

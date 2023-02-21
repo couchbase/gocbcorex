@@ -28,7 +28,10 @@ func AppendExtFrame(frameCode ExtFrameCode, frameBody []byte, buf []byte) ([]byt
 		buf = append(buf, byte(frameLen-15))
 	}
 
-	buf = append(buf, frameBody...)
+	if len(frameBody) > 0 {
+		buf = append(buf, frameBody...)
+	}
+
 	return buf, nil
 }
 
