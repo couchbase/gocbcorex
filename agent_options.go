@@ -25,6 +25,8 @@ type AgentOptions struct {
 
 	CompressionConfig CompressionConfig
 
+	ConfigPollerConfig ConfigPollerConfig
+
 	HTTPConfig HTTPConfig
 }
 
@@ -40,6 +42,15 @@ type CompressionConfig struct {
 	DisableDecompression bool
 	MinSize              int
 	MinRatio             float64
+}
+
+// ConfigPollerConfig specifies options for controlling the cluster configuration pollers.
+type ConfigPollerConfig struct {
+	HTTPRedialPeriod time.Duration
+	HTTPRetryDelay   time.Duration
+	HTTPMaxWait      time.Duration
+	// CccpMaxWait      time.Duration
+	// CccpPollPeriod   time.Duration
 }
 
 // HTTPConfig specifies http related configuration options.

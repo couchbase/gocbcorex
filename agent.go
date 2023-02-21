@@ -58,6 +58,9 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	compressionMinRatio := 0.83
 	httpIdleConnTimeout := 4500 * time.Millisecond
 	httpConnectTimeout := 30 * time.Second
+	confHTTPRetryDelay := 10 * time.Second
+	confHTTPRedialPeriod := 10 * time.Second
+	confHTTPMaxWait := 5 * time.Second
 
 	disableDecompression := opts.CompressionConfig.DisableDecompression
 	useCompression := opts.CompressionConfig.EnableCompression
@@ -76,6 +79,15 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 	if opts.HTTPConfig.ConnectTimeout > 0 {
 		httpConnectTimeout = opts.HTTPConfig.ConnectTimeout
+	}
+	if opts.ConfigPollerConfig.HTTPRetryDelay > 0 {
+		confHTTPRetryDelay = opts.ConfigPollerConfig.HTTPRetryDelay
+	}
+	if opts.ConfigPollerConfig.HTTPRedialPeriod > 0 {
+		confHTTPRedialPeriod = opts.ConfigPollerConfig.HTTPRedialPeriod
+	}
+	if opts.ConfigPollerConfig.HTTPMaxWait > 0 {
+		confHTTPMaxWait = opts.ConfigPollerConfig.HTTPMaxWait
 	}
 
 	agent := &Agent{
@@ -158,9 +170,9 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 	agent.poller = newhttpConfigPoller(httpPollerProperties{
 		Logger:               opts.Logger,
-		ConfHTTPRetryDelay:   10 * time.Second,
-		ConfHTTPRedialPeriod: 10 * time.Second,
-		ConfHTTPMaxWait:      5 * time.Second,
+		ConfHTTPRetryDelay:   confHTTPRetryDelay,
+		ConfHTTPRedialPeriod: confHTTPRedialPeriod,
+		ConfHTTPMaxWait:      confHTTPMaxWait,
 		BucketName:           opts.BucketName,
 		HTTPClient:           agent.httpMgr,
 	})
