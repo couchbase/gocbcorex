@@ -879,17 +879,18 @@ type LookupInOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
-	Value          []byte
-	Flags          uint8
+	Ops            []memdx.LookupInOp
+	Flags          memdx.SubdocDocFlag
 	OnBehalfOf     string
 }
 
 type LookupInResult struct {
-	Value   []byte
-	Deleted bool
-	Cas     uint64
+	Ops          []memdx.SubDocResult
+	DocIsDeleted bool
+	Cas          uint64
 }
 
+// TODO(chvck): Lookupin and Mutatein should do reordering of ops.
 func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*LookupInResult, error) {
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.cfgmanager, cc.connManager,
@@ -900,7 +901,7 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Flags:        opts.Flags,
-				Value:        opts.Value,
+				Ops:          opts.Ops,
 				OnBehalfOf:   opts.OnBehalfOf,
 			})
 			if err != nil {
@@ -908,9 +909,9 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 			}
 
 			return &LookupInResult{
-				Value:   resp.Value,
-				Deleted: resp.Deleted,
-				Cas:     resp.Cas,
+				Ops:          resp.Ops,
+				DocIsDeleted: resp.DocIsDeleted,
+				Cas:          resp.Cas,
 			}, nil
 		})
 }
@@ -919,8 +920,8 @@ type MutateInOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
-	Value          []byte
-	Flags          uint32
+	Ops            []memdx.MutateInOp
+	Flags          memdx.SubdocDocFlag
 	Expiry         uint32
 	Cas            uint64
 	OnBehalfOf     string
@@ -928,7 +929,7 @@ type MutateInOptions struct {
 
 type MutateInResult struct {
 	Cas           uint64
-	Value         []byte
+	Ops           []memdx.SubDocResult
 	MutationToken MutationToken
 }
 
@@ -942,7 +943,7 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Flags:        opts.Flags,
-				Value:        opts.Value,
+				Ops:          opts.Ops,
 				Expiry:       opts.Expiry,
 				Cas:          opts.Cas,
 				OnBehalfOf:   opts.OnBehalfOf,
@@ -952,8 +953,8 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 			}
 
 			return &MutateInResult{
-				Cas:   resp.Cas,
-				Value: resp.Value,
+				Cas: resp.Cas,
+				Ops: resp.Ops,
 				MutationToken: MutationToken{
 					VbID:   vbID,
 					VbUuid: resp.MutationToken.VbUuid,

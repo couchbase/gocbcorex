@@ -2,6 +2,7 @@ package memdx
 
 import (
 	"encoding/binary"
+	"errors"
 	"time"
 )
 
@@ -67,15 +68,23 @@ func (o OpsCrud) encodeReqExtFrames(onBehalfOf string, durabilityLevel Durabilit
 	return MagicReq, nil, nil
 }
 
-func (o OpsCrud) decodeCommonError(resp *Packet, dispatchedTo string, dispatchedFrom string) error {
-	switch resp.Status {
+func (o OpsCrud) decodeCommonStatus(status Status) error {
+	switch status {
 	case StatusCollectionUnknown:
 		return ErrUnknownCollectionID
 	case StatusAccessError:
 		return ErrAccessError
 	default:
-		return OpsCore{}.decodeError(resp, dispatchedTo, dispatchedFrom)
+		return nil
 	}
+}
+func (o OpsCrud) decodeCommonError(resp *Packet, dispatchedTo string, dispatchedFrom string) error {
+	err := OpsCrud{}.decodeCommonStatus(resp.Status)
+	if err != nil {
+		return err
+	}
+
+	return OpsCore{}.decodeError(resp, dispatchedTo, dispatchedFrom)
 }
 
 type GetRequest struct {
@@ -1362,23 +1371,20 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 		VbucketID:     req.VbucketID,
 		FramingExtras: extFramesBuf,
 		Cas:           req.Cas,
+		Extras:        extraBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		if resp.Status == StatusKeyExists && req.Cas > 0 {
 			cb(nil, ErrCasMismatch)
 			return false
-		}
-
-		if resp.Status == StatusKeyNotFound {
+		} else if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		}
-
-		if resp.Status != StatusSuccess {
+		} else if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
@@ -1404,16 +1410,16 @@ type LookupInRequest struct {
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
-	Flags        uint8
-	Value        []byte
+	Flags        SubdocDocFlag
+	Ops          []LookupInOp
 
 	OnBehalfOf string
 }
 
 type LookupInResponse struct {
-	Value   []byte
-	Deleted bool
-	Cas     uint64
+	Ops          []SubDocResult
+	DocIsDeleted bool
+	Cas          uint64
 }
 
 func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInResponse, error)) (PendingOp, error) {
@@ -1427,9 +1433,32 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		return nil, err
 	}
 
+	lenOps := len(req.Ops)
+	pathBytesList := make([][]byte, lenOps)
+	pathBytesTotal := 0
+	for i, op := range req.Ops {
+		pathBytes := op.Path
+		pathBytesList[i] = pathBytes
+		pathBytesTotal += len(pathBytes)
+	}
+
+	valueBuf := make([]byte, lenOps*4+pathBytesTotal)
+
+	valueIter := 0
+	for i, op := range req.Ops {
+		pathBytes := pathBytesList[i]
+		pathBytesLen := len(pathBytes)
+
+		valueBuf[valueIter+0] = uint8(op.Op)
+		valueBuf[valueIter+1] = uint8(op.Flags)
+		binary.BigEndian.PutUint16(valueBuf[valueIter+2:], uint16(pathBytesLen))
+		copy(valueBuf[valueIter+4:], pathBytes)
+		valueIter += 4 + pathBytesLen
+	}
+
 	var extraBuf []byte
 	if req.Flags != 0 {
-		extraBuf = append(extraBuf, req.Flags)
+		extraBuf = append(extraBuf, uint8(req.Flags))
 	}
 
 	return d.Dispatch(&Packet{
@@ -1439,7 +1468,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		Extras:        extraBuf,
 		VbucketID:     req.VbucketID,
 		FramingExtras: extFramesBuf,
-		Value:         req.Value,
+		Value:         valueBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -1449,20 +1478,50 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusSubDocBadMulti {
-			cb(nil, ErrSubDocBadMulti)
-			return false
 		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocSuccessDeleted &&
-			resp.Status != StatusSubDocMultiPathFailureDeleted {
+			resp.Status != StatusSubDocMultiPathFailureDeleted && resp.Status != StatusSubDocBadMulti {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
-		res := &LookupInResponse{
-			Value: resp.Value,
-			Cas:   resp.Cas,
+		results := make([]SubDocResult, lenOps)
+		respIter := 0
+		for i := range results {
+			if respIter+6 > len(resp.Value) {
+				cb(nil, protocolError{"bad value length"})
+				return false
+			}
+
+			resError := Status(binary.BigEndian.Uint16(resp.Value[respIter+0:]))
+			resValueLen := int(binary.BigEndian.Uint32(resp.Value[respIter+2:]))
+
+			if respIter+6+resValueLen > len(resp.Value) {
+				cb(nil, protocolError{"bad value length"})
+				return false
+			}
+
+			if resError != StatusSuccess {
+				cause := OpsCrud{}.decodeCommonStatus(resError)
+				if cause == nil {
+					cause = errors.New("unexpected status: " + resError.String())
+				}
+				results[i].Err = ServerError{
+					Cause:          cause,
+					DispatchedTo:   d.RemoteAddr(),
+					DispatchedFrom: d.LocalAddr(),
+					Opaque:         resp.Opaque,
+				}
+			}
+
+			results[i].Value = resp.Value[respIter+6 : respIter+6+resValueLen]
+			respIter += 6 + resValueLen
 		}
-		res.Deleted = resp.Status == StatusSubDocSuccessDeleted ||
+
+		res := &LookupInResponse{
+			Ops: results,
+			Cas: resp.Cas,
+		}
+		res.DocIsDeleted = resp.Status == StatusSubDocSuccessDeleted ||
 			resp.Status == StatusSubDocMultiPathFailureDeleted
 
 		cb(res, nil)
@@ -1474,8 +1533,8 @@ type MutateInRequest struct {
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
-	Flags                  uint32
-	Value                  []byte
+	Flags                  SubdocDocFlag
+	Ops                    []MutateInOp
 	Expiry                 uint32
 	OnBehalfOf             string
 	Cas                    uint64
@@ -1486,7 +1545,7 @@ type MutateInRequest struct {
 type MutateInResponse struct {
 	Cas           uint64
 	MutationToken MutationToken
-	Value         []byte
+	Ops           []SubDocResult
 }
 
 func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInResponse, error)) (PendingOp, error) {
@@ -1498,6 +1557,42 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	lenOps := len(req.Ops)
+	pathBytesList := make([][]byte, lenOps)
+	pathBytesTotal := 0
+	valueBytesTotal := 0
+	for i, op := range req.Ops {
+		pathBytes := op.Path
+		pathBytesList[i] = pathBytes
+		pathBytesTotal += len(pathBytes)
+		valueBytesTotal += len(op.Value)
+	}
+
+	valueBuf := make([]byte, lenOps*8+pathBytesTotal+valueBytesTotal)
+
+	valueIter := 0
+	for i, op := range req.Ops {
+		// if op.Op == SubDocOpReplaceBodyWithXattr {
+		// 	// We can get here before support status is actually known, we'll send the request unless we know for a fact
+		// 	// that this is unsupported.
+		// 	if crud.featureVerifier.HasBucketCapabilityStatus(BucketCapabilityReplaceBodyWithXattr, BucketCapabilityStatusUnsupported) {
+		// 		return nil, errFeatureNotAvailable
+		// 	}
+		// }
+
+		pathBytes := pathBytesList[i]
+		pathBytesLen := len(pathBytes)
+		valueBytesLen := len(op.Value)
+
+		valueBuf[valueIter+0] = uint8(op.Op)
+		valueBuf[valueIter+1] = uint8(op.Flags)
+		binary.BigEndian.PutUint16(valueBuf[valueIter+2:], uint16(pathBytesLen))
+		binary.BigEndian.PutUint32(valueBuf[valueIter+4:], uint32(valueBytesLen))
+		copy(valueBuf[valueIter+8:], pathBytes)
+		copy(valueBuf[valueIter+8+pathBytesLen:], op.Value)
+		valueIter += 8 + pathBytesLen + valueBytesLen
 	}
 
 	var extraBuf []byte
@@ -1516,7 +1611,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
 		Extras:        extraBuf,
-		Value:         req.Value,
+		Value:         valueBuf,
 		FramingExtras: extFramesBuf,
 		Cas:           req.Cas,
 	}, func(resp *Packet, err error) bool {
@@ -1528,18 +1623,51 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists && req.Flags&0x02 == 2 { // Only doc exists error if flags are add
+		} else if resp.Status == StatusNotStored && req.Flags&SubdocDocFlagAddDoc != 0 { // Only doc exists error if flags are add
 			cb(nil, ErrDocExists)
 			return false
 		} else if resp.Status == StatusKeyExists {
 			cb(nil, ErrCasMismatch)
 			return false
 		} else if resp.Status == StatusSubDocBadMulti {
-			cb(nil, ErrSubDocBadMulti)
+			if len(resp.Value) != 3 {
+				cb(nil, protocolError{"bad value length"})
+				return false
+			}
+
+			// TODO(chvck): improve this error to include all the errors returned.
+			resError := Status(binary.BigEndian.Uint16(resp.Value[1:]))
+
+			cause := OpsCrud{}.decodeCommonStatus(resError)
+			if cause == nil {
+				cause = errors.New("unexpected status: " + resError.String())
+			}
+			cb(nil, ServerError{
+				Cause:          cause,
+				DispatchedTo:   d.RemoteAddr(),
+				DispatchedFrom: d.LocalAddr(),
+				Opaque:         resp.Opaque,
+			})
 			return false
 		} else if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
+		}
+
+		results := make([]SubDocResult, lenOps)
+		for readPos := uint32(0); readPos < uint32(len(resp.Value)); {
+			opIndex := int(resp.Value[readPos+0])
+			opStatus := Status(binary.BigEndian.Uint16(resp.Value[readPos+1:]))
+
+			readPos += 3
+
+			if opStatus == StatusSuccess {
+				valLength := binary.BigEndian.Uint32(resp.Value[readPos:])
+				results[opIndex].Value = resp.Value[readPos+4 : readPos+4+valLength]
+				readPos += 4 + valLength
+			} else {
+				// TODO(chvck): do something?
+			}
 		}
 
 		mutToken := MutationToken{}
@@ -1554,7 +1682,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		cb(&MutateInResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
-			Value:         resp.Value,
+			Ops:           results,
 		}, nil)
 		return false
 	})
