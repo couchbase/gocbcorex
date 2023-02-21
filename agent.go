@@ -53,6 +53,23 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		}
 	}
 
+	// Default values.
+	compressionMinSize := 32
+	compressionMinRatio := 0.83
+
+	disableDecompression := opts.CompressionConfig.DisableDecompression
+	useCompression := opts.CompressionConfig.EnableCompression
+
+	if opts.CompressionConfig.MinSize > 0 {
+		compressionMinSize = opts.CompressionConfig.MinSize
+	}
+	if opts.CompressionConfig.MinRatio > 0 {
+		compressionMinRatio = opts.CompressionConfig.MinRatio
+		if compressionMinRatio >= 1.0 {
+			compressionMinRatio = 1.0
+		}
+	}
+
 	agent := &Agent{
 		logger: loggerOrNop(opts.Logger),
 
@@ -151,9 +168,10 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		connManager: agent.connMgr,
 		vbs:         agent.vbRouter,
 		compression: &CompressionManagerDefault{
-			compressionMinSize:   32,
-			compressionMinRatio:  0.83,
-			disableDecompression: false,
+			disableCompression:   !useCompression,
+			compressionMinSize:   compressionMinSize,
+			compressionMinRatio:  compressionMinRatio,
+			disableDecompression: disableDecompression,
 		},
 	}
 	agent.http = &HTTPComponent{

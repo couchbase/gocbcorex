@@ -13,10 +13,10 @@ import (
 	"testing"
 )
 
-func CreateDefaultAgent(t *testing.T) *Agent {
+func CreateDefaultAgentOptions() AgentOptions {
 	logger, _ := zap.NewDevelopment()
 
-	opts := AgentOptions{
+	return AgentOptions{
 		Logger:     logger,
 		TLSConfig:  nil,
 		BucketName: testutils.TestOpts.BucketName,
@@ -28,7 +28,14 @@ func CreateDefaultAgent(t *testing.T) *Agent {
 			HTTPAddrs: testutils.TestOpts.HTTPAddrs,
 			MemdAddrs: testutils.TestOpts.MemdAddrs,
 		},
+		CompressionConfig: CompressionConfig{
+			EnableCompression: true,
+		},
 	}
+}
+
+func CreateDefaultAgent(t *testing.T) *Agent {
+	opts := CreateDefaultAgentOptions()
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
@@ -95,12 +102,13 @@ func TestAgentCrudCompress(t *testing.T) {
 		t.SkipNow()
 	}
 
-	agent := CreateDefaultAgent(t)
+	opts := CreateDefaultAgentOptions()
+	opts.CompressionConfig.DisableDecompression = true
+	opts.CompressionConfig.MinRatio = 1
+	opts.CompressionConfig.MinSize = 1
 
-	// TODO: Short term until we expose compression options
-	agent.crud.compression.(*CompressionManagerDefault).disableDecompression = true
-	agent.crud.compression.(*CompressionManagerDefault).compressionMinRatio = 1
-	agent.crud.compression.(*CompressionManagerDefault).compressionMinSize = 1
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
 
 	type test struct {
 		Op                    func(key, value []byte) error
@@ -232,12 +240,12 @@ func TestAgentCrudDecompress(t *testing.T) {
 		t.SkipNow()
 	}
 
-	agent := CreateDefaultAgent(t)
+	opts := CreateDefaultAgentOptions()
+	opts.CompressionConfig.MinRatio = 1
+	opts.CompressionConfig.MinSize = 1
 
-	// TODO: Short term until we expose compression options
-	agent.crud.compression.(*CompressionManagerDefault).disableDecompression = false
-	agent.crud.compression.(*CompressionManagerDefault).compressionMinRatio = 1
-	agent.crud.compression.(*CompressionManagerDefault).compressionMinSize = 1
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
 
 	type test struct {
 		Op   func(key []byte) ([]byte, error)

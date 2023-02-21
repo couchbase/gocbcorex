@@ -9,12 +9,18 @@ type CompressionManagerDefault struct {
 	compressionMinSize  int
 	compressionMinRatio float64
 
+	disableCompression bool
+
 	// Some users require the ability to disable decompressing values. e.g. if they read docs from
 	// the server and then want to store them compressed as a backup.
 	disableDecompression bool
 }
 
 func (cmd *CompressionManagerDefault) Compress(supportsSnappy bool, datatype memdx.DatatypeFlag, value []byte) ([]byte, memdx.DatatypeFlag, error) {
+	if cmd.disableCompression {
+		return value, datatype, nil
+	}
+
 	if !supportsSnappy {
 		return value, datatype, nil
 	}
