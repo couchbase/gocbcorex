@@ -908,6 +908,7 @@ type AppendRequest struct {
 	Value                  []byte
 	OnBehalfOf             string
 	Datatype               uint8
+	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
@@ -937,6 +938,7 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		OpCode:        OpCodeAppend,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
+		Cas:           req.Cas,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
 		Datatype:      req.Datatype,
@@ -980,6 +982,7 @@ type PrependRequest struct {
 	Value                  []byte
 	OnBehalfOf             string
 	Datatype               uint8
+	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
@@ -1009,6 +1012,7 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 		OpCode:        OpCodePrepend,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
+		Cas:           req.Cas,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
 		Datatype:      req.Datatype,

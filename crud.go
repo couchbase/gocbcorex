@@ -559,6 +559,7 @@ type AppendOptions struct {
 	ScopeName       string
 	CollectionName  string
 	Value           []byte
+	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
 	OnBehalfOf      string
 }
@@ -584,6 +585,7 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 				VbucketID:       vbID,
 				Value:           value,
 				Datatype:        uint8(datatype),
+				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				OnBehalfOf:      opts.OnBehalfOf,
 			})
@@ -607,6 +609,7 @@ type PrependOptions struct {
 	ScopeName       string
 	CollectionName  string
 	Value           []byte
+	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
 	OnBehalfOf      string
 }
@@ -632,6 +635,7 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 				VbucketID:       vbID,
 				Value:           value,
 				Datatype:        uint8(datatype),
+				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				OnBehalfOf:      opts.OnBehalfOf,
 			})
