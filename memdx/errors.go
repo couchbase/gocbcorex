@@ -26,6 +26,7 @@ var (
 	ErrVbUUIDMismatch        = errors.New("vb-uuid mismatch")
 	ErrScanNotFound          = errors.New("scan uuid not found")
 	ErrRangeScanCancelled    = errors.New("range scan was cancelled")
+	ErrAccessError           = errors.New("access error")
 )
 
 var ErrProtocol = errors.New("protocol error")

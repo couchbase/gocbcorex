@@ -71,6 +71,8 @@ func (o OpsCrud) decodeCommonError(resp *Packet, dispatchedTo string, dispatched
 	switch resp.Status {
 	case StatusCollectionUnknown:
 		return ErrUnknownCollectionID
+	case StatusAccessError:
+		return ErrAccessError
 	default:
 		return OpsCore{}.decodeError(resp, dispatchedTo, dispatchedFrom)
 	}
