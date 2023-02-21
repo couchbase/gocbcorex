@@ -146,14 +146,15 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 }
 
 type UpsertOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Value          []byte
-	Flags          uint32
-	Datatype       memdx.DatatypeFlag
-	Cas            uint64
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Value           []byte
+	Flags           uint32
+	Datatype        memdx.DatatypeFlag
+	Cas             uint64
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type UpsertResult struct {
@@ -172,15 +173,16 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 			}
 
 			resp, err := client.Set(ctx, &memdx.SetRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Value:        value,
-				Flags:        opts.Flags,
-				Datatype:     uint8(datatype),
-				Expiry:       0,
-				Cas:          opts.Cas,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Value:           value,
+				Flags:           opts.Flags,
+				Datatype:        uint8(datatype),
+				Expiry:          0,
+				Cas:             opts.Cas,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -198,11 +200,12 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 }
 
 type DeleteOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Cas            uint64
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Cas             uint64
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type DeleteResult struct {
@@ -216,11 +219,12 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
 			resp, err := client.Delete(ctx, &memdx.DeleteRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Cas:          opts.Cas,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Cas:             opts.Cas,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -438,14 +442,15 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 }
 
 type AddOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Flags          uint32
-	Value          []byte
-	Datatype       memdx.DatatypeFlag
-	Expiry         uint32
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Flags           uint32
+	Value           []byte
+	Datatype        memdx.DatatypeFlag
+	Expiry          uint32
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type AddResult struct {
@@ -464,14 +469,15 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 			}
 
 			resp, err := client.Add(ctx, &memdx.AddRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Flags:        opts.Flags,
-				Value:        value,
-				Datatype:     uint8(datatype),
-				Expiry:       opts.Expiry,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Flags:           opts.Flags,
+				Value:           value,
+				Datatype:        uint8(datatype),
+				Expiry:          opts.Expiry,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -489,15 +495,16 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 }
 
 type ReplaceOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Flags          uint32
-	Value          []byte
-	Datatype       memdx.DatatypeFlag
-	Expiry         uint32
-	Cas            uint64
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Flags           uint32
+	Value           []byte
+	Datatype        memdx.DatatypeFlag
+	Expiry          uint32
+	Cas             uint64
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type ReplaceResult struct {
@@ -516,15 +523,16 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 			}
 
 			resp, err := client.Replace(ctx, &memdx.ReplaceRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Flags:        opts.Flags,
-				Value:        value,
-				Datatype:     uint8(datatype),
-				Expiry:       opts.Expiry,
-				Cas:          opts.Cas,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Flags:           opts.Flags,
+				Value:           value,
+				Datatype:        uint8(datatype),
+				Expiry:          opts.Expiry,
+				Cas:             opts.Cas,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -542,11 +550,12 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 }
 
 type AppendOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Value          []byte
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Value           []byte
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type AppendResult struct {
@@ -565,12 +574,13 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 			}
 
 			resp, err := client.Append(ctx, &memdx.AppendRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Value:        value,
-				OnBehalfOf:   opts.OnBehalfOf,
-				Datatype:     uint8(datatype),
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Value:           value,
+				Datatype:        uint8(datatype),
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -588,11 +598,12 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 }
 
 type PrependOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Value          []byte
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Value           []byte
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type PrependResult struct {
@@ -611,12 +622,13 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 			}
 
 			resp, err := client.Prepend(ctx, &memdx.PrependRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Value:        value,
-				OnBehalfOf:   opts.OnBehalfOf,
-				Datatype:     uint8(datatype),
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Value:           value,
+				Datatype:        uint8(datatype),
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -634,14 +646,15 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 }
 
 type IncrementOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Value          []byte
-	Initial        uint64
-	Delta          uint64
-	Expiry         uint32
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Value           []byte
+	Initial         uint64
+	Delta           uint64
+	Expiry          uint32
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type IncrementResult struct {
@@ -656,13 +669,14 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*IncrementResult, error) {
 			resp, err := client.Increment(ctx, &memdx.IncrementRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Initial:      opts.Initial,
-				Delta:        opts.Delta,
-				Expiry:       opts.Expiry,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Initial:         opts.Initial,
+				Delta:           opts.Delta,
+				Expiry:          opts.Expiry,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -681,14 +695,15 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 }
 
 type DecrementOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Value          []byte
-	Initial        uint64
-	Delta          uint64
-	Expiry         uint32
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Value           []byte
+	Initial         uint64
+	Delta           uint64
+	Expiry          uint32
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type DecrementResult struct {
@@ -703,13 +718,14 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DecrementResult, error) {
 			resp, err := client.Decrement(ctx, &memdx.DecrementRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Initial:      opts.Initial,
-				Delta:        opts.Delta,
-				Expiry:       opts.Expiry,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Initial:         opts.Initial,
+				Delta:           opts.Delta,
+				Expiry:          opts.Expiry,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
@@ -916,14 +932,15 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 }
 
 type MutateInOptions struct {
-	Key            []byte
-	ScopeName      string
-	CollectionName string
-	Value          []byte
-	Flags          uint32
-	Expiry         uint32
-	Cas            uint64
-	OnBehalfOf     string
+	Key             []byte
+	ScopeName       string
+	CollectionName  string
+	Value           []byte
+	Flags           uint32
+	Expiry          uint32
+	Cas             uint64
+	DurabilityLevel memdx.DurabilityLevel
+	OnBehalfOf      string
 }
 
 type MutateInResult struct {
@@ -938,14 +955,15 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*MutateInResult, error) {
 			resp, err := client.MutateIn(ctx, &memdx.MutateInRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
-				Flags:        opts.Flags,
-				Value:        opts.Value,
-				Expiry:       opts.Expiry,
-				Cas:          opts.Cas,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CollectionID:    collectionID,
+				Key:             opts.Key,
+				VbucketID:       vbID,
+				Flags:           opts.Flags,
+				Value:           opts.Value,
+				Expiry:          opts.Expiry,
+				Cas:             opts.Cas,
+				DurabilityLevel: opts.DurabilityLevel,
+				OnBehalfOf:      opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
