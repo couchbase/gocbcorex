@@ -108,6 +108,7 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		memdx.HelloFeatureUnorderedExec,
 		memdx.HelloFeatureDurations,
 		memdx.HelloFeaturePreserveExpiry,
+		memdx.HelloFeatureSyncReplication,
 		memdx.HelloFeatureReplaceBodyWithXattr,
 		memdx.HelloFeatureSelectBucket,
 		memdx.HelloFeatureCreateAsDeleted,

@@ -9,6 +9,7 @@ import (
 type OpsCrud struct {
 	ExtFramesEnabled   bool
 	CollectionsEnabled bool
+	DurabilityEnabled  bool
 }
 
 func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []byte) ([]byte, error) {
@@ -36,7 +37,12 @@ func (o OpsCrud) encodeReqExtFrames(onBehalfOf string, durabilityLevel Durabilit
 			return 0, nil, err
 		}
 	}
+
 	if durabilityLevel > 0 {
+		if !o.DurabilityEnabled {
+			return 0, nil, protocolError{"cannot use synchronous durability when its not enabled"}
+		}
+
 		if durabilityLevelTimeout == 0 {
 			buf, err = AppendExtFrame(ExtFrameCodeReqDurability, []byte{byte(durabilityLevel)}, buf)
 			if err != nil {
