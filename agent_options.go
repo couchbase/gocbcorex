@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/tls"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -23,6 +24,8 @@ type AgentOptions struct {
 	SeedConfig SeedConfig
 
 	CompressionConfig CompressionConfig
+
+	HTTPConfig HTTPConfig
 }
 
 // SeedConfig specifies initial seed configuration options such as addresses.
@@ -37,4 +40,16 @@ type CompressionConfig struct {
 	DisableDecompression bool
 	MinSize              int
 	MinRatio             float64
+}
+
+// HTTPConfig specifies http related configuration options.
+type HTTPConfig struct {
+	// MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.
+	MaxIdleConns int
+	// MaxIdleConnsPerHost controls the maximum idle (keep-alive) connections to keep per-host.
+	MaxIdleConnsPerHost int
+	ConnectTimeout      time.Duration
+	// IdleConnectionTimeout is the maximum amount of time an idle (keep-alive) connection will remain idle before
+	// closing itself.
+	IdleConnectionTimeout time.Duration
 }

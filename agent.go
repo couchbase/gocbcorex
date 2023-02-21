@@ -56,6 +56,8 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	// Default values.
 	compressionMinSize := 32
 	compressionMinRatio := 0.83
+	httpIdleConnTimeout := 4500 * time.Millisecond
+	httpConnectTimeout := 30 * time.Second
 
 	disableDecompression := opts.CompressionConfig.DisableDecompression
 	useCompression := opts.CompressionConfig.EnableCompression
@@ -68,6 +70,12 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		if compressionMinRatio >= 1.0 {
 			compressionMinRatio = 1.0
 		}
+	}
+	if opts.HTTPConfig.IdleConnectionTimeout > 0 {
+		httpIdleConnTimeout = opts.HTTPConfig.IdleConnectionTimeout
+	}
+	if opts.HTTPConfig.ConnectTimeout > 0 {
+		httpConnectTimeout = opts.HTTPConfig.ConnectTimeout
 	}
 
 	agent := &Agent{
@@ -133,11 +141,12 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 		TLSConfig: opts.TLSConfig,
 	}, &HTTPClientManagerOptions{
-		Logger:              agent.logger,
-		ConnectTimeout:      0,
-		MaxIdleConns:        0,
-		MaxIdleConnsPerHost: 0,
-		IdleTimeout:         0,
+		Logger:         agent.logger,
+		ConnectTimeout: httpConnectTimeout,
+		IdleTimeout:    httpIdleConnTimeout,
+		// We default these values to whatever the Go HTTP library defaults are.
+		MaxIdleConns:        opts.HTTPConfig.MaxIdleConns,
+		MaxIdleConnsPerHost: opts.HTTPConfig.MaxIdleConnsPerHost,
 	})
 	agent.httpMgr = httpMgr
 
