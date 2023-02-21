@@ -1,4 +1,4 @@
-package core
+package gocbcorex
 
 // ServiceType specifies a particular Couchbase service type.
 type ServiceType int

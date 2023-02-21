@@ -1,7 +1,8 @@
-package core
+package gocbcorex
 
 import (
 	"context"
+
 	"go.uber.org/zap"
 )
 

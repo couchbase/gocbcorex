@@ -1,9 +1,10 @@
-package core
+package gocbcorex
 
 import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/couchbase/gocbcorex/memdx"
 )
 

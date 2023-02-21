@@ -8,4 +8,4 @@
 //go:generate moq -out mock_kvclientmanager_test.go . KvClientManager
 //go:generate moq -out mock_retrymanager_test.go . RetryManager RetryController
 
-package core
+package gocbcorex

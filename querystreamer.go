@@ -1,11 +1,12 @@
-package core
+package gocbcorex
 
 import (
 	"encoding/json"
 	"errors"
-	"go.uber.org/zap"
 	"io"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 // QueryRowReader allows access to the results of a N1QL query.

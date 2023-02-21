@@ -1,7 +1,10 @@
-package core
+package gocbcorex
 
 import (
 	"context"
+	"strings"
+	"testing"
+
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/golang/snappy"
@@ -9,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"strings"
-	"testing"
 )
 
 func CreateDefaultAgentOptions() AgentOptions {
