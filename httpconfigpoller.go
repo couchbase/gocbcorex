@@ -97,7 +97,7 @@ func (hcc *httpConfigPoller) Watch() (<-chan *TerseConfigJsonWithSource, error) 
 
 			var path string
 			if hcc.bucketName == "" {
-				path = "/pools/default/nodeServices"
+				path = "/pools/default/nodeServicesStreaming"
 			} else {
 				path = fmt.Sprintf("/pools/default/bs/%s", hcc.bucketName)
 			}
@@ -144,10 +144,8 @@ func (hcc *httpConfigPoller) Watch() (<-chan *TerseConfigJsonWithSource, error) 
 			var resp *HTTPResponse
 			// 1 on success, 0 on failure for node, -1 for generic failure
 			var doConfigRequest func(bool) int
-			var cancel context.CancelFunc
 
 			closeBody := func(failMsg string) {
-				cancel()
 				err := resp.Raw.Body.Close()
 				if err != nil {
 					hcc.logger.Debug(failMsg, zap.Error(err))
@@ -166,17 +164,13 @@ func (hcc *httpConfigPoller) Watch() (<-chan *TerseConfigJsonWithSource, error) 
 					Method:   "GET",
 				}
 
-				var ctx context.Context
-				ctx, cancel = context.WithTimeout(context.Background(), hcc.confHTTPMaxWait)
-				resp, err = client.Do(ctx, req)
+				resp, err = client.Do(context.Background(), req)
 				if err != nil {
-					cancel()
 					hcc.logger.Warn("http request failed", zap.Error(err))
 					return 0
 				}
 
 				if resp.Raw.StatusCode != 200 {
-					cancel()
 					err := resp.Raw.Body.Close()
 					if err != nil {
 						hcc.logger.Warn("failed to close failed response body", zap.Error(err))
@@ -247,7 +241,7 @@ func (hcc *httpConfigPoller) Watch() (<-chan *TerseConfigJsonWithSource, error) 
 					break
 				}
 
-				hcc.logger.Warn("received config block", zap.ByteString("config", configBlock.Bytes))
+				//hcc.logger.Warn("received config block", zap.ByteString("config", configBlock.Bytes))
 
 				bkCfg, err := parseConfig(configBlock.Bytes, hostname)
 				if err != nil {
