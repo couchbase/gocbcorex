@@ -24,8 +24,10 @@ func CreateDefaultAgent(t *testing.T) *Agent {
 			Username: testutils.TestOpts.Username,
 			Password: testutils.TestOpts.Password,
 		},
-		HTTPAddrs: testutils.TestOpts.HTTPAddrs,
-		MemdAddrs: testutils.TestOpts.MemdAddrs,
+		SeedConfig: SeedConfig{
+			HTTPAddrs: testutils.TestOpts.HTTPAddrs,
+			MemdAddrs: testutils.TestOpts.MemdAddrs,
+		},
 	}
 
 	agent, err := CreateAgent(context.Background(), opts)
@@ -343,8 +345,10 @@ func BenchmarkBasicGet(b *testing.B) {
 			Password: testutils.TestOpts.Password,
 		},
 		BucketName: testutils.TestOpts.BucketName,
-		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
-		MemdAddrs:  testutils.TestOpts.MemdAddrs,
+		SeedConfig: SeedConfig{
+			HTTPAddrs: testutils.TestOpts.HTTPAddrs,
+			MemdAddrs: testutils.TestOpts.MemdAddrs,
+		},
 	}
 
 	agent, err := CreateAgent(context.Background(), opts)

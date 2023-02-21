@@ -27,8 +27,10 @@ func TestAgentDelete(t *testing.T) {
 			Password: testutils.TestOpts.Password,
 		},
 		BucketName: testutils.TestOpts.BucketName,
-		HTTPAddrs:  testutils.TestOpts.HTTPAddrs,
-		MemdAddrs:  testutils.TestOpts.MemdAddrs,
+		SeedConfig: SeedConfig{
+			HTTPAddrs: testutils.TestOpts.HTTPAddrs,
+			MemdAddrs: testutils.TestOpts.MemdAddrs,
+		},
 	}
 
 	agent, err := CreateAgent(context.Background(), opts)

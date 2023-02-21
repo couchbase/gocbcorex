@@ -43,7 +43,7 @@ type Agent struct {
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	var srcHTTPAddrs []string
-	for _, hostPort := range opts.HTTPAddrs {
+	for _, hostPort := range opts.SeedConfig.HTTPAddrs {
 		if opts.TLSConfig == nil {
 			ep := fmt.Sprintf("http://%s", hostPort)
 			srcHTTPAddrs = append(srcHTTPAddrs, ep)
@@ -71,7 +71,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	agent.cfgHandler = &agentConfigHandler{agent: agent}
 
 	clients := make(map[string]*KvClientConfig)
-	for addrIdx, addr := range opts.MemdAddrs {
+	for addrIdx, addr := range opts.SeedConfig.MemdAddrs {
 		nodeId := fmt.Sprintf("bootstrap-%d", addrIdx)
 		clients[nodeId] = &KvClientConfig{
 			Logger:         agent.logger,
