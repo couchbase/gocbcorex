@@ -1,13 +1,14 @@
-package core
+package gocbcorex
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"testing"
+
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestOrchestrateMemdCollectionID(t *testing.T) {

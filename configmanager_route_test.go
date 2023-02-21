@@ -1,9 +1,10 @@
-package core
+package gocbcorex
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/stretchr/testify/assert"

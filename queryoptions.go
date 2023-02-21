@@ -1,11 +1,12 @@
-package core
+package gocbcorex
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // QueryScanConsistency indicates the level of data consistency desired for a query.

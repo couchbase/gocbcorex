@@ -3,7 +3,7 @@
 // Tests in this file concern ensuring that we are returning items to the syncCrudResulterPool correctly.
 // sync.Pool itself does some funny stuff involving randomly not returning items to the pool when the race
 // detector is enabled.
-package core
+package gocbcorex
 
 import (
 	"context"

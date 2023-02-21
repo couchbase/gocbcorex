@@ -1,4 +1,4 @@
-package core
+package gocbcorex
 
 import (
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
