@@ -7,6 +7,12 @@ import (
 	"go.uber.org/zap"
 )
 
+type MutationToken struct {
+	VbID   uint16
+	VbUuid uint64
+	SeqNo  uint64
+}
+
 type CrudComponent struct {
 	logger      *zap.Logger
 	collections CollectionResolver
@@ -152,7 +158,7 @@ type UpsertOptions struct {
 
 type UpsertResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
@@ -181,8 +187,12 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 			}
 
 			return &UpsertResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -197,7 +207,7 @@ type DeleteOptions struct {
 
 type DeleteResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteResult, error) {
@@ -217,8 +227,12 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 			}
 
 			return &DeleteResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -319,7 +333,7 @@ type UnlockOptions struct {
 }
 
 type UnlockResult struct {
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*UnlockResult, error) {
@@ -338,7 +352,11 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 			}
 
 			return &UnlockResult{
-				MutationToken: resp.MutationToken,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -432,7 +450,7 @@ type AddOptions struct {
 
 type AddResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult, error) {
@@ -460,8 +478,12 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 			}
 
 			return &AddResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -480,7 +502,7 @@ type ReplaceOptions struct {
 
 type ReplaceResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*ReplaceResult, error) {
@@ -509,8 +531,12 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 			}
 
 			return &ReplaceResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -525,7 +551,7 @@ type AppendOptions struct {
 
 type AppendResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*AppendResult, error) {
@@ -551,8 +577,12 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 			}
 
 			return &AppendResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -567,7 +597,7 @@ type PrependOptions struct {
 
 type PrependResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*PrependResult, error) {
@@ -593,8 +623,12 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 			}
 
 			return &PrependResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -613,7 +647,7 @@ type IncrementOptions struct {
 type IncrementResult struct {
 	Cas           uint64
 	Value         uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) (*IncrementResult, error) {
@@ -635,9 +669,13 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 			}
 
 			return &IncrementResult{
-				Cas:           resp.Cas,
-				Value:         resp.Value,
-				MutationToken: resp.MutationToken,
+				Cas:   resp.Cas,
+				Value: resp.Value,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -656,7 +694,7 @@ type DecrementOptions struct {
 type DecrementResult struct {
 	Cas           uint64
 	Value         uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) (*DecrementResult, error) {
@@ -678,9 +716,13 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 			}
 
 			return &DecrementResult{
-				Cas:           resp.Cas,
-				Value:         resp.Value,
-				MutationToken: resp.MutationToken,
+				Cas:   resp.Cas,
+				Value: resp.Value,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -746,7 +788,7 @@ type SetMetaOptions struct {
 
 type SetMetaResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*SetMetaResult, error) {
@@ -773,8 +815,12 @@ func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*Se
 			}
 
 			return &SetMetaResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -794,7 +840,7 @@ type DeleteMetaOptions struct {
 
 type DeleteMetaResult struct {
 	Cas           uint64
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions) (*DeleteMetaResult, error) {
@@ -819,8 +865,12 @@ func (cc *CrudComponent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions
 			}
 
 			return &DeleteMetaResult{
-				Cas:           resp.Cas,
-				MutationToken: resp.MutationToken,
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
@@ -879,7 +929,7 @@ type MutateInOptions struct {
 type MutateInResult struct {
 	Cas           uint64
 	Value         []byte
-	MutationToken memdx.MutationToken
+	MutationToken MutationToken
 }
 
 func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*MutateInResult, error) {
@@ -902,9 +952,13 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 			}
 
 			return &MutateInResult{
-				Cas:           resp.Cas,
-				Value:         resp.Value,
-				MutationToken: resp.MutationToken,
+				Cas:   resp.Cas,
+				Value: resp.Value,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
 			}, nil
 		})
 }
