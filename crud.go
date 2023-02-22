@@ -7,12 +7,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type MutationToken struct {
-	VbID   uint16
-	VbUuid uint64
-	SeqNo  uint64
-}
-
 type CrudComponent struct {
 	logger      *zap.Logger
 	collections CollectionResolver

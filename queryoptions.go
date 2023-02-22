@@ -36,8 +36,8 @@ const (
 // QueryOptions represents the options available when executing a query.
 type QueryOptions struct {
 	ScanConsistency QueryScanConsistency
-	// ConsistentWith  *MutationState TODO(chvck): MutationState
-	Profile QueryProfileMode
+	ConsistentWith  *MutationState
+	Profile         QueryProfileMode
 
 	// ScanCap is the maximum buffered channel size between the indexer connectionManager and the query service for index scans.
 	ScanCap uint32
@@ -80,9 +80,9 @@ type QueryOptions struct {
 func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, error) {
 	execOpts := make(map[string]interface{})
 
-	// if opts.ScanConsistency != 0 && opts.ConsistentWith != nil {
-	// 	return nil, placeholderError{"ScanConsistency and ConsistentWith must be used exclusively"}
-	// }	TODO(chvck): Needs MutationState
+	if opts.ScanConsistency != 0 && opts.ConsistentWith != nil {
+		return nil, invalidArgumentError{"scan consistency and consistent with must be used exclusively"}
+	}
 
 	if opts.ScanConsistency != 0 {
 		if opts.ScanConsistency == QueryScanConsistencyNotBounded {
@@ -95,10 +95,10 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 		}
 	}
 
-	// if opts.ConsistentWith != nil {
-	// 	execOpts["scan_consistency"] = "at_plus"
-	// 	execOpts["scan_vectors"] = opts.ConsistentWith
-	// }	TODO(chvck): Needs MutationState
+	if opts.ConsistentWith != nil {
+		execOpts["scan_consistency"] = "at_plus"
+		execOpts["scan_vectors"] = opts.ConsistentWith
+	}
 
 	if opts.Profile != "" {
 		execOpts["profile"] = opts.Profile
