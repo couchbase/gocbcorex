@@ -1,4 +1,4 @@
-package gocbcorex
+package cbhttpx
 
 import (
 	"context"
@@ -38,15 +38,22 @@ func (h HttpManagement) Do(ctx context.Context, method string, path string, body
 }
 
 func (h HttpManagement) DecodeCommonError(resp *http.Response) error {
-	// TODO(brett19): Add better handling of these http error messages
-
 	if resp.StatusCode == 404 {
-		return errors.New("unsupported feature")
+		return ServerError{
+			Cause:      ErrUnsupportedFeature,
+			StatusCode: resp.StatusCode,
+		}
 	} else if resp.StatusCode == 401 {
-		return errors.New("no access")
+		return ServerError{
+			Cause:      ErrAccessDenied,
+			StatusCode: resp.StatusCode,
+		}
 	}
 
-	return errors.New("unexpected response status")
+	return ServerError{
+		Cause:      errors.New("unexpected response status"),
+		StatusCode: resp.StatusCode,
+	}
 }
 
 func (h HttpManagement) ClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {

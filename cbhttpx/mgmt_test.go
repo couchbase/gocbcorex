@@ -1,8 +1,7 @@
-package gocbcorex
+package cbhttpx
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"testing"
 
@@ -24,6 +23,5 @@ func TestHttpMgmtTerseClusterConfig(t *testing.T) {
 	}.TerseClusterConfig(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-
-	log.Printf("%+v", resp)
+	require.Greater(t, resp.Rev, 0)
 }

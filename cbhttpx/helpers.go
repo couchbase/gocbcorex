@@ -1,4 +1,4 @@
-package gocbcorex
+package cbhttpx
 
 import "encoding/json"
 
