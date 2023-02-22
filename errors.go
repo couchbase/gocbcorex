@@ -8,6 +8,18 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
+var (
+	ErrDocumentNotFound      = memdx.ErrDocNotFound
+	ErrDocumentExists        = memdx.ErrDocExists
+	ErrCasMismatch           = memdx.ErrCasMismatch
+	ErrAuthenticationFailure = memdx.ErrAuthError
+)
+
+var (
+	ErrParsingFailure      = errors.New("parsing failure")
+	ErrInternalServerError = errors.New("internal server error")
+)
+
 type placeholderError struct {
 	Inner string
 }
@@ -126,4 +138,30 @@ func (e noServerAssignedError) Error() string {
 
 func (e noServerAssignedError) Unwrap() error {
 	return ErrNoServerAssigned
+}
+
+type internalError struct {
+	Reason error
+}
+
+func (e internalError) Error() string {
+	return fmt.Sprintf("internal error (%s)", e.Reason)
+}
+
+func (e internalError) Unwrap() error {
+	return e.Reason
+}
+
+var ErrInvalidArgument = errors.New("invalid argument")
+
+type invalidArgumentError struct {
+	Message string
+}
+
+func (e invalidArgumentError) Error() string {
+	return fmt.Sprintf("invalid argument: %s", e.Message)
+}
+
+func (e invalidArgumentError) Unwrap() error {
+	return ErrInvalidArgument
 }

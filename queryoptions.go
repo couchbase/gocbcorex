@@ -90,7 +90,8 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 		} else if opts.ScanConsistency == QueryScanConsistencyRequestPlus {
 			execOpts["scan_consistency"] = "request_plus"
 		} else {
-			return nil, placeholderError{"Unexpected consistency option"}
+			return nil, invalidArgumentError{"unexpected consistency option, allowed values are " +
+				"QueryScanConsistencyNotBounded and QueryScanConsistencyRequestPlus"}
 		}
 	}
 
@@ -108,7 +109,7 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 	}
 
 	if opts.PositionalParameters != nil && opts.NamedParameters != nil {
-		return nil, placeholderError{"Positional and named parameters must be used exclusively"}
+		return nil, invalidArgumentError{"positional and named parameters must be used exclusively"}
 	}
 
 	if opts.PositionalParameters != nil {
