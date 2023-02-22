@@ -1435,7 +1435,6 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
 		FramingExtras: extFramesBuf,
-		Cas:           req.Cas,
 		Extras:        extraBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
@@ -1562,6 +1561,11 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 
 			if respIter+6+resValueLen > len(resp.Value) {
 				cb(nil, protocolError{"bad value length"})
+				return false
+			}
+
+			if resError == StatusSubDocPathNotFound {
+				cb(nil, ErrPathNotFound)
 				return false
 			}
 
@@ -1697,11 +1701,11 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusNotStored && req.Flags&SubdocDocFlagAddDoc != 0 { // Only doc exists error if flags are add
-			cb(nil, ErrDocExists)
+		} else if resp.Status == StatusKeyExists && req.Cas > 0 {
+			cb(nil, ErrCasMismatch)
 			return false
 		} else if resp.Status == StatusKeyExists {
-			cb(nil, ErrCasMismatch)
+			cb(nil, ErrDocExists)
 			return false
 		} else if resp.Status == StatusSubDocBadMulti {
 			if len(resp.Value) != 3 {

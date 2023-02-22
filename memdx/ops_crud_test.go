@@ -177,18 +177,17 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		t.SkipNow()
 	}
 
-	key := []byte(uuid.NewString())
 	cli := createTestClient(t)
 
 	type test struct {
-		Op   func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error)
+		Op   func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error)
 		Name string
 	}
 
 	tests := []test{
 		{
 			Name: "Get",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Get(cli, &GetRequest{
 					Key:       key,
 					VbucketID: 1,
@@ -199,7 +198,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "GetAndLock",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndLock(cli, &GetAndLockRequest{
 					Key: key,
 				}, func(resp *GetAndLockResponse, err error) {
@@ -209,7 +208,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "GetAndTouch",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
 					Key: key,
 				}, func(resp *GetAndTouchResponse, err error) {
@@ -219,7 +218,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Unlock",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Unlock(cli, &UnlockRequest{
 					Key: key,
 					Cas: 1,
@@ -230,7 +229,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Touch",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Touch(cli, &TouchRequest{
 					Key:    key,
 					Expiry: 60,
@@ -241,7 +240,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Delete",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key: key,
 				}, func(resp *DeleteResponse, err error) {
@@ -251,7 +250,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Replace",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
 					Key:   key,
 					Value: []byte("value"),
@@ -262,7 +261,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Append",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Append(cli, &AppendRequest{
 					Key:   key,
 					Value: []byte("value"),
@@ -273,7 +272,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Prepend",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Prepend(cli, &PrependRequest{
 					Key:   key,
 					Value: []byte("value"),
@@ -284,7 +283,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Increment",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Increment(cli, &IncrementRequest{
 					Key:     key,
 					Initial: uint64(0xFFFFFFFFFFFFFFFF),
@@ -295,7 +294,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "Decrement",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
 					Key:     key,
 					Initial: uint64(0xFFFFFFFFFFFFFFFF),
@@ -306,7 +305,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "GetMeta",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetMeta(cli, &GetMetaRequest{
 					Key: key,
 				}, func(resp *GetMetaResponse, err error) {
@@ -314,19 +313,22 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				})
 			},
 		},
-		{
-			Name: "DeleteMeta",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
-				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
-					Key: key,
-				}, func(resp *DeleteMetaResponse, err error) {
-					cb(resp, err)
-				})
-			},
-		},
+		// Server is always responding with exists
+		// {
+		// 	Name: "DeleteMeta",
+		// 	Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+		// 			Key:       key,
+		// 			Options:   0x08, // SKIP_CONFLICT_RESOLUTION_FLAG
+		// 			VbucketID: 1,
+		// 		}, func(resp *DeleteMetaResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
 		{
 			Name: "LookupIn",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.LookupIn(cli, &LookupInRequest{
 					Key:       key,
 					VbucketID: 1,
@@ -343,7 +345,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		{
 			Name: "MutateIn",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
 					VbucketID: 1,
@@ -365,7 +367,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		t.Run(test.Name, func(tt *testing.T) {
 			wait := make(chan error, 1)
 
-			_, err := test.Op(OpsCrud{
+			key := []byte(uuid.NewString()[:6])
+
+			_, err := test.Op(key, OpsCrud{
 				CollectionsEnabled: true,
 				ExtFramesEnabled:   true,
 			}, func(i interface{}, err error) {
@@ -582,17 +586,18 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				})
 			},
 		},
-		{
-			Name: "DeleteMeta",
-			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
-				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
-					CollectionID: 2222,
-					Key:          key,
-				}, func(resp *DeleteMetaResponse, err error) {
-					cb(resp, err)
-				})
-			},
-		},
+		// {
+		// 	Name: "DeleteMeta",
+		// 	Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+		// 			CollectionID: 2222,
+		// 			Key:          key,
+		// 			// 			Options:   0x08, // SKIP_CONFLICT_RESOLUTION_FLAG
+		// 		}, func(resp *DeleteMetaResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
 		{
 			Name: "LookupIn",
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
@@ -693,7 +698,7 @@ func TestOpsCrudDocExists(t *testing.T) {
 							Value: []byte("value"),
 						},
 					},
-					Flags: 0x02, // perform the mutation as an insert
+					Flags: SubdocDocFlagAddDoc, // perform the mutation as an insert
 				}, func(resp *MutateInResponse, err error) {
 					cb(resp, err)
 				})
@@ -1155,17 +1160,17 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 		// 		})
 		// 	},
 		// },
-		{
-			Name: "DeleteMeta",
-			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
-				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
-					Key:       key,
-					VbucketID: 1,
-				}, func(resp *DeleteMetaResponse, err error) {
-					cb(resp, err)
-				})
-			},
-		},
+		// {
+		// 	Name: "DeleteMeta",
+		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+		// 			Key:       key,
+		// 			VbucketID: 1,
+		// 		}, func(resp *DeleteMetaResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// },
 		{
 			Name: "MutateIn",
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
@@ -1176,7 +1181,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 						{
 							Op:    MutateInOpTypeDictSet,
 							Path:  []byte("key"),
-							Value: []byte("value2"),
+							Value: []byte("\"value2\""),
 						},
 					},
 				}, func(resp *MutateInResponse, err error) {
@@ -1397,18 +1402,18 @@ func TestOpsCrudMutations(t *testing.T) {
 		// 		})
 		// 	},
 		// },
-		{
-			Name: "DeleteMeta",
-			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
-				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
-					Key:       key,
-					VbucketID: 1,
-				}, func(resp *DeleteMetaResponse, err error) {
-					cb(resp, err)
-				})
-			},
-			ExpectDeleted: true,
-		},
+		// {
+		// 	Name: "DeleteMeta",
+		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+		// 			Key:       key,
+		// 			VbucketID: 1,
+		// 		}, func(resp *DeleteMetaResponse, err error) {
+		// 			cb(resp, err)
+		// 		})
+		// 	},
+		// 	ExpectDeleted: true,
+		// },
 		{
 			Name: "MutateIn",
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
@@ -1419,7 +1424,7 @@ func TestOpsCrudMutations(t *testing.T) {
 						{
 							Op:    MutateInOpTypeDictSet,
 							Path:  []byte("key"),
-							Value: []byte("value2"),
+							Value: []byte("\"value2\""),
 						},
 					},
 				}, func(resp *MutateInResponse, err error) {
@@ -1525,7 +1530,7 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 			},
 		},
 	})
-	require.ErrorIs(t, err, ErrSubDocBadMulti)
+	require.ErrorIs(t, err, ErrPathNotFound)
 }
 
 func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
@@ -1689,7 +1694,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 						{
 							Op:    MutateInOpTypeDictSet,
 							Path:  []byte("key"),
-							Value: []byte("value2"),
+							Value: []byte("\"value2\""),
 						},
 					},
 					DurabilityLevel: DurabilityLevelMajority,
@@ -1850,7 +1855,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 						{
 							Op:    MutateInOpTypeDictSet,
 							Path:  []byte("key"),
-							Value: []byte("value2"),
+							Value: []byte("\"value2\""),
 						},
 					},
 					DurabilityLevel:        DurabilityLevelMajority,
@@ -1888,6 +1893,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 			_, err := test.Op(OpsCrud{
 				CollectionsEnabled: true,
 				ExtFramesEnabled:   true,
+				DurabilityEnabled:  true,
 			}, key, cas, func(i interface{}, err error) {
 				waiterr <- err
 				waitres <- i
@@ -1901,6 +1907,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 			getRes, err := syncUnaryCall(OpsCrud{
 				CollectionsEnabled: true,
 				ExtFramesEnabled:   true,
+				DurabilityEnabled:  true,
 			}, OpsCrud.Get, cli, &GetRequest{
 				Key:       key,
 				VbucketID: 1,

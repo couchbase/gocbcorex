@@ -27,6 +27,7 @@ var (
 	ErrScanNotFound          = errors.New("scan uuid not found")
 	ErrRangeScanCancelled    = errors.New("range scan was cancelled")
 	ErrAccessError           = errors.New("access error")
+	ErrPathNotFound          = errors.New("path not found")
 )
 
 var ErrProtocol = errors.New("protocol error")

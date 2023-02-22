@@ -66,6 +66,7 @@ func dialAndBootstrapClient(t *testing.T, addr, user, pass, bucket string) (*Cli
 				HelloFeatureJSON,
 				HelloFeatureSeqNo,
 				HelloFeatureXattr,
+				HelloFeatureSyncReplication,
 			},
 		},
 		GetErrorMap: &GetErrorMapRequest{
