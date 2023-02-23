@@ -46,16 +46,48 @@ type ServerGroupConfigJson struct {
 	Groups []ServerGroupGroupJson `json:"groups"`
 }
 
+type TerseNodePortsJson struct {
+	Direct uint16 `json:"direct,omitempty"`
+	Proxy  uint16 `json:"proxy,omitempty"`
+}
+
 type TerseNodeJson struct {
-	CouchApiBase string         `json:"couchApiBase,omitempty"`
-	Hostname     string         `json:"hostname,omitempty"`
-	Ports        map[string]int `json:"ports,omitempty"`
+	CouchApiBase string              `json:"couchApiBase,omitempty"`
+	Hostname     string              `json:"hostname,omitempty"`
+	Ports        *TerseNodePortsJson `json:"ports,omitempty"`
+}
+
+type TerseExtNodePortsJson struct {
+	Kv          uint16 `json:"kv,omitempty"`
+	Capi        uint16 `json:"capi,omitempty"`
+	Mgmt        uint16 `json:"mgmt,omitempty"`
+	N1ql        uint16 `json:"n1ql,omitempty"`
+	Fts         uint16 `json:"fts,omitempty"`
+	Cbas        uint16 `json:"cbas,omitempty"`
+	Eventing    uint16 `json:"eventingAdminPort,omitempty"`
+	GSI         uint16 `json:"indexHttp,omitempty"`
+	Backup      uint16 `json:"backupAPI,omitempty"`
+	KvSsl       uint16 `json:"kvSSL,omitempty"`
+	CapiSsl     uint16 `json:"capiSSL,omitempty"`
+	MgmtSsl     uint16 `json:"mgmtSSL,omitempty"`
+	N1qlSsl     uint16 `json:"n1qlSSL,omitempty"`
+	FtsSsl      uint16 `json:"ftsSSL,omitempty"`
+	CbasSsl     uint16 `json:"cbasSSL,omitempty"`
+	EventingSsl uint16 `json:"eventingSSL,omitempty"`
+	GSISsl      uint16 `json:"indexHttps,omitempty"`
+	BackupSsl   uint16 `json:"backupAPIHTTPS,omitempty"`
+}
+
+type TerseExtNodeAltAddressesJson struct {
+	Ports    *TerseExtNodePortsJson `json:"ports,omitempty"`
+	Hostname string                 `json:"hostname,omitempty"`
 }
 
 type TerseExtNodeJson struct {
-	Services map[string]int `json:"services,omitempty"`
-	ThisNode bool           `json:"thisNode,omitempty"`
-	Hostname string         `json:"hostname,omitempty"`
+	Services     *TerseExtNodePortsJson                  `json:"services,omitempty"`
+	ThisNode     bool                                    `json:"thisNode,omitempty"`
+	Hostname     string                                  `json:"hostname,omitempty"`
+	AltAddresses map[string]TerseExtNodeAltAddressesJson `json:"alternateAddresses,omitempty"`
 }
 
 type TerseConfigJson struct {

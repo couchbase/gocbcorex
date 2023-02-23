@@ -56,7 +56,7 @@ func (h HttpManagement) DecodeCommonError(resp *http.Response) error {
 	}
 }
 
-func (h HttpManagement) ClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {
+func (h HttpManagement) GetClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {
 	resp, err := h.Do(ctx, "GET", "/pools/default", nil)
 	if err != nil {
 		return nil, err
@@ -66,12 +66,13 @@ func (h HttpManagement) ClusterConfig(ctx context.Context) (*cbconfig.FullConfig
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpJsonBlockStreamer[cbconfig.FullConfigJson]{
-		json.NewDecoder(resp.Body),
+	return httpConfigJsonBlockStreamer[cbconfig.FullConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
 	}.Recv()
 }
 
-func (h HttpManagement) TerseClusterConfig(ctx context.Context) (*cbconfig.TerseConfigJson, error) {
+func (h HttpManagement) GetTerseClusterConfig(ctx context.Context) (*cbconfig.TerseConfigJson, error) {
 	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServices", nil)
 	if err != nil {
 		return nil, err
@@ -81,8 +82,9 @@ func (h HttpManagement) TerseClusterConfig(ctx context.Context) (*cbconfig.Terse
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpJsonBlockStreamer[cbconfig.TerseConfigJson]{
-		json.NewDecoder(resp.Body),
+	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
 	}.Recv()
 }
 
@@ -100,12 +102,13 @@ func (h HttpManagement) StreamTerseClusterConfig(ctx context.Context) (TerseClus
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return &httpJsonBlockStreamer[cbconfig.TerseConfigJson]{
-		json.NewDecoder(resp.Body),
+	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
 	}, nil
 }
 
-func (h HttpManagement) BucketConfig(ctx context.Context, bucketName string) (*cbconfig.FullConfigJson, error) {
+func (h HttpManagement) GetBucketConfig(ctx context.Context, bucketName string) (*cbconfig.FullConfigJson, error) {
 	resp, err := h.Do(ctx, "GET",
 		fmt.Sprintf("/pools/default/buckets/%s/", bucketName), nil)
 	if err != nil {
@@ -116,12 +119,13 @@ func (h HttpManagement) BucketConfig(ctx context.Context, bucketName string) (*c
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpJsonBlockStreamer[cbconfig.FullConfigJson]{
-		json.NewDecoder(resp.Body),
+	return httpConfigJsonBlockStreamer[cbconfig.FullConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
 	}.Recv()
 }
 
-func (h HttpManagement) TerseBucketConfig(ctx context.Context, bucketName string) (*cbconfig.TerseConfigJson, error) {
+func (h HttpManagement) GetTerseBucketConfig(ctx context.Context, bucketName string) (*cbconfig.TerseConfigJson, error) {
 	resp, err := h.Do(ctx, "GET",
 		fmt.Sprintf("/pools/default/b/%s/", bucketName), nil)
 	if err != nil {
@@ -132,8 +136,9 @@ func (h HttpManagement) TerseBucketConfig(ctx context.Context, bucketName string
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpJsonBlockStreamer[cbconfig.TerseConfigJson]{
-		json.NewDecoder(resp.Body),
+	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
 	}.Recv()
 }
 
@@ -152,7 +157,8 @@ func (h HttpManagement) StreamTerseBucketConfig(ctx context.Context, bucketName 
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpJsonBlockStreamer[cbconfig.TerseConfigJson]{
-		json.NewDecoder(resp.Body),
+	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
 	}, nil
 }

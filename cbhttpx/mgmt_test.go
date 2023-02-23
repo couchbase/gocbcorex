@@ -20,7 +20,7 @@ func TestHttpMgmtTerseClusterConfig(t *testing.T) {
 		Endpoint:   "http://" + testutils.TestOpts.HTTPAddrs[0],
 		Username:   testutils.TestOpts.Username,
 		Password:   testutils.TestOpts.Password,
-	}.TerseClusterConfig(context.Background())
+	}.GetTerseClusterConfig(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Greater(t, resp.Rev, 0)

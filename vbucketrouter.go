@@ -1,9 +1,12 @@
 package gocbcorex
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/couchbase/gocbcorex/memdx"
 	"go.uber.org/zap"
 )
@@ -100,7 +103,11 @@ func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16) (string, error) {
 	return info.ServerList[idx], nil
 }
 
-func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, cm ConfigManager, key []byte, replicaIdx uint32,
+type NotMyVbucketConfigHandler interface {
+	HandleNotMyVbucketConfig(config *cbconfig.TerseConfigJson, sourceHostname string)
+}
+
+func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch NotMyVbucketConfigHandler, key []byte, replicaIdx uint32,
 	fn func(endpoint string, vbID uint16) (RespT, error)) (RespT, error) {
 	endpoint, vbID, err := vb.DispatchByKey(key, replicaIdx)
 	if err != nil {
@@ -113,6 +120,11 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, cm
 		res, err := fn(endpoint, vbID)
 		if err != nil {
 			if errors.Is(err, memdx.ErrNotMyVbucket) {
+				if ch == nil {
+					// if we have no config handler, no point in trying to parse the config
+					return res, err
+				}
+
 				var nmvErr memdx.ServerErrorWithConfig
 				if !errors.As(err, &nmvErr) {
 					// if there is no new config available, we cant make any assumptions
@@ -121,15 +133,19 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, cm
 					return res, err
 				}
 
-				cfg, parseErr := parseConfig(nmvErr.ConfigJson, endpoint)
-				if parseErr != nil {
-					// similar to above, if we can't parse the config, we cant make any
-					// assumptions and need to propagate it.
-					// log.Printf("failed to parse not my vbucket response: %s", parseErr)
+				// configs can contain $HOST, which needs to be replaced with the querying endpoint...
+				configJsonBytes := bytes.ReplaceAll(
+					nmvErr.ConfigJson,
+					[]byte("$HOST"),
+					[]byte(endpoint))
+
+				var configJson *cbconfig.TerseConfigJson
+				unmarshalErr := json.Unmarshal(configJsonBytes, &configJson)
+				if unmarshalErr != nil {
 					return res, err
 				}
 
-				cm.ApplyConfig(cfg.SourceHostname, cfg.Config)
+				ch.HandleNotMyVbucketConfig(configJson, endpoint)
 
 				newEndpoint, newVbID, err := vb.DispatchByKey(key, replicaIdx)
 				if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/couchbase/gocbcorex/memdx"
 )
@@ -164,4 +165,22 @@ func (e invalidArgumentError) Error() string {
 
 func (e invalidArgumentError) Unwrap() error {
 	return ErrInvalidArgument
+}
+
+var ErrBootstrapAllFailed = errors.New("all bootstrap hosts failed")
+
+type BootstrapAllFailedError struct {
+	Errors map[string]error
+}
+
+func (e BootstrapAllFailedError) Error() string {
+	var errStrs []string
+	for endpoint, err := range e.Errors {
+		errStrs = append(errStrs, fmt.Sprintf("%s: {%s}", endpoint, err.Error()))
+	}
+	return fmt.Sprintf("all bootstrap hosts failed (%s)", strings.Join(errStrs, ", "))
+}
+
+func (e BootstrapAllFailedError) Unwrap() error {
+	return ErrBootstrapAllFailed
 }

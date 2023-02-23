@@ -14,6 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
+type configStreamBlock struct {
+	Bytes []byte
+}
+
+func (i *configStreamBlock) UnmarshalJSON(data []byte) error {
+	i.Bytes = make([]byte, len(data))
+	copy(i.Bytes, data)
+	return nil
+}
+
 func TestHTTPClientManagerNewAppliesFirstConfig(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 

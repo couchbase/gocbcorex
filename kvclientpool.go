@@ -301,6 +301,7 @@ func (p *kvClientPool) reconfigureClientThread(client KvClient) {
 		if !reconfigureOpts.Equals(&p.config.ClientOpts) {
 			// the config options have changed, we need to try again
 			reconfigureOpts = p.config.ClientOpts
+			p.lock.Unlock()
 			continue
 		}
 

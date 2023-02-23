@@ -5,9 +5,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"go.uber.org/zap"
 )
 
@@ -18,23 +20,22 @@ type agentState struct {
 	numPoolConnections uint
 
 	lastClients  map[string]*KvClientConfig
-	latestConfig *routeConfig
+	latestConfig *ParsedConfig
 }
 
 type Agent struct {
-	logger *zap.Logger
-	lock   sync.Mutex
-	state  agentState
+	logger      *zap.Logger
+	networkType string
 
-	poller      ConfigPoller
-	configMgr   ConfigManager
+	lock  sync.Mutex
+	state agentState
+
+	cfgWatcher  *ConfigWatcherHttp
 	connMgr     KvClientManager
 	collections CollectionResolver
 	retries     RetryManager
 	vbRouter    VbucketRouter
 	httpMgr     HTTPClientManager
-
-	cfgHandler *agentConfigHandler
 
 	crud  *CrudComponent
 	http  *HTTPComponent
@@ -58,9 +59,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	compressionMinRatio := 0.83
 	httpIdleConnTimeout := 4500 * time.Millisecond
 	httpConnectTimeout := 30 * time.Second
-	confHTTPRetryDelay := 10 * time.Second
-	confHTTPRedialPeriod := 10 * time.Second
-	confHTTPMaxWait := 5 * time.Second
+	/*
+		confHTTPRetryDelay := 10 * time.Second
+		confHTTPRedialPeriod := 10 * time.Second
+		confHTTPMaxWait := 5 * time.Second
+	*/
 
 	disableDecompression := opts.CompressionConfig.DisableDecompression
 	useCompression := opts.CompressionConfig.EnableCompression
@@ -80,47 +83,62 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	if opts.HTTPConfig.ConnectTimeout > 0 {
 		httpConnectTimeout = opts.HTTPConfig.ConnectTimeout
 	}
-	if opts.ConfigPollerConfig.HTTPRetryDelay > 0 {
-		confHTTPRetryDelay = opts.ConfigPollerConfig.HTTPRetryDelay
-	}
-	if opts.ConfigPollerConfig.HTTPRedialPeriod > 0 {
-		confHTTPRedialPeriod = opts.ConfigPollerConfig.HTTPRedialPeriod
-	}
-	if opts.ConfigPollerConfig.HTTPMaxWait > 0 {
-		confHTTPMaxWait = opts.ConfigPollerConfig.HTTPMaxWait
+	/*
+		if opts.ConfigPollerConfig.HTTPRetryDelay > 0 {
+			confHTTPRetryDelay = opts.ConfigPollerConfig.HTTPRetryDelay
+		}
+		if opts.ConfigPollerConfig.HTTPRedialPeriod > 0 {
+			confHTTPRedialPeriod = opts.ConfigPollerConfig.HTTPRedialPeriod
+		}
+		if opts.ConfigPollerConfig.HTTPMaxWait > 0 {
+			confHTTPMaxWait = opts.ConfigPollerConfig.HTTPMaxWait
+		}
+	*/
+
+	logger := loggerOrNop(opts.Logger)
+	httpUserAgent := "gocbcorex/0.0.1-dev"
+
+	bootstrapper, err := NewConfigBootstrapHttp(ConfigBoostrapHttpOptions{
+		Logger:           logger.Named("http-bootstrap"),
+		HttpRoundTripper: http.DefaultTransport,
+		Endpoints:        srcHTTPAddrs,
+		UserAgent:        httpUserAgent,
+		Authenticator:    opts.Authenticator,
+		BucketName:       opts.BucketName,
+	})
+	if err != nil {
+		return nil, err
 	}
 
+	bootstrapConfig, networkType, err := bootstrapper.Bootstrap(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug("agent bootstrapped",
+		zap.Any("bootstrapConfig", bootstrapConfig),
+		zap.String("networkType", networkType))
+
 	agent := &Agent{
-		logger: loggerOrNop(opts.Logger),
+		logger:      logger,
+		networkType: networkType,
 
 		state: agentState{
 			bucket:             opts.BucketName,
 			tlsConfig:          opts.TLSConfig,
 			authenticator:      opts.Authenticator,
 			numPoolConnections: 1,
+			latestConfig:       bootstrapConfig,
 		},
 
-		configMgr: NewConfigManager(&RouteConfigManagerOptions{
-			Logger: opts.Logger,
-		}),
 		retries: NewRetryManagerFastFail(),
 	}
-	agent.cfgHandler = &agentConfigHandler{agent: agent}
 
-	clients := make(map[string]*KvClientConfig)
-	for addrIdx, addr := range opts.SeedConfig.MemdAddrs {
-		nodeId := fmt.Sprintf("bootstrap-%d", addrIdx)
-		clients[nodeId] = &KvClientConfig{
-			Logger:         agent.logger,
-			Address:        addr,
-			TlsConfig:      agent.state.tlsConfig,
-			SelectedBucket: agent.state.bucket,
-			Authenticator:  agent.state.authenticator,
-		}
-	}
+	agentComponentConfigs := agent.genAgentComponentConfigsLocked()
+
 	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
-		Clients:            clients,
+		Clients:            agentComponentConfigs.KvClientManagerClients,
 	}, &KvClientManagerOptions{
 		Logger: agent.logger,
 	})
@@ -146,47 +164,44 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 	agent.collections = collections
 
-	httpMgr, err := NewHTTPClientManager(&HTTPClientManagerConfig{
-		HTTPClientConfig: HTTPClientConfig{
-			Authenticator: opts.Authenticator,
-			MgmtEndpoints: srcHTTPAddrs,
-		},
-		TLSConfig: opts.TLSConfig,
-	}, &HTTPClientManagerOptions{
-		Logger:         agent.logger,
-		ConnectTimeout: httpConnectTimeout,
-		IdleTimeout:    httpIdleConnTimeout,
-		// We default these values to whatever the Go HTTP library defaults are.
-		MaxIdleConns:        opts.HTTPConfig.MaxIdleConns,
-		MaxIdleConnsPerHost: opts.HTTPConfig.MaxIdleConnsPerHost,
-	})
+	httpMgr, err := NewHTTPClientManager(
+		&agentComponentConfigs.HTTPClientManager,
+		&HTTPClientManagerOptions{
+			Logger:         agent.logger,
+			ConnectTimeout: httpConnectTimeout,
+			IdleTimeout:    httpIdleConnTimeout,
+			// We default these values to whatever the Go HTTP library defaults are.
+			MaxIdleConns:        opts.HTTPConfig.MaxIdleConns,
+			MaxIdleConnsPerHost: opts.HTTPConfig.MaxIdleConnsPerHost,
+		})
+	if err != nil {
+		return nil, err
+	}
 	agent.httpMgr = httpMgr
 
 	agent.vbRouter = NewVbucketRouter(&VbucketRouterOptions{
 		Logger: agent.logger,
 	})
+	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
-	agent.configMgr.RegisterCallback(agent.cfgHandler)
-
-	agent.poller = newhttpConfigPoller(httpPollerProperties{
-		Logger:               opts.Logger,
-		ConfHTTPRetryDelay:   confHTTPRetryDelay,
-		ConfHTTPRedialPeriod: confHTTPRedialPeriod,
-		ConfHTTPMaxWait:      confHTTPMaxWait,
-		BucketName:           opts.BucketName,
-		HTTPClient:           agent.httpMgr,
-	})
-
-	err = agent.startConfigWatcher(ctx)
+	configWatcher, err := NewConfigWatcherHttp(
+		&agentComponentConfigs.ConfigWatcherHttpConfig,
+		&ConfigWatcherHttpOptions{
+			Logger: logger.Named("http-config-watcher"),
+		})
 	if err != nil {
 		return nil, err
 	}
+	agent.cfgWatcher = configWatcher
+
+	go agent.configWatcherThread()
 
 	agent.crud = &CrudComponent{
 		logger:      agent.logger,
 		collections: agent.collections,
 		retries:     agent.retries,
 		connManager: agent.connMgr,
+		nmvHandler:  &agentNmvHandler{agent},
 		vbs:         agent.vbRouter,
 		compression: &CompressionManagerDefault{
 			disableCompression:   !useCompression,
@@ -209,6 +224,86 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	return agent, nil
 }
 
+type agentComponentConfigs struct {
+	ConfigWatcherHttpConfig ConfigWatcherHttpConfig
+	KvClientManagerClients  map[string]*KvClientConfig
+	VbucketRoutingInfo      *VbucketRoutingInfo
+	HTTPClientManager       HTTPClientManagerConfig
+}
+
+func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
+	httpUserAgent := "gocbcorex/0.0.1-dev"
+
+	bootstrapHosts := agent.state.latestConfig.AddressesGroupForNetworkType(agent.networkType)
+
+	var kvDataNodeIds []string
+	var kvDataHosts []string
+	var mgmtEndpoints []string
+	var queryEndpoints []string
+	var searchEndpoints []string
+	if agent.state.tlsConfig == nil {
+		kvDataNodeIds = bootstrapHosts.NonSSL.KvData
+		kvDataHosts = bootstrapHosts.NonSSL.KvData
+		for _, host := range bootstrapHosts.NonSSL.Mgmt {
+			mgmtEndpoints = append(mgmtEndpoints, "http://"+host)
+		}
+		for _, host := range bootstrapHosts.NonSSL.Query {
+			queryEndpoints = append(queryEndpoints, "http://"+host)
+		}
+		for _, host := range bootstrapHosts.NonSSL.Search {
+			searchEndpoints = append(searchEndpoints, "http://"+host)
+		}
+	} else {
+		kvDataNodeIds = bootstrapHosts.NonSSL.KvData
+		kvDataHosts = bootstrapHosts.SSL.KvData
+		for _, host := range bootstrapHosts.SSL.Mgmt {
+			mgmtEndpoints = append(mgmtEndpoints, "https://"+host)
+		}
+		for _, host := range bootstrapHosts.SSL.Query {
+			queryEndpoints = append(queryEndpoints, "https://"+host)
+		}
+		for _, host := range bootstrapHosts.SSL.Search {
+			searchEndpoints = append(searchEndpoints, "https://"+host)
+		}
+	}
+
+	clients := make(map[string]*KvClientConfig)
+	for addrIdx, addr := range kvDataHosts {
+		nodeId := kvDataNodeIds[addrIdx]
+		clients[nodeId] = &KvClientConfig{
+			Logger:         agent.logger,
+			Address:        addr,
+			TlsConfig:      agent.state.tlsConfig,
+			SelectedBucket: agent.state.bucket,
+			Authenticator:  agent.state.authenticator,
+		}
+	}
+
+	return &agentComponentConfigs{
+		ConfigWatcherHttpConfig: ConfigWatcherHttpConfig{
+			HttpRoundTripper: http.DefaultTransport,
+			Endpoints:        mgmtEndpoints,
+			UserAgent:        httpUserAgent,
+			Authenticator:    agent.state.authenticator,
+			BucketName:       agent.state.bucket,
+		},
+		KvClientManagerClients: clients,
+		VbucketRoutingInfo: &VbucketRoutingInfo{
+			VbMap:      agent.state.latestConfig.VbucketMap,
+			ServerList: kvDataNodeIds,
+		},
+		HTTPClientManager: HTTPClientManagerConfig{
+			HTTPClientConfig: HTTPClientConfig{
+				Authenticator:   agent.state.authenticator,
+				MgmtEndpoints:   mgmtEndpoints,
+				QueryEndpoints:  queryEndpoints,
+				SearchEndpoints: searchEndpoints,
+			},
+			TLSConfig: agent.state.tlsConfig,
+		},
+	}
+}
+
 func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	agent.lock.Lock()
 	defer agent.lock.Unlock()
@@ -228,36 +323,36 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 }
 
 func (agent *Agent) Close() error {
-	if err := agent.poller.Close(); err != nil {
-		agent.logger.Debug("failed to close poller", zap.Error(err))
-	}
-
 	return nil
 }
 
-func (agent *Agent) handleRouteConfig(rc *routeConfig) {
+func (agent *Agent) applyConfig(config *ParsedConfig) {
 	agent.lock.Lock()
-	agent.state.latestConfig = rc
-	agent.updateStateLocked()
-	agent.lock.Unlock()
-}
+	defer agent.lock.Unlock()
 
-func (agent *Agent) makeHTTPEndpoints(endpoints routeEndpoints, useTLS bool) []string {
-	if useTLS {
-		l := make([]string, len(endpoints.SSLEndpoints))
-		for epIdx, ep := range endpoints.SSLEndpoints {
-			l[epIdx] = "https://" + ep
+	// Check that the new config data is newer than the current one, in the case where we've done a select bucket
+	// against an existing connection then the revisions could be the same. In that case the configuration still
+	// needs to be applied.
+	// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
+	// than the old one then we ignore it, if it's newer then we apply the new config.
+	oldConfig := agent.state.latestConfig
+	if config.BucketType != oldConfig.BucketType {
+		agent.logger.Debug("switching config due to changed bucket type")
+	} else if !oldConfig.IsVersioned() {
+		agent.logger.Debug("switching config due to unversioned old config")
+	} else {
+		delta := oldConfig.Compare(config)
+		if delta > 0 {
+			agent.logger.Debug("skipping config due to new config being an older revision")
+			return
+		} else if delta == 0 {
+			agent.logger.Debug("skipping config due to matching revisions")
+			return
 		}
-
-		return l
 	}
 
-	l := make([]string, len(endpoints.NonSSLEndpoints))
-	for epIdx, ep := range endpoints.NonSSLEndpoints {
-		l[epIdx] = "http://" + ep
-	}
-
-	return l
+	agent.state.latestConfig = config
+	agent.updateStateLocked()
 }
 
 func (agent *Agent) updateStateLocked() {
@@ -265,42 +360,7 @@ func (agent *Agent) updateStateLocked() {
 		zap.Reflect("state", agent.state),
 		zap.Reflect("config", *agent.state.latestConfig))
 
-	routeCfg := agent.state.latestConfig
-
-	var memdTlsConfig *tls.Config
-	var nodeNames []string
-	var memdList []string
-
-	useTLS := agent.state.tlsConfig != nil
-	mgmtList := agent.makeHTTPEndpoints(routeCfg.mgmtEpList, useTLS)
-	queryList := agent.makeHTTPEndpoints(routeCfg.n1qlEpList, useTLS)
-	searchList := agent.makeHTTPEndpoints(routeCfg.ftsEpList, useTLS)
-
-	nodeNames = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
-	for nodeIdx, addr := range routeCfg.kvServerList.NonSSLEndpoints {
-		nodeNames[nodeIdx] = fmt.Sprintf("node@%s", addr)
-	}
-
-	if useTLS {
-		memdList = make([]string, len(routeCfg.kvServerList.SSLEndpoints))
-		copy(memdList, routeCfg.kvServerList.SSLEndpoints)
-		memdTlsConfig = agent.state.tlsConfig
-	} else {
-		memdList = make([]string, len(routeCfg.kvServerList.NonSSLEndpoints))
-		copy(memdList, routeCfg.kvServerList.NonSSLEndpoints)
-		memdTlsConfig = nil
-	}
-
-	clients := make(map[string]*KvClientConfig)
-	for addrIdx, addr := range memdList {
-		nodeName := nodeNames[addrIdx]
-		clients[nodeName] = &KvClientConfig{
-			Address:        addr,
-			TlsConfig:      memdTlsConfig,
-			SelectedBucket: agent.state.bucket,
-			Authenticator:  agent.state.authenticator,
-		}
-	}
+	agentComponentConfigs := agent.genAgentComponentConfigsLocked()
 
 	// In order to avoid race conditions between operations selecting the
 	// endpoint they need to send the request to, and fetching an actual
@@ -315,7 +375,7 @@ func (agent *Agent) updateStateLocked() {
 			oldClients[clientName] = client
 		}
 	}
-	for clientName, client := range clients {
+	for clientName, client := range agentComponentConfigs.KvClientManagerClients {
 		if oldClients[clientName] == nil {
 			oldClients[clientName] = client
 		}
@@ -326,61 +386,45 @@ func (agent *Agent) updateStateLocked() {
 		Clients:            oldClients,
 	})
 
-	agent.vbRouter.UpdateRoutingInfo(&VbucketRoutingInfo{
-		VbMap:      routeCfg.vbMap,
-		ServerList: nodeNames,
-	})
+	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
-		Clients:            clients,
+		Clients:            agentComponentConfigs.KvClientManagerClients,
 	})
 
-	agent.httpMgr.Reconfigure(&HTTPClientManagerConfig{
-		HTTPClientConfig: HTTPClientConfig{
-			Authenticator:   agent.state.authenticator,
-			MgmtEndpoints:   mgmtList,
-			QueryEndpoints:  queryList,
-			SearchEndpoints: searchList,
-		},
-		TLSConfig: nil,
-	})
+	agent.httpMgr.Reconfigure(&agentComponentConfigs.HTTPClientManager)
+
+	agent.cfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
 }
 
-func (agent *Agent) startConfigWatcher(ctx context.Context) error {
-	configCh, err := agent.poller.Watch()
+func (agent *Agent) configWatcherThread() {
+	configCh := agent.cfgWatcher.Watch(context.Background())
+	for config := range configCh {
+		agent.applyConfig(config)
+	}
+}
+
+func (a *Agent) applyTerseConfigJson(config *cbconfig.TerseConfigJson, sourceHostname string) {
+	parsedConfig, err := ConfigParser{}.ParseTerseConfig(config, sourceHostname)
 	if err != nil {
-		return err
+		a.logger.Warn("failed to process a not-my-vbucket configuration", zap.Error(err))
+		return
 	}
 
-	var firstConfig *TerseConfigJsonWithSource
-	select {
-	case config := <-configCh:
-		firstConfig = config
-	case <-ctx.Done():
-		if err := agent.poller.Close(); err != nil {
-			agent.logger.Debug("failed to close poller", zap.Error(err))
-		}
-		return ctx.Err()
-	}
-
-	agent.configMgr.ApplyConfig(firstConfig.SourceHostname, firstConfig.Config)
-
-	go func() {
-		for config := range configCh {
-			agent.configMgr.ApplyConfig(config.SourceHostname, config.Config)
-		}
-	}()
-
-	return nil
+	a.applyConfig(parsedConfig)
 }
 
-// agentConfigHandler exists for the purpose of satisfying the HandleRouteConfig interface for Agent, with having
-// to publicly expose the function on Agent itself.
-type agentConfigHandler struct {
+func (a *Agent) handleNotMyVbucketConfig(config *cbconfig.TerseConfigJson, sourceHostname string) {
+	a.applyTerseConfigJson(config, sourceHostname)
+}
+
+// agentConfigHandler exists for the purpose of satisfying the NotMyVbucketConfigHandler interface
+// for Agent, without having to publicly expose the function on Agent itself.
+type agentNmvHandler struct {
 	agent *Agent
 }
 
-func (ach *agentConfigHandler) HandleRouteConfig(config *routeConfig) {
-	ach.agent.handleRouteConfig(config)
+func (h *agentNmvHandler) HandleNotMyVbucketConfig(config *cbconfig.TerseConfigJson, sourceHostname string) {
+	h.agent.handleNotMyVbucketConfig(config, sourceHostname)
 }

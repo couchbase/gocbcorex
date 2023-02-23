@@ -1,6 +1,8 @@
 package gocbcorex
 
-import "crypto/tls"
+import (
+	"crypto/tls"
+)
 
 type Authenticator interface {
 	GetClientCertificate(service ServiceType, hostPort string) (*tls.Certificate, error)
