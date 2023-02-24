@@ -45,9 +45,7 @@ func CreateDefaultAgent(t *testing.T) *Agent {
 }
 
 func TestAgentBasic(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
 
@@ -74,9 +72,7 @@ func TestAgentBasic(t *testing.T) {
 }
 
 func TestAgentBadCollection(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
 
@@ -99,9 +95,7 @@ func TestAgentBadCollection(t *testing.T) {
 }
 
 func TestAgentCrudCompress(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	opts := CreateDefaultAgentOptions()
 	opts.CompressionConfig.DisableDecompression = true
@@ -237,9 +231,7 @@ func TestAgentCrudCompress(t *testing.T) {
 }
 
 func TestAgentCrudDecompress(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	opts := CreateDefaultAgentOptions()
 	opts.CompressionConfig.MinRatio = 1
@@ -325,9 +317,7 @@ func TestAgentCrudDecompress(t *testing.T) {
 }
 
 func TestAgentBasicHTTP(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
 

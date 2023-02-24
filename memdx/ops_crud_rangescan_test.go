@@ -12,9 +12,8 @@ import (
 )
 
 func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
+	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	key := []byte(uuid.NewString())
 	value := []byte("{\"key\": \"value\"}")
@@ -95,9 +94,8 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 }
 
 func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
+	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	baseKey := "s" + uuid.NewString()[:6]
 	value := []byte("{\"key\": \"value\"}")
@@ -188,9 +186,8 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 }
 
 func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
+	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	baseKey := "s" + uuid.NewString()[:6]
 	value := []byte("{\"key\": \"value\"}")

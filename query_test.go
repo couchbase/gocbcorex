@@ -136,9 +136,7 @@ func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
 }
 
 func TestQueryBasic(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
 
@@ -157,9 +155,7 @@ func TestQueryBasic(t *testing.T) {
 }
 
 func TestQueryPrepared(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
 

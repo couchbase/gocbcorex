@@ -13,9 +13,7 @@ import (
 )
 
 func TestAgentDelete(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	logger, _ := zap.NewDevelopment()
 

@@ -20,9 +20,7 @@ func getHttpMgmt() *HttpManagement {
 }
 
 func TestHttpMgmtTerseClusterConfig(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	resp, err := getHttpMgmt().GetTerseClusterConfig(context.Background())
 	require.NoError(t, err)
@@ -31,14 +29,12 @@ func TestHttpMgmtTerseClusterConfig(t *testing.T) {
 }
 
 func TestHttpMgmtCollectionManagement(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	ctx := context.Background()
 	bucketName := testutils.TestOpts.BucketName
-	testScopeName := "test-scope-" + testutils.RunName
-	testCollectionName := "test-scope-" + testutils.RunName
+	testScopeName := "test-scope-" + testutils.TestOpts.RunName
+	testCollectionName := "test-scope-" + testutils.TestOpts.RunName
 
 	err := getHttpMgmt().CreateScope(ctx, bucketName, testScopeName)
 	require.NoError(t, err)

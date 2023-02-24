@@ -1,8 +1,9 @@
 package memdx
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/couchbase/gocbcorex/testutils"
 
@@ -10,9 +11,7 @@ import (
 )
 
 func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 
@@ -30,9 +29,7 @@ func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
 }
 
 func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 
@@ -52,9 +49,7 @@ func TestOpsCoreGetCollectionIDCollectionMissing(t *testing.T) {
 }
 
 func TestOpsCoreGetCollectionIDScopeMissing(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 

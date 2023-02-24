@@ -243,9 +243,7 @@ func TestHTTPClientManagerReconfigureDifferentTLSConfig(t *testing.T) {
 //
 //	is closed after we close the body.
 func TestHTTPClientManagerReconfigureWhileStreaming(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	logger, _ := zap.NewDevelopment()
 

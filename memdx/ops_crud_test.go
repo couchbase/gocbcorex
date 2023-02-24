@@ -1,19 +1,18 @@
 package memdx
 
 import (
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestOpsCrudGets(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte("{\"key\": \"value\"}")
@@ -173,9 +172,7 @@ func TestOpsCrudGets(t *testing.T) {
 }
 
 func TestOpsCrudKeyNotFound(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 
@@ -385,9 +382,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 }
 
 func TestOpsCrudCollectionNotKnown(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	cli := createTestClient(t)
@@ -657,9 +652,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 }
 
 func TestOpsCrudDocExists(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte("{\"key\": \"value\"}")
@@ -739,9 +732,7 @@ func TestOpsCrudDocExists(t *testing.T) {
 }
 
 func TestOpsCrudCollectionCasMismatch(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte("{\"key\": \"value\"}")
@@ -893,9 +884,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 }
 
 func TestOpsCrudGetAndLockUnlock(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte(uuid.NewString())
@@ -941,9 +930,7 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 }
 
 func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte(uuid.NewString())
@@ -989,9 +976,7 @@ func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
 }
 
 func TestOpsCrudTouch(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte(uuid.NewString())
@@ -1026,9 +1011,7 @@ func TestOpsCrudTouch(t *testing.T) {
 }
 
 func TestOpsCrudMutationTokens(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 
@@ -1235,9 +1218,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 }
 
 func TestOpsCrudMutations(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 
@@ -1493,9 +1474,7 @@ func TestOpsCrudMutations(t *testing.T) {
 }
 
 func TestOpsCrudLookupinPathNotFound(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	key := []byte(uuid.NewString())
 	value := []byte("{\"key\": \"value\"}")
@@ -1534,9 +1513,7 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 }
 
 func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
-	if !testutils.TestOpts.LongTest {
-		t.SkipNow()
-	}
+	testutils.SkipIfShortTest(t)
 
 	cli := createTestClient(t)
 

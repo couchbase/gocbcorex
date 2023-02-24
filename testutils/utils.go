@@ -9,18 +9,32 @@ import (
 
 	"github.com/couchbase/gocbcore/v10/connstr"
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 )
 
-var RunName string
 var TestOpts TestOptions
 
 type TestOptions struct {
-	MemdAddrs  []string
-	HTTPAddrs  []string
-	LongTest   bool
-	Username   string
-	Password   string
-	BucketName string
+	MemdAddrs         []string
+	HTTPAddrs         []string
+	LongTest          bool
+	Username          string
+	Password          string
+	BucketName        string
+	SupportedFeatures []TestFeature
+	RunName           string
+}
+
+func addSupportedFeature(feat TestFeature) {
+	if !slices.Contains(TestOpts.SupportedFeatures, feat) {
+		TestOpts.SupportedFeatures = append(TestOpts.SupportedFeatures, feat)
+	}
+}
+func removeSupportedFeature(feat TestFeature) {
+	featIdx := slices.Index(TestOpts.SupportedFeatures, feat)
+	if featIdx >= 0 {
+		TestOpts.SupportedFeatures = slices.Delete(TestOpts.SupportedFeatures, featIdx, featIdx)
+	}
 }
 
 func envFlagString(envName, name, value, usage string) *string {
@@ -39,6 +53,8 @@ var password = envFlagString("GOCBPASS", "pass", "",
 	"The password to use to authenticate when using a real server")
 var bucketName = envFlagString("GOCBBUCKET", "bucket", "default",
 	"The bucket to use to test against")
+var featsStr = envFlagString("GOCBFEAT", "features", "",
+	"A comma-delimited list of features to test")
 
 func SetupTests(m *testing.M) {
 	flag.Parse()
@@ -68,7 +84,28 @@ func SetupTests(m *testing.M) {
 		}
 	}
 
-	RunName = strings.ReplaceAll(uuid.NewString(), "-", "")
+	// default supported features
+	TestOpts.SupportedFeatures = []TestFeature{}
+
+	if featsStr != nil {
+		featStrs := strings.Split(*featsStr, ",")
+		for _, featStr := range featStrs {
+			featStr = strings.TrimSpace(featStr)
+			feat := TestFeature(strings.TrimLeft(featStr, "+-*"))
+
+			if featStr == "*" {
+				for _, feat := range AllTestFeatures {
+					addSupportedFeature(feat)
+				}
+			} else if strings.HasPrefix(featStr, "-") {
+				removeSupportedFeature(feat)
+			} else {
+				addSupportedFeature(feat)
+			}
+		}
+	}
+
+	TestOpts.RunName = strings.ReplaceAll(uuid.NewString(), "-", "")[0:8]
 
 	result := m.Run()
 	os.Exit(result)
@@ -104,4 +141,10 @@ func parseConnStr(connStr string) error {
 	}
 
 	return nil
+}
+
+func SkipIfShortTest(t *testing.T) {
+	if !TestOpts.LongTest {
+		t.Skipf("skipping long test")
+	}
 }
