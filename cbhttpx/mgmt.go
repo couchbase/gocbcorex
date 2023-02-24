@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
@@ -19,11 +21,15 @@ type HttpManagement struct {
 	Password   string
 }
 
-func (h HttpManagement) Do(ctx context.Context, method string, path string, body io.Reader) (*http.Response, error) {
+func (h HttpManagement) Do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
 	uri := h.Endpoint + path
 	req, err := http.NewRequestWithContext(ctx, method, uri, body)
 	if err != nil {
 		return nil, err
+	}
+
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	if h.UserAgent != "" {
@@ -57,7 +63,7 @@ func (h HttpManagement) DecodeCommonError(resp *http.Response) error {
 }
 
 func (h HttpManagement) GetClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {
-	resp, err := h.Do(ctx, "GET", "/pools/default", nil)
+	resp, err := h.Do(ctx, "GET", "/pools/default", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +79,7 @@ func (h HttpManagement) GetClusterConfig(ctx context.Context) (*cbconfig.FullCon
 }
 
 func (h HttpManagement) GetTerseClusterConfig(ctx context.Context) (*cbconfig.TerseConfigJson, error) {
-	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServices", nil)
+	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServices", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +99,7 @@ type TerseClusterConfig_Stream interface {
 }
 
 func (h HttpManagement) StreamTerseClusterConfig(ctx context.Context) (TerseClusterConfig_Stream, error) {
-	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServicesStreaming", nil)
+	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServicesStreaming", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +116,7 @@ func (h HttpManagement) StreamTerseClusterConfig(ctx context.Context) (TerseClus
 
 func (h HttpManagement) GetBucketConfig(ctx context.Context, bucketName string) (*cbconfig.FullConfigJson, error) {
 	resp, err := h.Do(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s/", bucketName), nil)
+		fmt.Sprintf("/pools/default/buckets/%s", bucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +133,7 @@ func (h HttpManagement) GetBucketConfig(ctx context.Context, bucketName string) 
 
 func (h HttpManagement) GetTerseBucketConfig(ctx context.Context, bucketName string) (*cbconfig.TerseConfigJson, error) {
 	resp, err := h.Do(ctx, "GET",
-		fmt.Sprintf("/pools/default/b/%s/", bucketName), nil)
+		fmt.Sprintf("/pools/default/b/%s", bucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +154,7 @@ type TerseBucketConfig_Stream interface {
 
 func (h HttpManagement) StreamTerseBucketConfig(ctx context.Context, bucketName string) (TerseBucketConfig_Stream, error) {
 	resp, err := h.Do(ctx, "GET",
-		fmt.Sprintf("/pools/default/bs/%s/", bucketName), nil)
+		fmt.Sprintf("/pools/default/bs/%s", bucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -161,4 +167,139 @@ func (h HttpManagement) StreamTerseBucketConfig(ctx context.Context, bucketName 
 		Decoder:  json.NewDecoder(resp.Body),
 		Endpoint: h.Endpoint,
 	}, nil
+}
+
+type CollectionManifestCollectionJson struct {
+	UID    string `json:"uid"`
+	Name   string `json:"name"`
+	MaxTTL uint32 `json:"maxTTL,omitempty"`
+}
+
+type CollectionManifestScopeJson struct {
+	UID         string                             `json:"uid"`
+	Name        string                             `json:"name"`
+	Collections []CollectionManifestCollectionJson `json:"collections,omitempty"`
+}
+
+type CollectionManifestJson struct {
+	UID    string                        `json:"uid"`
+	Scopes []CollectionManifestScopeJson `json:"scopes,omitempty"`
+}
+
+func (h HttpManagement) GetCollectionManifest(ctx context.Context, bucketName string) (*CollectionManifestJson, error) {
+	resp, err := h.Do(ctx, "GET",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", bucketName), "", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	return httpJsonBlockStreamer[CollectionManifestJson]{
+		json.NewDecoder(resp.Body),
+	}.Recv()
+}
+
+func (h HttpManagement) CreateScope(
+	ctx context.Context,
+	bucketName string,
+	scopeName string,
+) error {
+	posts := url.Values{}
+	posts.Add("name", scopeName)
+
+	resp, err := h.Do(
+		ctx,
+		"POST",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", bucketName),
+		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+func (h HttpManagement) DeleteScope(
+	ctx context.Context,
+	bucketName string,
+	scopeName string,
+) error {
+	resp, err := h.Do(
+		ctx,
+		"DELETE",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", bucketName, scopeName),
+		"", nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+type CreateCollectionOptions struct {
+	MaxExpiry uint64
+}
+
+func (h HttpManagement) CreateCollection(
+	ctx context.Context,
+	bucketName string,
+	scopeName string,
+	collectionName string,
+	opts *CreateCollectionOptions,
+) error {
+	posts := url.Values{}
+	posts.Add("name", collectionName)
+	if opts != nil {
+		if opts.MaxExpiry > 0 {
+			posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxExpiry)))
+		}
+	}
+
+	resp, err := h.Do(
+		ctx,
+		"POST",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", bucketName, scopeName),
+		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+func (h HttpManagement) DeleteCollection(
+	ctx context.Context,
+	bucketName string,
+	scopeName string,
+	collectionName string,
+) error {
+	resp, err := h.Do(
+		ctx,
+		"DELETE",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", bucketName, scopeName, collectionName),
+		"", nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
 }

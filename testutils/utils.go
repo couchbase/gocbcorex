@@ -4,11 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/couchbase/gocbcore/v10/connstr"
+	"github.com/google/uuid"
 )
 
+var RunName string
 var TestOpts TestOptions
 
 type TestOptions struct {
@@ -55,6 +58,8 @@ func SetupTests(m *testing.M) {
 			TestOpts.BucketName = "default"
 		}
 	}
+
+	RunName = strings.ReplaceAll(uuid.NewString(), "-", "")
 
 	result := m.Run()
 	os.Exit(result)
