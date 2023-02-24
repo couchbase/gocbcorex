@@ -34,47 +34,47 @@ type SubDocResult struct {
 // for performing many sub-document operations.
 type LookupInOp struct {
 	Op    LookupInOpType
-	Flags SubdocFlag
+	Flags SubdocOpFlag
 	Path  []byte
 }
 
 func (op LookupInOp) IsXattrOp() bool {
-	return op.Flags&SubdocFlagXattrPath != 0
+	return op.Flags&SubdocOpFlagXattrPath != 0
 }
 
 // MutateInOp defines a per-operation structure to be passed to MutateIn
 // for performing many sub-document operations.
 type MutateInOp struct {
 	Op    MutateInOpType
-	Flags SubdocFlag
+	Flags SubdocOpFlag
 	Path  []byte
 	Value []byte
 }
 
 func (op MutateInOp) IsXattrOp() bool {
-	return op.Flags&SubdocFlagXattrPath != 0
+	return op.Flags&SubdocOpFlagXattrPath != 0
 }
 
-// SubdocFlag specifies flags for a sub-document operation.
-type SubdocFlag uint8
+// SubdocOpFlag specifies flags for a sub-document operation.
+type SubdocOpFlag uint8
 
 const (
-	// SubdocFlagNone indicates no special treatment for this operation.
-	SubdocFlagNone = SubdocFlag(0x00)
+	// SubdocOpFlagNone indicates no special treatment for this operation.
+	SubdocOpFlagNone = SubdocOpFlag(0x00)
 
-	// SubdocFlagMkDirP indicates that the path should be created if it does not already exist.
-	SubdocFlagMkDirP = SubdocFlag(0x01)
+	// SubdocOpFlagMkDirP indicates that the path should be created if it does not already exist.
+	SubdocOpFlagMkDirP = SubdocOpFlag(0x01)
 
 	// 0x02 is unused, formally SubdocFlagMkDoc
 
-	// SubdocFlagXattrPath indicates that the path refers to an Xattr rather than the document body.
-	SubdocFlagXattrPath = SubdocFlag(0x04)
+	// SubdocOpFlagXattrPath indicates that the path refers to an Xattr rather than the document body.
+	SubdocOpFlagXattrPath = SubdocOpFlag(0x04)
 
 	// 0x08 is unused, formally SubdocFlagAccessDeleted
 
-	// SubdocFlagExpandMacros indicates that the value portion of any sub-document mutations
+	// SubdocOpFlagExpandMacros indicates that the value portion of any sub-document mutations
 	// should be expanded if they contain macros such as ${Mutation.CAS}.
-	SubdocFlagExpandMacros = SubdocFlag(0x10)
+	SubdocOpFlagExpandMacros = SubdocOpFlag(0x10)
 )
 
 // LookupInOpType specifies the type of lookup in operation.
