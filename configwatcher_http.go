@@ -66,6 +66,7 @@ func (w *ConfigWatcherHttp) Reconfigure(config *ConfigWatcherHttpConfig) error {
 
 func configWatcherHttp_pollOne(
 	ctx context.Context,
+	logger *zap.Logger,
 	httpRoundTripper http.RoundTripper,
 	endpoint string,
 	userAgent string,
@@ -168,7 +169,7 @@ func (w *ConfigWatcherHttp) watchThread(ctx context.Context, outCh chan<- *Parse
 			}
 
 			recentEndpoints = nil
-			allEndpointsFailed = false
+			allEndpointsFailed = true
 
 			continue
 		}
@@ -178,13 +179,14 @@ func (w *ConfigWatcherHttp) watchThread(ctx context.Context, outCh chan<- *Parse
 
 		parsedConfig, err := configWatcherHttp_pollOne(
 			ctx,
+			w.logger,
 			state.httpRoundTripper,
 			endpoint,
 			state.userAgent,
 			state.authenticator,
 			state.bucketName)
 		if err != nil {
-			w.logger.Debug("failed to poll config",
+			w.logger.Debug("failed to poll config via http",
 				zap.Error(err),
 				zap.String("endpoint", endpoint),
 				zap.String("bucketName", state.bucketName))
