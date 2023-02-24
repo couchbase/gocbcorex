@@ -23,15 +23,24 @@ type TestOptions struct {
 	BucketName string
 }
 
+func envFlagString(envName, name, value, usage string) *string {
+	envValue := os.Getenv(envName)
+	if envValue != "" {
+		value = envValue
+	}
+	return flag.String(name, value, usage)
+}
+
+var connStr = envFlagString("GCBCONNSTR", "connstr", "",
+	"Connection string to run tests with")
+var user = envFlagString("GOCBUSER", "user", "",
+	"The username to use to authenticate when using a real server")
+var password = envFlagString("GOCBPASS", "pass", "",
+	"The password to use to authenticate when using a real server")
+var bucketName = envFlagString("GOCBBUCKET", "bucket", "default",
+	"The bucket to use to test against")
+
 func SetupTests(m *testing.M) {
-	connStr := envFlagString("GCBCONNSTR", "connstr", "",
-		"Connection string to run tests with")
-	user := envFlagString("GOCBUSER", "user", "",
-		"The username to use to authenticate when using a real server")
-	password := envFlagString("GOCBPASS", "pass", "",
-		"The password to use to authenticate when using a real server")
-	bucketName := envFlagString("GOCBBUCKET", "bucket", "default",
-		"The bucket to use to test against")
 	flag.Parse()
 
 	if *connStr != "" && !testing.Short() {
@@ -63,14 +72,6 @@ func SetupTests(m *testing.M) {
 
 	result := m.Run()
 	os.Exit(result)
-}
-
-func envFlagString(envName, name, value, usage string) *string {
-	envValue := os.Getenv(envName)
-	if envValue != "" {
-		value = envValue
-	}
-	return flag.String(name, value, usage)
 }
 
 // This is a bit of a halfway house whilst we evolve the API.
