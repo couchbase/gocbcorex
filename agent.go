@@ -30,12 +30,13 @@ type Agent struct {
 	lock  sync.Mutex
 	state agentState
 
-	cfgWatcher  *ConfigWatcherHttp
-	connMgr     KvClientManager
-	collections CollectionResolver
-	retries     RetryManager
-	vbRouter    VbucketRouter
-	httpMgr     HTTPClientManager
+	httpCfgWatcher *ConfigWatcherHttp
+	memdCfgWatcher *ConfigWatcherMemd
+	connMgr        KvClientManager
+	collections    CollectionResolver
+	retries        RetryManager
+	vbRouter       VbucketRouter
+	httpMgr        HTTPClientManager
 
 	crud  *CrudComponent
 	http  *HTTPComponent
@@ -184,15 +185,32 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	})
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
-	configWatcher, err := NewConfigWatcherHttp(
-		&agentComponentConfigs.ConfigWatcherHttpConfig,
-		&ConfigWatcherHttpOptions{
-			Logger: logger.Named("http-config-watcher"),
-		})
-	if err != nil {
-		return nil, err
+	if false {
+		configWatcher, err := NewConfigWatcherHttp(
+			&agentComponentConfigs.ConfigWatcherHttpConfig,
+			&ConfigWatcherHttpOptions{
+				Logger: logger.Named("http-config-watcher"),
+			})
+		if err != nil {
+			return nil, err
+		}
+
+		agent.httpCfgWatcher = configWatcher
+	} else {
+		configWatcher, err := NewConfigWatcherMemd(
+			&agentComponentConfigs.ConfigWatcherMemdConfig,
+			&ConfigWatcherMemdOptions{
+				Logger:          logger.Named("memd-config-watcher"),
+				KvClientManager: connMgr,
+				PollingPeriod:   2500 * time.Millisecond,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		agent.memdCfgWatcher = configWatcher
 	}
-	agent.cfgWatcher = configWatcher
 
 	go agent.configWatcherThread()
 
@@ -226,6 +244,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 type agentComponentConfigs struct {
 	ConfigWatcherHttpConfig ConfigWatcherHttpConfig
+	ConfigWatcherMemdConfig ConfigWatcherMemdConfig
 	KvClientManagerClients  map[string]*KvClientConfig
 	VbucketRoutingInfo      *VbucketRoutingInfo
 	HTTPClientManager       HTTPClientManagerConfig
@@ -286,6 +305,9 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 			UserAgent:        httpUserAgent,
 			Authenticator:    agent.state.authenticator,
 			BucketName:       agent.state.bucket,
+		},
+		ConfigWatcherMemdConfig: ConfigWatcherMemdConfig{
+			Endpoints: kvDataNodeIds,
 		},
 		KvClientManagerClients: clients,
 		VbucketRoutingInfo: &VbucketRoutingInfo{
@@ -388,6 +410,10 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
+	if agent.memdCfgWatcher != nil {
+		agent.memdCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherMemdConfig)
+	}
+
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            agentComponentConfigs.KvClientManagerClients,
@@ -395,11 +421,22 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.httpMgr.Reconfigure(&agentComponentConfigs.HTTPClientManager)
 
-	agent.cfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
+	if agent.httpCfgWatcher != nil {
+		agent.httpCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
+	}
 }
 
 func (agent *Agent) configWatcherThread() {
-	configCh := agent.cfgWatcher.Watch(context.Background())
+	var configCh <-chan *ParsedConfig
+	if agent.memdCfgWatcher != nil {
+		configCh = agent.memdCfgWatcher.Watch(context.Background())
+	} else if agent.httpCfgWatcher != nil {
+		configCh = agent.httpCfgWatcher.Watch(context.Background())
+	} else {
+		agent.logger.Warn("failed to start config monitoring due to missing watcher")
+		return
+	}
+
 	for config := range configCh {
 		agent.applyConfig(config)
 	}
