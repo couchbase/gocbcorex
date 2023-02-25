@@ -130,7 +130,7 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundError(t *testing.T) {
 
 		return 0, memdx.ErrUnknownCollectionID
 	})
-	require.ErrorIs(t, err, memdx.ErrUnknownCollectionID)
+	require.ErrorIs(t, err, ErrCollectionManifestOutdated)
 
 	assert.Equal(t, 1, called)
 	assert.Equal(t, 1, numInvalidateCalls)
@@ -184,9 +184,9 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundErrorServerHasOlderManifes
 			ContextJson: contextBytes,
 		}
 	})
-	require.ErrorIs(t, err, memdx.ErrUnknownCollectionID)
+	require.ErrorIs(t, err, ErrCollectionManifestOutdated)
 
-	var errorT ServerManifestOutdatedError
+	var errorT *CollectionManifestOutdatedError
 	if assert.ErrorAs(t, err, &errorT) {
 		assert.Equal(t, rev, errorT.ManifestUid)
 		assert.Equal(t, uint64(1), errorT.ServerManifestUid)

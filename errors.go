@@ -17,8 +17,10 @@ var (
 )
 
 var (
-	ErrParsingFailure      = errors.New("parsing failure")
-	ErrInternalServerError = errors.New("internal server error")
+	ErrParsingFailure             = errors.New("parsing failure")
+	ErrInternalServerError        = errors.New("internal server error")
+	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
+	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
 )
 
 type placeholderError struct {
@@ -47,17 +49,30 @@ func (e CollectionNotFoundError) Error() string {
 	return e.InnerError.Error()
 }
 
-type ServerManifestOutdatedError struct {
+type CollectionManifestOutdatedError struct {
+	Cause             error
 	ManifestUid       uint64
 	ServerManifestUid uint64
 }
 
-func (e ServerManifestOutdatedError) Error() string {
-	return fmt.Sprintf("server manifest outdated: our manifest uid: %d, server manifest uid: %d", e.ManifestUid, e.ServerManifestUid)
+func (e CollectionManifestOutdatedError) Error() string {
+	return fmt.Sprintf("collection manifest outdated: our manifest uid: %d, server manifest uid: %d", e.ManifestUid, e.ServerManifestUid)
 }
 
-func (e ServerManifestOutdatedError) Unwrap() error {
-	return memdx.ErrUnknownCollectionID
+func (e CollectionManifestOutdatedError) Unwrap() error {
+	return ErrCollectionManifestOutdated
+}
+
+type VbucketMapOutdatedError struct {
+	Cause error
+}
+
+func (e VbucketMapOutdatedError) Error() string {
+	return "vbucket map outdated"
+}
+
+func (e VbucketMapOutdatedError) Unwrap() error {
+	return ErrCollectionManifestOutdated
 }
 
 type contextualDeadline struct {

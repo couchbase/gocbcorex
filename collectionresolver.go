@@ -40,7 +40,8 @@ func OrchestrateMemdCollectionID[RespT any](
 				if invalidatingManifestRev > 0 &&
 					invalidatingManifestRev < manifestRev {
 					var emptyResp RespT
-					return emptyResp, ServerManifestOutdatedError{
+					return emptyResp, &CollectionManifestOutdatedError{
+						Cause:             err,
 						ManifestUid:       manifestRev,
 						ServerManifestUid: invalidatingManifestRev,
 					}
@@ -65,7 +66,11 @@ func OrchestrateMemdCollectionID[RespT any](
 					// path to resolution and return the error, allowing retries to occur
 					// at a higher level if desired.
 					var emptyResp RespT
-					return emptyResp, err
+					return emptyResp, &CollectionManifestOutdatedError{
+						Cause:             err,
+						ManifestUid:       manifestRev,
+						ServerManifestUid: invalidatingManifestRev,
+					}
 				}
 
 				collectionID = newCollectionID

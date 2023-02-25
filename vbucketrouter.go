@@ -122,7 +122,9 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch
 			if errors.Is(err, memdx.ErrNotMyVbucket) {
 				if ch == nil {
 					// if we have no config handler, no point in trying to parse the config
-					return res, err
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
 				}
 
 				var nmvErr memdx.ServerErrorWithConfig
@@ -130,7 +132,9 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch
 					// if there is no new config available, we cant make any assumptions
 					// about the meaning of this error and propagate it upwards.
 					// log.Printf("received a not-my-vbucket without config information")
-					return res, err
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
 				}
 
 				// configs can contain $HOST, which needs to be replaced with the querying endpoint...
@@ -142,7 +146,9 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch
 				var configJson *cbconfig.TerseConfigJson
 				unmarshalErr := json.Unmarshal(configJsonBytes, &configJson)
 				if unmarshalErr != nil {
-					return res, err
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
 				}
 
 				ch.HandleNotMyVbucketConfig(configJson, endpoint)
@@ -150,14 +156,18 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch
 				newEndpoint, newVbID, err := vb.DispatchByKey(key, replicaIdx)
 				if err != nil {
 					var emptyResp RespT
-					return emptyResp, err
+					return emptyResp, &VbucketMapOutdatedError{
+						Cause: err,
+					}
 				}
 
 				if newEndpoint == endpoint && newVbID == vbID {
 					// if after the update we are going to be sending the request back
 					// to the place that rejected it, we consider this non-deterministic
 					// and fall back to the application to deal with (or retries).
-					return res, err
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
 				}
 
 				endpoint = newEndpoint
