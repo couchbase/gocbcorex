@@ -1,4 +1,4 @@
-package gocbcorex
+package cbrowstreamerx
 
 import (
 	"encoding/json"
@@ -9,20 +9,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// QueryRowReader allows access to the results of a N1QL query.
-type queryStreamer struct {
+// QueryStreamer allows access to the results of a Couchbase streaming query.
+type QueryStreamer struct {
 	metaDataBytes []byte
 	err           error
 	lock          sync.Mutex
 
 	logger   *zap.Logger
 	stream   io.ReadCloser
-	streamer *rowStreamer
+	streamer *RowStreamer
 }
 
-func newQueryStreamer(stream io.ReadCloser, rowsAttrib string, logger *zap.Logger) (*queryStreamer, error) {
-	logger = loggerOrNop(logger)
-	rowStreamer, err := newRowStreamer(stream, rowsAttrib)
+func NewQueryStreamer(stream io.ReadCloser, rowsAttrib string, logger *zap.Logger) (*QueryStreamer, error) {
+	rowStreamer, err := NewRowStreamer(stream, rowsAttrib)
 	if err != nil {
 		closeErr := stream.Close()
 		if closeErr != nil {
@@ -32,15 +31,15 @@ func newQueryStreamer(stream io.ReadCloser, rowsAttrib string, logger *zap.Logge
 		return nil, err
 	}
 
-	return &queryStreamer{
-		logger:   loggerOrNop(logger),
+	return &QueryStreamer{
+		logger:   logger,
 		stream:   stream,
 		streamer: rowStreamer,
 	}, nil
 }
 
 // NextRow returns the next row from the results, returning nil when the rows are exhausted.
-func (r *queryStreamer) NextRow() []byte {
+func (r *QueryStreamer) NextRow() []byte {
 	if r.streamer == nil {
 		return nil
 	}
@@ -61,7 +60,7 @@ func (r *queryStreamer) NextRow() []byte {
 }
 
 // Err returns any errors that have occurred on the stream
-func (r *queryStreamer) Err() error {
+func (r *QueryStreamer) Err() error {
 	r.lock.Lock()
 	err := r.err
 	r.lock.Unlock()
@@ -70,11 +69,11 @@ func (r *queryStreamer) Err() error {
 }
 
 // EarlyMetadata returns the value (or nil) of an attribute from a query metadata before the query has completed.
-func (r *queryStreamer) EarlyMetadata(key string) json.RawMessage {
+func (r *QueryStreamer) EarlyMetadata(key string) json.RawMessage {
 	return r.streamer.EarlyAttrib(key)
 }
 
-func (r *queryStreamer) finishWithoutError() {
+func (r *QueryStreamer) finishWithoutError() {
 	// Lets finalize the streamer so we Get the meta-data
 	metaDataBytes, err := r.streamer.Finalize()
 	if err != nil {
@@ -99,7 +98,7 @@ func (r *queryStreamer) finishWithoutError() {
 	r.metaDataBytes = metaDataBytes
 }
 
-func (r *queryStreamer) finishWithError(err error) {
+func (r *QueryStreamer) finishWithError(err error) {
 	// Lets record the error that happened
 	r.err = err
 
@@ -119,7 +118,7 @@ func (r *queryStreamer) finishWithError(err error) {
 }
 
 // Close marks the results as closed, returning any errors that occurred during reading the results.
-func (r *queryStreamer) Close() error {
+func (r *QueryStreamer) Close() error {
 	// If an error occurred before, we should return that (forever)
 	err := r.Err()
 	if err != nil {
@@ -142,7 +141,7 @@ func (r *queryStreamer) Close() error {
 // It will close the results but not before iterating through all remaining
 // results, as such this should only be used for very small resultsets - ideally
 // of, at most, length 1.
-func (r *queryStreamer) One() ([]byte, error) {
+func (r *QueryStreamer) One() ([]byte, error) {
 	rowBytes := r.NextRow()
 	if rowBytes == nil {
 		if r.Err() == nil {
@@ -167,7 +166,7 @@ func (r *queryStreamer) One() ([]byte, error) {
 	return rowBytes, nil
 }
 
-func (r *queryStreamer) MetaData() ([]byte, error) {
+func (r *QueryStreamer) MetaData() ([]byte, error) {
 	if r.streamer != nil {
 		return nil, errors.New("the result must be closed before accessing the meta-data")
 	}

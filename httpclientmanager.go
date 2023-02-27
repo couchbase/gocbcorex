@@ -102,7 +102,6 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 		err := oldState.client.Reconfigure(&HTTPClientConfig{
 			Authenticator:   config.Authenticator,
 			MgmtEndpoints:   config.MgmtEndpoints,
-			QueryEndpoints:  config.QueryEndpoints,
 			SearchEndpoints: config.SearchEndpoints,
 		})
 		if err != nil {
@@ -117,7 +116,6 @@ func (mgr *httpClientManager) Reconfigure(config *HTTPClientManagerConfig) error
 	cli, err := mgr.newHTTPClient(&HTTPClientConfig{
 		Authenticator:   config.Authenticator,
 		MgmtEndpoints:   config.MgmtEndpoints,
-		QueryEndpoints:  config.QueryEndpoints,
 		SearchEndpoints: config.SearchEndpoints,
 	}, &HTTPClientOptions{
 		Logger:              mgr.logger,

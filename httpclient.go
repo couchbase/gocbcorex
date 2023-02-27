@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
 	"time"
@@ -48,7 +47,6 @@ type HTTPResponse struct {
 type HTTPClientConfig struct {
 	Authenticator   Authenticator
 	MgmtEndpoints   []string
-	QueryEndpoints  []string
 	SearchEndpoints []string
 }
 
@@ -67,7 +65,6 @@ type HTTPClientOptions struct {
 type httpClientState struct {
 	authenticator   Authenticator
 	mgmtEndpoints   []string
-	queryEndpoints  []string
 	searchEndpoints []string
 }
 
@@ -120,19 +117,13 @@ func (c *httpClient) Do(ctx context.Context, req *HTTPRequest) (*HTTPResponse, e
 		switch req.Service {
 		case MgmtService:
 			var err error
-			endpoint, err = randFromServiceEndpoints(state.mgmtEndpoints)
-			if err != nil {
-				return nil, err
-			}
-		case QueryService:
-			var err error
-			endpoint, err = randFromServiceEndpoints(state.queryEndpoints)
+			endpoint, err = randFromServiceEndpoints(state.mgmtEndpoints, nil)
 			if err != nil {
 				return nil, err
 			}
 		case SearchService:
 			var err error
-			endpoint, err = randFromServiceEndpoints(state.searchEndpoints)
+			endpoint, err = randFromServiceEndpoints(state.searchEndpoints, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -212,10 +203,6 @@ func (c *httpClient) Reconfigure(config *HTTPClientConfig) error {
 		newState.mgmtEndpoints = make([]string, len(config.MgmtEndpoints))
 		copy(newState.mgmtEndpoints, config.MgmtEndpoints)
 	}
-	if len(config.QueryEndpoints) > 0 {
-		newState.queryEndpoints = make([]string, len(config.QueryEndpoints))
-		copy(newState.queryEndpoints, config.QueryEndpoints)
-	}
 	if len(config.SearchEndpoints) > 0 {
 		newState.searchEndpoints = make([]string, len(config.SearchEndpoints))
 		copy(newState.searchEndpoints, config.SearchEndpoints)
@@ -231,15 +218,6 @@ func (c *httpClient) ManagementEndpoints() []string {
 
 	eps := make([]string, len(state.mgmtEndpoints))
 	copy(eps, state.mgmtEndpoints)
-
-	return eps
-}
-
-func (c *httpClient) QueryEndpoints() []string {
-	state := c.state.Load()
-
-	eps := make([]string, len(state.queryEndpoints))
-	copy(eps, state.queryEndpoints)
 
 	return eps
 }
@@ -315,12 +293,4 @@ func (c *httpClient) newBaseHTTPClient(clientOpts *HTTPClientOptions) (BaseHTTPC
 		return c.newClientFunc(clientOpts)
 	}
 	return c.setupBaseHTTPClient(clientOpts)
-}
-
-/* #nosec G404 */
-func randFromServiceEndpoints(endpoints []string) (string, error) {
-	if len(endpoints) == 0 {
-		return "", placeholderError{"service not available"}
-	}
-	return endpoints[rand.Intn(len(endpoints))], nil
 }

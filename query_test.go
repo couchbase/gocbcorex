@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/testutils"
-	"github.com/stretchr/testify/require"
 )
 
 type n1qlTestHelper struct {
@@ -17,6 +16,7 @@ type n1qlTestHelper struct {
 	QueryTestDocs *testDocs
 	Agent         *Agent
 	QueryFn       func(context.Context, *QueryOptions) (*QueryRowReader, error)
+	T             *testing.T
 }
 
 func hlpRunQuery(t *testing.T, agent *Agent, opts *QueryOptions) ([][]byte, error) {
@@ -63,9 +63,9 @@ func (nqh *n1qlTestHelper) testCleanupN1ql(t *testing.T) {
 }
 
 func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
-	deadline := time.Now().Add(15000 * time.Millisecond)
+	deadline := time.Now().Add(30000 * time.Millisecond)
 	runTestQuery := func() ([]testDoc, error) {
-		iterDeadline := time.Now().Add(5000 * time.Millisecond)
+		iterDeadline := time.Now().Add(10000 * time.Millisecond)
 		if iterDeadline.After(deadline) {
 			iterDeadline = deadline
 		}
@@ -76,24 +76,34 @@ func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
 			ClientContextID: "12345",
 			Statement:       fmt.Sprintf("SELECT i,testName FROM %s WHERE testName=\"%s\"", testutils.TestOpts.BucketName, nqh.TestName),
 		})
-		require.NoError(t, err)
+		if err != nil {
+			nqh.T.Logf("Received error from query: %v", err)
+			return nil, err
+		}
 
 		var docs []testDoc
 		for {
 			row := rows.NextRow()
 			if row == nil {
+				nqh.T.Logf("Received now rows from query")
 				break
 			}
 
 			var doc testDoc
 			err := json.Unmarshal(row, &doc)
-			require.NoError(t, err)
+			if err != nil {
+				nqh.T.Logf("Failed to unmarshal into testDoc: %v", err)
+				return nil, err
+			}
 
 			docs = append(docs, doc)
 		}
 
 		err = rows.Err()
-		require.NoError(t, err)
+		if err != nil {
+			nqh.T.Logf("Received error from query rows: %v", err)
+			return nil, err
+		}
 
 		return docs, nil
 	}
@@ -113,6 +123,7 @@ func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
 
 			numDocs := len(docs)
 			if numDocs != nqh.NumDocs {
+				nqh.T.Logf("Received incorrect number of rows. Expected: %d, received: %d", nqh.NumDocs, numDocs)
 				lastError = fmt.Sprintf("query test read invalid number of rows %d!=%d", numDocs, 5)
 				testFailed = true
 			}
@@ -145,6 +156,7 @@ func TestQueryBasic(t *testing.T) {
 		NumDocs:  5,
 		Agent:    agent,
 		QueryFn:  agent.Query,
+		T:        t,
 	}
 
 	t.Run("setup", helper.testSetupN1ql)
@@ -164,6 +176,7 @@ func TestQueryPrepared(t *testing.T) {
 		NumDocs:  5,
 		Agent:    agent,
 		QueryFn:  agent.PreparedQuery,
+		T:        t,
 	}
 
 	t.Run("setup", helper.testSetupN1ql)

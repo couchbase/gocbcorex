@@ -45,12 +45,17 @@ func configBootstrapHttp_bootstrapOne(
 	authenticator Authenticator,
 	bucketName string,
 ) (*ParsedConfig, string, error) {
-	host, err := getHostFromUri(endpoint)
+	hostport, err := getHostFromUri(endpoint)
 	if err != nil {
 		return nil, "", err
 	}
 
-	username, password, err := authenticator.GetCredentials(MgmtService, host)
+	username, password, err := authenticator.GetCredentials(MgmtService, hostport)
+	if err != nil {
+		return nil, "", err
+	}
+
+	hostOnly, err := hostFromHostPort(hostport)
 	if err != nil {
 		return nil, "", err
 	}
@@ -70,7 +75,7 @@ func configBootstrapHttp_bootstrapOne(
 			return nil, "", err
 		}
 
-		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, host)
+		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostOnly)
 		if err != nil {
 			return nil, "", err
 		}
@@ -88,13 +93,13 @@ func configBootstrapHttp_bootstrapOne(
 			return nil, "", err
 		}
 
-		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, host)
+		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostOnly)
 		if err != nil {
 			return nil, "", err
 		}
 	}
 
-	networkType := NetworkTypeHeuristic{}.Identify(parsedConfig, host)
+	networkType := NetworkTypeHeuristic{}.Identify(parsedConfig, hostport)
 
 	return parsedConfig, networkType, nil
 }
