@@ -11,6 +11,16 @@ import (
 	"go.uber.org/zap"
 )
 
+func OrchestrateQuery[RespT any](ctx context.Context, fn func() (RespT, error)) (RespT, error) {
+	res, err := fn()
+	if err != nil {
+		// TODO(brett19): Possibly retry some errors
+		return res, err
+	}
+
+	return res, nil
+}
+
 // makeHTTPClient creates a client with the specified round tripper and CheckRedirect set so that
 // retries contain auth details.
 func makeHTTPClient(roundTripper http.RoundTripper) *http.Client {
@@ -33,43 +43,6 @@ func makeHTTPClient(roundTripper http.RoundTripper) *http.Client {
 			return nil
 		},
 	}
-}
-
-func OrchestrateQuery(
-	ctx context.Context,
-	roundTripper http.RoundTripper,
-	logger *zap.Logger,
-	userAgent,
-	username,
-	password string,
-	opts *QueryOptions) (*QueryRowReader, error) {
-	return cbqueryx.Query{
-		HttpClient: makeHTTPClient(roundTripper),
-		Logger:     logger,
-		QueryCache: nil,
-		UserAgent:  userAgent,
-		Username:   username,
-		Password:   password,
-	}.Query(ctx, opts)
-}
-
-func OrchestratePreparedQuery(
-	ctx context.Context,
-	cache *PreparedStatementCache,
-	roundTripper http.RoundTripper,
-	logger *zap.Logger,
-	userAgent,
-	username,
-	password string,
-	opts *QueryOptions) (*QueryRowReader, error) {
-	return cbqueryx.Query{
-		HttpClient: makeHTTPClient(roundTripper),
-		Logger:     logger,
-		QueryCache: cache,
-		UserAgent:  userAgent,
-		Username:   username,
-		Password:   password,
-	}.PreparedQuery(ctx, opts)
 }
 
 type QueryOptions = cbqueryx.QueryOptions
@@ -154,7 +127,17 @@ func (w *QueryComponent) Query(ctx context.Context, opts *QueryOptions) (*QueryR
 			return nil, err
 		}
 
-		return OrchestrateQuery(ctx, state.httpRoundTripper, w.logger, state.userAgent, username, password, opts)
+		httpClient := makeHTTPClient(state.httpRoundTripper)
+		return OrchestrateQuery(ctx, func() (*cbqueryx.QueryRowReader, error) {
+			return cbqueryx.Query{
+				HttpClient: httpClient,
+				Logger:     w.logger,
+				QueryCache: nil,
+				UserAgent:  state.userAgent,
+				Username:   username,
+				Password:   password,
+			}.Query(ctx, opts)
+		})
 	})
 }
 
@@ -183,7 +166,17 @@ func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) 
 			return nil, err
 		}
 
-		return OrchestratePreparedQuery(ctx, w.preparedCache, state.httpRoundTripper, w.logger, state.userAgent, username, password, opts)
+		httpClient := makeHTTPClient(state.httpRoundTripper)
+		return OrchestrateQuery(ctx, func() (*cbqueryx.QueryRowReader, error) {
+			return cbqueryx.Query{
+				HttpClient: httpClient,
+				Logger:     w.logger,
+				QueryCache: w.preparedCache,
+				UserAgent:  state.userAgent,
+				Username:   username,
+				Password:   password,
+			}.PreparedQuery(ctx, opts)
+		})
 	})
 }
 
