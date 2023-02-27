@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -196,4 +197,29 @@ func TestKvClientPoolReconfigureNilOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, mock, cli)
+}
+
+func TestKvClientPoolNewAndGetRace(t *testing.T) {
+	opts := KvClientConfig{
+		Address:        "endpoint1",
+		TlsConfig:      nil,
+		SelectedBucket: "test",
+		Authenticator: &PasswordAuthenticator{
+			Username: "username",
+			Password: "password",
+		},
+	}
+	expectedErr := errors.New("connect failure")
+	pool, err := NewKvClientPool(&KvClientPoolConfig{
+		NumConnections: 1,
+		ClientOpts:     opts,
+	}, &KvClientPoolOptions{
+		NewKvClient: func(ctx context.Context, options *KvClientConfig) (KvClient, error) {
+			return nil, expectedErr
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = pool.GetClient(context.Background())
+	require.ErrorIs(t, err, expectedErr)
 }

@@ -429,8 +429,9 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	if p.connectErr != nil {
 		// if we have a connect error already, it means we are in error state
 		// and should just return that error directly.
+		err := p.connectErr
 		p.lock.Unlock()
-		return nil, p.connectErr
+		return nil, err
 	}
 
 	clientWaitCh, err := p.sleepClientWaiterLocked()
