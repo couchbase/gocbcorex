@@ -5,15 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/couchbase/gocbcorex/memdx"
-)
-
-var (
-	ErrDocumentNotFound      = memdx.ErrDocNotFound
-	ErrDocumentExists        = memdx.ErrDocExists
-	ErrCasMismatch           = memdx.ErrCasMismatch
-	ErrAuthenticationFailure = memdx.ErrAuthError
 )
 
 var (
@@ -21,6 +12,7 @@ var (
 	ErrInternalServerError        = errors.New("internal server error")
 	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
+	ErrServiceNotAvailable        = errors.New("specified service is not available")
 )
 
 type placeholderError struct {

@@ -1,6 +1,10 @@
 package gocbcorex
 
-import "net/url"
+import (
+	"net"
+	"net/url"
+	"strings"
+)
 
 func getHostFromUri(uri string) (string, error) {
 	// TODO(brett19): This is probably going to exist in a lot of places, utils?
@@ -10,4 +14,18 @@ func getHostFromUri(uri string) (string, error) {
 	}
 
 	return parsedUrl.Host, nil
+}
+
+func hostFromHostPort(hostport string) (string, error) {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return "", err
+	}
+
+	// If this is an IPv6 address, we need to rewrap it in []
+	if strings.Contains(host, ":") {
+		return "[" + host + "]", nil
+	}
+
+	return host, nil
 }

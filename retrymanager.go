@@ -55,3 +55,45 @@ func OrchestrateMemdRetries[RespT any](
 		return res, nil
 	}
 }
+
+func OrchestrateQueryRetries(
+	ctx context.Context,
+	rs RetryManager,
+	fn func() (*QueryRowReader, error),
+) (*QueryRowReader, error) {
+	var opRetryController RetryController
+	var lastErr error
+	for {
+		res, err := fn()
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return res, retrierDeadlineError{err, lastErr}
+			}
+
+			if opRetryController == nil {
+				opRetryController = rs.NewRetryController()
+			}
+
+			retryTime, shouldRetry := opRetryController.ShouldRetry(err)
+			if shouldRetry {
+				select {
+				case <-time.After(retryTime):
+				case <-ctx.Done():
+					ctxErr := ctx.Err()
+					if errors.Is(ctxErr, context.DeadlineExceeded) {
+						return res, retrierDeadlineError{ctxErr, err}
+					} else {
+						return res, err
+					}
+				}
+
+				lastErr = err
+				continue
+			}
+
+			return res, err
+		}
+
+		return res, nil
+	}
+}

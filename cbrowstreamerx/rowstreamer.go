@@ -1,4 +1,4 @@
-package gocbcorex
+package cbrowstreamerx
 
 import (
 	"encoding/json"
@@ -15,17 +15,17 @@ const (
 	rowStreamStateEnd      rowStreamState = 3
 )
 
-type rowStreamer struct {
+type RowStreamer struct {
 	decoder    *json.Decoder
 	rowsAttrib string
 	attribs    map[string]json.RawMessage
 	state      rowStreamState
 }
 
-func newRowStreamer(stream io.Reader, rowsAttrib string) (*rowStreamer, error) {
+func NewRowStreamer(stream io.Reader, rowsAttrib string) (*RowStreamer, error) {
 	decoder := json.NewDecoder(stream)
 
-	streamer := &rowStreamer{
+	streamer := &RowStreamer{
 		decoder:    decoder,
 		rowsAttrib: rowsAttrib,
 		attribs:    make(map[string]json.RawMessage),
@@ -39,7 +39,7 @@ func newRowStreamer(stream io.Reader, rowsAttrib string) (*rowStreamer, error) {
 	return streamer, nil
 }
 
-func (s *rowStreamer) begin() error {
+func (s *RowStreamer) begin() error {
 	if s.state != rowStreamStateStart {
 		return errors.New("unexpected parsing state during begin")
 	}
@@ -103,7 +103,7 @@ func (s *rowStreamer) begin() error {
 	return nil
 }
 
-func (s *rowStreamer) readRow() (json.RawMessage, error) {
+func (s *RowStreamer) readRow() (json.RawMessage, error) {
 	if s.state < rowStreamStateRows {
 		return nil, errors.New("unexpected parsing state during readRow")
 	}
@@ -130,7 +130,7 @@ func (s *rowStreamer) readRow() (json.RawMessage, error) {
 	return msg, nil
 }
 
-func (s *rowStreamer) end() error {
+func (s *RowStreamer) end() error {
 	if s.state < rowStreamStatePostRows {
 		return errors.New("unexpected parsing state during end")
 	}
@@ -181,11 +181,11 @@ func (s *rowStreamer) end() error {
 	return nil
 }
 
-func (s *rowStreamer) NextRowBytes() (json.RawMessage, error) {
+func (s *RowStreamer) NextRowBytes() (json.RawMessage, error) {
 	return s.readRow()
 }
 
-func (s *rowStreamer) Finalize() (json.RawMessage, error) {
+func (s *RowStreamer) Finalize() (json.RawMessage, error) {
 	// Make sure we've read until the end of the object
 	for {
 		row, err := s.readRow()
@@ -213,7 +213,7 @@ func (s *rowStreamer) Finalize() (json.RawMessage, error) {
 	return json.RawMessage(metaBytes), nil
 }
 
-func (s *rowStreamer) EarlyAttrib(key string) json.RawMessage {
+func (s *RowStreamer) EarlyAttrib(key string) json.RawMessage {
 	val, ok := s.attribs[key]
 	if !ok {
 		return nil

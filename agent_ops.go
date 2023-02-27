@@ -1,6 +1,8 @@
 package gocbcorex
 
-import "context"
+import (
+	"context"
+)
 
 func (agent *Agent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
 	return agent.crud.Upsert(ctx, opts)

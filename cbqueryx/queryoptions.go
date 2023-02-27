@@ -1,9 +1,9 @@
-package gocbcorex
+package cbqueryx
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,7 +36,7 @@ const (
 // QueryOptions represents the options available when executing a query.
 type QueryOptions struct {
 	ScanConsistency QueryScanConsistency
-	ConsistentWith  *MutationState
+	ConsistentWith  map[string]map[string][]uint64
 	Profile         QueryProfileMode
 
 	// ScanCap is the maximum buffered channel size between the indexer connectionManager and the query service for index scans.
@@ -58,12 +58,12 @@ type QueryOptions struct {
 	// ClientContextID provides a unique ID for this query which can be used matching up requests between connectionManager and
 	// server. If not provided will be assigned a uuid value.
 	ClientContextID      string
-	PositionalParameters []interface{}
-	NamedParameters      map[string]interface{}
+	PositionalParameters []json.RawMessage
+	NamedParameters      map[string]json.RawMessage
 	Metrics              bool
 
 	// Raw provides a way to provide extra parameters in the request body for the query.
-	Raw map[string]interface{}
+	Raw map[string]json.RawMessage
 
 	// FlexIndex tells the query engine to use a flex index (utilizing the search service).
 	FlexIndex bool
@@ -75,13 +75,17 @@ type QueryOptions struct {
 
 	// Endpoint overrides internal routing of requests to send a request directly to an endpoint.
 	Endpoint string
+
+	QueryContext string
+
+	OnBehalfOf string
 }
 
 func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, error) {
 	execOpts := make(map[string]interface{})
 
 	if opts.ScanConsistency != 0 && opts.ConsistentWith != nil {
-		return nil, invalidArgumentError{"scan consistency and consistent with must be used exclusively"}
+		return nil, InvalidArgumentError{"scan consistency and consistent with must be used exclusively"}
 	}
 
 	if opts.ScanConsistency != 0 {
@@ -90,7 +94,7 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 		} else if opts.ScanConsistency == QueryScanConsistencyRequestPlus {
 			execOpts["scan_consistency"] = "request_plus"
 		} else {
-			return nil, invalidArgumentError{"unexpected consistency option, allowed values are " +
+			return nil, InvalidArgumentError{"unexpected consistency option, allowed values are " +
 				"QueryScanConsistencyNotBounded and QueryScanConsistencyRequestPlus"}
 		}
 	}
@@ -109,7 +113,7 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 	}
 
 	if opts.PositionalParameters != nil && opts.NamedParameters != nil {
-		return nil, invalidArgumentError{"positional and named parameters must be used exclusively"}
+		return nil, InvalidArgumentError{"positional and named parameters must be used exclusively"}
 	}
 
 	if opts.PositionalParameters != nil {
@@ -118,9 +122,6 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 
 	if opts.NamedParameters != nil {
 		for key, value := range opts.NamedParameters {
-			if !strings.HasPrefix(key, "$") {
-				key = "$" + key
-			}
 			execOpts[key] = value
 		}
 	}
@@ -159,10 +160,6 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 		execOpts["max_parallelism"] = strconv.FormatUint(uint64(opts.MaxParallelism), 10)
 	}
 
-	if !opts.Metrics {
-		execOpts["metrics"] = false
-	}
-
 	if opts.ClientContextID == "" {
 		execOpts["client_context_id"] = uuid.New()
 	} else {
@@ -179,6 +176,10 @@ func (opts *QueryOptions) toMap(ctx context.Context) (map[string]interface{}, er
 
 	if deadline, ok := ctx.Deadline(); ok {
 		execOpts["timeout"] = time.Until(deadline).String()
+	}
+
+	if len(opts.QueryContext) > 0 {
+		execOpts["query_context"] = opts.QueryContext
 	}
 
 	execOpts["statement"] = opts.Statement

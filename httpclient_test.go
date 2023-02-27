@@ -18,7 +18,6 @@ func TestHTTPClientNewAppliesConfig(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
-		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
 	}
 	clientMock := &BaseHTTPClientMock{}
@@ -62,7 +61,6 @@ func TestHTTPClientNewErrorFromNewBaseClient(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
-		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
 	}
 	opts := &HTTPClientOptions{
@@ -89,7 +87,6 @@ func TestHTTPClientReconfigureAppliesConfig(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
-		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
 	}
 	newCfg := &HTTPClientConfig{
@@ -98,7 +95,6 @@ func TestHTTPClientReconfigureAppliesConfig(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2", "mgmt3"},
-		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: []string{"search1"},
 	}
 	clientMock := &BaseHTTPClientMock{}
@@ -134,7 +130,6 @@ func TestHTTPClientReconfigureAppliesConfigWithoutCreds(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2"},
-		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: nil,
 	}
 	newCfg := &HTTPClientConfig{
@@ -143,7 +138,6 @@ func TestHTTPClientReconfigureAppliesConfigWithoutCreds(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"mgmt1", "mgmt2", "mgmt3"},
-		QueryEndpoints:  []string{"query1"},
 		SearchEndpoints: []string{"search1"},
 	}
 	clientMock := &BaseHTTPClientMock{}
@@ -173,7 +167,6 @@ func TestHTTPClientReconfigureAppliesConfigWithoutCreds(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   newCfg.MgmtEndpoints,
-		QueryEndpoints:  newCfg.QueryEndpoints,
 		SearchEndpoints: newCfg.SearchEndpoints,
 	})
 
@@ -188,7 +181,6 @@ func TestHTTPClientDo(t *testing.T) {
 	cfg := &HTTPClientConfig{
 		Authenticator:   auth,
 		MgmtEndpoints:   []string{"http://mgmt1", "http://mgmt2"},
-		QueryEndpoints:  []string{"http://query1"},
 		SearchEndpoints: nil,
 	}
 	opts := &HTTPClientOptions{
@@ -260,7 +252,6 @@ func TestHTTPClientDoPassthroughNonDefaults(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"http://mgmt1", "http://mgmt2"},
-		QueryEndpoints:  []string{"http://query1"},
 		SearchEndpoints: nil,
 	}
 	opts := &HTTPClientOptions{
@@ -326,7 +317,6 @@ func TestHTTPClientDoUnsupportedService(t *testing.T) {
 			Password: "password",
 		},
 		MgmtEndpoints:   []string{"http://mgmt1", "http://mgmt2"},
-		QueryEndpoints:  []string{"http://query1"},
 		SearchEndpoints: nil,
 	}
 	opts := &HTTPClientOptions{
@@ -370,6 +360,5 @@ func assertHTTPClientState(t *testing.T, cli *httpClient, cfg *HTTPClientConfig)
 
 	assert.Equal(t, cfg.Authenticator, state.authenticator)
 	assert.Equal(t, cfg.MgmtEndpoints, state.mgmtEndpoints)
-	assert.Equal(t, cfg.QueryEndpoints, state.queryEndpoints)
 	assert.Equal(t, cfg.SearchEndpoints, state.searchEndpoints)
 }
