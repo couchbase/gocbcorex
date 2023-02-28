@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/couchbase/gocbcore/v10/connstr"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
@@ -147,4 +150,11 @@ func SkipIfShortTest(t *testing.T) {
 	if !TestOpts.LongTest {
 		t.Skipf("skipping long test")
 	}
+}
+
+func MakeTestLogger(t *testing.T) *zap.Logger {
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	return logger
 }

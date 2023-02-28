@@ -61,7 +61,7 @@ func (qc Query) PreparedQuery(ctx context.Context, opts *QueryOptions) (*QueryRo
 		return nil, err
 	}
 
-	if !ok {
+	if ok {
 		// Attempt to execute our cached query plan
 		delete(payload, "statement")
 		payload["prepared"] = cachedStmt
