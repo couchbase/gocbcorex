@@ -29,6 +29,7 @@ type TestOptions struct {
 	BucketName        string
 	SupportedFeatures []TestFeature
 	RunName           string
+	OriginalConnStr   string
 }
 
 func addSupportedFeature(feat TestFeature) {
@@ -88,6 +89,7 @@ func SetupTests(m *testing.M) {
 		if TestOpts.BucketName == "" {
 			TestOpts.BucketName = "default"
 		}
+		TestOpts.OriginalConnStr = *connStr
 	}
 
 	// default supported features
@@ -172,4 +174,33 @@ func LoadTestData(t *testing.T, filename string) []byte {
 	require.NoError(t, err)
 
 	return b
+}
+
+func FudgeConnStringToTLS(t *testing.T, connStr string) ([]string, []string) {
+	split := strings.Split(connStr, "://")
+	var baseConnStr string
+	if len(split) == 1 {
+		baseConnStr = split[0]
+	} else {
+		baseConnStr = split[1]
+	}
+	baseConnStr = "couchbases://" + baseConnStr
+
+	baseSpec, err := connstr.Parse(baseConnStr)
+	require.NoError(t, err)
+
+	spec, err := connstr.Resolve(baseSpec)
+	require.NoError(t, err)
+
+	var httpHosts []string
+	for _, specHost := range spec.HttpHosts {
+		httpHosts = append(httpHosts, fmt.Sprintf("%s:%d", specHost.Host, specHost.Port))
+	}
+
+	var memdHosts []string
+	for _, specHost := range spec.MemdHosts {
+		memdHosts = append(memdHosts, fmt.Sprintf("%s:%d", specHost.Host, specHost.Port))
+	}
+
+	return memdHosts, httpHosts
 }

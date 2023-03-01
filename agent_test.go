@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"crypto/tls"
 	"strings"
 	"testing"
 
@@ -66,6 +67,122 @@ func TestAgentBasic(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, getRes.Cas)
 	assert.NotEmpty(t, getRes.Value)
+
+	err = agent.Close()
+	require.NoError(t, err)
+}
+
+func TestAgentBasicTLSInsecure(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	opts := CreateDefaultAgentOptions()
+	opts.TLSConfig = &tls.Config{
+		RootCAs:            nil,
+		InsecureSkipVerify: true,
+	}
+
+	memdHosts, httpHosts := testutils.FudgeConnStringToTLS(t, testutils.TestOpts.OriginalConnStr)
+
+	opts.SeedConfig.MemdAddrs = memdHosts
+	opts.SeedConfig.HTTPAddrs = httpHosts
+
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
+
+	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, upsertRes.Cas)
+
+	getRes, err := agent.Get(context.Background(), &GetOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, getRes.Cas)
+	assert.NotEmpty(t, getRes.Value)
+
+	err = agent.Close()
+	require.NoError(t, err)
+}
+
+func TestAgentReconfigureNoTLSToTLS(t *testing.T) {
+	t.Skip("Skipping test as Reconfigure not fully implemented yet")
+	testutils.SkipIfShortTest(t)
+
+	opts := CreateDefaultAgentOptions()
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
+
+	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, upsertRes.Cas)
+
+	err = agent.Reconfigure(&AgentReconfigureOptions{
+		TLSConfig: &tls.Config{
+			RootCAs:            nil,
+			InsecureSkipVerify: true,
+		},
+		Authenticator: opts.Authenticator,
+		BucketName:    opts.BucketName,
+	})
+	require.NoError(t, err)
+
+	upsertRes, err = agent.Upsert(context.Background(), &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, upsertRes.Cas)
+
+	err = agent.Close()
+	require.NoError(t, err)
+}
+
+func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
+	t.Skip("Skipping test as Reconfigure not fully implemented yet")
+	testutils.SkipIfShortTest(t)
+
+	opts := CreateDefaultAgentOptions()
+	opts.BucketName = ""
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
+
+	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.Error(t, err)
+
+	err = agent.Reconfigure(&AgentReconfigureOptions{
+		TLSConfig:     opts.TLSConfig,
+		Authenticator: opts.Authenticator,
+		BucketName:    testutils.TestOpts.BucketName,
+	})
+	require.NoError(t, err)
+
+	upsertRes, err = agent.Upsert(context.Background(), &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, upsertRes.Cas)
 
 	err = agent.Close()
 	require.NoError(t, err)

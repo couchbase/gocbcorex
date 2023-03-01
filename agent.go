@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -97,9 +98,34 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	logger := loggerOrNop(opts.Logger)
 	httpUserAgent := "gocbcorex/0.0.1-dev"
 
+	httpDialer := &net.Dialer{
+		// Timeout:   connectTimeout,
+		KeepAlive: 30 * time.Second,
+	}
+
+	httpTransport := &http.Transport{
+		ForceAttemptHTTP2: true,
+
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return httpDialer.DialContext(ctx, network, addr)
+		},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			tcpConn, err := httpDialer.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+
+			tlsConn := tls.Client(tcpConn, opts.TLSConfig)
+			return tlsConn, nil
+		},
+		// MaxIdleConns:        maxIdleConns,
+		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
+		// IdleConnTimeout:     idleTimeout,
+	}
+
 	bootstrapper, err := NewConfigBootstrapHttp(ConfigBoostrapHttpOptions{
 		Logger:           logger.Named("http-bootstrap"),
-		HttpRoundTripper: http.DefaultTransport,
+		HttpRoundTripper: httpTransport,
 		Endpoints:        srcHTTPAddrs,
 		UserAgent:        httpUserAgent,
 		Authenticator:    opts.Authenticator,
@@ -278,9 +304,34 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		}
 	}
 
+	httpDialer := &net.Dialer{
+		// Timeout:   connectTimeout,
+		KeepAlive: 30 * time.Second,
+	}
+
+	httpTransport := &http.Transport{
+		ForceAttemptHTTP2: true,
+
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return httpDialer.DialContext(ctx, network, addr)
+		},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			tcpConn, err := httpDialer.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+
+			tlsConn := tls.Client(tcpConn, agent.state.tlsConfig)
+			return tlsConn, nil
+		},
+		// MaxIdleConns:        maxIdleConns,
+		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
+		// IdleConnTimeout:     idleTimeout,
+	}
+
 	return &agentComponentConfigs{
 		ConfigWatcherHttpConfig: ConfigWatcherHttpConfig{
-			HttpRoundTripper: http.DefaultTransport,
+			HttpRoundTripper: httpTransport,
 			Endpoints:        mgmtEndpoints,
 			UserAgent:        httpUserAgent,
 			Authenticator:    agent.state.authenticator,
@@ -295,7 +346,7 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 			ServerList: kvDataNodeIds,
 		},
 		QueryComponentConfig: QueryComponentConfig{
-			HttpRoundTripper: http.DefaultTransport,
+			HttpRoundTripper: httpTransport,
 			Endpoints:        queryEndpoints,
 			UserAgent:        httpUserAgent,
 			Authenticator:    agent.state.authenticator,
@@ -356,8 +407,8 @@ func (agent *Agent) applyConfig(config *ParsedConfig) {
 
 func (agent *Agent) updateStateLocked() {
 	agent.logger.Debug("updating components",
-		zap.Reflect("state", agent.state),
-		zap.Reflect("config", *agent.state.latestConfig))
+		zap.Any("state", agent.state),
+		zap.Any("config", *agent.state.latestConfig))
 
 	agentComponentConfigs := agent.genAgentComponentConfigsLocked()
 
