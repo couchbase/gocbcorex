@@ -316,26 +316,6 @@ func TestAgentCrudDecompress(t *testing.T) {
 	}
 }
 
-func TestAgentBasicHTTP(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	agent := CreateDefaultAgent(t)
-
-	resp, err := agent.SendHTTPRequest(context.Background(), &HTTPRequest{
-		Service: MgmtService,
-		Path:    "/pools/default/nodeServices",
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, 200, resp.Raw.StatusCode)
-
-	err = resp.Raw.Body.Close()
-	require.NoError(t, err)
-
-	err = agent.Close()
-	require.NoError(t, err)
-}
-
 func BenchmarkBasicGet(b *testing.B) {
 	opts := AgentOptions{
 		TLSConfig: nil,

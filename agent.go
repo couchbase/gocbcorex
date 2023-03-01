@@ -36,10 +36,8 @@ type Agent struct {
 	collections    CollectionResolver
 	retries        RetryManager
 	vbRouter       VbucketRouter
-	httpMgr        HTTPClientManager
 
 	crud  *CrudComponent
-	http  *HTTPComponent
 	query *QueryComponent
 }
 
@@ -58,8 +56,8 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	// Default values.
 	compressionMinSize := 32
 	compressionMinRatio := 0.83
-	httpIdleConnTimeout := 4500 * time.Millisecond
-	httpConnectTimeout := 30 * time.Second
+	// httpIdleConnTimeout := 4500 * time.Millisecond
+	// httpConnectTimeout := 30 * time.Second
 	/*
 		confHTTPRetryDelay := 10 * time.Second
 		confHTTPRedialPeriod := 10 * time.Second
@@ -78,22 +76,22 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			compressionMinRatio = 1.0
 		}
 	}
-	if opts.HTTPConfig.IdleConnectionTimeout > 0 {
-		httpIdleConnTimeout = opts.HTTPConfig.IdleConnectionTimeout
-	}
-	if opts.HTTPConfig.ConnectTimeout > 0 {
-		httpConnectTimeout = opts.HTTPConfig.ConnectTimeout
-	}
 	/*
-		if opts.ConfigPollerConfig.HTTPRetryDelay > 0 {
-			confHTTPRetryDelay = opts.ConfigPollerConfig.HTTPRetryDelay
+		if opts.HTTPConfig.IdleConnectionTimeout > 0 {
+			httpIdleConnTimeout = opts.HTTPConfig.IdleConnectionTimeout
 		}
-		if opts.ConfigPollerConfig.HTTPRedialPeriod > 0 {
-			confHTTPRedialPeriod = opts.ConfigPollerConfig.HTTPRedialPeriod
+		if opts.HTTPConfig.ConnectTimeout > 0 {
+			httpConnectTimeout = opts.HTTPConfig.ConnectTimeout
 		}
-		if opts.ConfigPollerConfig.HTTPMaxWait > 0 {
-			confHTTPMaxWait = opts.ConfigPollerConfig.HTTPMaxWait
-		}
+			if opts.ConfigPollerConfig.HTTPRetryDelay > 0 {
+				confHTTPRetryDelay = opts.ConfigPollerConfig.HTTPRetryDelay
+			}
+			if opts.ConfigPollerConfig.HTTPRedialPeriod > 0 {
+				confHTTPRedialPeriod = opts.ConfigPollerConfig.HTTPRedialPeriod
+			}
+			if opts.ConfigPollerConfig.HTTPMaxWait > 0 {
+				confHTTPMaxWait = opts.ConfigPollerConfig.HTTPMaxWait
+			}
 	*/
 
 	logger := loggerOrNop(opts.Logger)
@@ -165,21 +163,6 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 	agent.collections = collections
 
-	httpMgr, err := NewHTTPClientManager(
-		&agentComponentConfigs.HTTPClientManager,
-		&HTTPClientManagerOptions{
-			Logger:         agent.logger,
-			ConnectTimeout: httpConnectTimeout,
-			IdleTimeout:    httpIdleConnTimeout,
-			// We default these values to whatever the Go HTTP library defaults are.
-			MaxIdleConns:        opts.HTTPConfig.MaxIdleConns,
-			MaxIdleConnsPerHost: opts.HTTPConfig.MaxIdleConnsPerHost,
-		})
-	if err != nil {
-		return nil, err
-	}
-	agent.httpMgr = httpMgr
-
 	agent.vbRouter = NewVbucketRouter(&VbucketRouterOptions{
 		Logger: agent.logger,
 	})
@@ -228,11 +211,6 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			disableDecompression: disableDecompression,
 		},
 	}
-	agent.http = &HTTPComponent{
-		logger:  agent.logger,
-		httpMgr: agent.httpMgr,
-		retries: agent.retries,
-	}
 	agent.query = NewQueryComponent(
 		agent.retries,
 		&agentComponentConfigs.QueryComponentConfig,
@@ -249,7 +227,6 @@ type agentComponentConfigs struct {
 	ConfigWatcherMemdConfig ConfigWatcherMemdConfig
 	KvClientManagerClients  map[string]*KvClientConfig
 	VbucketRoutingInfo      *VbucketRoutingInfo
-	HTTPClientManager       HTTPClientManagerConfig
 	QueryComponentConfig    QueryComponentConfig
 }
 
@@ -316,14 +293,6 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		VbucketRoutingInfo: &VbucketRoutingInfo{
 			VbMap:      agent.state.latestConfig.VbucketMap,
 			ServerList: kvDataNodeIds,
-		},
-		HTTPClientManager: HTTPClientManagerConfig{
-			HTTPClientConfig: HTTPClientConfig{
-				Authenticator:   agent.state.authenticator,
-				MgmtEndpoints:   mgmtEndpoints,
-				SearchEndpoints: searchEndpoints,
-			},
-			TLSConfig: agent.state.tlsConfig,
 		},
 		QueryComponentConfig: QueryComponentConfig{
 			HttpRoundTripper: http.DefaultTransport,
@@ -426,8 +395,6 @@ func (agent *Agent) updateStateLocked() {
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            agentComponentConfigs.KvClientManagerClients,
 	})
-
-	agent.httpMgr.Reconfigure(&agentComponentConfigs.HTTPClientManager)
 
 	agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
 
