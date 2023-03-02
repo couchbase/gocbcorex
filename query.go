@@ -2,9 +2,7 @@ package gocbcorex
 
 import (
 	"context"
-	"math/rand"
 	"net/http"
-	"sync"
 
 	"github.com/couchbase/gocbcorex/cbqueryx"
 	"go.uber.org/zap"
@@ -15,13 +13,11 @@ type QueryResultStream = cbqueryx.QueryResultStream
 type PreparedStatementCache = cbqueryx.PreparedStatementCache
 
 type QueryComponent struct {
+	baseHttpComponent
+
 	logger        *zap.Logger
 	retries       RetryManager
 	preparedCache *PreparedStatementCache
-	userAgent     string
-
-	lock  sync.RWMutex
-	state *queryComponentState
 }
 
 type QueryComponentConfig struct {
@@ -35,12 +31,6 @@ type QueryComponentOptions struct {
 	UserAgent string
 }
 
-type queryComponentState struct {
-	httpRoundTripper http.RoundTripper
-	endpoints        []string
-	authenticator    Authenticator
-}
-
 func OrchestrateQueryEndpoint[RespT any](
 	ctx context.Context,
 	w *QueryComponent,
@@ -49,45 +39,21 @@ func OrchestrateQueryEndpoint[RespT any](
 	var recentEndpoints []string
 
 	for {
-		w.lock.RLock()
-		state := *w.state
-		w.lock.RUnlock()
+		roundTripper, endpoint, username, password, err := w.SelectEndpoint(recentEndpoints)
+		if err != nil {
+			var emptyResp RespT
+			return emptyResp, err
+		}
 
-		// if there are no endpoints to query, we can't proceed
-		if len(state.endpoints) == 0 {
+		if endpoint == "" {
 			var emptyResp RespT
 			return emptyResp, ErrServiceNotAvailable
 		}
-
-		// remove all the endpoints we've already tried
-		remainingEndpoints := filterStringsOut(state.endpoints, recentEndpoints)
-
-		// if there are no more endpoints to try, we can't proceed
-		if len(remainingEndpoints) == 0 {
-			// TODO(brett19): Decide if this is the right error to return...
-			var emptyResp RespT
-			return emptyResp, ErrServiceNotAvailable
-		}
-
-		// pick a random endpoint to attempt
-		endpoint := remainingEndpoints[rand.Intn(len(remainingEndpoints))]
 
 		// mark the selected endpoint as having been tried
 		recentEndpoints = append(recentEndpoints, endpoint)
 
-		host, err := getHostFromUri(endpoint)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		username, password, err := state.authenticator.GetCredentials(QueryService, host)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		res, err := fn(state.httpRoundTripper, endpoint, username, password)
+		res, err := fn(roundTripper, endpoint, username, password)
 		if err != nil {
 			// TODO(brett19): Handle certain kinds of errors that mean sending to a different node...
 			if false {
@@ -105,21 +71,24 @@ func OrchestrateQueryEndpoint[RespT any](
 
 func NewQueryComponent(retries RetryManager, config *QueryComponentConfig, opts *QueryComponentOptions) *QueryComponent {
 	return &QueryComponent{
-		logger:    opts.Logger,
-		userAgent: opts.UserAgent,
-		retries:   retries,
-		state: &queryComponentState{
-			httpRoundTripper: config.HttpRoundTripper,
-			endpoints:        config.Endpoints,
-			authenticator:    config.Authenticator,
+		baseHttpComponent: baseHttpComponent{
+			serviceType: QueryService,
+			userAgent:   opts.UserAgent,
+			state: &baseHttpComponentState{
+				httpRoundTripper: config.HttpRoundTripper,
+				endpoints:        config.Endpoints,
+				authenticator:    config.Authenticator,
+			},
 		},
+		logger:        opts.Logger,
+		retries:       retries,
 		preparedCache: cbqueryx.NewPreparedStatementCache(),
 	}
 }
 
 func (w *QueryComponent) Reconfigure(config *QueryComponentConfig) error {
 	w.lock.Lock()
-	w.state = &queryComponentState{
+	w.state = &baseHttpComponentState{
 		httpRoundTripper: config.HttpRoundTripper,
 		endpoints:        config.Endpoints,
 		authenticator:    config.Authenticator,
