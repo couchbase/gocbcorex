@@ -3,7 +3,10 @@ package testutils
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -157,4 +160,16 @@ func MakeTestLogger(t *testing.T) *zap.Logger {
 	require.NoError(t, err)
 
 	return logger
+}
+
+func LoadTestData(t *testing.T, filename string) []byte {
+	_, root, _, _ := runtime.Caller(0)
+	dir := path.Join(path.Dir(root), "..")
+	err := os.Chdir(dir)
+	require.NoError(t, err)
+
+	b, err := ioutil.ReadFile(dir + "/testdata/" + filename)
+	require.NoError(t, err)
+
+	return b
 }
