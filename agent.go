@@ -40,6 +40,7 @@ type Agent struct {
 
 	crud  *CrudComponent
 	query *QueryComponent
+	mgmt  *MgmtComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -245,6 +246,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			UserAgent: httpUserAgent,
 		},
 	)
+	agent.mgmt = NewMgmtComponent(
+		agent.retries,
+		&agentComponentConfigs.MgmtComponentConfig,
+		&MgmtComponentOptions{
+			Logger:    logger,
+			UserAgent: httpUserAgent,
+		},
+	)
 
 	return agent, nil
 }
@@ -255,6 +264,7 @@ type agentComponentConfigs struct {
 	KvClientManagerClients  map[string]*KvClientConfig
 	VbucketRoutingInfo      *VbucketRoutingInfo
 	QueryComponentConfig    QueryComponentConfig
+	MgmtComponentConfig     MgmtComponentConfig
 }
 
 func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
@@ -349,6 +359,11 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		QueryComponentConfig: QueryComponentConfig{
 			HttpRoundTripper: httpTransport,
 			Endpoints:        queryEndpoints,
+			Authenticator:    agent.state.authenticator,
+		},
+		MgmtComponentConfig: MgmtComponentConfig{
+			HttpRoundTripper: httpTransport,
+			Endpoints:        mgmtEndpoints,
 			Authenticator:    agent.state.authenticator,
 		},
 	}
@@ -448,6 +463,7 @@ func (agent *Agent) updateStateLocked() {
 	})
 
 	agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
+	agent.mgmt.Reconfigure(&agentComponentConfigs.MgmtComponentConfig)
 
 	if agent.httpCfgWatcher != nil {
 		agent.httpCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
