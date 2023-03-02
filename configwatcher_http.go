@@ -8,7 +8,6 @@ import (
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
-	"golang.org/x/exp/slices"
 )
 
 type ConfigWatcherHttpConfig struct {
@@ -146,12 +145,7 @@ func (w *ConfigWatcherHttp) watchThread(ctx context.Context, outCh chan<- *Parse
 		}
 
 		// remove the most recently polled endpoints
-		var remainingEndpoints []string
-		for _, endpoint := range state.endpoints {
-			if !slices.Contains(recentEndpoints, endpoint) {
-				remainingEndpoints = append(remainingEndpoints, endpoint)
-			}
-		}
+		remainingEndpoints := filterStringsOut(state.endpoints, recentEndpoints)
 
 		// if there are no endpoints left, we reset the lists
 		if len(remainingEndpoints) == 0 {

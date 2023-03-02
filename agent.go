@@ -241,7 +241,8 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		agent.retries,
 		&agentComponentConfigs.QueryComponentConfig,
 		&QueryComponentOptions{
-			Logger: logger,
+			Logger:    logger,
+			UserAgent: httpUserAgent,
 		},
 	)
 
@@ -348,7 +349,6 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		QueryComponentConfig: QueryComponentConfig{
 			HttpRoundTripper: httpTransport,
 			Endpoints:        queryEndpoints,
-			UserAgent:        httpUserAgent,
 			Authenticator:    agent.state.authenticator,
 		},
 	}

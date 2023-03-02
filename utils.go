@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
 func getHostFromUri(uri string) (string, error) {
@@ -28,4 +30,14 @@ func hostFromHostPort(hostport string) (string, error) {
 	}
 
 	return host, nil
+}
+
+func filterStringsOut(strs []string, toRemove []string) []string {
+	out := make([]string, 0, len(strs))
+	for _, str := range strs {
+		if !slices.Contains(toRemove, str) {
+			out = append(out, str)
+		}
+	}
+	return out
 }
