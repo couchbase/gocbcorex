@@ -89,15 +89,59 @@ func (w *MgmtComponent) Reconfigure(config *MgmtComponentConfig) error {
 	return nil
 }
 
-func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
+func OrchestrateSimpleMgmtCall[OptsT any, RespT any](
+	ctx context.Context,
+	w *MgmtComponent,
+	execFn func(o cbmgmtx.Management, ctx context.Context, req OptsT) (RespT, error),
+	opts OptsT,
+) (RespT, error) {
 	return OrchestrateMgmtEndpoint(ctx, w,
-		func(roundTripper http.RoundTripper, endpoint, username, password string) (*cbmgmtx.CollectionManifestJson, error) {
-			return cbmgmtx.Management{
+		func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error) {
+			return execFn(cbmgmtx.Management{
 				UserAgent: w.userAgent,
 				Transport: roundTripper,
 				Endpoint:  endpoint,
 				Username:  username,
 				Password:  password,
-			}.GetCollectionManifest(ctx, opts)
+			}, ctx, opts)
 		})
+}
+
+func OrchestrateNoResMgmtCall[OptsT any](
+	ctx context.Context,
+	w *MgmtComponent,
+	execFn func(o cbmgmtx.Management, ctx context.Context, req OptsT) error,
+	opts OptsT,
+) error {
+	_, err := OrchestrateMgmtEndpoint(ctx, w,
+		func(roundTripper http.RoundTripper, endpoint, username, password string) (interface{}, error) {
+			return nil, execFn(cbmgmtx.Management{
+				UserAgent: w.userAgent,
+				Transport: roundTripper,
+				Endpoint:  endpoint,
+				Username:  username,
+				Password:  password,
+			}, ctx, opts)
+		})
+	return err
+}
+
+func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetCollectionManifest, opts)
+}
+
+func (w *MgmtComponent) CreateScope(ctx context.Context, opts *cbmgmtx.CreateScopeOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.CreateScope, opts)
+}
+
+func (w *MgmtComponent) DeleteScope(ctx context.Context, opts *cbmgmtx.DeleteScopeOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteScope, opts)
+}
+
+func (w *MgmtComponent) CreateCollection(ctx context.Context, opts *cbmgmtx.CreateCollectionOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.CreateCollection, opts)
+}
+
+func (w *MgmtComponent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteCollection, opts)
 }
