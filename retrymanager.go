@@ -56,11 +56,11 @@ func OrchestrateMemdRetries[RespT any](
 	}
 }
 
-func OrchestrateQueryRetries(
+func OrchestrateQueryRetries[RespT any](
 	ctx context.Context,
 	rs RetryManager,
-	fn func() (*QueryRowReader, error),
-) (*QueryRowReader, error) {
+	fn func() (RespT, error),
+) (RespT, error) {
 	var opRetryController RetryController
 	var lastErr error
 	for {

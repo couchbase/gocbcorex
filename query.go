@@ -2,7 +2,6 @@ package gocbcorex
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -11,42 +10,8 @@ import (
 	"go.uber.org/zap"
 )
 
-func OrchestrateQuery[RespT any](ctx context.Context, fn func() (RespT, error)) (RespT, error) {
-	res, err := fn()
-	if err != nil {
-		// TODO(brett19): Possibly retry some errors
-		return res, err
-	}
-
-	return res, nil
-}
-
-// makeHTTPClient creates a client with the specified round tripper and CheckRedirect set so that
-// retries contain auth details.
-func makeHTTPClient(roundTripper http.RoundTripper) *http.Client {
-	return &http.Client{
-		Transport: roundTripper,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// All that we're doing here is setting auth on any redirects.
-			// For that reason we can just pull it off the oldest (first) request.
-			if len(via) >= 10 {
-				// Just duplicate the default behaviour for maximum redirects.
-				return errors.New("stopped after 10 redirects")
-			}
-
-			oldest := via[0]
-			auth := oldest.Header.Get("Authorization")
-			if auth != "" {
-				req.Header.Set("Authorization", auth)
-			}
-
-			return nil
-		},
-	}
-}
-
 type QueryOptions = cbqueryx.QueryOptions
-type QueryRowReader = cbqueryx.QueryRowReader
+type QueryResultStream = cbqueryx.QueryResultStream
 type PreparedStatementCache = cbqueryx.PreparedStatementCache
 
 type QueryComponent struct {
@@ -102,21 +67,17 @@ func (w *QueryComponent) Reconfigure(config *QueryComponentConfig) error {
 	return nil
 }
 
-func (w *QueryComponent) Query(ctx context.Context, opts *QueryOptions) (*QueryRowReader, error) {
-	return OrchestrateQueryRetries(ctx, w.retries, func() (*QueryRowReader, error) {
+func (w *QueryComponent) Query(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
+	return OrchestrateQueryRetries(ctx, w.retries, func() (QueryResultStream, error) {
 		w.lock.RLock()
 		state := *w.state
 		w.lock.RUnlock()
-		endpoint := opts.Endpoint
-		if endpoint == "" {
-			var err error
-			endpoint, err = randFromServiceEndpoints(state.endpoints, nil)
-			if err != nil {
-				return nil, err
-			}
 
-			opts.Endpoint = endpoint // TODO(chvck): this isn't right, it'll alter the options we've given.
+		endpoint, err := randFromServiceEndpoints(state.endpoints, nil)
+		if err != nil {
+			return nil, err
 		}
+
 		host, err := getHostFromUri(endpoint)
 		if err != nil {
 			return nil, err
@@ -127,35 +88,28 @@ func (w *QueryComponent) Query(ctx context.Context, opts *QueryOptions) (*QueryR
 			return nil, err
 		}
 
-		httpClient := makeHTTPClient(state.httpRoundTripper)
-		return OrchestrateQuery(ctx, func() (*cbqueryx.QueryRowReader, error) {
-			return cbqueryx.Query{
-				HttpClient: httpClient,
-				Logger:     w.logger,
-				QueryCache: nil,
-				UserAgent:  state.userAgent,
-				Username:   username,
-				Password:   password,
-			}.Query(ctx, opts)
-		})
+		return cbqueryx.Query{
+			Logger:    w.logger,
+			Transport: state.httpRoundTripper,
+			UserAgent: state.userAgent,
+			Endpoint:  endpoint,
+			Username:  username,
+			Password:  password,
+		}.Query(ctx, opts)
 	})
 }
 
-func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) (*QueryRowReader, error) {
-	return OrchestrateQueryRetries(ctx, w.retries, func() (*QueryRowReader, error) {
+func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
+	return OrchestrateQueryRetries(ctx, w.retries, func() (QueryResultStream, error) {
 		w.lock.RLock()
 		state := *w.state
 		w.lock.RUnlock()
-		endpoint := opts.Endpoint
-		if endpoint == "" {
-			var err error
-			endpoint, err = randFromServiceEndpoints(state.endpoints, nil)
-			if err != nil {
-				return nil, err
-			}
 
-			opts.Endpoint = endpoint // TODO(chvck): this isn't right, it'll alter the options we've given.
+		endpoint, err := randFromServiceEndpoints(state.endpoints, nil)
+		if err != nil {
+			return nil, err
 		}
+
 		host, err := getHostFromUri(endpoint)
 		if err != nil {
 			return nil, err
@@ -166,17 +120,17 @@ func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) 
 			return nil, err
 		}
 
-		httpClient := makeHTTPClient(state.httpRoundTripper)
-		return OrchestrateQuery(ctx, func() (*cbqueryx.QueryRowReader, error) {
-			return cbqueryx.Query{
-				HttpClient: httpClient,
-				Logger:     w.logger,
-				QueryCache: w.preparedCache,
-				UserAgent:  state.userAgent,
-				Username:   username,
-				Password:   password,
-			}.PreparedQuery(ctx, opts)
-		})
+		return cbqueryx.PreparedQuery{
+			Executor: cbqueryx.Query{
+				Logger:    w.logger,
+				Transport: state.httpRoundTripper,
+				UserAgent: state.userAgent,
+				Endpoint:  endpoint,
+				Username:  username,
+				Password:  password,
+			},
+			Cache: w.preparedCache,
+		}.PreparedQuery(ctx, opts)
 	})
 }
 

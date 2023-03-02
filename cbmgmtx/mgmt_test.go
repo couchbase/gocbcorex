@@ -1,21 +1,20 @@
-package cbhttpx
+package cbmgmtx
 
 import (
 	"context"
-	"net/http"
 	"testing"
 
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 )
 
-func getHttpMgmt() *HttpManagement {
-	return &HttpManagement{
-		HttpClient: &http.Client{},
-		UserAgent:  "gocbcorex test",
-		Endpoint:   "http://" + testutils.TestOpts.HTTPAddrs[0],
-		Username:   testutils.TestOpts.Username,
-		Password:   testutils.TestOpts.Password,
+func getHttpMgmt() *Management {
+	return &Management{
+		Transport: nil,
+		UserAgent: "gocbcorex test",
+		Endpoint:  "http://" + testutils.TestOpts.HTTPAddrs[0],
+		Username:  testutils.TestOpts.Username,
+		Password:  testutils.TestOpts.Password,
 	}
 }
 

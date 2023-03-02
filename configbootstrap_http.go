@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/couchbase/gocbcorex/cbhttpx"
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
 )
 
@@ -62,10 +62,8 @@ func configBootstrapHttp_bootstrapOne(
 
 	var parsedConfig *ParsedConfig
 	if bucketName == "" {
-		resp, err := cbhttpx.HttpManagement{
-			HttpClient: &http.Client{
-				Transport: httpRoundTripper,
-			},
+		resp, err := cbmgmtx.Management{
+			Transport: httpRoundTripper,
 			UserAgent: userAgent,
 			Endpoint:  endpoint,
 			Username:  username,
@@ -80,10 +78,8 @@ func configBootstrapHttp_bootstrapOne(
 			return nil, "", err
 		}
 	} else {
-		resp, err := cbhttpx.HttpManagement{
-			HttpClient: &http.Client{
-				Transport: httpRoundTripper,
-			},
+		resp, err := cbmgmtx.Management{
+			Transport: httpRoundTripper,
 			UserAgent: userAgent,
 			Endpoint:  endpoint,
 			Username:  username,

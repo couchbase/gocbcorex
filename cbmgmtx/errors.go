@@ -1,4 +1,4 @@
-package cbhttpx
+package cbmgmtx
 
 import (
 	"errors"

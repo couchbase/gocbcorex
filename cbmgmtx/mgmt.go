@@ -1,4 +1,4 @@
-package cbhttpx
+package cbmgmtx
 
 import (
 	"context"
@@ -10,40 +10,45 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
 
-type HttpManagement struct {
-	HttpClient *http.Client
+type Management struct {
+	Transport  http.RoundTripper
 	UserAgent  string
 	Endpoint   string
 	Username   string
 	Password   string
+	OnBehalfOf string
 }
 
-func (h HttpManagement) Do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
-	uri := h.Endpoint + path
-	req, err := http.NewRequestWithContext(ctx, method, uri, body)
+func (h Management) NewRequest(
+	ctx context.Context,
+	method string, path string,
+	contentType string, body io.Reader,
+) (*http.Request, error) {
+	return cbhttpx.RequestBuilder{
+		UserAgent:     h.UserAgent,
+		Endpoint:      h.Endpoint,
+		BasicAuthUser: h.Username,
+		BasicAuthPass: h.Password,
+		CbOnBehalfOf:  h.OnBehalfOf,
+	}.NewRequest(ctx, method, path, contentType, body)
+}
+
+func (h Management) Execute(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := h.NewRequest(ctx, method, path, contentType, body)
 	if err != nil {
 		return nil, err
 	}
 
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
-	if h.UserAgent != "" {
-		req.Header.Set("User-Agent", h.UserAgent)
-	}
-
-	if h.Username != "" || h.Password != "" {
-		req.SetBasicAuth(h.Username, h.Password)
-	}
-
-	return h.HttpClient.Do(req)
+	return cbhttpx.Client{
+		Transport: h.Transport,
+	}.Do(req)
 }
 
-func (h HttpManagement) DecodeCommonError(resp *http.Response) error {
+func (h Management) DecodeCommonError(resp *http.Response) error {
 	if resp.StatusCode == 404 {
 		return ServerError{
 			Cause:      ErrUnsupportedFeature,
@@ -62,8 +67,8 @@ func (h HttpManagement) DecodeCommonError(resp *http.Response) error {
 	}
 }
 
-func (h HttpManagement) GetClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {
-	resp, err := h.Do(ctx, "GET", "/pools/default", "", nil)
+func (h Management) GetClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {
+	resp, err := h.Execute(ctx, "GET", "/pools/default", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +83,8 @@ func (h HttpManagement) GetClusterConfig(ctx context.Context) (*cbconfig.FullCon
 	}.Recv()
 }
 
-func (h HttpManagement) GetTerseClusterConfig(ctx context.Context) (*cbconfig.TerseConfigJson, error) {
-	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServices", "", nil)
+func (h Management) GetTerseClusterConfig(ctx context.Context) (*cbconfig.TerseConfigJson, error) {
+	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServices", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +103,8 @@ type TerseClusterConfig_Stream interface {
 	Recv() (*cbconfig.TerseConfigJson, error)
 }
 
-func (h HttpManagement) StreamTerseClusterConfig(ctx context.Context) (TerseClusterConfig_Stream, error) {
-	resp, err := h.Do(ctx, "GET", "/pools/default/nodeServicesStreaming", "", nil)
+func (h Management) StreamTerseClusterConfig(ctx context.Context) (TerseClusterConfig_Stream, error) {
+	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServicesStreaming", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +119,8 @@ func (h HttpManagement) StreamTerseClusterConfig(ctx context.Context) (TerseClus
 	}, nil
 }
 
-func (h HttpManagement) GetBucketConfig(ctx context.Context, bucketName string) (*cbconfig.FullConfigJson, error) {
-	resp, err := h.Do(ctx, "GET",
+func (h Management) GetBucketConfig(ctx context.Context, bucketName string) (*cbconfig.FullConfigJson, error) {
+	resp, err := h.Execute(ctx, "GET",
 		fmt.Sprintf("/pools/default/buckets/%s", bucketName), "", nil)
 	if err != nil {
 		return nil, err
@@ -131,8 +136,8 @@ func (h HttpManagement) GetBucketConfig(ctx context.Context, bucketName string) 
 	}.Recv()
 }
 
-func (h HttpManagement) GetTerseBucketConfig(ctx context.Context, bucketName string) (*cbconfig.TerseConfigJson, error) {
-	resp, err := h.Do(ctx, "GET",
+func (h Management) GetTerseBucketConfig(ctx context.Context, bucketName string) (*cbconfig.TerseConfigJson, error) {
+	resp, err := h.Execute(ctx, "GET",
 		fmt.Sprintf("/pools/default/b/%s", bucketName), "", nil)
 	if err != nil {
 		return nil, err
@@ -152,8 +157,8 @@ type TerseBucketConfig_Stream interface {
 	Recv() (*cbconfig.TerseConfigJson, error)
 }
 
-func (h HttpManagement) StreamTerseBucketConfig(ctx context.Context, bucketName string) (TerseBucketConfig_Stream, error) {
-	resp, err := h.Do(ctx, "GET",
+func (h Management) StreamTerseBucketConfig(ctx context.Context, bucketName string) (TerseBucketConfig_Stream, error) {
+	resp, err := h.Execute(ctx, "GET",
 		fmt.Sprintf("/pools/default/bs/%s", bucketName), "", nil)
 	if err != nil {
 		return nil, err
@@ -186,8 +191,8 @@ type CollectionManifestJson struct {
 	Scopes []CollectionManifestScopeJson `json:"scopes,omitempty"`
 }
 
-func (h HttpManagement) GetCollectionManifest(ctx context.Context, bucketName string) (*CollectionManifestJson, error) {
-	resp, err := h.Do(ctx, "GET",
+func (h Management) GetCollectionManifest(ctx context.Context, bucketName string) (*CollectionManifestJson, error) {
+	resp, err := h.Execute(ctx, "GET",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes", bucketName), "", nil)
 	if err != nil {
 		return nil, err
@@ -197,12 +202,12 @@ func (h HttpManagement) GetCollectionManifest(ctx context.Context, bucketName st
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpJsonBlockStreamer[CollectionManifestJson]{
-		json.NewDecoder(resp.Body),
+	return cbhttpx.JsonBlockStreamer[CollectionManifestJson]{
+		Decoder: json.NewDecoder(resp.Body),
 	}.Recv()
 }
 
-func (h HttpManagement) CreateScope(
+func (h Management) CreateScope(
 	ctx context.Context,
 	bucketName string,
 	scopeName string,
@@ -210,7 +215,7 @@ func (h HttpManagement) CreateScope(
 	posts := url.Values{}
 	posts.Add("name", scopeName)
 
-	resp, err := h.Do(
+	resp, err := h.Execute(
 		ctx,
 		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes", bucketName),
@@ -226,12 +231,12 @@ func (h HttpManagement) CreateScope(
 	return nil
 }
 
-func (h HttpManagement) DeleteScope(
+func (h Management) DeleteScope(
 	ctx context.Context,
 	bucketName string,
 	scopeName string,
 ) error {
-	resp, err := h.Do(
+	resp, err := h.Execute(
 		ctx,
 		"DELETE",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", bucketName, scopeName),
@@ -251,7 +256,7 @@ type CreateCollectionOptions struct {
 	MaxExpiry uint64
 }
 
-func (h HttpManagement) CreateCollection(
+func (h Management) CreateCollection(
 	ctx context.Context,
 	bucketName string,
 	scopeName string,
@@ -266,7 +271,7 @@ func (h HttpManagement) CreateCollection(
 		}
 	}
 
-	resp, err := h.Do(
+	resp, err := h.Execute(
 		ctx,
 		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", bucketName, scopeName),
@@ -282,13 +287,13 @@ func (h HttpManagement) CreateCollection(
 	return nil
 }
 
-func (h HttpManagement) DeleteCollection(
+func (h Management) DeleteCollection(
 	ctx context.Context,
 	bucketName string,
 	scopeName string,
 	collectionName string,
 ) error {
-	resp, err := h.Do(
+	resp, err := h.Execute(
 		ctx,
 		"DELETE",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", bucketName, scopeName, collectionName),

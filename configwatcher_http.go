@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/couchbase/gocbcorex/cbhttpx"
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
@@ -85,10 +85,8 @@ func configWatcherHttp_pollOne(
 
 	var parsedConfig *ParsedConfig
 	if bucketName == "" {
-		resp, err := cbhttpx.HttpManagement{
-			HttpClient: &http.Client{
-				Transport: httpRoundTripper,
-			},
+		resp, err := cbmgmtx.Management{
+			Transport: httpRoundTripper,
 			UserAgent: userAgent,
 			Endpoint:  endpoint,
 			Username:  username,
@@ -103,10 +101,8 @@ func configWatcherHttp_pollOne(
 			return nil, err
 		}
 	} else {
-		resp, err := cbhttpx.HttpManagement{
-			HttpClient: &http.Client{
-				Transport: httpRoundTripper,
-			},
+		resp, err := cbmgmtx.Management{
+			Transport: httpRoundTripper,
 			UserAgent: userAgent,
 			Endpoint:  endpoint,
 			Username:  username,

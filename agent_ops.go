@@ -84,10 +84,10 @@ func (agent *Agent) MutateIn(ctx context.Context, opts *MutateInOptions) (*Mutat
 	return agent.crud.MutateIn(ctx, opts)
 }
 
-func (agent *Agent) Query(ctx context.Context, opts *QueryOptions) (*QueryRowReader, error) {
+func (agent *Agent) Query(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
 	return agent.query.Query(ctx, opts)
 }
 
-func (agent *Agent) PreparedQuery(ctx context.Context, opts *QueryOptions) (*QueryRowReader, error) {
+func (agent *Agent) PreparedQuery(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
 	return agent.query.PreparedQuery(ctx, opts)
 }

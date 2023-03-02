@@ -1,9 +1,8 @@
-package cbrowstreamerx
+package cbhttpx
 
 import (
 	"encoding/json"
 	"errors"
-	"io"
 )
 
 type rowStreamState int
@@ -15,37 +14,23 @@ const (
 	rowStreamStateEnd      rowStreamState = 3
 )
 
-type RowStreamer struct {
-	decoder    *json.Decoder
-	rowsAttrib string
-	attribs    map[string]json.RawMessage
-	state      rowStreamState
+type RawJsonRowStreamer struct {
+	Decoder    *json.Decoder
+	RowsAttrib string
+
+	attribs map[string]json.RawMessage
+	state   rowStreamState
 }
 
-func NewRowStreamer(stream io.Reader, rowsAttrib string) (*RowStreamer, error) {
-	decoder := json.NewDecoder(stream)
-
-	streamer := &RowStreamer{
-		decoder:    decoder,
-		rowsAttrib: rowsAttrib,
-		attribs:    make(map[string]json.RawMessage),
-		state:      rowStreamStateStart,
-	}
-
-	if err := streamer.begin(); err != nil {
-		return nil, err
-	}
-
-	return streamer, nil
-}
-
-func (s *RowStreamer) begin() error {
+func (s *RawJsonRowStreamer) begin() error {
 	if s.state != rowStreamStateStart {
 		return errors.New("unexpected parsing state during begin")
 	}
 
+	s.attribs = make(map[string]json.RawMessage)
+
 	// Read the opening { for the result
-	t, err := s.decoder.Token()
+	t, err := s.Decoder.Token()
 	if err != nil {
 		return err
 	}
@@ -54,14 +39,14 @@ func (s *RowStreamer) begin() error {
 	}
 
 	for {
-		if !s.decoder.More() {
+		if !s.Decoder.More() {
 			// We reached the end of the object
 			s.state = rowStreamStateEnd
 			break
 		}
 
 		// Read the attribute name
-		t, err = s.decoder.Token()
+		t, err = s.Decoder.Token()
 		if err != nil {
 			return err
 		}
@@ -70,9 +55,9 @@ func (s *RowStreamer) begin() error {
 			return errors.New("expected an object property name")
 		}
 
-		if key == s.rowsAttrib {
+		if key == s.RowsAttrib {
 			// Read the opening [ for the rows
-			t, err = s.decoder.Token()
+			t, err = s.Decoder.Token()
 			if err != nil {
 				return err
 			}
@@ -85,13 +70,19 @@ func (s *RowStreamer) begin() error {
 				return errors.New("expected an opening bracket for the rows")
 			}
 
+			if !s.Decoder.More() {
+				// if there are no more rows, immediately move to post-rows
+				s.state = rowStreamStatePostRows
+				break
+			}
+
 			s.state = rowStreamStateRows
 			break
 		}
 
 		// Read the attribute value
 		var value json.RawMessage
-		err = s.decoder.Decode(&value)
+		err = s.Decoder.Decode(&value)
 		if err != nil {
 			return err
 		}
@@ -103,7 +94,20 @@ func (s *RowStreamer) begin() error {
 	return nil
 }
 
-func (s *RowStreamer) readRow() (json.RawMessage, error) {
+func (s *RawJsonRowStreamer) hasMoreRows() bool {
+	if s.state < rowStreamStateRows {
+		return false
+	}
+
+	// If we've already read all rows or rows is null, we return nil
+	if s.state > rowStreamStateRows {
+		return false
+	}
+
+	return s.Decoder.More()
+}
+
+func (s *RawJsonRowStreamer) readRow() (json.RawMessage, error) {
 	if s.state < rowStreamStateRows {
 		return nil, errors.New("unexpected parsing state during readRow")
 	}
@@ -113,24 +117,23 @@ func (s *RowStreamer) readRow() (json.RawMessage, error) {
 		return nil, nil
 	}
 
-	// If there are no more rows, mark the rows finished and
-	// return nil to signal that we are at the end
-	if !s.decoder.More() {
-		s.state = rowStreamStatePostRows
-		return nil, nil
-	}
-
 	// Decode this row and return a raw message
 	var msg json.RawMessage
-	err := s.decoder.Decode(&msg)
+	err := s.Decoder.Decode(&msg)
 	if err != nil {
 		return nil, err
+	}
+
+	// If there are no more rows, mark the rows finished and
+	// return nil to signal that we are at the end
+	if !s.Decoder.More() {
+		s.state = rowStreamStatePostRows
 	}
 
 	return msg, nil
 }
 
-func (s *RowStreamer) end() error {
+func (s *RawJsonRowStreamer) end() error {
 	if s.state < rowStreamStatePostRows {
 		return errors.New("unexpected parsing state during end")
 	}
@@ -141,7 +144,7 @@ func (s *RowStreamer) end() error {
 	}
 
 	// Read the ending ] for the rows
-	t, err := s.decoder.Token()
+	t, err := s.Decoder.Token()
 	if err != nil {
 		return err
 	}
@@ -150,14 +153,14 @@ func (s *RowStreamer) end() error {
 	}
 
 	for {
-		if !s.decoder.More() {
+		if !s.Decoder.More() {
 			// We reached the end of the object
 			s.state = rowStreamStateEnd
 			break
 		}
 
 		// Read the attribute name
-		t, err := s.decoder.Token()
+		t, err := s.Decoder.Token()
 		if err != nil {
 			return err
 		}
@@ -169,7 +172,7 @@ func (s *RowStreamer) end() error {
 
 		// Read the attribute value
 		var value json.RawMessage
-		err = s.decoder.Decode(&value)
+		err = s.Decoder.Decode(&value)
 		if err != nil {
 			return err
 		}
@@ -181,43 +184,38 @@ func (s *RowStreamer) end() error {
 	return nil
 }
 
-func (s *RowStreamer) NextRowBytes() (json.RawMessage, error) {
+func (s *RawJsonRowStreamer) ReadPrelude() (json.RawMessage, error) {
+	err := s.begin()
+	if err != nil {
+		return nil, err
+	}
+
+	attribsBytes, err := json.Marshal(s.attribs)
+	if err != nil {
+		return nil, err
+	}
+
+	return attribsBytes, nil
+}
+
+func (s *RawJsonRowStreamer) HasMoreRows() bool {
+	return s.hasMoreRows()
+}
+
+func (s *RawJsonRowStreamer) ReadRow() (json.RawMessage, error) {
 	return s.readRow()
 }
 
-func (s *RowStreamer) Finalize() (json.RawMessage, error) {
-	// Make sure we've read until the end of the object
-	for {
-		row, err := s.readRow()
-		if err != nil {
-			return nil, err
-		}
-
-		if row == nil {
-			break
-		}
-	}
-
-	// Read the rest of the result object
+func (s *RawJsonRowStreamer) ReadEpilog() (json.RawMessage, error) {
 	err := s.end()
 	if err != nil {
 		return nil, err
 	}
 
-	// Reconstruct the non-rows JSON to a raw message
-	metaBytes, err := json.Marshal(s.attribs)
+	attribsBytes, err := json.Marshal(s.attribs)
 	if err != nil {
 		return nil, err
 	}
 
-	return json.RawMessage(metaBytes), nil
-}
-
-func (s *RowStreamer) EarlyAttrib(key string) json.RawMessage {
-	val, ok := s.attribs[key]
-	if !ok {
-		return nil
-	}
-
-	return val
+	return attribsBytes, nil
 }

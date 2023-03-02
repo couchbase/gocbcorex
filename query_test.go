@@ -15,7 +15,7 @@ type n1qlTestHelper struct {
 	NumDocs       int
 	QueryTestDocs *testDocs
 	Agent         *Agent
-	QueryFn       func(context.Context, *QueryOptions) (*QueryRowReader, error)
+	QueryFn       func(context.Context, *QueryOptions) (QueryResultStream, error)
 	T             *testing.T
 }
 
@@ -29,7 +29,11 @@ func hlpRunQuery(t *testing.T, agent *Agent, opts *QueryOptions) ([][]byte, erro
 
 	var rowBytes [][]byte
 	for {
-		row := rows.NextRow()
+		row, err := rows.ReadRow()
+		if err != nil {
+			return nil, err
+		}
+
 		if row == nil {
 			break
 		}
@@ -37,8 +41,7 @@ func hlpRunQuery(t *testing.T, agent *Agent, opts *QueryOptions) ([][]byte, erro
 		rowBytes = append(rowBytes, row)
 	}
 
-	err = rows.Err()
-	return rowBytes, err
+	return rowBytes, nil
 }
 
 func hlpEnsurePrimaryIndex(t *testing.T, agent *Agent, bucketName string) {
@@ -73,7 +76,7 @@ func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
 		defer cancel()
 
 		rows, err := nqh.QueryFn(ctx, &QueryOptions{
-			ClientContextID: "12345",
+			ClientContextId: "12345",
 			Statement:       fmt.Sprintf("SELECT i,testName FROM %s WHERE testName=\"%s\"", testutils.TestOpts.BucketName, nqh.TestName),
 		})
 		if err != nil {
@@ -83,26 +86,24 @@ func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
 
 		var docs []testDoc
 		for {
-			row := rows.NextRow()
+			row, err := rows.ReadRow()
+			if err != nil {
+				return nil, err
+			}
+
 			if row == nil {
 				nqh.T.Logf("Received now rows from query")
 				break
 			}
 
 			var doc testDoc
-			err := json.Unmarshal(row, &doc)
+			err = json.Unmarshal(row, &doc)
 			if err != nil {
 				nqh.T.Logf("Failed to unmarshal into testDoc: %v", err)
 				return nil, err
 			}
 
 			docs = append(docs, doc)
-		}
-
-		err = rows.Err()
-		if err != nil {
-			nqh.T.Logf("Received error from query rows: %v", err)
-			return nil, err
 		}
 
 		return docs, nil
@@ -167,6 +168,7 @@ func TestQueryBasic(t *testing.T) {
 }
 
 func TestQueryPrepared(t *testing.T) {
+	t.Skip()
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)

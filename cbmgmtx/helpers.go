@@ -1,4 +1,4 @@
-package cbhttpx
+package cbmgmtx
 
 import (
 	"bytes"
@@ -6,19 +6,6 @@ import (
 	"net"
 	"net/url"
 )
-
-type httpJsonBlockStreamer[T any] struct {
-	Decoder *json.Decoder
-}
-
-func (s httpJsonBlockStreamer[T]) Recv() (*T, error) {
-	var block T
-	err := s.Decoder.Decode(&block)
-	if err != nil {
-		return nil, err
-	}
-	return &block, nil
-}
 
 func getHostFromEndpoint(endpoint string) (string, error) {
 	parsedUrl, err := url.Parse(endpoint)

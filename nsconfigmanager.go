@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/couchbase/gocbcorex/cbhttpx"
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"go.uber.org/zap"
 )
 
 type NsConfigManagerOptions struct {
 	Logger        *zap.Logger
-	HttpClient    *http.Client
+	Transport     http.RoundTripper
 	Endpoint      string
 	UserAgent     string
 	Authenticator Authenticator
@@ -21,7 +21,7 @@ type NsConfigManagerOptions struct {
 type NsConfigManager struct {
 	logger *zap.Logger
 
-	httpClient    *http.Client
+	transport     http.RoundTripper
 	endpointHost  string
 	endpoint      string
 	userAgent     string
@@ -36,7 +36,7 @@ func NewNsConfigManager(opts NsConfigManagerOptions) (*NsConfigManager, error) {
 
 	return &NsConfigManager{
 		logger:        opts.Logger,
-		httpClient:    opts.HttpClient,
+		transport:     opts.Transport,
 		endpoint:      opts.Endpoint,
 		endpointHost:  host,
 		userAgent:     opts.UserAgent,
@@ -50,12 +50,12 @@ func (w NsConfigManager) Bootstrap(ctx context.Context) (*ParsedConfig, error) {
 		return nil, err
 	}
 
-	resp, err := cbhttpx.HttpManagement{
-		HttpClient: w.httpClient,
-		UserAgent:  w.userAgent,
-		Endpoint:   w.endpoint,
-		Username:   username,
-		Password:   password,
+	resp, err := cbmgmtx.Management{
+		Transport: w.transport,
+		UserAgent: w.userAgent,
+		Endpoint:  w.endpoint,
+		Username:  username,
+		Password:  password,
 	}.GetTerseClusterConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -72,19 +72,19 @@ func (w NsConfigManager) Bootstrap(ctx context.Context) (*ParsedConfig, error) {
 func (w NsConfigManager) watchClusterConfigOnce(
 	ctx context.Context,
 	firstConfigTimeout time.Duration,
-) (*cbconfig.TerseConfigJson, cbhttpx.TerseClusterConfig_Stream, error) {
+) (*cbconfig.TerseConfigJson, cbmgmtx.TerseClusterConfig_Stream, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 
 	firstRespTimer := time.AfterFunc(firstConfigTimeout, func() {
 		cancel()
 	})
 
-	resp, err := cbhttpx.HttpManagement{
-		HttpClient: &http.Client{},
-		UserAgent:  "gocbcorex/...",
-		Endpoint:   "http://192.168.0.100:8091",
-		Username:   "Administrator",
-		Password:   "password",
+	resp, err := cbmgmtx.Management{
+		Transport: nil,
+		UserAgent: "gocbcorex/...",
+		Endpoint:  "http://192.168.0.100:8091",
+		Username:  "Administrator",
+		Password:  "password",
 	}.StreamTerseClusterConfig(cancelCtx)
 	if err != nil {
 		firstRespTimer.Stop()
