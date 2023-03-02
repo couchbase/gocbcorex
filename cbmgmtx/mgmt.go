@@ -67,7 +67,10 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 	}
 }
 
-func (h Management) GetClusterConfig(ctx context.Context) (*cbconfig.FullConfigJson, error) {
+type GetClusterConfigOptions struct {
+}
+
+func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfigOptions) (*cbconfig.FullConfigJson, error) {
 	resp, err := h.Execute(ctx, "GET", "/pools/default", "", nil)
 	if err != nil {
 		return nil, err
@@ -83,7 +86,10 @@ func (h Management) GetClusterConfig(ctx context.Context) (*cbconfig.FullConfigJ
 	}.Recv()
 }
 
-func (h Management) GetTerseClusterConfig(ctx context.Context) (*cbconfig.TerseConfigJson, error) {
+type GetTerseClusterConfigOptions struct {
+}
+
+func (h Management) GetTerseClusterConfig(ctx context.Context, opts *GetTerseClusterConfigOptions) (*cbconfig.TerseConfigJson, error) {
 	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServices", "", nil)
 	if err != nil {
 		return nil, err
@@ -99,11 +105,14 @@ func (h Management) GetTerseClusterConfig(ctx context.Context) (*cbconfig.TerseC
 	}.Recv()
 }
 
+type StreamTerseClusterConfigOptions struct {
+}
+
 type TerseClusterConfig_Stream interface {
 	Recv() (*cbconfig.TerseConfigJson, error)
 }
 
-func (h Management) StreamTerseClusterConfig(ctx context.Context) (TerseClusterConfig_Stream, error) {
+func (h Management) StreamTerseClusterConfig(ctx context.Context, opts *StreamTerseClusterConfigOptions) (TerseClusterConfig_Stream, error) {
 	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServicesStreaming", "", nil)
 	if err != nil {
 		return nil, err
@@ -119,9 +128,17 @@ func (h Management) StreamTerseClusterConfig(ctx context.Context) (TerseClusterC
 	}, nil
 }
 
-func (h Management) GetBucketConfig(ctx context.Context, bucketName string) (*cbconfig.FullConfigJson, error) {
+type GetBucketConfigOptions struct {
+	BucketName string
+}
+
+func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullConfigJson, error) {
+	if opts.BucketName == "" {
+		return nil, errors.New("must specify bucket name when fetching a bucket config")
+	}
+
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s", bucketName), "", nil)
+		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -136,9 +153,17 @@ func (h Management) GetBucketConfig(ctx context.Context, bucketName string) (*cb
 	}.Recv()
 }
 
-func (h Management) GetTerseBucketConfig(ctx context.Context, bucketName string) (*cbconfig.TerseConfigJson, error) {
+type GetTerseBucketConfigOptions struct {
+	BucketName string
+}
+
+func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBucketConfigOptions) (*cbconfig.TerseConfigJson, error) {
+	if opts.BucketName == "" {
+		return nil, errors.New("must specify bucket name when fetching a terse bucket config")
+	}
+
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/b/%s", bucketName), "", nil)
+		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,13 +178,21 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, bucketName string)
 	}.Recv()
 }
 
+type StreamTerseBucketConfigOptions struct {
+	BucketName string
+}
+
 type TerseBucketConfig_Stream interface {
 	Recv() (*cbconfig.TerseConfigJson, error)
 }
 
-func (h Management) StreamTerseBucketConfig(ctx context.Context, bucketName string) (TerseBucketConfig_Stream, error) {
+func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTerseBucketConfigOptions) (TerseBucketConfig_Stream, error) {
+	if opts.BucketName == "" {
+		return nil, errors.New("must specify bucket name when streaming a bucket config")
+	}
+
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/bs/%s", bucketName), "", nil)
+		fmt.Sprintf("/pools/default/bs/%s", opts.BucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +205,10 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, bucketName stri
 		Decoder:  json.NewDecoder(resp.Body),
 		Endpoint: h.Endpoint,
 	}, nil
+}
+
+type GetCollectionManifestOptions struct {
+	BucketName string
 }
 
 type CollectionManifestCollectionJson struct {
@@ -191,9 +228,13 @@ type CollectionManifestJson struct {
 	Scopes []CollectionManifestScopeJson `json:"scopes,omitempty"`
 }
 
-func (h Management) GetCollectionManifest(ctx context.Context, bucketName string) (*CollectionManifestJson, error) {
+func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollectionManifestOptions) (*CollectionManifestJson, error) {
+	if opts.BucketName == "" {
+		return nil, errors.New("must specify bucket name when fetching a collection manifest")
+	}
+
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes", bucketName), "", nil)
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName), "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -207,18 +248,29 @@ func (h Management) GetCollectionManifest(ctx context.Context, bucketName string
 	}.Recv()
 }
 
+type CreateScopeOptions struct {
+	BucketName string
+	ScopeName  string
+}
+
 func (h Management) CreateScope(
 	ctx context.Context,
-	bucketName string,
-	scopeName string,
+	opts *CreateScopeOptions,
 ) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when creating a scope")
+	}
+	if opts.ScopeName == "" {
+		return errors.New("must specify scope name when creating a scope")
+	}
+
 	posts := url.Values{}
-	posts.Add("name", scopeName)
+	posts.Add("name", opts.ScopeName)
 
 	resp, err := h.Execute(
 		ctx,
 		"POST",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes", bucketName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName),
 		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
@@ -231,15 +283,26 @@ func (h Management) CreateScope(
 	return nil
 }
 
+type DeleteScopeOptions struct {
+	BucketName string
+	ScopeName  string
+}
+
 func (h Management) DeleteScope(
 	ctx context.Context,
-	bucketName string,
-	scopeName string,
+	opts *DeleteScopeOptions,
 ) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when deleting a scope")
+	}
+	if opts.ScopeName == "" {
+		return errors.New("must specify scope name when deleting a scope")
+	}
+
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", bucketName, scopeName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", opts.BucketName, opts.ScopeName),
 		"", nil)
 	if err != nil {
 		return err
@@ -253,18 +316,28 @@ func (h Management) DeleteScope(
 }
 
 type CreateCollectionOptions struct {
-	MaxExpiry uint64
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	MaxExpiry      uint64
 }
 
 func (h Management) CreateCollection(
 	ctx context.Context,
-	bucketName string,
-	scopeName string,
-	collectionName string,
 	opts *CreateCollectionOptions,
 ) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when creating a collection")
+	}
+	if opts.ScopeName == "" {
+		return errors.New("must specify scope name when creating a collection")
+	}
+	if opts.CollectionName == "" {
+		return errors.New("must specify collection name when creating a collection")
+	}
+
 	posts := url.Values{}
-	posts.Add("name", collectionName)
+	posts.Add("name", opts.CollectionName)
 	if opts != nil {
 		if opts.MaxExpiry > 0 {
 			posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxExpiry)))
@@ -274,7 +347,7 @@ func (h Management) CreateCollection(
 	resp, err := h.Execute(
 		ctx,
 		"POST",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", bucketName, scopeName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", opts.BucketName, opts.ScopeName),
 		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
@@ -287,16 +360,30 @@ func (h Management) CreateCollection(
 	return nil
 }
 
+type DeleteCollectionOptions struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+}
+
 func (h Management) DeleteCollection(
 	ctx context.Context,
-	bucketName string,
-	scopeName string,
-	collectionName string,
+	opts *DeleteCollectionOptions,
 ) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when deleting a collection")
+	}
+	if opts.ScopeName == "" {
+		return errors.New("must specify scope name when deleting a collection")
+	}
+	if opts.CollectionName == "" {
+		return errors.New("must specify collection name when deleting a collection")
+	}
+
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", bucketName, scopeName, collectionName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
 		"", nil)
 	if err != nil {
 		return err

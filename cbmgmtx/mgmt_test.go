@@ -21,7 +21,7 @@ func getHttpMgmt() *Management {
 func TestHttpMgmtTerseClusterConfig(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
-	resp, err := getHttpMgmt().GetTerseClusterConfig(context.Background())
+	resp, err := getHttpMgmt().GetTerseClusterConfig(context.Background(), &GetTerseClusterConfigOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Greater(t, resp.Rev, 0)
@@ -35,13 +35,23 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 	testScopeName := "test-scope-" + testutils.TestOpts.RunName
 	testCollectionName := "test-scope-" + testutils.TestOpts.RunName
 
-	err := getHttpMgmt().CreateScope(ctx, bucketName, testScopeName)
+	err := getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
+		BucketName: bucketName,
+		ScopeName:  testScopeName,
+	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().CreateCollection(ctx, bucketName, testScopeName, testCollectionName, nil)
+	err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
+		BucketName:     bucketName,
+		ScopeName:      testScopeName,
+		CollectionName: testCollectionName,
+		MaxExpiry:      0,
+	})
 	require.NoError(t, err)
 
-	listResp, err := getHttpMgmt().GetCollectionManifest(ctx, bucketName)
+	listResp, err := getHttpMgmt().GetCollectionManifest(ctx, &GetCollectionManifestOptions{
+		BucketName: bucketName,
+	})
 	require.NoError(t, err)
 	require.NotEmpty(t, listResp.UID)
 
@@ -65,9 +75,16 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 	require.NotNil(t, foundCollection)
 	require.NotEmpty(t, foundScope.UID)
 
-	err = getHttpMgmt().DeleteCollection(ctx, bucketName, testScopeName, testCollectionName)
+	err = getHttpMgmt().DeleteCollection(ctx, &DeleteCollectionOptions{
+		BucketName:     bucketName,
+		ScopeName:      testScopeName,
+		CollectionName: testCollectionName,
+	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().DeleteScope(ctx, bucketName, testScopeName)
+	err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
+		BucketName: bucketName,
+		ScopeName:  testScopeName,
+	})
 	require.NoError(t, err)
 }

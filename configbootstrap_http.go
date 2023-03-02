@@ -68,7 +68,7 @@ func configBootstrapHttp_bootstrapOne(
 			Endpoint:  endpoint,
 			Username:  username,
 			Password:  password,
-		}.GetTerseClusterConfig(ctx)
+		}.GetTerseClusterConfig(ctx, &cbmgmtx.GetTerseClusterConfigOptions{})
 		if err != nil {
 			return nil, "", err
 		}
@@ -84,7 +84,9 @@ func configBootstrapHttp_bootstrapOne(
 			Endpoint:  endpoint,
 			Username:  username,
 			Password:  password,
-		}.GetTerseBucketConfig(ctx, bucketName)
+		}.GetTerseBucketConfig(ctx, &cbmgmtx.GetTerseBucketConfigOptions{
+			BucketName: bucketName,
+		})
 		if err != nil {
 			return nil, "", err
 		}

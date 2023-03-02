@@ -89,7 +89,7 @@ func (w *MgmtComponent) Reconfigure(config *MgmtComponentConfig) error {
 	return nil
 }
 
-func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, bucketName string) (*cbmgmtx.CollectionManifestJson, error) {
+func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
 	return OrchestrateMgmtEndpoint(ctx, w,
 		func(roundTripper http.RoundTripper, endpoint, username, password string) (*cbmgmtx.CollectionManifestJson, error) {
 			return cbmgmtx.Management{
@@ -98,6 +98,6 @@ func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, bucketName st
 				Endpoint:  endpoint,
 				Username:  username,
 				Password:  password,
-			}.GetCollectionManifest(ctx, bucketName)
+			}.GetCollectionManifest(ctx, opts)
 		})
 }

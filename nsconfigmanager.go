@@ -56,7 +56,7 @@ func (w NsConfigManager) Bootstrap(ctx context.Context) (*ParsedConfig, error) {
 		Endpoint:  w.endpoint,
 		Username:  username,
 		Password:  password,
-	}.GetTerseClusterConfig(ctx)
+	}.GetTerseClusterConfig(ctx, &cbmgmtx.GetTerseClusterConfigOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (w NsConfigManager) watchClusterConfigOnce(
 		Endpoint:  "http://192.168.0.100:8091",
 		Username:  "Administrator",
 		Password:  "password",
-	}.StreamTerseClusterConfig(cancelCtx)
+	}.StreamTerseClusterConfig(cancelCtx, &cbmgmtx.StreamTerseClusterConfigOptions{})
 	if err != nil {
 		firstRespTimer.Stop()
 		cancel()
