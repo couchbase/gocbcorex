@@ -49,22 +49,48 @@ func (h Management) Execute(ctx context.Context, method string, path string, con
 	}.Do(req)
 }
 
-func (h Management) DecodeCommonError(resp *http.Response) error {
-	if resp.StatusCode == 404 {
-		return ServerError{
-			Cause:      ErrUnsupportedFeature,
-			StatusCode: resp.StatusCode,
-		}
-	} else if resp.StatusCode == 401 {
-		return ServerError{
-			Cause:      ErrAccessDenied,
-			StatusCode: resp.StatusCode,
+func (h Management) DecodeCommonError(resp *http.Response, resourceType string) error {
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return contextualError{
+			Description: "failed to read error body for non-success response",
+			Cause:       readErr,
 		}
 	}
 
+	var err error
+	errText := strings.ToLower(string(bodyBytes))
+
+	if strings.Contains(errText, "not found") && strings.Contains(errText, "collection") {
+		err = ErrCollectionNotFound
+	} else if strings.Contains(errText, "not found") && strings.Contains(errText, "scope") {
+		err = ErrScopeNotFound
+	} else if strings.Contains(errText, "not found") && strings.Contains(errText, "bucket") {
+		err = ErrBucketNotFound
+	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "collection") {
+		err = ErrCollectionExists
+	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "scope") {
+		err = ErrScopeExists
+	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "bucket") {
+		err = ErrBucketExists
+	} else if resp.StatusCode == 404 {
+		if resourceType == "bucket" {
+			err = ErrBucketNotFound
+		} else {
+			err = ErrUnsupportedFeature
+		}
+	} else if resp.StatusCode == 401 {
+		err = ErrAccessDenied
+	}
+
+	if err == nil {
+		err = errors.New("unexpected error response")
+	}
+
 	return ServerError{
-		Cause:      errors.New("unexpected response status"),
+		Cause:      err,
 		StatusCode: resp.StatusCode,
+		Body:       bodyBytes,
 	}
 }
 
@@ -78,7 +104,7 @@ func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfig
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return httpConfigJsonBlockStreamer[cbconfig.FullConfigJson]{
@@ -97,7 +123,7 @@ func (h Management) GetTerseClusterConfig(ctx context.Context, opts *GetTerseClu
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
@@ -120,7 +146,7 @@ func (h Management) StreamTerseClusterConfig(ctx context.Context, opts *StreamTe
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
@@ -145,7 +171,7 @@ func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOp
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return httpConfigJsonBlockStreamer[cbconfig.FullConfigJson]{
@@ -170,7 +196,7 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
@@ -199,7 +225,7 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return httpConfigJsonBlockStreamer[cbconfig.TerseConfigJson]{
@@ -241,7 +267,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	return cbhttpx.JsonBlockStreamer[CollectionManifestJson]{
@@ -278,7 +304,7 @@ func (h Management) CreateScope(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "")
 	}
 
 	return nil
@@ -310,7 +336,7 @@ func (h Management) DeleteScope(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "")
 	}
 
 	return nil
@@ -355,7 +381,7 @@ func (h Management) CreateCollection(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "")
 	}
 
 	return nil
@@ -391,7 +417,7 @@ func (h Management) DeleteCollection(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "")
 	}
 
 	return nil
@@ -539,7 +565,7 @@ func (h Management) GetAllBuckets(
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	var bucketsData []bucketSettingsJson
@@ -584,7 +610,7 @@ func (h Management) GetBucket(
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp, "")
 	}
 
 	var bucketData bucketSettingsJson
@@ -632,7 +658,7 @@ func (h Management) CreateBucket(
 	}
 
 	if resp.StatusCode != 202 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "")
 	}
 
 	return nil
@@ -668,7 +694,7 @@ func (h Management) UpdateBucket(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "bucket")
 	}
 
 	return nil
@@ -696,7 +722,7 @@ func (h Management) DeleteBucket(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "bucket")
 	}
 
 	return nil
@@ -724,7 +750,7 @@ func (h Management) FlushBucket(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp, "bucket")
 	}
 
 	return nil

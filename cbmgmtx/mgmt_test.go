@@ -27,7 +27,7 @@ func TestHttpMgmtTerseClusterConfig(t *testing.T) {
 	require.Greater(t, resp.Rev, 0)
 }
 
-func TestHttpMgmtCollectionManagement(t *testing.T) {
+func TestHttpMgmtCollections(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	ctx := context.Background()
@@ -41,6 +41,12 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	err = getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
+		BucketName: bucketName,
+		ScopeName:  testScopeName,
+	})
+	require.ErrorIs(t, err, ErrScopeExists)
+
 	err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
 		BucketName:     bucketName,
 		ScopeName:      testScopeName,
@@ -48,6 +54,14 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 		MaxTTL:         0,
 	})
 	require.NoError(t, err)
+
+	err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
+		BucketName:     bucketName,
+		ScopeName:      testScopeName,
+		CollectionName: testCollectionName,
+		MaxTTL:         0,
+	})
+	require.ErrorIs(t, err, ErrCollectionExists)
 
 	listResp, err := getHttpMgmt().GetCollectionManifest(ctx, &GetCollectionManifestOptions{
 		BucketName: bucketName,
@@ -82,14 +96,27 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	err = getHttpMgmt().DeleteCollection(ctx, &DeleteCollectionOptions{
+		BucketName:     bucketName,
+		ScopeName:      testScopeName,
+		CollectionName: testCollectionName,
+	})
+	require.ErrorIs(t, err, ErrCollectionNotFound)
+
 	err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
 		BucketName: bucketName,
 		ScopeName:  testScopeName,
 	})
 	require.NoError(t, err)
+
+	err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
+		BucketName: bucketName,
+		ScopeName:  testScopeName,
+	})
+	require.ErrorIs(t, err, ErrScopeNotFound)
 }
 
-func TestHttpMgmtCollectionBuckets(t *testing.T) {
+func TestHttpMgmtBuckets(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	ctx := context.Background()
@@ -144,4 +171,25 @@ func TestHttpMgmtCollectionBuckets(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	err = getHttpMgmt().CreateBucket(ctx, &CreateBucketOptions{
+		BucketName:     testutils.TestOpts.BucketName,
+		BucketSettings: bucketSettings,
+	})
+	require.ErrorIs(t, err, ErrBucketExists)
+
+	err = getHttpMgmt().UpdateBucket(ctx, &UpdateBucketOptions{
+		BucketName:            "missing-bucket-name",
+		MutableBucketSettings: updatedSettings,
+	})
+	require.ErrorIs(t, err, ErrBucketNotFound)
+
+	err = getHttpMgmt().FlushBucket(ctx, &FlushBucketOptions{
+		BucketName: "missing-bucket-name",
+	})
+	require.ErrorIs(t, err, ErrBucketNotFound)
+
+	err = getHttpMgmt().DeleteBucket(ctx, &DeleteBucketOptions{
+		BucketName: "missing-bucket-name",
+	})
+	require.ErrorIs(t, err, ErrBucketNotFound)
 }
