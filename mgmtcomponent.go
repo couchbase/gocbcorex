@@ -145,3 +145,27 @@ func (w *MgmtComponent) CreateCollection(ctx context.Context, opts *cbmgmtx.Crea
 func (w *MgmtComponent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) error {
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteCollection, opts)
 }
+
+func (w *MgmtComponent) GetAllBuckets(ctx context.Context, opts *cbmgmtx.GetAllBucketsOptions) ([]*cbmgmtx.BucketDef, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetAllBuckets, opts)
+}
+
+func (w *MgmtComponent) GetBucket(ctx context.Context, opts *cbmgmtx.GetBucketOptions) (*cbmgmtx.BucketDef, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetBucket, opts)
+}
+
+func (w *MgmtComponent) CreateBucket(ctx context.Context, opts *cbmgmtx.CreateBucketOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.CreateBucket, opts)
+}
+
+func (w *MgmtComponent) UpdateBucket(ctx context.Context, opts *cbmgmtx.UpdateBucketOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.UpdateBucket, opts)
+}
+
+func (w *MgmtComponent) FlushBucket(ctx context.Context, opts *cbmgmtx.FlushBucketOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.FlushBucket, opts)
+}
+
+func (w *MgmtComponent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBucketOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteBucket, opts)
+}

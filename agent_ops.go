@@ -2,6 +2,8 @@ package gocbcorex
 
 import (
 	"context"
+
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 )
 
 func (agent *Agent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
@@ -90,4 +92,48 @@ func (agent *Agent) Query(ctx context.Context, opts *QueryOptions) (QueryResultS
 
 func (agent *Agent) PreparedQuery(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
 	return agent.query.PreparedQuery(ctx, opts)
+}
+
+func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
+	return agent.mgmt.GetCollectionManifest(ctx, opts)
+}
+
+func (agent *Agent) CreateScope(ctx context.Context, opts *cbmgmtx.CreateScopeOptions) error {
+	return agent.mgmt.CreateScope(ctx, opts)
+}
+
+func (agent *Agent) DeleteScope(ctx context.Context, opts *cbmgmtx.DeleteScopeOptions) error {
+	return agent.mgmt.DeleteScope(ctx, opts)
+}
+
+func (agent *Agent) CreateCollection(ctx context.Context, opts *cbmgmtx.CreateCollectionOptions) error {
+	return agent.mgmt.CreateCollection(ctx, opts)
+}
+
+func (agent *Agent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) error {
+	return agent.mgmt.DeleteCollection(ctx, opts)
+}
+
+func (agent *Agent) GetAllBuckets(ctx context.Context, opts *cbmgmtx.GetAllBucketsOptions) ([]*cbmgmtx.BucketDef, error) {
+	return agent.mgmt.GetAllBuckets(ctx, opts)
+}
+
+func (agent *Agent) GetBucket(ctx context.Context, opts *cbmgmtx.GetBucketOptions) (*cbmgmtx.BucketDef, error) {
+	return agent.mgmt.GetBucket(ctx, opts)
+}
+
+func (agent *Agent) CreateBucket(ctx context.Context, opts *cbmgmtx.CreateBucketOptions) error {
+	return agent.mgmt.CreateBucket(ctx, opts)
+}
+
+func (agent *Agent) UpdateBucket(ctx context.Context, opts *cbmgmtx.UpdateBucketOptions) error {
+	return agent.mgmt.UpdateBucket(ctx, opts)
+}
+
+func (agent *Agent) FlushBucket(ctx context.Context, opts *cbmgmtx.FlushBucketOptions) error {
+	return agent.mgmt.FlushBucket(ctx, opts)
+}
+
+func (agent *Agent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBucketOptions) error {
+	return agent.mgmt.DeleteBucket(ctx, opts)
 }
