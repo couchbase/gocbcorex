@@ -32,8 +32,8 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 
 	ctx := context.Background()
 	bucketName := testutils.TestOpts.BucketName
-	testScopeName := "test-scope-" + testutils.TestOpts.RunName
-	testCollectionName := "test-scope-" + testutils.TestOpts.RunName
+	testScopeName := "testscope-" + testutils.TestOpts.RunName
+	testCollectionName := "testscope-" + testutils.TestOpts.RunName
 
 	err := getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
 		BucketName: bucketName,
@@ -87,4 +87,54 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 		ScopeName:  testScopeName,
 	})
 	require.NoError(t, err)
+}
+
+func TestHttpMgmtCollectionBuckets(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	ctx := context.Background()
+	testBucketName := "testbucket-" + testutils.TestOpts.RunName
+
+	bucketSettings := BucketSettings{
+		MutableBucketSettings: MutableBucketSettings{
+			RAMQuotaMB:         128,
+			BucketType:         BucketTypeCouchbase,
+			EvictionPolicy:     EvictionPolicyTypeValueOnly,
+			CompressionMode:    CompressionModePassive,
+			DurabilityMinLevel: DurabilityLevelNone,
+			StorageBackend:     StorageBackendCouchstore,
+		},
+		ConflictResolutionType: ConflictResolutionTypeSequenceNumber,
+	}
+
+	err := getHttpMgmt().CreateBucket(ctx, &CreateBucketOptions{
+		BucketName:     testBucketName,
+		BucketSettings: bucketSettings,
+	})
+	require.NoError(t, err)
+
+	def, err := getHttpMgmt().GetBucket(ctx, &GetBucketOptions{
+		BucketName: testBucketName,
+	})
+	require.NoError(t, err)
+	require.Equal(t, bucketSettings, def.BucketSettings)
+
+	updatedSettings := def.MutableBucketSettings
+	updatedSettings.FlushEnabled = true
+	err = getHttpMgmt().UpdateBucket(ctx, &UpdateBucketOptions{
+		BucketName:            testBucketName,
+		MutableBucketSettings: updatedSettings,
+	})
+	require.NoError(t, err)
+
+	err = getHttpMgmt().FlushBucket(ctx, &FlushBucketOptions{
+		BucketName: testBucketName,
+	})
+	require.NoError(t, err)
+
+	err = getHttpMgmt().DeleteBucket(ctx, &DeleteBucketOptions{
+		BucketName: testBucketName,
+	})
+	require.NoError(t, err)
+
 }

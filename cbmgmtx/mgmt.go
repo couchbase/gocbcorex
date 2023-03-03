@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
@@ -384,6 +385,339 @@ func (h Management) DeleteCollection(
 		ctx,
 		"DELETE",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
+		"", nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+type MutableBucketSettings struct {
+	FlushEnabled         bool
+	ReplicaIndexDisabled bool
+	RAMQuotaMB           uint64
+	ReplicaNumber        uint32
+	BucketType           BucketType
+	EvictionPolicy       EvictionPolicyType
+	MaxTTL               time.Duration
+	CompressionMode      CompressionMode
+	DurabilityMinLevel   DurabilityLevel
+	StorageBackend       StorageBackend
+}
+
+func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *MutableBucketSettings) error {
+	if opts.FlushEnabled {
+		posts.Add("flushEnabled", "1")
+	} else {
+		posts.Add("flushEnabled", "0")
+	}
+	if opts.BucketType != BucketTypeEphemeral {
+		if opts.ReplicaIndexDisabled {
+			posts.Add("replicaIndex", "0")
+		} else {
+			posts.Add("replicaIndex", "1")
+		}
+	} else {
+		return errors.New("cannot specify ReplicaIndexDisabled for Ephemeral buckets")
+	}
+	if opts.RAMQuotaMB > 0 {
+		posts.Add("ramQuotaMB", fmt.Sprintf("%d", opts.RAMQuotaMB))
+	}
+	// we always write the replicaNumber since 0 means "default"
+	if true {
+		posts.Add("replicaNumber", fmt.Sprintf("%d", opts.ReplicaNumber))
+	}
+	if opts.BucketType != BucketTypeUnset {
+		posts.Add("bucketType", string(opts.BucketType))
+	}
+	if opts.EvictionPolicy != "" {
+		posts.Add("evictionPolicy", string(opts.EvictionPolicy))
+	}
+	if opts.MaxTTL > 0 {
+		posts.Add("maxTTL", fmt.Sprintf("%d", opts.MaxTTL/time.Second))
+	}
+	if opts.CompressionMode != "" {
+		posts.Add("compressionMode", string(opts.CompressionMode))
+	}
+	if opts.DurabilityMinLevel != DurabilityLevelUnset {
+		posts.Add("durabilityMinLevel", string(opts.DurabilityMinLevel))
+	}
+	if opts.StorageBackend != "" {
+		posts.Add("storageBackend", string(opts.StorageBackend))
+	}
+
+	return nil
+}
+
+func (h Management) decodeMutableBucketSettings(data *bucketSettingsJson) (*MutableBucketSettings, error) {
+	settings := MutableBucketSettings{}
+
+	settings.FlushEnabled = data.Controllers.Flush != ""
+	settings.ReplicaIndexDisabled = !data.ReplicaIndex
+	settings.RAMQuotaMB = data.Quota.RawRAM / 1024 / 1024
+	settings.ReplicaNumber = data.ReplicaNumber
+	settings.BucketType = BucketType(data.BucketType)
+	settings.EvictionPolicy = EvictionPolicyType(data.EvictionPolicy)
+	settings.MaxTTL = time.Duration(data.MaxTTL) * time.Second
+	settings.CompressionMode = CompressionMode(data.CompressionMode)
+	settings.DurabilityMinLevel = DurabilityLevel(data.MinimumDurabilityLevel)
+	settings.StorageBackend = StorageBackend(data.StorageBackend)
+
+	return &settings, nil
+}
+
+type BucketSettings struct {
+	MutableBucketSettings
+	ConflictResolutionType ConflictResolutionType
+}
+
+func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings) error {
+	err := h.encodeMutableBucketSettings(posts, &opts.MutableBucketSettings)
+	if err != nil {
+		return err
+	}
+
+	if opts.ConflictResolutionType != "" {
+		posts.Add("conflictResolutionType", string(opts.ConflictResolutionType))
+	}
+
+	return nil
+}
+
+func (h Management) decodeBucketSettings(data *bucketSettingsJson) (*BucketSettings, error) {
+	settings := &BucketSettings{}
+
+	mutSettings, err := h.decodeMutableBucketSettings(data)
+	if err != nil {
+		return nil, err
+	}
+
+	settings.MutableBucketSettings = *mutSettings
+	settings.ConflictResolutionType = ConflictResolutionType(data.ConflictResolutionType)
+
+	return settings, nil
+}
+
+type BucketDef struct {
+	Name string
+	BucketSettings
+}
+
+func (h Management) decodeBucketDef(data *bucketSettingsJson) (*BucketDef, error) {
+	bucket := &BucketDef{}
+
+	settings, err := h.decodeBucketSettings(data)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket.Name = data.Name
+	bucket.BucketSettings = *settings
+
+	return bucket, nil
+}
+
+type GetAllBucketsOptions struct {
+}
+
+func (h Management) GetAllBuckets(
+	ctx context.Context,
+	opts *GetAllBucketsOptions,
+) ([]*BucketDef, error) {
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		"/pools/default/buckets",
+		"", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	var bucketsData []bucketSettingsJson
+	jsonDec := json.NewDecoder(resp.Body)
+	err = jsonDec.Decode(&bucketsData)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []*BucketDef
+	for _, bucketData := range bucketsData {
+		def, err := h.decodeBucketDef(&bucketData)
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, def)
+	}
+
+	return out, nil
+}
+
+type GetBucketOptions struct {
+	BucketName string
+}
+
+func (h Management) GetBucket(
+	ctx context.Context,
+	opts *GetBucketOptions,
+) (*BucketDef, error) {
+	if opts.BucketName == "" {
+		return nil, errors.New("must specify bucket name when updating a bucket")
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
+		"", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	var bucketData bucketSettingsJson
+	jsonDec := json.NewDecoder(resp.Body)
+	err = jsonDec.Decode(&bucketData)
+	if err != nil {
+		return nil, err
+	}
+
+	def, err := h.decodeBucketDef(&bucketData)
+	if err != nil {
+		return nil, err
+	}
+
+	return def, nil
+}
+
+type CreateBucketOptions struct {
+	BucketName string
+	BucketSettings
+}
+
+func (h Management) CreateBucket(
+	ctx context.Context,
+	opts *CreateBucketOptions,
+) error {
+	posts := url.Values{}
+
+	if opts.BucketName != "" {
+		posts.Add("name", opts.BucketName)
+	}
+
+	err := h.encodeBucketSettings(&posts, &opts.BucketSettings)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/pools/default/buckets",
+		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 202 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+type UpdateBucketOptions struct {
+	BucketName string
+	MutableBucketSettings
+}
+
+func (h Management) UpdateBucket(
+	ctx context.Context,
+	opts *UpdateBucketOptions,
+) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when updating a bucket")
+	}
+
+	posts := url.Values{}
+
+	err := h.encodeMutableBucketSettings(&posts, &opts.MutableBucketSettings)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
+		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+type DeleteBucketOptions struct {
+	BucketName string
+}
+
+func (h Management) DeleteBucket(
+	ctx context.Context,
+	opts *DeleteBucketOptions,
+) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when deleting a bucket")
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"DELETE",
+		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
+		"", nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+type FlushBucketOptions struct {
+	BucketName string
+}
+
+func (h Management) FlushBucket(
+	ctx context.Context,
+	opts *FlushBucketOptions,
+) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when flushing a bucket")
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		fmt.Sprintf("/pools/default/buckets/%s/controller/doFlush", opts.BucketName),
 		"", nil)
 	if err != nil {
 		return err
