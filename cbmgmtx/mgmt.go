@@ -346,7 +346,7 @@ type CreateCollectionOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
-	MaxTTL         uint64
+	MaxTTL         uint32
 }
 
 func (h Management) CreateCollection(
