@@ -320,7 +320,7 @@ type CreateCollectionOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
-	MaxExpiry      uint64
+	MaxTTL         uint64
 }
 
 func (h Management) CreateCollection(
@@ -340,8 +340,8 @@ func (h Management) CreateCollection(
 	posts := url.Values{}
 	posts.Add("name", opts.CollectionName)
 	if opts != nil {
-		if opts.MaxExpiry > 0 {
-			posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxExpiry)))
+		if opts.MaxTTL > 0 {
+			posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxTTL)))
 		}
 	}
 

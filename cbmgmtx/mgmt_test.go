@@ -45,7 +45,7 @@ func TestHttpMgmtCollectionManagement(t *testing.T) {
 		BucketName:     bucketName,
 		ScopeName:      testScopeName,
 		CollectionName: testCollectionName,
-		MaxExpiry:      0,
+		MaxTTL:         0,
 	})
 	require.NoError(t, err)
 
