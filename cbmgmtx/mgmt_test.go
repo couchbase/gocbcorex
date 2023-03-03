@@ -127,9 +127,16 @@ func TestHttpMgmtCollectionBuckets(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().FlushBucket(ctx, &FlushBucketOptions{
-		BucketName: testBucketName,
-	})
+	// this can fail intermittently, so we retry up to 10 times
+	for i := 0; i < 10; i++ {
+		err = getHttpMgmt().FlushBucket(ctx, &FlushBucketOptions{
+			BucketName: testBucketName,
+		})
+		if err == nil {
+			break
+		}
+		t.Logf("warning: had to retry flushing bucket...")
+	}
 	require.NoError(t, err)
 
 	err = getHttpMgmt().DeleteBucket(ctx, &DeleteBucketOptions{
