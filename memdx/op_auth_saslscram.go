@@ -22,7 +22,7 @@ type SaslAuthScramOptions struct {
 	Password string
 }
 
-func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, pipelineCb func(), cb func(err error)) {
+func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, pipelineCb func(), cb func(err error)) (PendingOp, error) {
 	var mechName AuthMechanism
 	switch req.Hash {
 	case crypto.SHA1:
@@ -33,15 +33,16 @@ func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, 
 		mechName = ScramSha512AuthMechanism
 	}
 	if mechName == "" {
-		cb(errors.New("unsupported hash type: " + req.Hash.String()))
-		return
+		return nil, errors.New("unsupported hash type: " + req.Hash.String())
 	}
 
 	scramMgr := scram.NewClient(req.Hash.New, req.Username, req.Password)
 
+	pendingOp := &multiPendingOp{}
+
 	// Perform the initial SASL step
 	scramMgr.Step(nil)
-	a.Encoder.SASLAuth(d, &SASLAuthRequest{
+	op, err := a.Encoder.SASLAuth(d, &SASLAuthRequest{
 		Mechanism: mechName,
 		Payload:   scramMgr.Out(),
 	}, func(resp *SASLAuthResponse, err error) {
@@ -67,7 +68,7 @@ func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, 
 			return
 		}
 
-		a.Encoder.SASLStep(d, &SASLStepRequest{
+		op, err := a.Encoder.SASLStep(d, &SASLStepRequest{
 			Mechanism: mechName,
 			Payload:   scramMgr.Out(),
 		}, func(resp *SASLStepResponse, err error) {
@@ -82,9 +83,22 @@ func (a OpSaslAuthScram) SASLAuthScram(d Dispatcher, req *SaslAuthScramOptions, 
 
 			cb(nil)
 		})
+		if err != nil {
+			cb(err)
+			return
+		}
+
+		pendingOp.Add(op)
 
 		if pipelineCb != nil {
 			pipelineCb()
 		}
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	pendingOp.Add(op)
+
+	return pendingOp, nil
 }
