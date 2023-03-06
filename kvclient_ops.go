@@ -70,14 +70,11 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 		releaseSyncCrudResulter(resulter)
 		return res.Result.(RespT), res.Err
 	case <-ctx.Done():
-		if !pendingOp.Cancel() {
-			res := <-resulter.Ch
-			releaseSyncCrudResulter(resulter)
-			return res.Result.(RespT), res.Err
-		}
+		pendingOp.Cancel(ctx.Err())
+
+		res := <-resulter.Ch
 		releaseSyncCrudResulter(resulter)
-		var emptyResp RespT
-		return emptyResp, ctx.Err()
+		return res.Result.(RespT), res.Err
 	}
 }
 

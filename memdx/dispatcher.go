@@ -1,7 +1,7 @@
 package memdx
 
 type PendingOp interface {
-	Cancel() bool
+	Cancel(err error)
 }
 
 type DispatchCallback func(*Packet, error) bool
