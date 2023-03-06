@@ -14,10 +14,13 @@ import (
 )
 
 type memdxPendingOpMock struct {
+	cancelled   bool
+	cancelledCh chan struct{}
 }
 
 func (mpo memdxPendingOpMock) Cancel() bool {
-	return true
+	mpo.cancelledCh <- struct{}{}
+	return mpo.cancelled
 }
 
 func TestKvClientReconfigureBucket(t *testing.T) {
