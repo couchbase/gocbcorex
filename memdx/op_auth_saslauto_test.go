@@ -51,18 +51,11 @@ func TestOpSaslAuthAuto_NoMechs(t *testing.T) {
 		EnabledMechs: []AuthMechanism{},
 	}
 
-	var pipelineCalled bool
-	waitCh := make(chan error, 1)
-	OpSaslAuthAuto{
+	_, err := OpSaslAuthAuto{
 		Encoder: enc,
 	}.SASLAuthAuto(testBootstrapDispatcher{}, opts, func() {
-		pipelineCalled = true
-	}, func(err error) {
-		waitCh <- err
-	})
-
-	assert.False(t, pipelineCalled)
-	assert.Error(t, <-waitCh)
+	}, func(err error) {})
+	assert.Error(t, err)
 }
 
 func TestOpSaslAuthAuto_FirstAuthFails(t *testing.T) {

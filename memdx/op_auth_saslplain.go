@@ -17,7 +17,7 @@ type SaslAuthPlainOptions struct {
 	Password string
 }
 
-func (a OpSaslAuthPlain) SASLAuthPlain(d Dispatcher, opts *SaslAuthPlainOptions, pipelineCb func(), cb func(err error)) {
+func (a OpSaslAuthPlain) SASLAuthPlain(d Dispatcher, opts *SaslAuthPlainOptions, pipelineCb func(), cb func(err error)) (PendingOp, error) {
 	userBuf := []byte(opts.Username)
 	passBuf := []byte(opts.Password)
 	authData := make([]byte, 1+len(userBuf)+1+len(passBuf))
@@ -26,7 +26,7 @@ func (a OpSaslAuthPlain) SASLAuthPlain(d Dispatcher, opts *SaslAuthPlainOptions,
 	authData[1+len(userBuf)] = 0
 	copy(authData[1+len(userBuf)+1:], passBuf)
 
-	a.Encoder.SASLAuth(d, &SASLAuthRequest{
+	op, err := a.Encoder.SASLAuth(d, &SASLAuthRequest{
 		Mechanism: PlainAuthMechanism,
 		Payload:   authData,
 	}, func(resp *SASLAuthResponse, err error) {
@@ -42,8 +42,13 @@ func (a OpSaslAuthPlain) SASLAuthPlain(d Dispatcher, opts *SaslAuthPlainOptions,
 
 		cb(err)
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if pipelineCb != nil {
 		pipelineCb()
 	}
+
+	return op, nil
 }

@@ -44,6 +44,18 @@ func (e protocolError) Unwrap() error {
 	return ErrProtocol
 }
 
+type requestCancelledError struct {
+	cause error
+}
+
+func (e requestCancelledError) Error() string {
+	return "request cancelled: " + e.cause.Error()
+}
+
+func (e requestCancelledError) Unwrap() error {
+	return e.cause
+}
+
 var ErrInvalidArgument = errors.New("invalid argument")
 
 type invalidArgError struct {

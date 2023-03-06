@@ -89,7 +89,7 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 
 	c.lock.Unlock()
 
-	hasMorePackets := handler(nil, err)
+	hasMorePackets := handler(nil, requestCancelledError{cause: err})
 
 	if !hasMorePackets {
 		c.lock.Lock()

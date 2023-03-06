@@ -1,5 +1,9 @@
 package memdx
 
+import (
+	"errors"
+)
+
 type OpBootstrapEncoder interface {
 	Hello(Dispatcher, *HelloRequest, func(*HelloResponse, error)) (PendingOp, error)
 	GetErrorMap(Dispatcher, *GetErrorMapRequest, func([]byte, error)) (PendingOp, error)
@@ -50,12 +54,12 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	currentStage := stageHello
 	result := &BootstrapResult{}
 
-	var dispatchHello func()
-	var dispatchErrorMap func()
-	var dispatchAuth func()
-	var dispatchSelectBucket func()
-	var dispatchClusterConfig func()
-	var dispatchCallback func()
+	var dispatchHello func() error
+	var dispatchErrorMap func() error
+	var dispatchAuth func() error
+	var dispatchSelectBucket func() error
+	var dispatchClusterConfig func() error
+	var dispatchCallback func() error
 
 	maybeCallback := func() {
 		if currentStage == stageHello && opts.Hello == nil {
@@ -79,18 +83,23 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 		}
 	}
 
-	dispatchHello = func() {
+	pendingOp := &multiPendingOp{}
+
+	dispatchHello = func() error {
 		if opts.Hello == nil {
-			dispatchErrorMap()
-			return
+			return dispatchErrorMap()
 		}
 
-		a.Encoder.Hello(d, opts.Hello, func(resp *HelloResponse, err error) {
+		op, err := a.Encoder.Hello(d, opts.Hello, func(resp *HelloResponse, err error) {
 			if currentStage != stageHello {
 				return
 			}
 
 			if err != nil {
+				if a.isRequestCancelledError(err) {
+					cb(nil, err)
+					return
+				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no Hello result...
 				resp = nil
@@ -100,21 +109,29 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			currentStage = stageErrorMap
 			maybeCallback()
 		})
-		dispatchErrorMap()
+		if err != nil {
+			return err
+		}
+		pendingOp.Add(op)
+
+		return dispatchErrorMap()
 	}
 
-	dispatchErrorMap = func() {
+	dispatchErrorMap = func() error {
 		if opts.GetErrorMap == nil {
-			dispatchAuth()
-			return
+			return dispatchAuth()
 		}
 
-		a.Encoder.GetErrorMap(d, opts.GetErrorMap, func(errorMap []byte, err error) {
+		op, err := a.Encoder.GetErrorMap(d, opts.GetErrorMap, func(errorMap []byte, err error) {
 			if currentStage != stageErrorMap {
 				return
 			}
 
 			if err != nil {
+				if a.isRequestCancelledError(err) {
+					cb(nil, err)
+					return
+				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no ErrorMap result...
 				errorMap = nil
@@ -124,19 +141,26 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			currentStage = stageAuth
 			maybeCallback()
 		})
-		dispatchAuth()
+		if err != nil {
+			return err
+		}
+		pendingOp.Add(op)
+
+		return dispatchAuth()
 	}
 
-	dispatchAuth = func() {
+	dispatchAuth = func() error {
 		if opts.Auth == nil {
-			dispatchSelectBucket()
-			return
+			return dispatchSelectBucket()
 		}
 
-		OpSaslAuthAuto{
+		op, err := OpSaslAuthAuto{
 			Encoder: a.Encoder,
 		}.SASLAuthAuto(d, opts.Auth, func() {
-			dispatchSelectBucket()
+			err := dispatchSelectBucket()
+			if err != nil {
+				cb(nil, err)
+			}
 		}, func(err error) {
 			if currentStage != stageAuth {
 				return
@@ -150,15 +174,20 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			currentStage = stageSelectBucket
 			maybeCallback()
 		})
+		if err != nil {
+			return err
+		}
+		pendingOp.Add(op)
+
+		return nil
 	}
 
-	dispatchSelectBucket = func() {
+	dispatchSelectBucket = func() error {
 		if opts.SelectBucket == nil {
-			dispatchClusterConfig()
-			return
+			return dispatchClusterConfig()
 		}
 
-		a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
+		op, err := a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
 			if currentStage != stageSelectBucket {
 				return
 			}
@@ -171,21 +200,29 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			currentStage = stageClusterConfig
 			maybeCallback()
 		})
-		dispatchClusterConfig()
+		if err != nil {
+			return err
+		}
+		pendingOp.Add(op)
+
+		return dispatchClusterConfig()
 	}
 
-	dispatchClusterConfig = func() {
+	dispatchClusterConfig = func() error {
 		if opts.GetClusterConfig == nil {
-			dispatchCallback()
-			return
+			return dispatchCallback()
 		}
 
-		a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, func(clusterConfig []byte, err error) {
+		op, err := a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, func(clusterConfig []byte, err error) {
 			if currentStage != stageClusterConfig {
 				return
 			}
 
 			if err != nil {
+				if a.isRequestCancelledError(err) {
+					cb(nil, err)
+					return
+				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no Config result...
 				clusterConfig = nil
@@ -195,20 +232,33 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			currentStage = stageCallback
 			maybeCallback()
 		})
-		dispatchCallback()
+		if err != nil {
+			return err
+		}
+		pendingOp.Add(op)
+
+		return dispatchCallback()
 	}
 
-	dispatchCallback = func() {
+	dispatchCallback = func() error {
 		// this function does nothing because we have no way to easily
 		// schedule a callback to be invoked serialy by the connection
 		// so we rely on maybeCallback() to handle this behaviour.
+		return nil
 	}
 
 	// maybeCallback must be invoked before any dispatches to ensure
 	// we still own all the state and to avoid racing those threads.
 	maybeCallback()
 
-	dispatchHello()
+	if err := dispatchHello(); err != nil {
+		return nil, err
+	}
 
-	return pendingOpNoop{}, nil
+	return pendingOp, nil
+}
+
+func (a OpBootstrap) isRequestCancelledError(err error) bool {
+	var cancelErr requestCancelledError
+	return errors.As(err, &cancelErr)
 }

@@ -10,15 +10,20 @@ type OpSaslAuthInvalid struct {
 	Encoder OpSaslAuthInvalidEncoder
 }
 
-func (a OpSaslAuthInvalid) SASLAuthInvalid(d Dispatcher, pipelineCb func(), cb func(err error)) {
-	a.Encoder.SASLAuth(d, &SASLAuthRequest{
+func (a OpSaslAuthInvalid) SASLAuthInvalid(d Dispatcher, pipelineCb func(), cb func(err error)) (PendingOp, error) {
+	op, err := a.Encoder.SASLAuth(d, &SASLAuthRequest{
 		Mechanism: "INVALID",
 		Payload:   []byte{0, 'a', 'b', 'c', 0, 'a', 'b', 'c'},
 	}, func(resp *SASLAuthResponse, err error) {
 		cb(err)
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	if pipelineCb != nil {
 		pipelineCb()
 	}
+
+	return op, nil
 }
