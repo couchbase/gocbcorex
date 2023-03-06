@@ -1495,7 +1495,7 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = syncUnaryCall(OpsCrud{
+	resp, err := syncUnaryCall(OpsCrud{
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
 	}, OpsCrud.LookupIn, cli, &LookupInRequest{
@@ -1509,7 +1509,8 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 			},
 		},
 	})
-	require.ErrorIs(t, err, ErrPathNotFound)
+	require.NoError(t, err)
+	require.ErrorIs(t, resp.Ops[0].Err, ErrSubDocPathNotFound)
 }
 
 func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {

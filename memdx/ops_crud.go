@@ -2,7 +2,7 @@ package memdx
 
 import (
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"time"
 )
 
@@ -1542,8 +1542,25 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocSuccessDeleted &&
-			resp.Status != StatusSubDocMultiPathFailureDeleted && resp.Status != StatusSubDocBadMulti {
+		} else if resp.Status == StatusSubDocDocTooDeep {
+			cb(nil, ErrSubDocDocTooDeep)
+			return false
+		} else if resp.Status == StatusSubDocNotJSON {
+			cb(nil, ErrSubDocNotJSON)
+			return false
+		} else if resp.Status == StatusSubDocInvalidCombo {
+			cb(nil, ErrSubDocInvalidCombo)
+			return false
+		} else if resp.Status == StatusSubDocInvalidXattrOrder {
+			cb(nil, ErrSubDocInvalidXattrOrder)
+			return false
+		}
+
+		var docIsDeleted bool
+		if resp.Status == StatusSubDocSuccessDeleted || resp.Status == StatusSubDocMultiPathFailureDeleted {
+			docIsDeleted = true
+			// considered a success still
+		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocMultiPathFailure {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
@@ -1556,42 +1573,51 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 				return false
 			}
 
-			resError := Status(binary.BigEndian.Uint16(resp.Value[respIter+0:]))
+			resStatus := Status(binary.BigEndian.Uint16(resp.Value[respIter+0:]))
 			resValueLen := int(binary.BigEndian.Uint32(resp.Value[respIter+2:]))
 
-			if respIter+6+resValueLen > len(resp.Value) {
-				cb(nil, protocolError{"bad value length"})
-				return false
-			}
-
-			if resError == StatusSubDocPathNotFound {
-				cb(nil, ErrPathNotFound)
-				return false
-			}
-
-			if resError != StatusSuccess {
-				cause := OpsCrud{}.decodeCommonStatus(resError)
-				if cause == nil {
-					cause = errors.New("unexpected status: " + resError.String())
+			if resValueLen > 0 {
+				if respIter+6+resValueLen > len(resp.Value) {
+					cb(nil, protocolError{"bad value length"})
+					return false
 				}
-				results[i].Err = ServerError{
-					Cause:          cause,
-					DispatchedTo:   d.RemoteAddr(),
-					DispatchedFrom: d.LocalAddr(),
-					Opaque:         resp.Opaque,
-				}
+
+				results[i].Value = resp.Value[respIter+6 : respIter+6+resValueLen]
 			}
 
-			results[i].Value = resp.Value[respIter+6 : respIter+6+resValueLen]
 			respIter += 6 + resValueLen
+
+			var statusErr error
+			switch resStatus {
+			case StatusSuccess:
+				// no error
+			case StatusSubDocPathNotFound:
+				statusErr = ErrSubDocPathNotFound
+			case StatusSubDocPathMismatch:
+				statusErr = ErrSubDocPathMismatch
+			case StatusSubDocPathInvalid:
+				statusErr = ErrSubDocPathInvalid
+			case StatusSubDocPathTooBig:
+				statusErr = ErrSubDocPathTooBig
+			case StatusSubDocXattrUnknownVAttr:
+				statusErr = ErrSubDocXattrUnknownVAttr
+			default:
+				statusErr = fmt.Errorf("unexpected lookupin op status code: %02x", resStatus)
+			}
+
+			if statusErr != nil {
+				results[i].Err = &SubDocError{
+					Cause:   statusErr,
+					OpIndex: i,
+				}
+			}
 		}
 
 		res := &LookupInResponse{
-			Ops: results,
-			Cas: resp.Cas,
+			Ops:          results,
+			Cas:          resp.Cas,
+			DocIsDeleted: docIsDeleted,
 		}
-		res.DocIsDeleted = resp.Status == StatusSubDocSuccessDeleted ||
-			resp.Status == StatusSubDocMultiPathFailureDeleted
 
 		cb(res, nil)
 		return false
@@ -1652,14 +1678,6 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 
 	valueIter := 0
 	for i, op := range req.Ops {
-		// if op.Op == SubDocOpReplaceBodyWithXattr {
-		// 	// We can get here before support status is actually known, we'll send the request unless we know for a fact
-		// 	// that this is unsupported.
-		// 	if crud.featureVerifier.HasBucketCapabilityStatus(BucketCapabilityReplaceBodyWithXattr, BucketCapabilityStatusUnsupported) {
-		// 		return nil, errFeatureNotAvailable
-		// 	}
-		// }
-
 		pathBytes := pathBytesList[i]
 		pathBytesLen := len(pathBytes)
 		valueBytesLen := len(op.Value)
@@ -1707,24 +1725,69 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		} else if resp.Status == StatusKeyExists {
 			cb(nil, ErrDocExists)
 			return false
-		} else if resp.Status == StatusSubDocBadMulti {
+		} else if resp.Status == StatusSubDocDocTooDeep {
+			cb(nil, ErrSubDocDocTooDeep)
+			return false
+		} else if resp.Status == StatusSubDocNotJSON {
+			cb(nil, ErrSubDocNotJSON)
+			return false
+		} else if resp.Status == StatusSubDocInvalidCombo {
+			cb(nil, ErrSubDocInvalidCombo)
+			return false
+		} else if resp.Status == StatusSubDocInvalidXattrOrder {
+			cb(nil, ErrSubDocInvalidXattrOrder)
+			return false
+		} else if resp.Status == StatusSubDocMultiPathFailure {
 			if len(resp.Value) != 3 {
 				cb(nil, protocolError{"bad value length"})
 				return false
 			}
 
 			// TODO(chvck): improve this error to include all the errors returned.
-			resError := Status(binary.BigEndian.Uint16(resp.Value[1:]))
+			opIndex := int(resp.Value[0])
+			resStatus := Status(binary.BigEndian.Uint16(resp.Value[1:]))
 
-			cause := OpsCrud{}.decodeCommonStatus(resError)
-			if cause == nil {
-				cause = errors.New("unexpected status: " + resError.String())
+			var statusErr error
+			switch resStatus {
+			case StatusSubDocPathNotFound:
+				statusErr = ErrSubDocPathNotFound
+			case StatusSubDocPathMismatch:
+				statusErr = ErrSubDocPathMismatch
+			case StatusSubDocPathInvalid:
+				statusErr = ErrSubDocPathInvalid
+			case StatusSubDocPathTooBig:
+				statusErr = ErrSubDocPathTooBig
+			case StatusSubDocPathExists:
+				statusErr = ErrSubDocPathExists
+			case StatusSubDocCantInsert:
+				statusErr = ErrSubDocCantInsert
+			case StatusSubDocBadRange:
+				statusErr = ErrSubDocBadRange
+			case StatusSubDocBadDelta:
+				statusErr = ErrSubDocBadDelta
+			case StatusSubDocValueTooDeep:
+				statusErr = ErrSubDocValueTooDeep
+			case StatusSubDocXattrInvalidFlagCombo:
+				statusErr = ErrSubDocXattrInvalidFlagCombo
+			case StatusSubDocXattrInvalidKeyCombo:
+				statusErr = ErrSubDocXattrInvalidKeyCombo
+			case StatusSubDocXattrUnknownMacro:
+				statusErr = ErrSubDocXattrUnknownMacro
+			case StatusSubDocXattrCannotModifyVAttr:
+				statusErr = ErrSubDocXattrCannotModifyVAttr
+			case StatusSubDocXattrUnknownVattrMacro:
+				statusErr = ErrSubDocXattrUnknownVattrMacro
+			case StatusSubDocCanOnlyReviveDeletedDocuments:
+				statusErr = ErrSubDocCanOnlyReviveDeletedDocuments
+			case StatusSubDocDeletedDocumentCantHaveValue:
+				statusErr = ErrSubDocDeletedDocumentCantHaveValue
+			default:
+				statusErr = fmt.Errorf("unexpected mutatein op status code: %02x", resStatus)
 			}
-			cb(nil, ServerError{
-				Cause:          cause,
-				DispatchedTo:   d.RemoteAddr(),
-				DispatchedFrom: d.LocalAddr(),
-				Opaque:         resp.Opaque,
+
+			cb(nil, SubDocError{
+				Cause:   statusErr,
+				OpIndex: opIndex,
 			})
 			return false
 		} else if resp.Status != StatusSuccess {
@@ -1744,7 +1807,8 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 				results[opIndex].Value = resp.Value[readPos+4 : readPos+4+valLength]
 				readPos += 4 + valLength
 			} else {
-				// TODO(chvck): do something?
+				cb(nil, protocolError{"subdoc mutatein op illegally provided an error"})
+				return false
 			}
 		}
 
