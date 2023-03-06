@@ -78,18 +78,26 @@ func (c *Client) registerHandler(handler DispatchCallback) uint32 {
 	return opaqueID
 }
 
-func (c *Client) cancelHandler(opaqueID uint32) bool {
+func (c *Client) cancelHandler(opaqueID uint32, err error) {
 	c.lock.Lock()
 
-	_, handlerIsValid := c.opaqueMap[opaqueID]
+	handler, handlerIsValid := c.opaqueMap[opaqueID]
 	if !handlerIsValid {
 		c.lock.Unlock()
-		return false
+		return
 	}
 
-	delete(c.opaqueMap, opaqueID)
 	c.lock.Unlock()
-	return true
+
+	hasMorePackets := handler(nil, err)
+
+	if !hasMorePackets {
+		c.lock.Lock()
+		delete(c.opaqueMap, opaqueID)
+		c.lock.Unlock()
+	}
+
+	return
 }
 
 func (c *Client) dispatchCallback(pak *Packet) error {

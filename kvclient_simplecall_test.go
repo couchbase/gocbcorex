@@ -12,15 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestKvClientSimpleCallCancellationReturnTrue(t *testing.T) {
+func TestKvClientSimpleCallCancellationPropogateError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
 	memdxCli := &MemdxDispatcherCloserMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
-			return &memdxPendingOpMock{
-				cancelled:   true,
-				cancelledCh: make(chan struct{}, 1),
-			}, nil
+			op := &memdxPendingOpMock{
+				cancelledCh: make(chan error, 1),
+			}
+
+			go func() {
+				err := <-op.cancelledCh
+				dispatchCallback(nil, err)
+			}()
+			return op, nil
 		},
 	}
 
@@ -61,7 +66,7 @@ func TestKvClientSimpleCallCancellationReturnTrue(t *testing.T) {
 	assert.Nil(t, setRes)
 }
 
-func TestKvClientSimpleCallCancellationReturnFalse(t *testing.T) {
+func TestKvClientSimpleCallCancellationPropogateResult(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
 	expectedPacket := &memdx.Packet{
@@ -72,8 +77,7 @@ func TestKvClientSimpleCallCancellationReturnFalse(t *testing.T) {
 	memdxCli := &MemdxDispatcherCloserMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			op := &memdxPendingOpMock{
-				cancelled:   false,
-				cancelledCh: make(chan struct{}, 1),
+				cancelledCh: make(chan error, 1),
 			}
 
 			go func() {

@@ -31,8 +31,7 @@ func TestKvClientSimpleCallSuccessBehaviour(t *testing.T) {
 				dispatchCallback(expectedPacket, nil)
 			})
 			return memdxPendingOpMock{
-				cancelled:   true,
-				cancelledCh: make(chan struct{}, 1),
+				cancelledCh: make(chan error, 1),
 			}, nil
 		},
 	}
@@ -91,8 +90,7 @@ func TestKvClientSimpleCallCallbackFailureBehaviour(t *testing.T) {
 				dispatchCallback(nil, expectedErr)
 			})
 			return memdxPendingOpMock{
-				cancelled:   true,
-				cancelledCh: make(chan struct{}, 1),
+				cancelledCh: make(chan error, 1),
 			}, nil
 		},
 	}
@@ -194,13 +192,14 @@ func TestKvClientSimpleCallContextCancelBehaviour(t *testing.T) {
 
 	memdxCli := &MemdxDispatcherCloserMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
-			time.AfterFunc(1, func() {
-				dispatchCallback(nil, errors.New("i shouldnt be returned at the end of the test"))
-			})
-			return memdxPendingOpMock{
-				cancelled:   true,
-				cancelledCh: make(chan struct{}, 1),
-			}, nil
+			op := memdxPendingOpMock{
+				cancelledCh: make(chan error, 1),
+			}
+			go func() {
+				err := <-op.cancelledCh
+				dispatchCallback(nil, err)
+			}()
+			return op, nil
 		},
 	}
 
