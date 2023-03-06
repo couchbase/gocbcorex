@@ -8,26 +8,45 @@ import (
 )
 
 var (
-	ErrUnknownBucketName     = errors.New("unknown bucket name")
-	ErrUnknownCollectionID   = errors.New("unknown collection id")
-	ErrUnknownScopeName      = errors.New("unknown scope name")
-	ErrUnknownCollectionName = errors.New("unknown collection name")
-	ErrCollectionsNotEnabled = errors.New("collections not enabled")
-	ErrDocNotFound           = errors.New("document not found")
-	ErrSubDocBadMulti        = errors.New("command failed on one or more paths")
-	ErrDocExists             = errors.New("document already exists")
-	ErrAuthError             = errors.New("auth error")
-	ErrNotMyVbucket          = errors.New("not my vbucket")
-	ErrCasMismatch           = errors.New("cas mismatch")
-	ErrDocLocked             = errors.New("document locked")
-	ErrRangeEmpty            = errors.New("requested range is empty")
-	ErrSeqNoNotFound         = errors.New("sequence number not found")
-	ErrSampleRangeImpossible = errors.New("not enough keys to satify requested sample scan")
-	ErrVbUUIDMismatch        = errors.New("vb-uuid mismatch")
-	ErrScanNotFound          = errors.New("scan uuid not found")
-	ErrRangeScanCancelled    = errors.New("range scan was cancelled")
-	ErrAccessError           = errors.New("access error")
-	ErrPathNotFound          = errors.New("path not found")
+	ErrUnknownBucketName                   = errors.New("unknown bucket name")
+	ErrUnknownCollectionID                 = errors.New("unknown collection id")
+	ErrUnknownScopeName                    = errors.New("unknown scope name")
+	ErrUnknownCollectionName               = errors.New("unknown collection name")
+	ErrCollectionsNotEnabled               = errors.New("collections not enabled")
+	ErrDocNotFound                         = errors.New("document not found")
+	ErrDocExists                           = errors.New("document already exists")
+	ErrAuthError                           = errors.New("auth error")
+	ErrNotMyVbucket                        = errors.New("not my vbucket")
+	ErrCasMismatch                         = errors.New("cas mismatch")
+	ErrDocLocked                           = errors.New("document locked")
+	ErrRangeEmpty                          = errors.New("requested range is empty")
+	ErrSeqNoNotFound                       = errors.New("sequence number not found")
+	ErrSampleRangeImpossible               = errors.New("not enough keys to satify requested sample scan")
+	ErrVbUUIDMismatch                      = errors.New("vb-uuid mismatch")
+	ErrScanNotFound                        = errors.New("scan uuid not found")
+	ErrRangeScanCancelled                  = errors.New("range scan was cancelled")
+	ErrAccessError                         = errors.New("access error")
+	ErrSubDocPathNotFound                  = errors.New("subdoc path not found")
+	ErrSubDocPathMismatch                  = errors.New("subdoc path mismatch")
+	ErrSubDocPathInvalid                   = errors.New("subdoc patch invalid")
+	ErrSubDocPathTooBig                    = errors.New("subdoc path too big")
+	ErrSubDocDocTooDeep                    = errors.New("subdoc too deep")
+	ErrSubDocCantInsert                    = errors.New("subdoc cant insert")
+	ErrSubDocNotJSON                       = errors.New("subdoc not json")
+	ErrSubDocBadRange                      = errors.New("subdoc bad range")
+	ErrSubDocBadDelta                      = errors.New("subdoc bad delta")
+	ErrSubDocPathExists                    = errors.New("subdoc path exists")
+	ErrSubDocValueTooDeep                  = errors.New("subdoc value too deep")
+	ErrSubDocInvalidCombo                  = errors.New("subdoc invalid combo")
+	ErrSubDocXattrInvalidFlagCombo         = errors.New("subdoc xattr invalid flag combo")
+	ErrSubDocXattrInvalidKeyCombo          = errors.New("subdoc xattr invalid key combo")
+	ErrSubDocXattrUnknownMacro             = errors.New("subdoc xattr unknown macro")
+	ErrSubDocXattrUnknownVAttr             = errors.New("subdoc xattr unknown vattr")
+	ErrSubDocXattrCannotModifyVAttr        = errors.New("subdoc xattr cannot modify vattr")
+	ErrSubDocInvalidXattrOrder             = errors.New("subdoc invalid xattr order")
+	ErrSubDocXattrUnknownVattrMacro        = errors.New("subdoc xattr unknown vattr macro")
+	ErrSubDocCanOnlyReviveDeletedDocuments = errors.New("subdoc can only revive deleted documents")
+	ErrSubDocDeletedDocumentCantHaveValue  = errors.New("subdoc deleted document cant have value")
 )
 
 var ErrProtocol = errors.New("protocol error")
@@ -88,6 +107,23 @@ func (e ServerError) Error() string {
 }
 
 func (e ServerError) Unwrap() error {
+	return e.Cause
+}
+
+type SubDocError struct {
+	Cause   error
+	OpIndex int
+}
+
+func (e SubDocError) Error() string {
+	return fmt.Sprintf(
+		"subdoc operation error: %s (index: %d)",
+		e.Cause,
+		e.OpIndex,
+	)
+}
+
+func (e SubDocError) Unwrap() error {
 	return e.Cause
 }
 

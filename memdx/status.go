@@ -182,13 +182,13 @@ const (
 	// which is deeper than the depth limits of the sub-document specification.
 	StatusSubDocValueTooDeep = Status(0xca)
 
-	// StatusSubDocBadCombo occurs when a multi-operation sub-document operation is
+	// StatusSubDocInvalidCombo occurs when a multi-operation sub-document operation is
 	// performed and operations within the package of ops conflict with each other.
-	StatusSubDocBadCombo = Status(0xcb)
+	StatusSubDocInvalidCombo = Status(0xcb)
 
-	// StatusSubDocBadMulti occurs when a multi-operation sub-document operation is
+	// StatusSubDocMultiPathFailure occurs when a multi-operation sub-document operation is
 	// performed and operations within the package of ops conflict with each other.
-	StatusSubDocBadMulti = Status(0xcc)
+	StatusSubDocMultiPathFailure = Status(0xcc)
 
 	// StatusSubDocSuccessDeleted occurs when a multi-operation sub-document operation
 	// is performed on a soft-deleted document.
@@ -215,6 +215,21 @@ const (
 	// StatusSubDocMultiPathFailureDeleted occurs when a Multi Path Failure occurs on
 	// a soft-deleted document.
 	StatusSubDocMultiPathFailureDeleted = Status(0xd3)
+
+	// StatusSubDocInvalidXattrOrder occurs when xattr operations exist after non-xattr
+	// operations in the operation list.
+	StatusSubDocInvalidXattrOrder = Status(0xd4)
+
+	// StatusSubDocXattrUnknownVattrMacro occurs when you try to use an unknown vattr.
+	StatusSubDocXattrUnknownVattrMacro = Status(0xd5)
+
+	// StatusSubDocCanOnlyReviveDeletedDocuments occurs when you try to revive a document
+	// which is not currently in the soft-deleted state.
+	StatusSubDocCanOnlyReviveDeletedDocuments = Status(0xd6)
+
+	// StatusSubDocDeletedDocumentCantHaveValue occurs when you try set a value to a
+	// soft-deleted document.
+	StatusSubDocDeletedDocumentCantHaveValue = Status(0xd7)
 )
 
 // String returns the textual representation of this Status.
@@ -300,9 +315,9 @@ func (s Status) String() string {
 		return "SubDocPathExists"
 	case StatusSubDocValueTooDeep:
 		return "SubDocValueTooDeep"
-	case StatusSubDocBadCombo:
+	case StatusSubDocInvalidCombo:
 		return "SubDocBadCombo"
-	case StatusSubDocBadMulti:
+	case StatusSubDocMultiPathFailure:
 		return "SubDocBadMulti"
 	case StatusSubDocSuccessDeleted:
 		return "SubDocSuccessDeleted"
