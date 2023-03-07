@@ -2,6 +2,7 @@ package memdx
 
 import (
 	"errors"
+	"fmt"
 
 	"golang.org/x/exp/slices"
 )
@@ -90,8 +91,11 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 			}
 
 			if !foundCompatibleMech {
-				// TODO(brett19): Enhance this error with more information
-				cb(errors.New("no compatible mechanism was found"))
+				cb(fmt.Errorf(
+					"no supported auth mechanism was found (enabled: %v, server: %v)",
+					opts.EnabledMechs,
+					serverMechs,
+				))
 				return
 			}
 

@@ -2,7 +2,7 @@ package memdx
 
 import (
 	"crypto"
-	"errors"
+	"fmt"
 )
 
 type OpSaslAuthByNameEncoder interface {
@@ -58,7 +58,6 @@ func (a OpSaslAuthByName) SASLAuthByName(d Dispatcher, opts *SaslAuthByNameOptio
 			Encoder: a.Encoder,
 		}.SASLAuthInvalid(d, pipelineCb, cb)
 	} else {
-		// TODO(brett19): Add better error information here
-		return nil, errors.New("unsupported mechanism")
+		return nil, fmt.Errorf("unsupported mechanism specified (mechanism: %s)", opts.Mechanism)
 	}
 }
