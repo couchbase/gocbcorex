@@ -277,7 +277,6 @@ func makeDefaultTestBootstrapEncoder(errmap []byte, cfg []byte) *testOpBootstrap
 
 // testBootstrapDispatcher doesn't actually do anything.
 type testBootstrapDispatcher struct {
-	packets []Packet
 }
 
 func (t testBootstrapDispatcher) Dispatch(packet *Packet, callback DispatchCallback) (PendingOp, error) {

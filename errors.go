@@ -148,31 +148,7 @@ func (e noServerAssignedError) Unwrap() error {
 	return ErrNoServerAssigned
 }
 
-type internalError struct {
-	Reason error
-}
-
-func (e internalError) Error() string {
-	return fmt.Sprintf("internal error (%s)", e.Reason)
-}
-
-func (e internalError) Unwrap() error {
-	return e.Reason
-}
-
 var ErrInvalidArgument = errors.New("invalid argument")
-
-type invalidArgumentError struct {
-	Message string
-}
-
-func (e invalidArgumentError) Error() string {
-	return fmt.Sprintf("invalid argument: %s", e.Message)
-}
-
-func (e invalidArgumentError) Unwrap() error {
-	return ErrInvalidArgument
-}
 
 var ErrBootstrapAllFailed = errors.New("all bootstrap hosts failed")
 

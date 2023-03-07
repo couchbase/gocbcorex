@@ -138,7 +138,7 @@ func (nqh *n1qlTestHelper) testN1QLBasic(t *testing.T) {
 		if sleepDeadline.After(deadline) {
 			sleepDeadline = deadline
 		}
-		time.Sleep(sleepDeadline.Sub(time.Now()))
+		time.Sleep(time.Until(sleepDeadline))
 
 		if sleepDeadline == deadline {
 			t.Errorf("timed out waiting for indexing: %s", lastError)

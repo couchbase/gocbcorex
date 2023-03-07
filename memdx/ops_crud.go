@@ -54,15 +54,19 @@ func (o OpsCrud) encodeReqExtFrames(
 				return 0, nil, err
 			}
 		} else {
-			durabilityTimeoutMillis := durabilityLevelTimeout / time.Millisecond
+			durabilityTimeoutMillis := uint64(durabilityLevelTimeout / time.Millisecond)
 			if durabilityTimeoutMillis > 65535 {
 				durabilityTimeoutMillis = 65535
 			}
+
 			duraBuf := make([]byte, 3)
 			duraBuf[0] = byte(durabilityLevel)
 			duraBuf[1] = uint8(durabilityTimeoutMillis >> 8)
 			duraBuf[2] = byte(durabilityTimeoutMillis)
 			buf, err = AppendExtFrame(ExtFrameCodeReqDurability, duraBuf, buf)
+			if err != nil {
+				return 0, nil, err
+			}
 		}
 	} else if durabilityLevelTimeout > 0 {
 		return 0, nil, protocolError{"cannot encode durability timeout without durability level"}

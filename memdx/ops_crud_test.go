@@ -1332,6 +1332,10 @@ func TestOpsCrudMutations(t *testing.T) {
 					Initial:   1,
 					VbucketID: 1,
 				}, func(resp *IncrementResponse, err error) {
+					if err != nil {
+						cb(nil, err)
+					}
+
 					_, err = opsCrud.Increment(cli, &IncrementRequest{
 						Key:       key,
 						Delta:     2,
@@ -1339,7 +1343,7 @@ func TestOpsCrudMutations(t *testing.T) {
 					}, func(response *IncrementResponse, err error) {
 						cb(resp, err)
 					})
-					if err == nil {
+					if err != nil {
 						cb(nil, err)
 					}
 				})
@@ -1355,6 +1359,10 @@ func TestOpsCrudMutations(t *testing.T) {
 					Initial:   5,
 					VbucketID: 1,
 				}, func(resp *DecrementResponse, err error) {
+					if err != nil {
+						cb(nil, err)
+					}
+
 					_, err = opsCrud.Decrement(cli, &DecrementRequest{
 						Key:       key,
 						Delta:     2,
@@ -1362,7 +1370,7 @@ func TestOpsCrudMutations(t *testing.T) {
 					}, func(response *DecrementResponse, err error) {
 						cb(resp, err)
 					})
-					if err == nil {
+					if err != nil {
 						cb(nil, err)
 					}
 				})
@@ -1623,6 +1631,10 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					VbucketID:       1,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *IncrementResponse, err error) {
+					if err != nil {
+						cb(nil, err)
+					}
+
 					_, err = opsCrud.Increment(cli, &IncrementRequest{
 						Key:       key,
 						Delta:     2,
@@ -1630,7 +1642,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					}, func(response *IncrementResponse, err error) {
 						cb(resp, err)
 					})
-					if err == nil {
+					if err != nil {
 						cb(nil, err)
 					}
 				})
@@ -1647,6 +1659,10 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					VbucketID:       1,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *DecrementResponse, err error) {
+					if err != nil {
+						cb(nil, err)
+					}
+
 					_, err = opsCrud.Decrement(cli, &DecrementRequest{
 						Key:       key,
 						Delta:     2,
@@ -1654,7 +1670,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					}, func(response *DecrementResponse, err error) {
 						cb(resp, err)
 					})
-					if err == nil {
+					if err != nil {
 						cb(nil, err)
 					}
 				})
@@ -1783,6 +1799,10 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *IncrementResponse, err error) {
+					if err != nil {
+						cb(nil, err)
+					}
+
 					_, err = opsCrud.Increment(cli, &IncrementRequest{
 						Key:       key,
 						Delta:     2,
@@ -1790,7 +1810,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					}, func(response *IncrementResponse, err error) {
 						cb(resp, err)
 					})
-					if err == nil {
+					if err != nil {
 						cb(nil, err)
 					}
 				})
@@ -1808,6 +1828,10 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *DecrementResponse, err error) {
+					if err != nil {
+						cb(nil, err)
+					}
+
 					_, err = opsCrud.Decrement(cli, &DecrementRequest{
 						Key:       key,
 						Delta:     2,
@@ -1815,7 +1839,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					}, func(response *DecrementResponse, err error) {
 						cb(resp, err)
 					})
-					if err == nil {
+					if err != nil {
 						cb(nil, err)
 					}
 				})
