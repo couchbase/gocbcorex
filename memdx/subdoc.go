@@ -7,21 +7,24 @@ type SubdocOp interface {
 // ReorderSubdocOps can be used to reorder a list of SubdocOp so that xattrs
 // are at the start of the list - as required by the server.
 func ReorderSubdocOps[T SubdocOp](ops []T) (reordered []T, indexes []int) {
-	var xAttrOps []T
-	var xAttrIndexes []int
-	var sops []T
-	var opIndexes []int
+	orderedOps := make([]T, 0, len(ops))
+	opIndexes := make([]int, len(ops))
+
 	for i, op := range ops {
 		if op.IsXattrOp() {
-			xAttrOps = append(xAttrOps, op)
-			xAttrIndexes = append(xAttrIndexes, i)
-		} else {
-			sops = append(sops, op)
-			opIndexes = append(opIndexes, i)
+			orderedOps = append(orderedOps, op)
+			opIndexes[i] = len(orderedOps) - 1
 		}
 	}
 
-	return sops, opIndexes
+	for i, op := range ops {
+		if !op.IsXattrOp() {
+			orderedOps = append(orderedOps, op)
+			opIndexes[i] = len(orderedOps) - 1
+		}
+	}
+
+	return orderedOps, opIndexes
 }
 
 // SubDocResult encapsulates the results from a single sub-document operation.
