@@ -31,12 +31,14 @@ type Agent struct {
 	lock  sync.Mutex
 	state agentState
 
+	cfgWatcher  ConfigWatcher
+	connMgr     KvClientManager
+	collections CollectionResolver
+	retries     RetryManager
+	vbRouter    VbucketRouter
+
 	httpCfgWatcher *ConfigWatcherHttp
 	memdCfgWatcher *ConfigWatcherMemd
-	connMgr        KvClientManager
-	collections    CollectionResolver
-	retries        RetryManager
-	vbRouter       VbucketRouter
 
 	crud  *CrudComponent
 	query *QueryComponent
@@ -206,6 +208,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		}
 
 		agent.httpCfgWatcher = configWatcher
+		agent.cfgWatcher = configWatcher
 	} else {
 		configWatcher, err := NewConfigWatcherMemd(
 			&agentComponentConfigs.ConfigWatcherMemdConfig,
@@ -220,6 +223,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		}
 
 		agent.memdCfgWatcher = configWatcher
+		agent.cfgWatcher = configWatcher
 	}
 
 	go agent.configWatcherThread()
@@ -391,6 +395,10 @@ func (agent *Agent) Close() error {
 	return nil
 }
 
+func (agent *Agent) WatchConfig(ctx context.Context) <-chan *ParsedConfig {
+	return agent.cfgWatcher.Watch(ctx)
+}
+
 func (agent *Agent) applyConfig(config *ParsedConfig) {
 	agent.lock.Lock()
 	defer agent.lock.Unlock()
@@ -471,16 +479,7 @@ func (agent *Agent) updateStateLocked() {
 }
 
 func (agent *Agent) configWatcherThread() {
-	var configCh <-chan *ParsedConfig
-	if agent.memdCfgWatcher != nil {
-		configCh = agent.memdCfgWatcher.Watch(context.Background())
-	} else if agent.httpCfgWatcher != nil {
-		configCh = agent.httpCfgWatcher.Watch(context.Background())
-	} else {
-		agent.logger.Warn("failed to start config monitoring due to missing watcher")
-		return
-	}
-
+	configCh := agent.cfgWatcher.Watch(context.Background())
 	for config := range configCh {
 		agent.applyConfig(config)
 	}
