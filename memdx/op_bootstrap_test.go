@@ -342,7 +342,6 @@ type testOpBootstrapEncoder struct {
 	DispatchErrors testOpBootstrapEncoderDispatchErrors
 
 	// Bootstrap requests are guaranteed to respond in the order that they are sent.
-	// TODO(chvck): Add tests to simulate one of the packets gets dropped on the network.
 	helloDoneCh    chan struct{}
 	errMapDoneCh   chan struct{}
 	saslListDoneCh chan struct{}

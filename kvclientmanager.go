@@ -144,16 +144,6 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
 		}
 	}
 
-	// TODO(brett19): Clean up the pools that were destroyed.
-	// we will need to keep track of them to support doing a full shut
-	// down, similar to how KvClientPool handles it.
-
-	// TODO(brett19): optimize this to avoid recreating pools
-	// right now, if the name of the pool changes, it causes a new pool
-	// to be created and the old one destroyed.  We should try to match
-	// any dead pools to the new pools being created, and reuse them
-	// instead.
-
 	m.state.Store(newState)
 
 	return nil

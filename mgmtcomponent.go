@@ -30,37 +30,18 @@ func OrchestrateMgmtEndpoint[RespT any](
 	w *MgmtComponent,
 	fn func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error),
 ) (RespT, error) {
-	var recentEndpoints []string
-
-	for {
-		roundTripper, endpoint, username, password, err := w.SelectEndpoint(recentEndpoints)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		if endpoint == "" {
-			var emptyResp RespT
-			return emptyResp, ErrServiceNotAvailable
-		}
-
-		// mark the selected endpoint as having been tried
-		recentEndpoints = append(recentEndpoints, endpoint)
-
-		res, err := fn(roundTripper, endpoint, username, password)
-		if err != nil {
-			// TODO(brett19): Handle certain kinds of errors that mean sending to a different node...
-			if false {
-				// certain errors loop back around to try again with a different endpoint
-				continue
-			}
-
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		return res, nil
+	roundTripper, endpoint, username, password, err := w.SelectEndpoint(nil)
+	if err != nil {
+		var emptyResp RespT
+		return emptyResp, err
 	}
+
+	if endpoint == "" {
+		var emptyResp RespT
+		return emptyResp, ErrServiceNotAvailable
+	}
+
+	return fn(roundTripper, endpoint, username, password)
 }
 
 func NewMgmtComponent(retries RetryManager, config *MgmtComponentConfig, opts *MgmtComponentOptions) *MgmtComponent {

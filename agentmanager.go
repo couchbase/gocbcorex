@@ -63,17 +63,13 @@ func (m *AgentManager) Reconfigure(opts AgentManagerReconfigureOptions) error {
 	return errors.New("not yet supported")
 }
 
-// TODO(brett19): This should return a ClusterAgent
 func (m *AgentManager) GetClusterAgent() *Agent {
 	return m.clusterAgent
 }
 
-// TODO(brett19): This should return a BucketAgent
 func (m *AgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-
-	// TODO(brett19): This shouldn't block everyone every time a new bucket needs to connect....
 
 	if m.bucketAgents == nil {
 		m.bucketAgents = make(map[string]*Agent)

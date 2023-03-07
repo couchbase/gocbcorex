@@ -27,7 +27,6 @@ func (o OpsCrud) encodeCollectionAndKey(collectionID uint32, key []byte, buf []b
 	return AppendCollectionIDAndKey(collectionID, key, buf)
 }
 
-// TODO(brett19): This exists in OpsUtils too, we should probably deduplicate the implementation.
 func (o OpsCrud) encodeReqExtFrames(
 	onBehalfOf string,
 	durabilityLevel DurabilityLevel, durabilityLevelTimeout time.Duration,
@@ -1747,7 +1746,6 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 				return false
 			}
 
-			// TODO(chvck): improve this error to include all the errors returned.
 			opIndex := int(resp.Value[0])
 			resStatus := Status(binary.BigEndian.Uint16(resp.Value[1:]))
 

@@ -325,7 +325,6 @@ func (p *kvClientPool) reconfigureClientThread(client KvClient) {
 }
 
 func (p *kvClientPool) defunctClientThread(client KvClient) {
-	// TODO(brett19): Actually shut down defunct clients...
 }
 
 func (p *kvClientPool) ShutdownClient(client KvClient) {
@@ -457,9 +456,7 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 }
 
 func (p *kvClientPool) Shutdown(ctx context.Context) {
-	// TODO(brett19): Implement graceful shutdown of a pool...
 }
 
 func (p *kvClientPool) Close() {
-	// TODO(brett19): Implementing closing a client pool
 }

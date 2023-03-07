@@ -35,7 +35,6 @@ func (c *baseHttpComponent) SelectEndpoint(ignoredEndpoints []string) (http.Roun
 
 	// if there are no more endpoints to try, we can't proceed
 	if len(remainingEndpoints) == 0 {
-		// TODO(brett19): Decide if this is the right error to return...
 		return nil, "", "", "", nil
 	}
 

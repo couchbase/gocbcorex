@@ -37,7 +37,6 @@ func (o OpsCore) decodeErrorContext(resp *Packet, err error, dispatchedTo string
 }
 
 func (o OpsCore) decodeError(resp *Packet, dispatchedTo string, dispatchedFrom string) error {
-	// TODO(brett19): Do better...
 	var err error
 	if resp.Status == StatusNotMyVBucket {
 		err = ErrNotMyVbucket
