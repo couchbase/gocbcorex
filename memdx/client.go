@@ -90,14 +90,13 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 	c.lock.Unlock()
 
 	hasMorePackets := handler(nil, requestCancelledError{cause: err})
-
-	if !hasMorePackets {
-		c.lock.Lock()
-		delete(c.opaqueMap, opaqueID)
-		c.lock.Unlock()
+	if hasMorePackets {
+		panic("memd packet handler returned hasMorePackets after an error")
 	}
 
-	return
+	c.lock.Lock()
+	delete(c.opaqueMap, opaqueID)
+	c.lock.Unlock()
 }
 
 func (c *Client) dispatchCallback(pak *Packet) error {
