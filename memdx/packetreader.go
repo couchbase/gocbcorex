@@ -81,7 +81,7 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 	payloadPos += keyLen
 
 	pak.Value = payloadBuf[payloadPos : payloadPos+valueLen]
-	payloadPos += valueLen
+	// payloadPos += valueLen
 
 	return nil
 }

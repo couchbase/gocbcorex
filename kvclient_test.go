@@ -19,7 +19,6 @@ type memdxPendingOpMock struct {
 
 func (mpo memdxPendingOpMock) Cancel(err error) {
 	mpo.cancelledCh <- err
-	return
 }
 
 func TestKvClientReconfigureBucket(t *testing.T) {

@@ -31,9 +31,8 @@ func (mt *MutationState) Add(bucketName string, tokens ...MutationToken) {
 	if _, ok := mt.Tokens[bucketName]; !ok {
 		mt.Tokens[bucketName] = []MutationToken{}
 	}
-	for _, token := range tokens {
-		mt.Tokens[bucketName] = append(mt.Tokens[bucketName], token)
-	}
+
+	mt.Tokens[bucketName] = append(mt.Tokens[bucketName], tokens...)
 }
 
 // MarshalJSON marshal's this mutation state to JSON.

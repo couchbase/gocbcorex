@@ -160,7 +160,7 @@ func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
 
-	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
+	_, err = agent.Upsert(context.Background(), &UpsertOptions{
 		Key:            []byte("test"),
 		ScopeName:      "",
 		CollectionName: "",
@@ -175,7 +175,7 @@ func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	upsertRes, err = agent.Upsert(context.Background(), &UpsertOptions{
+	upsertRes, err := agent.Upsert(context.Background(), &UpsertOptions{
 		Key:            []byte("test"),
 		ScopeName:      "",
 		CollectionName: "",

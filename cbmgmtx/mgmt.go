@@ -365,10 +365,9 @@ func (h Management) CreateCollection(
 
 	posts := url.Values{}
 	posts.Add("name", opts.CollectionName)
-	if opts != nil {
-		if opts.MaxTTL > 0 {
-			posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxTTL)))
-		}
+
+	if opts.MaxTTL > 0 {
+		posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxTTL)))
 	}
 
 	resp, err := h.Execute(
@@ -637,6 +636,10 @@ func (h Management) CreateBucket(
 	ctx context.Context,
 	opts *CreateBucketOptions,
 ) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when creating a bucket")
+	}
+
 	posts := url.Values{}
 
 	if opts.BucketName != "" {
