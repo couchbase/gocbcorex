@@ -909,7 +909,6 @@ type LookupInResult struct {
 	Cas          uint64
 }
 
-// TODO(chvck): Lookupin and Mutatein should do reordering of ops.
 func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*LookupInResult, error) {
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,

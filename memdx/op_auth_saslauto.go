@@ -31,12 +31,11 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 	var serverMechs []AuthMechanism
 
 	if len(opts.EnabledMechs) == 0 {
-		// TODO(brett19): Enhance this error with more details
 		return nil, errors.New("must specify at least one allowed authentication mechanism")
 	}
 
-	// NOTE(brett19): The following logic is dependant on operation ordering that
-	// is guarenteed by memcached, even when Out-Of-Order Execution is enabled.
+	// The following logic is dependant on operation ordering that is guarenteed
+	// by memcached, even when Out-Of-Order Execution is enabled.
 
 	pendingOp := &multiPendingOp{}
 
@@ -67,13 +66,12 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 				cb(err)
 				return
 			}
-			// TODO(brett19): We should investigate invalid mechanism error handling.
-			// There was no obvious way to differentiate between a mechanism being unsupported
-			// and the credentials being wrong.  So for now we just assume any error should be
-			// ignored if our list-mechs doesn't include it.
 
-			// if we support the default mech, it means this error is 'real', otherwise we try
-			// with one of the mechanisms that we now know are supported
+			// There is no obvious way to differentiate between a mechanism being unsupported
+			// and the credentials being wrong.  So for now we just assume any error should be
+			// ignored if our list-mechs doesn't include the mechanism we used.
+			// If the server supports the default mech, it means this error is 'real', otherwise
+			// we try with one of the mechanisms that we now know are supported
 			supportsDefaultMech := slices.Contains(serverMechs, defaultMech)
 			if supportsDefaultMech {
 				cb(err)

@@ -4,7 +4,6 @@ import (
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
 
-// TODO: Once we consolidate all of our config stuff across projects we should also provide utils for generating configs.
 func GenTerseClusterConfig(rev, revEpoch int, baseHostnames []string) *cbconfig.TerseConfigJson {
 	cfg := &cbconfig.TerseConfigJson{
 		Rev:                    rev,
