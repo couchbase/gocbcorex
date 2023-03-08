@@ -39,14 +39,15 @@ func TestKvClientSimpleCallSuccessBehaviour(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -98,14 +99,15 @@ func TestKvClientSimpleCallCallbackFailureBehaviour(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -149,14 +151,15 @@ func TestKvClientSimpleCallCallFailureBehaviour(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -206,14 +209,15 @@ func TestKvClientSimpleCallContextCancelBehaviour(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 

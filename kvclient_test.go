@@ -69,14 +69,15 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -101,14 +102,15 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -133,14 +135,15 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -165,14 +168,15 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -197,14 +201,15 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Logger:  logger,
 		Address: "endpoint1",
-		Authenticator: &PasswordAuthenticator{
-			Username: "user",
-			Password: "pass",
-		},
-		SelectedBucket: "bucket",
+
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
