@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"sync/atomic"
 
 	"go.uber.org/zap"
@@ -14,11 +15,18 @@ import (
 type GetMemdxClientFunc func(opts *memdx.ClientOptions) MemdxDispatcherCloser
 
 type KvClientConfig struct {
-	Logger         *zap.Logger
-	Address        string
-	TlsConfig      *tls.Config
-	Authenticator  Authenticator
-	SelectedBucket string
+	Logger                 *zap.Logger
+	Address                string
+	TlsConfig              *tls.Config
+	Authenticator          Authenticator
+	ClientName             string
+	SelectedBucket         string
+	DisableDefaultFeatures bool
+	DisableErrorMap        bool
+
+	// DisableBootstrap provides a simple way to validate that all bootstrapping
+	// is disabled on the client, mainly used for testing.
+	DisableBootstrap bool
 
 	NewMemdxClient GetMemdxClientFunc
 }
@@ -85,62 +93,12 @@ type kvClient struct {
 var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
-	username, password, err := opts.Authenticator.GetCredentials(MemdService, opts.Address)
-	if err != nil {
-		return nil, err
-	}
-
 	kvCli := &kvClient{
 		logger:        loggerOrNop(opts.Logger),
 		hostname:      opts.Address,
 		tlsConfig:     opts.TlsConfig,
 		authenticator: opts.Authenticator,
 		bucket:        opts.SelectedBucket,
-	}
-
-	requestedFeatures := []memdx.HelloFeature{
-		memdx.HelloFeatureDatatype,
-		memdx.HelloFeatureSeqNo,
-		memdx.HelloFeatureXattr,
-		memdx.HelloFeatureXerror,
-		memdx.HelloFeatureSnappy,
-		memdx.HelloFeatureJSON,
-		memdx.HelloFeatureUnorderedExec,
-		memdx.HelloFeatureDurations,
-		memdx.HelloFeaturePreserveExpiry,
-		memdx.HelloFeatureSyncReplication,
-		memdx.HelloFeatureReplaceBodyWithXattr,
-		memdx.HelloFeatureSelectBucket,
-		memdx.HelloFeatureCreateAsDeleted,
-		memdx.HelloFeatureAltRequests,
-		memdx.HelloFeatureCollections,
-	}
-
-	bootstrapOpts := &memdx.BootstrapOptions{
-		Hello: &memdx.HelloRequest{
-			ClientName:        []byte("core"),
-			RequestedFeatures: requestedFeatures,
-		},
-		GetErrorMap: &memdx.GetErrorMapRequest{
-			Version: 2,
-		},
-		GetClusterConfig: &memdx.GetClusterConfigRequest{},
-	}
-
-	if username != "" || password != "" {
-		bootstrapOpts.Auth = &memdx.SaslAuthAutoOptions{
-			Username: username,
-			Password: password,
-			EnabledMechs: []memdx.AuthMechanism{
-				memdx.ScramSha512AuthMechanism,
-				memdx.ScramSha256AuthMechanism},
-		}
-	}
-
-	if opts.SelectedBucket != "" {
-		bootstrapOpts.SelectBucket = &memdx.SelectBucketRequest{
-			BucketName: opts.SelectedBucket,
-		}
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
@@ -154,8 +112,81 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		}
 
 		kvCli.cli = memdx.NewClient(conn, memdxClientOpts)
+	} else {
+		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
+	}
 
-		res, err := kvCli.bootstrap(ctx, bootstrapOpts)
+	var requestedFeatures []memdx.HelloFeature
+	if !opts.DisableDefaultFeatures {
+		requestedFeatures = []memdx.HelloFeature{
+			memdx.HelloFeatureDatatype,
+			memdx.HelloFeatureSeqNo,
+			memdx.HelloFeatureXattr,
+			memdx.HelloFeatureXerror,
+			memdx.HelloFeatureSnappy,
+			memdx.HelloFeatureJSON,
+			memdx.HelloFeatureUnorderedExec,
+			memdx.HelloFeatureDurations,
+			memdx.HelloFeaturePreserveExpiry,
+			memdx.HelloFeatureSyncReplication,
+			memdx.HelloFeatureReplaceBodyWithXattr,
+			memdx.HelloFeatureSelectBucket,
+			memdx.HelloFeatureCreateAsDeleted,
+			memdx.HelloFeatureAltRequests,
+			memdx.HelloFeatureCollections,
+		}
+	}
+
+	var bootstrapHello *memdx.HelloRequest
+	if opts.ClientName != "" || len(requestedFeatures) > 0 {
+		bootstrapHello = &memdx.HelloRequest{
+			ClientName:        []byte(opts.ClientName),
+			RequestedFeatures: requestedFeatures,
+		}
+	}
+
+	var bootstrapGetErrorMap *memdx.GetErrorMapRequest
+	if !opts.DisableErrorMap {
+		bootstrapGetErrorMap = &memdx.GetErrorMapRequest{
+			Version: 2,
+		}
+	}
+
+	var bootstrapAuth *memdx.SaslAuthAutoOptions
+	if opts.Authenticator != nil {
+		username, password, err := opts.Authenticator.GetCredentials(MemdService, opts.Address)
+		if err != nil {
+			return nil, err
+		}
+
+		bootstrapAuth = &memdx.SaslAuthAutoOptions{
+			Username: username,
+			Password: password,
+			EnabledMechs: []memdx.AuthMechanism{
+				memdx.ScramSha512AuthMechanism,
+				memdx.ScramSha256AuthMechanism},
+		}
+	}
+
+	var bootstrapSelectBucket *memdx.SelectBucketRequest
+	if opts.SelectedBucket != "" {
+		bootstrapSelectBucket = &memdx.SelectBucketRequest{
+			BucketName: opts.SelectedBucket,
+		}
+	}
+
+	if bootstrapHello != nil || bootstrapAuth != nil || bootstrapGetErrorMap != nil {
+		if opts.DisableBootstrap {
+			return nil, errors.New("bootstrap was disabled but options requiring bootstrap were specified")
+		}
+
+		res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
+			Hello:            bootstrapHello,
+			GetErrorMap:      bootstrapGetErrorMap,
+			Auth:             bootstrapAuth,
+			SelectBucket:     bootstrapSelectBucket,
+			GetClusterConfig: nil,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +196,7 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 
 		kvCli.supportedFeatures = res.Hello.EnabledFeatures
 	} else {
-		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
+		kvCli.logger.Debug("skipped bootstrapping new KvClient")
 	}
 
 	return kvCli, nil
