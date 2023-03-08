@@ -383,6 +383,7 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig) error {
 	reconfigureClients := p.activeConnections
 	p.activeConnections = p.activeConnections[:0]
 	p.reconfigConnections = append(p.reconfigConnections, reconfigureClients...)
+	p.rebuildFastMapLocked()
 
 	// start the reconfiguring
 	for _, client := range reconfigureClients {
