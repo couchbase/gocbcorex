@@ -32,9 +32,10 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:        logger,
 		Address:       testutils.TestOpts.MemdAddrs[0],
 		Authenticator: auth,
+	}, &KvClientOptions{
+		Logger: logger,
 	})
 	require.NoError(t, err)
 
@@ -67,17 +68,17 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:  logger,
 		Address: "endpoint1",
-
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
-			return memdxCli
-		},
 
 		// we set these to avoid bootstrapping
 		DisableBootstrap:       true,
 		DisableDefaultFeatures: true,
 		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
 	})
 	require.NoError(t, err)
 
@@ -100,17 +101,17 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:  logger,
 		Address: "endpoint1",
-
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
-			return memdxCli
-		},
 
 		// we set these to avoid bootstrapping
 		DisableBootstrap:       true,
 		DisableDefaultFeatures: true,
 		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
 	})
 	require.NoError(t, err)
 
@@ -133,17 +134,17 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:  logger,
 		Address: "endpoint1",
-
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
-			return memdxCli
-		},
 
 		// we set these to avoid bootstrapping
 		DisableBootstrap:       true,
 		DisableDefaultFeatures: true,
 		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
 	})
 	require.NoError(t, err)
 
@@ -166,17 +167,17 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:  logger,
 		Address: "endpoint1",
-
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
-			return memdxCli
-		},
 
 		// we set these to avoid bootstrapping
 		DisableBootstrap:       true,
 		DisableDefaultFeatures: true,
 		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
 	})
 	require.NoError(t, err)
 
@@ -199,17 +200,17 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Logger:  logger,
 		Address: "endpoint1",
-
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
-			return memdxCli
-		},
 
 		// we set these to avoid bootstrapping
 		DisableBootstrap:       true,
 		DisableDefaultFeatures: true,
 		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
 	})
 	require.NoError(t, err)
 

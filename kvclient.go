@@ -15,11 +15,10 @@ import (
 type GetMemdxClientFunc func(opts *memdx.ClientOptions) MemdxDispatcherCloser
 
 type KvClientConfig struct {
-	Logger                 *zap.Logger
 	Address                string
 	TlsConfig              *tls.Config
-	Authenticator          Authenticator
 	ClientName             string
+	Authenticator          Authenticator
 	SelectedBucket         string
 	DisableDefaultFeatures bool
 	DisableErrorMap        bool
@@ -27,15 +26,22 @@ type KvClientConfig struct {
 	// DisableBootstrap provides a simple way to validate that all bootstrapping
 	// is disabled on the client, mainly used for testing.
 	DisableBootstrap bool
-
-	NewMemdxClient GetMemdxClientFunc
 }
 
 func (o KvClientConfig) Equals(b *KvClientConfig) bool {
 	return o.Address == b.Address &&
 		o.TlsConfig == b.TlsConfig &&
+		o.ClientName == b.ClientName &&
+		o.Authenticator == b.Authenticator &&
 		o.SelectedBucket == b.SelectedBucket &&
-		o.Authenticator == b.Authenticator
+		o.DisableDefaultFeatures == b.DisableDefaultFeatures &&
+		o.DisableErrorMap == b.DisableErrorMap &&
+		o.DisableBootstrap == b.DisableBootstrap
+}
+
+type KvClientOptions struct {
+	Logger         *zap.Logger
+	NewMemdxClient GetMemdxClientFunc
 }
 
 type KvClient interface {
@@ -92,13 +98,13 @@ type kvClient struct {
 
 var _ KvClient = (*kvClient)(nil)
 
-func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
+func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOptions) (*kvClient, error) {
 	kvCli := &kvClient{
 		logger:        loggerOrNop(opts.Logger),
-		hostname:      opts.Address,
-		tlsConfig:     opts.TlsConfig,
-		authenticator: opts.Authenticator,
-		bucket:        opts.SelectedBucket,
+		hostname:      config.Address,
+		tlsConfig:     config.TlsConfig,
+		authenticator: config.Authenticator,
+		bucket:        config.SelectedBucket,
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
@@ -106,7 +112,7 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 		CloseHandler:  nil,
 	}
 	if opts.NewMemdxClient == nil {
-		conn, err := memdx.DialConn(ctx, opts.Address, &memdx.DialConnOptions{TLSConfig: opts.TlsConfig})
+		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +123,7 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	}
 
 	var requestedFeatures []memdx.HelloFeature
-	if !opts.DisableDefaultFeatures {
+	if !config.DisableDefaultFeatures {
 		requestedFeatures = []memdx.HelloFeature{
 			memdx.HelloFeatureDatatype,
 			memdx.HelloFeatureSeqNo,
@@ -138,23 +144,23 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	}
 
 	var bootstrapHello *memdx.HelloRequest
-	if opts.ClientName != "" || len(requestedFeatures) > 0 {
+	if config.ClientName != "" || len(requestedFeatures) > 0 {
 		bootstrapHello = &memdx.HelloRequest{
-			ClientName:        []byte(opts.ClientName),
+			ClientName:        []byte(config.ClientName),
 			RequestedFeatures: requestedFeatures,
 		}
 	}
 
 	var bootstrapGetErrorMap *memdx.GetErrorMapRequest
-	if !opts.DisableErrorMap {
+	if !config.DisableErrorMap {
 		bootstrapGetErrorMap = &memdx.GetErrorMapRequest{
 			Version: 2,
 		}
 	}
 
 	var bootstrapAuth *memdx.SaslAuthAutoOptions
-	if opts.Authenticator != nil {
-		username, password, err := opts.Authenticator.GetCredentials(MemdService, opts.Address)
+	if config.Authenticator != nil {
+		username, password, err := config.Authenticator.GetCredentials(MemdService, config.Address)
 		if err != nil {
 			return nil, err
 		}
@@ -169,14 +175,14 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	}
 
 	var bootstrapSelectBucket *memdx.SelectBucketRequest
-	if opts.SelectedBucket != "" {
+	if config.SelectedBucket != "" {
 		bootstrapSelectBucket = &memdx.SelectBucketRequest{
-			BucketName: opts.SelectedBucket,
+			BucketName: config.SelectedBucket,
 		}
 	}
 
 	if bootstrapHello != nil || bootstrapAuth != nil || bootstrapGetErrorMap != nil {
-		if opts.DisableBootstrap {
+		if config.DisableBootstrap {
 			return nil, errors.New("bootstrap was disabled but options requiring bootstrap were specified")
 		}
 
@@ -202,27 +208,27 @@ func NewKvClient(ctx context.Context, opts *KvClientConfig) (*kvClient, error) {
 	return kvCli, nil
 }
 
-func (c *kvClient) Reconfigure(ctx context.Context, opts *KvClientConfig) error {
-	if opts == nil {
+func (c *kvClient) Reconfigure(ctx context.Context, config *KvClientConfig) error {
+	if config == nil {
 		return nil
 	}
 
-	if opts.TlsConfig != c.tlsConfig {
+	if config.TlsConfig != c.tlsConfig {
 		return placeholderError{"cannot reconfigure tls config"}
 	}
-	if opts.Address != c.hostname {
+	if config.Address != c.hostname {
 		return placeholderError{"cannot reconfigure address"}
 	}
-	if opts.Authenticator != c.authenticator {
+	if config.Authenticator != c.authenticator {
 		return placeholderError{"cannot reconfigure authenticator"}
 	}
 
-	if opts.SelectedBucket != "" {
+	if config.SelectedBucket != "" {
 		if c.bucket != "" {
 			return placeholderError{"cannot perform select bucket on an already bucket bound kvclient"}
 		}
 
-		c.bucket = opts.SelectedBucket
+		c.bucket = config.SelectedBucket
 		if err := c.SelectBucket(ctx, &memdx.SelectBucketRequest{
 			BucketName: c.bucket,
 		}); err != nil {

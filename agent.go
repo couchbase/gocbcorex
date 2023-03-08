@@ -311,7 +311,6 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 	for addrIdx, addr := range kvDataHosts {
 		nodeId := kvDataNodeIds[addrIdx]
 		clients[nodeId] = &KvClientConfig{
-			Logger:         agent.logger,
 			Address:        addr,
 			TlsConfig:      agent.state.tlsConfig,
 			SelectedBucket: agent.state.bucket,

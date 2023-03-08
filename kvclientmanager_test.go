@@ -58,7 +58,7 @@ func TestNewKvClientManagerApplyConfig(t *testing.T) {
 			poolMock := &KvClientPoolMock{
 				GetClientFunc: func(ctx context.Context) (KvClient, error) {
 					cli := &KvClientMock{}
-					clientPools[clientOpts.ClientOpts.Address] = cli
+					clientPools[clientOpts.ClientConfig.Address] = cli
 					return cli, nil
 				},
 			}
@@ -145,12 +145,12 @@ func TestKvClientManagerReconfigureAddsEndpoints(t *testing.T) {
 			poolMock := &KvClientPoolMock{
 				GetClientFunc: func(ctx context.Context) (KvClient, error) {
 					cli := &KvClientMock{}
-					clientPools[clientOpts.ClientOpts.Address] = cli
+					clientPools[clientOpts.ClientConfig.Address] = cli
 					return cli, nil
 				},
 				ReconfigureFunc: func(config *KvClientPoolConfig) error {
 					assert.Equal(t, expectedNumConns, config.NumConnections)
-					reconfiguredPools[config.ClientOpts.Address] = struct{}{}
+					reconfiguredPools[config.ClientConfig.Address] = struct{}{}
 
 					return nil
 				},
@@ -222,12 +222,12 @@ func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 			poolMock := &KvClientPoolMock{
 				GetClientFunc: func(ctx context.Context) (KvClient, error) {
 					cli := &KvClientMock{}
-					clientPools[clientOpts.ClientOpts.Address] = cli
+					clientPools[clientOpts.ClientConfig.Address] = cli
 					return cli, nil
 				},
 				ReconfigureFunc: func(config *KvClientPoolConfig) error {
 					assert.Equal(t, expectedNumConns, config.NumConnections)
-					reconfiguredPools[config.ClientOpts.Address] = struct{}{}
+					reconfiguredPools[config.ClientConfig.Address] = struct{}{}
 
 					return nil
 				},
