@@ -1995,7 +1995,11 @@ func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.Status.String(), func(tt *testing.T) {
+		name := test.Status.String()
+		if test.IndexStatus != 0 {
+			name = "Multipath - " + test.IndexStatus.String()
+		}
+		t.Run(name, func(tt *testing.T) {
 			dispatcher := &testCrudDispatcher{
 				Pak: &Packet{
 					Status: test.Status,
@@ -2032,7 +2036,7 @@ func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
 				require.Len(tt, res.Ops, 1)
 				assert.ErrorIs(tt, res.Ops[0].Err, test.ExpectedError)
 
-				var subDocErr *SubDocError
+				var subDocErr SubDocError
 				if assert.ErrorAs(tt, res.Ops[0].Err, &subDocErr) {
 					assert.Equal(tt, 0, subDocErr.OpIndex)
 				}
@@ -2096,6 +2100,169 @@ func TestOpsCrudLookupInMultipleErrorAndSuccess(t *testing.T) {
 	assert.Equal(t, path1, res.Ops[0].Value)
 	assert.ErrorIs(t, res.Ops[1].Err, ErrSubDocPathNotFound)
 	assert.Equal(t, path3, res.Ops[2].Value)
+}
+
+func TestOpsCrudMutateInErrorStatusCodes(t *testing.T) {
+	type test struct {
+		Status        Status
+		Cas           uint64
+		IndexStatus   Status
+		ExpectedError error
+	}
+
+	tests := []test{
+		{
+			Status:        StatusKeyNotFound,
+			ExpectedError: ErrDocNotFound,
+		},
+		{
+			Status:        StatusKeyExists,
+			ExpectedError: ErrDocExists,
+		},
+		{
+			Status:        StatusKeyExists,
+			Cas:           1234,
+			ExpectedError: ErrCasMismatch,
+		},
+		{
+			Status:        StatusSubDocDocTooDeep,
+			ExpectedError: ErrSubDocDocTooDeep,
+		},
+		{
+			Status:        StatusSubDocNotJSON,
+			ExpectedError: ErrSubDocNotJSON,
+		},
+		{
+			Status:        StatusSubDocInvalidCombo,
+			ExpectedError: ErrSubDocInvalidCombo,
+		},
+		{
+			Status:        StatusSubDocInvalidXattrOrder,
+			ExpectedError: ErrSubDocInvalidXattrOrder,
+		},
+		{
+			Status:        StatusSubDocXattrInvalidFlagCombo,
+			ExpectedError: ErrSubDocXattrInvalidFlagCombo,
+		},
+		{
+			Status:        StatusSubDocXattrInvalidKeyCombo,
+			ExpectedError: ErrSubDocXattrInvalidKeyCombo,
+		},
+		{
+			Status:        StatusSubDocXattrUnknownMacro,
+			ExpectedError: ErrSubDocXattrUnknownMacro,
+		},
+		{
+			Status:        StatusSubDocXattrUnknownVattrMacro,
+			ExpectedError: ErrSubDocXattrUnknownVattrMacro,
+		},
+		{
+			Status:        StatusSubDocXattrCannotModifyVAttr,
+			ExpectedError: ErrSubDocXattrCannotModifyVAttr,
+		},
+		{
+			Status:        StatusSubDocCanOnlyReviveDeletedDocuments,
+			ExpectedError: ErrSubDocCanOnlyReviveDeletedDocuments,
+		},
+		{
+			Status:        StatusSubDocDeletedDocumentCantHaveValue,
+			ExpectedError: ErrSubDocDeletedDocumentCantHaveValue,
+		},
+
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathNotFound,
+			IndexStatus:   StatusSubDocPathNotFound,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathMismatch,
+			IndexStatus:   StatusSubDocPathMismatch,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathInvalid,
+			IndexStatus:   StatusSubDocPathInvalid,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathTooBig,
+			IndexStatus:   StatusSubDocPathTooBig,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocCantInsert,
+			IndexStatus:   StatusSubDocCantInsert,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocBadRange,
+			IndexStatus:   StatusSubDocBadRange,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocBadDelta,
+			IndexStatus:   StatusSubDocBadDelta,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathExists,
+			IndexStatus:   StatusSubDocPathExists,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocValueTooDeep,
+			IndexStatus:   StatusSubDocValueTooDeep,
+		},
+	}
+
+	for _, test := range tests {
+		name := test.Status.String()
+		if test.IndexStatus != 0 {
+			name = "Multipath - " + test.IndexStatus.String()
+		}
+		t.Run(name, func(tt *testing.T) {
+			dispatcher := &testCrudDispatcher{
+				Pak: &Packet{
+					Status: test.Status,
+				},
+			}
+			if test.IndexStatus > 0 {
+				dispatcher.Pak.Value = []byte{1, uint8(test.IndexStatus >> 8), uint8(test.IndexStatus)}
+			}
+
+			_, err := syncUnaryCall(
+				OpsCrud{
+					ExtFramesEnabled:      true,
+					CollectionsEnabled:    true,
+					DurabilityEnabled:     true,
+					PreserveExpiryEnabled: true,
+				},
+				OpsCrud.MutateIn,
+				dispatcher,
+				&MutateInRequest{
+					Key:       []byte(uuid.NewString()[:6]),
+					VbucketID: 1,
+					Ops: []MutateInOp{
+						{
+							Op:    MutateInOpTypeDictSet,
+							Path:  []byte("key"),
+							Value: []byte("value"),
+						},
+					},
+					Cas: test.Cas,
+				},
+			)
+			require.ErrorIs(tt, err, test.ExpectedError)
+
+			if test.IndexStatus > 0 {
+				var subDocErr SubDocError
+				if assert.ErrorAs(tt, err, &subDocErr) {
+					assert.Equal(tt, 1, subDocErr.OpIndex)
+				}
+			}
+		})
+	}
 }
 
 type testCrudDispatcher struct {

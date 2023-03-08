@@ -333,6 +333,14 @@ func (s Status) String() string {
 		return "SubDocXattrCannotModifyVAttr"
 	case StatusSubDocMultiPathFailureDeleted:
 		return "SubDocMultiPathFailureDeleted"
+	case StatusSubDocXattrUnknownVattrMacro:
+		return "SubdocXattrUnknownVattrMacro"
+	case StatusSubDocCanOnlyReviveDeletedDocuments:
+		return "SubDocCanOnlyReviveDeletedDocuments"
+	case StatusSubDocDeletedDocumentCantHaveValue:
+		return "SubDocDeletedDocumentCantHaveValue"
+	case StatusSubDocInvalidXattrOrder:
+		return "SubDocInvalidXattrOrder"
 	}
 
 	return "x" + hex.EncodeToString([]byte{byte(s)})

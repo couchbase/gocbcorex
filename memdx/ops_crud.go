@@ -1613,7 +1613,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			}
 
 			if statusErr != nil {
-				results[i].Err = &SubDocError{
+				results[i].Err = SubDocError{
 					Cause:   statusErr,
 					OpIndex: i,
 				}
@@ -1744,6 +1744,27 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		} else if resp.Status == StatusSubDocInvalidXattrOrder {
 			cb(nil, ErrSubDocInvalidXattrOrder)
 			return false
+		} else if resp.Status == StatusSubDocXattrInvalidKeyCombo {
+			cb(nil, ErrSubDocXattrInvalidKeyCombo)
+			return false
+		} else if resp.Status == StatusSubDocXattrInvalidFlagCombo {
+			cb(nil, ErrSubDocXattrInvalidFlagCombo)
+			return false
+		} else if resp.Status == StatusSubDocXattrUnknownMacro {
+			cb(nil, ErrSubDocXattrUnknownMacro)
+			return false
+		} else if resp.Status == StatusSubDocXattrUnknownVattrMacro {
+			cb(nil, ErrSubDocXattrUnknownVattrMacro)
+			return false
+		} else if resp.Status == StatusSubDocXattrCannotModifyVAttr {
+			cb(nil, ErrSubDocXattrCannotModifyVAttr)
+			return false
+		} else if resp.Status == StatusSubDocCanOnlyReviveDeletedDocuments {
+			cb(nil, ErrSubDocCanOnlyReviveDeletedDocuments)
+			return false
+		} else if resp.Status == StatusSubDocDeletedDocumentCantHaveValue {
+			cb(nil, ErrSubDocDeletedDocumentCantHaveValue)
+			return false
 		} else if resp.Status == StatusSubDocMultiPathFailure {
 			if len(resp.Value) != 3 {
 				cb(nil, protocolError{"bad value length"})
@@ -1773,20 +1794,6 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 				statusErr = ErrSubDocBadDelta
 			case StatusSubDocValueTooDeep:
 				statusErr = ErrSubDocValueTooDeep
-			case StatusSubDocXattrInvalidFlagCombo:
-				statusErr = ErrSubDocXattrInvalidFlagCombo
-			case StatusSubDocXattrInvalidKeyCombo:
-				statusErr = ErrSubDocXattrInvalidKeyCombo
-			case StatusSubDocXattrUnknownMacro:
-				statusErr = ErrSubDocXattrUnknownMacro
-			case StatusSubDocXattrCannotModifyVAttr:
-				statusErr = ErrSubDocXattrCannotModifyVAttr
-			case StatusSubDocXattrUnknownVattrMacro:
-				statusErr = ErrSubDocXattrUnknownVattrMacro
-			case StatusSubDocCanOnlyReviveDeletedDocuments:
-				statusErr = ErrSubDocCanOnlyReviveDeletedDocuments
-			case StatusSubDocDeletedDocumentCantHaveValue:
-				statusErr = ErrSubDocDeletedDocumentCantHaveValue
 			default:
 				statusErr = fmt.Errorf("unexpected mutatein op status code: %02x", resStatus)
 			}
