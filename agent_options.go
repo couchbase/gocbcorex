@@ -10,7 +10,6 @@ import (
 type AgentReconfigureOptions struct {
 	TLSConfig     *tls.Config
 	Authenticator Authenticator
-	BucketName    string
 }
 
 // Temporary options.

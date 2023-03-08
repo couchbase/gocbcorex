@@ -3,7 +3,6 @@ package gocbcorex
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -290,7 +289,7 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 			searchEndpoints = append(searchEndpoints, "http://"+host)
 		}
 	} else {
-		kvDataNodeIds = bootstrapHosts.NonSSL.KvData
+		kvDataNodeIds = bootstrapHosts.SSL.KvData
 		kvDataHosts = bootstrapHosts.SSL.KvData
 		for _, host := range bootstrapHosts.SSL.Mgmt {
 			mgmtEndpoints = append(mgmtEndpoints, "https://"+host)
@@ -373,15 +372,8 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	agent.lock.Lock()
 	defer agent.lock.Unlock()
 
-	if agent.state.bucket != "" {
-		if opts.BucketName != agent.state.bucket {
-			return errors.New("cannot change an already-specified bucket name")
-		}
-	}
-
 	agent.state.tlsConfig = opts.TLSConfig
 	agent.state.authenticator = opts.Authenticator
-	agent.state.bucket = opts.BucketName
 	agent.updateStateLocked()
 
 	return nil
