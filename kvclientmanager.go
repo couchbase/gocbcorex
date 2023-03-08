@@ -113,7 +113,7 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
 	for endpoint, endpointConfig := range config.Clients {
 		poolConfig := &KvClientPoolConfig{
 			NumConnections: config.NumPoolConnections,
-			ClientOpts:     *endpointConfig,
+			ClientConfig:   *endpointConfig,
 		}
 
 		var pool KvClientPool

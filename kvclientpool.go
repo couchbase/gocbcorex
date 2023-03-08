@@ -24,7 +24,7 @@ type KvClientPool interface {
 
 type KvClientPoolConfig struct {
 	NumConnections uint
-	ClientOpts     KvClientConfig
+	ClientConfig   KvClientConfig
 }
 
 type KvClientPoolOptions struct {
@@ -37,8 +37,8 @@ type kvClientPoolFastMap struct {
 }
 
 type pendingConnectionState struct {
-	NewKvClient NewKvClientFunc
-	ClientOpts  KvClientConfig
+	NewKvClient  NewKvClientFunc
+	ClientConfig KvClientConfig
 
 	IsReady bool
 	Err     error
@@ -73,17 +73,21 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		opts = &KvClientPoolOptions{}
 	}
 
+	logger := loggerOrNop(opts.Logger)
+
 	var newKvClient NewKvClientFunc
 	if opts.NewKvClient != nil {
 		newKvClient = opts.NewKvClient
 	} else {
-		newKvClient = func(ctx context.Context, opts *KvClientConfig) (KvClient, error) {
-			return NewKvClient(ctx, opts)
+		newKvClient = func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
+			return NewKvClient(ctx, config, &KvClientOptions{
+				Logger: logger.Named("client"),
+			})
 		}
 	}
 
 	p := &kvClientPool{
-		logger:      loggerOrNop(opts.Logger),
+		logger:      logger,
 		newKvClient: newKvClient,
 		config:      *config,
 
@@ -141,8 +145,8 @@ func (p *kvClientPool) startPendingConnectionLocked() {
 
 	// setup the new pending connection state
 	pendingConn := &pendingConnectionState{
-		NewKvClient: p.newKvClient,
-		ClientOpts:  p.config.ClientOpts,
+		NewKvClient:  p.newKvClient,
+		ClientConfig: p.config.ClientConfig,
 	}
 	p.pendingConnection = pendingConn
 
@@ -160,7 +164,7 @@ func (p *kvClientPool) startPendingConnectionLocked() {
 
 	// create the goroutine to actually create the client
 	go func() {
-		client, err := pendingConn.NewKvClient(cancelCtx, &pendingConn.ClientOpts)
+		client, err := pendingConn.NewKvClient(cancelCtx, &pendingConn.ClientConfig)
 		cancelFn()
 
 		p.lock.Lock()
@@ -197,7 +201,7 @@ func (p *kvClientPool) checkPendingConnectionLocked() {
 
 	// if the client options changed since we started the connect, we need to perform
 	// a reconfiguring of that new client before we can use it...
-	if !pendingConn.ClientOpts.Equals(&p.config.ClientOpts) {
+	if !pendingConn.ClientConfig.Equals(&p.config.ClientConfig) {
 		p.reconfigConnections = append(p.reconfigConnections, newClient)
 		go p.reconfigureClientThread(newClient)
 		return
@@ -273,7 +277,7 @@ func (p *kvClientPool) reconfigureClientThread(client KvClient) {
 	}()
 
 	p.lock.Lock()
-	reconfigureOpts := p.config.ClientOpts
+	reconfigureOpts := p.config.ClientConfig
 	p.lock.Unlock()
 
 	for {
@@ -298,9 +302,9 @@ func (p *kvClientPool) reconfigureClientThread(client KvClient) {
 		}
 
 		p.lock.Lock()
-		if !reconfigureOpts.Equals(&p.config.ClientOpts) {
+		if !reconfigureOpts.Equals(&p.config.ClientConfig) {
 			// the config options have changed, we need to try again
-			reconfigureOpts = p.config.ClientOpts
+			reconfigureOpts = p.config.ClientConfig
 			p.lock.Unlock()
 			continue
 		}
