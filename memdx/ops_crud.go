@@ -1557,6 +1557,10 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		} else if resp.Status == StatusSubDocInvalidXattrOrder {
 			cb(nil, ErrSubDocInvalidXattrOrder)
 			return false
+		} else if resp.Status == StatusSubDocXattrInvalidKeyCombo {
+			cb(nil, ErrSubDocXattrInvalidKeyCombo)
+		} else if resp.Status == StatusSubDocXattrInvalidFlagCombo {
+			cb(nil, ErrSubDocXattrInvalidFlagCombo)
 		}
 
 		var docIsDeleted bool
