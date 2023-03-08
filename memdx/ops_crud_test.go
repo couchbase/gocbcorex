@@ -1,6 +1,7 @@
 package memdx
 
 import (
+	"encoding/binary"
 	"reflect"
 	"testing"
 	"time"
@@ -1927,4 +1928,192 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 
 		})
 	}
+}
+
+func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
+	type test struct {
+		Status        Status
+		IndexStatus   Status
+		ExpectedError error
+	}
+
+	tests := []test{
+		{
+			Status:        StatusKeyNotFound,
+			ExpectedError: ErrDocNotFound,
+		},
+		{
+			Status:        StatusSubDocDocTooDeep,
+			ExpectedError: ErrSubDocDocTooDeep,
+		},
+		{
+			Status:        StatusSubDocNotJSON,
+			ExpectedError: ErrSubDocNotJSON,
+		},
+		{
+			Status:        StatusSubDocInvalidCombo,
+			ExpectedError: ErrSubDocInvalidCombo,
+		},
+		{
+			Status:        StatusSubDocInvalidXattrOrder,
+			ExpectedError: ErrSubDocInvalidXattrOrder,
+		},
+		{
+			Status:        StatusSubDocXattrInvalidFlagCombo,
+			ExpectedError: ErrSubDocXattrInvalidFlagCombo,
+		},
+		{
+			Status:        StatusSubDocXattrInvalidKeyCombo,
+			ExpectedError: ErrSubDocXattrInvalidKeyCombo,
+		},
+
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathNotFound,
+			IndexStatus:   StatusSubDocPathNotFound,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathMismatch,
+			IndexStatus:   StatusSubDocPathMismatch,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathInvalid,
+			IndexStatus:   StatusSubDocPathInvalid,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocPathTooBig,
+			IndexStatus:   StatusSubDocPathTooBig,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			IndexStatus:   StatusSubDocXattrUnknownVAttr,
+			ExpectedError: ErrSubDocXattrUnknownVAttr,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Status.String(), func(tt *testing.T) {
+			dispatcher := &testCrudDispatcher{
+				Pak: &Packet{
+					Status: test.Status,
+				},
+			}
+			if test.IndexStatus > 0 {
+				dispatcher.Pak.Value = []byte{uint8(test.IndexStatus >> 8), uint8(test.IndexStatus), 0, 0, 0, 0}
+			}
+
+			res, err := syncUnaryCall(
+				OpsCrud{
+					ExtFramesEnabled:      true,
+					CollectionsEnabled:    true,
+					DurabilityEnabled:     true,
+					PreserveExpiryEnabled: true,
+				},
+				OpsCrud.LookupIn,
+				dispatcher,
+				&LookupInRequest{
+					Key:       []byte(uuid.NewString()[:6]),
+					VbucketID: 1,
+					Ops: []LookupInOp{
+						{
+							Op:   LookupInOpTypeGet,
+							Path: []byte("key"),
+						},
+					},
+				},
+			)
+			if test.IndexStatus == 0 {
+				require.ErrorIs(tt, err, test.ExpectedError)
+			} else {
+				require.NoError(tt, err)
+				require.Len(tt, res.Ops, 1)
+				assert.ErrorIs(tt, res.Ops[0].Err, test.ExpectedError)
+
+				var subDocErr *SubDocError
+				if assert.ErrorAs(tt, res.Ops[0].Err, &subDocErr) {
+					assert.Equal(tt, 0, subDocErr.OpIndex)
+				}
+			}
+		})
+	}
+}
+
+func TestOpsCrudLookupInMultipleErrorAndSuccess(t *testing.T) {
+	path1 := []byte("value")
+	path3 := []byte("value3")
+	dispatcher := &testCrudDispatcher{
+		Pak: &Packet{
+			Status: StatusSubDocMultiPathFailure,
+		},
+	}
+	val := make([]byte, len(path1)+len(path3)+18)
+	binary.BigEndian.PutUint16(val[:], uint16(StatusSuccess))
+	binary.BigEndian.PutUint32(val[2:], uint32(len(path1)))
+	copy(val[6:], path1)
+	binary.BigEndian.PutUint16(val[len(path1)+6:], uint16(StatusSubDocPathNotFound))
+	binary.BigEndian.PutUint32(val[len(path1)+8:], 0)
+	binary.BigEndian.PutUint16(val[len(path1)+12:], uint16(StatusSuccess))
+	binary.BigEndian.PutUint32(val[len(path1)+14:], uint32(len(path3)))
+	copy(val[len(path1)+18:], path3)
+
+	dispatcher.Pak.Value = val
+
+	res, err := syncUnaryCall(
+		OpsCrud{
+			ExtFramesEnabled:      true,
+			CollectionsEnabled:    true,
+			DurabilityEnabled:     true,
+			PreserveExpiryEnabled: true,
+		},
+		OpsCrud.LookupIn,
+		dispatcher,
+		&LookupInRequest{
+			Key:       []byte(uuid.NewString()[:6]),
+			VbucketID: 1,
+			Ops: []LookupInOp{
+				{
+					Op:   LookupInOpTypeGet,
+					Path: []byte("key"),
+				},
+				{
+					Op:   LookupInOpTypeGet,
+					Path: []byte("key2"),
+				},
+				{
+					Op:   LookupInOpTypeGet,
+					Path: []byte("key3"),
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	require.Len(t, res.Ops, 3)
+
+	assert.Equal(t, path1, res.Ops[0].Value)
+	assert.ErrorIs(t, res.Ops[1].Err, ErrSubDocPathNotFound)
+	assert.Equal(t, path3, res.Ops[2].Value)
+}
+
+type testCrudDispatcher struct {
+	Pak *Packet
+}
+
+func (t *testCrudDispatcher) Dispatch(packet *Packet, callback DispatchCallback) (PendingOp, error) {
+	go func() {
+		callback(t.Pak, nil)
+	}()
+
+	return pendingOpNoop{}, nil
+}
+
+func (t *testCrudDispatcher) LocalAddr() string {
+	return "localaddr"
+}
+
+func (t *testCrudDispatcher) RemoteAddr() string {
+	return "remoteaddr"
 }
