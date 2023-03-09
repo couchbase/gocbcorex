@@ -39,7 +39,7 @@ func addSupportedFeature(feat TestFeature) {
 func removeSupportedFeature(feat TestFeature) {
 	featIdx := slices.Index(TestOpts.SupportedFeatures, feat)
 	if featIdx >= 0 {
-		TestOpts.SupportedFeatures = slices.Delete(TestOpts.SupportedFeatures, featIdx, featIdx)
+		TestOpts.SupportedFeatures = slices.Delete(TestOpts.SupportedFeatures, featIdx, featIdx+1)
 	}
 }
 
