@@ -40,12 +40,17 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 	require.NoError(t, err)
 
 	// Select a bucket on a gcccp level request
-	err = cli.Reconfigure(context.Background(), &KvClientConfig{
+	reconfigureCh := make(chan struct{})
+	err = cli.Reconfigure(&KvClientConfig{
 		Address:        testutils.TestOpts.MemdAddrs[0],
 		Authenticator:  auth,
 		SelectedBucket: testutils.TestOpts.BucketName,
+	}, func(err error) {
+		require.NoError(t, err)
+		reconfigureCh <- struct{}{}
 	})
 	require.NoError(t, err)
+	<-reconfigureCh
 
 	// Check that an op works
 	setRes, err := cli.Set(context.Background(), &memdx.SetRequest{
@@ -82,14 +87,14 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = cli.Reconfigure(context.Background(), &KvClientConfig{
+	err = cli.Reconfigure(&KvClientConfig{
 		Address: "endpoint1",
 		Authenticator: &PasswordAuthenticator{
 			Username: "user",
 			Password: "pass",
 		},
 		SelectedBucket: "imnotarealboy",
-	})
+	}, func(error) {})
 	require.Error(t, err)
 }
 
@@ -115,14 +120,14 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = cli.Reconfigure(context.Background(), &KvClientConfig{
+	err = cli.Reconfigure(&KvClientConfig{
 		Address: "endpoint1",
 		Authenticator: &PasswordAuthenticator{
 			Username: "user",
 			Password: "pass",
 		},
 		TlsConfig: &tls.Config{},
-	})
+	}, func(error) {})
 	require.Error(t, err)
 }
 
@@ -148,14 +153,14 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = cli.Reconfigure(context.Background(), &KvClientConfig{
+	err = cli.Reconfigure(&KvClientConfig{
 		Address: "endpoint1",
 		Authenticator: &PasswordAuthenticator{
 			Username: "user2",
 			Password: "pass2",
 		},
 		TlsConfig: nil,
-	})
+	}, func(error) {})
 	require.Error(t, err)
 }
 
@@ -181,14 +186,14 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = cli.Reconfigure(context.Background(), &KvClientConfig{
+	err = cli.Reconfigure(&KvClientConfig{
 		Address: "endpoint1",
 		Authenticator: &PasswordAuthenticator{
 			Username: "user2",
 			Password: "pass2",
 		},
 		TlsConfig: nil,
-	})
+	}, func(error) {})
 	require.Error(t, err)
 }
 
@@ -214,13 +219,13 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = cli.Reconfigure(context.Background(), &KvClientConfig{
+	err = cli.Reconfigure(&KvClientConfig{
 		Address: "endpoint2",
 		Authenticator: &PasswordAuthenticator{
 			Username: "user",
 			Password: "pass",
 		},
 		TlsConfig: nil,
-	})
+	}, func(error) {})
 	require.Error(t, err)
 }

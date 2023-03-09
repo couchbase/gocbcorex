@@ -17,7 +17,7 @@ var (
 type NewKvClientFunc func(context.Context, *KvClientConfig) (KvClient, error)
 
 type KvClientPool interface {
-	Reconfigure(config *KvClientPoolConfig) error
+	Reconfigure(config *KvClientPoolConfig, cb func(error)) error
 	GetClient(ctx context.Context) (KvClient, error)
 	ShutdownClient(client KvClient)
 }
@@ -36,13 +36,8 @@ type kvClientPoolFastMap struct {
 	activeConnections []KvClient
 }
 
-type pendingConnectionState struct {
-	NewKvClient  NewKvClientFunc
-	ClientConfig KvClientConfig
-
-	IsReady bool
-	Err     error
-	Client  KvClient
+type pendingKvClient struct {
+	CancelFn func()
 }
 
 type kvClientPool struct {
@@ -52,17 +47,17 @@ type kvClientPool struct {
 	clientIdx uint64
 	fastMap   AtomicPointer[kvClientPoolFastMap]
 
-	lock                sync.Mutex
-	config              KvClientPoolConfig
-	connectErr          error
-	pendingConnection   *pendingConnectionState
-	reconfigConnections []KvClient
-	activeConnections   []KvClient
-	defunctConnections  []KvClient
+	lock            sync.Mutex
+	config          KvClientPoolConfig
+	connectErr      error
+	activeClients   []KvClient
+	pendingClients  []*pendingKvClient
+	currentClients  []KvClient
+	defunctClients  []KvClient
+	shutdownClients []KvClient
 
-	wakeManagerSigCh chan struct{}
-	needClientSigCh  chan struct{}
-	closeSigCh       chan struct{}
+	needClientSigCh    chan struct{}
+	needNoDefunctSigCh chan struct{}
 }
 
 func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kvClientPool, error) {
@@ -91,318 +86,279 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		newKvClient: newKvClient,
 		config:      *config,
 
-		wakeManagerSigCh: nil, // manager defaults to 'awake'
-		needClientSigCh:  make(chan struct{}, 1),
-		closeSigCh:       make(chan struct{}, 1),
+		needClientSigCh: make(chan struct{}, 1),
 	}
-	go p.managerThread()
+
+	// we need to lock here because checkConnectionsLocked can start goroutines
+	// which potentially access the shared state...
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.checkConnectionsLocked()
 
 	return p, nil
 }
 
-func (p *kvClientPool) sleepManagerLocked() <-chan struct{} {
-	if p.wakeManagerSigCh == nil {
-		p.wakeManagerSigCh = make(chan struct{}, 1)
+func (p *kvClientPool) checkConnectionsLocked() {
+	numWantedClients := int(p.config.NumConnections)
+	numActiveClients := len(p.currentClients)
+	numDefunctClients := len(p.defunctClients)
+	numPendingClients := len(p.pendingClients)
+	numAvailableClients := numActiveClients + numDefunctClients
+
+	numExcessClients := numAvailableClients - numWantedClients
+	if numExcessClients > 0 {
+		// if we have more clients available than we want, we can shut down
+		// a few of them, starting with the defunct clients...
+		numClosedClients := 0
+
+		for numExcessClients > 0 && len(p.defunctClients) > 0 {
+			clientToClose := p.defunctClients[0]
+			p.defunctClients = slices.Delete(p.defunctClients, 0, 1)
+			p.shutdownClientLocked(clientToClose)
+			numExcessClients--
+			numClosedClients++
+		}
+
+		for numExcessClients > 0 && len(p.currentClients) > 0 {
+			clientToClose := p.currentClients[0]
+			p.currentClients = slices.Delete(p.currentClients, 0, 1)
+			p.shutdownClientLocked(clientToClose)
+			numExcessClients--
+			numClosedClients++
+		}
+
+		if numClosedClients > 0 {
+			p.rebuildActiveClientsLocked()
+		}
 	}
-	return p.wakeManagerSigCh
+
+	numNeededClients := numWantedClients - numAvailableClients - numPendingClients
+	if numNeededClients > 0 {
+		for i := 0; i < numNeededClients; i++ {
+			p.startNewClientLocked()
+		}
+	}
+
+	// if we have active clients, or a connection error and someone was waiting
+	// for a signal about client availability, let's signal them...
+	if len(p.activeClients) > 0 || p.connectErr != nil {
+		if p.needClientSigCh != nil {
+			close(p.needClientSigCh)
+			p.needClientSigCh = nil
+		}
+	}
+
+	// if we have an empty defunct client list and someone is waiting for a signal
+	// lets signal them...
+	if len(p.defunctClients) == 0 {
+		if p.needNoDefunctSigCh != nil {
+			close(p.needNoDefunctSigCh)
+			p.needNoDefunctSigCh = nil
+		}
+	}
 }
 
-func (p *kvClientPool) wakeManagerLocked() {
-	if p.wakeManagerSigCh == nil {
-		// manager is already awake
-		return
-	}
-
-	wakeManagerSigCh := p.wakeManagerSigCh
-	p.wakeManagerSigCh = nil
-
-	if wakeManagerSigCh != nil {
-		close(wakeManagerSigCh)
-	}
-}
-
-func (p *kvClientPool) sleepClientWaiterLocked() (<-chan struct{}, error) {
-	if p.needClientSigCh == nil {
-		return nil, errors.New("illegal state: client sleep wait channel")
-	}
-
-	return p.needClientSigCh, nil
-}
-
-func (p *kvClientPool) notifyClientWaitersLocked() {
-	needClientSigCh := p.needClientSigCh
-	p.needClientSigCh = nil
-
-	if needClientSigCh != nil {
-		close(needClientSigCh)
-	}
-}
-
-func (p *kvClientPool) startPendingConnectionLocked() {
-	if p.pendingConnection != nil {
-		return
-	}
-
-	// setup the new pending connection state
-	pendingConn := &pendingConnectionState{
-		NewKvClient:  p.newKvClient,
-		ClientConfig: p.config.ClientConfig,
-	}
-	p.pendingConnection = pendingConn
-
+func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 	// create a context to run the connection in, and a thread to watch for this
 	// pool closing to cancel creating that client...
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
-	go func() {
-		select {
-		case <-p.closeSigCh:
-			cancelFn()
-			<-cancelCtx.Done()
-		case <-cancelCtx.Done():
-		}
-	}()
+
+	// setup the new pending connection state
+	pendingClient := &pendingKvClient{
+		CancelFn: cancelFn,
+	}
+	p.addPendingClientLocked(pendingClient)
+
+	clientConfig := p.config.ClientConfig
+
+	completeCh := make(chan struct{}, 1)
 
 	// create the goroutine to actually create the client
 	go func() {
-		client, err := pendingConn.NewKvClient(cancelCtx, &pendingConn.ClientConfig)
+		client, err := p.newKvClient(cancelCtx, &clientConfig)
 		cancelFn()
 
 		p.lock.Lock()
-		p.pendingConnection.IsReady = true
-		p.pendingConnection.Client = client
-		p.pendingConnection.Err = err
-		p.wakeManagerLocked()
-		p.lock.Unlock()
-	}()
-}
+		defer p.lock.Unlock()
 
-func (p *kvClientPool) checkPendingConnectionLocked() {
-	if p.pendingConnection == nil {
-		return
-	}
-	if !p.pendingConnection.IsReady {
-		return
-	}
-
-	pendingConn := p.pendingConnection
-	p.pendingConnection = nil
-
-	newClient, err := pendingConn.Client, pendingConn.Err
-	if err != nil {
-		p.logger.Debug("failed to perform async client connect", zap.Error(err))
-
-		p.connectErr = err
-		p.notifyClientWaitersLocked()
-		return
-	}
-
-	// clear our connect error after a succesful connect
-	p.connectErr = nil
-
-	// if the client options changed since we started the connect, we need to perform
-	// a reconfiguring of that new client before we can use it...
-	if !pendingConn.ClientConfig.Equals(&p.config.ClientConfig) {
-		p.reconfigConnections = append(p.reconfigConnections, newClient)
-		go p.reconfigureClientThread(newClient)
-		return
-	}
-
-	p.activeConnections = append(p.activeConnections, newClient)
-	p.rebuildFastMapLocked()
-	p.notifyClientWaitersLocked()
-}
-
-func (p *kvClientPool) checkNumConnectionsLocked() {
-	numWantedConns := int(p.config.NumConnections)
-	numActiveConns := len(p.activeConnections)
-	numReconfigureConns := len(p.reconfigConnections)
-
-	numTotalConns := 0
-	numTotalConns += numActiveConns
-	numTotalConns += numReconfigureConns
-	if p.pendingConnection != nil {
-		numTotalConns++
-	}
-
-	if numTotalConns < numWantedConns {
-		p.startPendingConnectionLocked()
-	}
-
-	if numActiveConns > numWantedConns {
-		defunctConns := p.activeConnections[numWantedConns:]
-		p.activeConnections = p.activeConnections[:numWantedConns]
-		p.rebuildFastMapLocked()
-
-		for _, conn := range defunctConns {
-			go p.defunctClientThread(conn)
-		}
-	}
-}
-
-func (p *kvClientPool) managerThread() {
-ManagerLoop:
-	for {
-		p.lock.Lock()
-
-		// check if we have a pending connection ready to add to the pool
-		p.checkPendingConnectionLocked()
-
-		// check if we need to start adding or removing connections
-		p.checkNumConnectionsLocked()
-
-		// grab the wake channel so we can sleep until there is actually something
-		// for us to be doing...
-		wakeManagerCh := p.sleepManagerLocked()
-
-		p.lock.Unlock()
-
-		select {
-		case <-wakeManagerCh:
-		case <-p.closeSigCh:
-			break ManagerLoop
-		}
-	}
-}
-
-func (p *kvClientPool) reconfigureClientThread(client KvClient) {
-	cancelCtx, cancelFn := context.WithCancel(context.Background())
-	go func() {
-		select {
-		case <-p.closeSigCh:
-			cancelFn()
-			<-cancelCtx.Done()
-		case <-cancelCtx.Done():
-
-		}
-	}()
-
-	p.lock.Lock()
-	reconfigureOpts := p.config.ClientConfig
-	p.lock.Unlock()
-
-	for {
-		err := client.Reconfigure(cancelCtx, &reconfigureOpts)
-		if err != nil {
-			cancelFn()
-
-			// if we failed to reconfigure the client, we just remove it from the reconfiguring
-			// list and then wake the manager to start building a new connection
-			p.lock.Lock()
-
-			clientIdx := slices.IndexFunc(p.activeConnections, func(oclient KvClient) bool { return oclient == client })
-			if clientIdx >= 0 {
-				p.reconfigConnections[clientIdx] = p.reconfigConnections[len(p.reconfigConnections)-1]
-				p.reconfigConnections = p.reconfigConnections[:len(p.reconfigConnections)-1]
-			}
-
-			p.wakeManagerLocked()
-
-			p.lock.Unlock()
+		if !p.removePendingClientLocked(pendingClient) {
+			// if nobody was waiting for us anymore, we just return
+			completeCh <- struct{}{}
 			return
 		}
 
-		p.lock.Lock()
-		if !reconfigureOpts.Equals(&p.config.ClientConfig) {
-			// the config options have changed, we need to try again
-			reconfigureOpts = p.config.ClientConfig
+		if err != nil {
+			p.logger.Warn("failed to create a new client connection", zap.Error(err))
+
+			p.connectErr = err
+			p.checkConnectionsLocked()
+			completeCh <- struct{}{}
+			return
+		}
+
+		for !clientConfig.Equals(&p.config.ClientConfig) {
+			clientConfig = p.config.ClientConfig
+
+			reconfigureErr := make(chan error, 1)
+
 			p.lock.Unlock()
-			continue
+			err := client.Reconfigure(&clientConfig, func(error) {
+				reconfigureErr <- err
+			})
+			p.lock.Lock()
+
+			if err != nil {
+				p.logger.Warn("failed to reconfigure a new client connection", zap.Error(err))
+
+				p.checkConnectionsLocked()
+				completeCh <- struct{}{}
+				return
+			}
+
+			err = <-reconfigureErr
+			if err != nil {
+				p.logger.Warn("failed to finalize new configuration on a new client connection", zap.Error(err))
+
+				p.checkConnectionsLocked()
+				completeCh <- struct{}{}
+				return
+			}
 		}
 
-		clientIdx := slices.IndexFunc(p.reconfigConnections, func(oclient KvClient) bool { return oclient == client })
-		if clientIdx == -1 {
-			// we've successfully reconfigured a connection that should not be getting reconfigured...
-			panic("reconfigure complete of unreconfiguring client")
-		}
+		p.connectErr = nil
+		p.addCurrentClientLocked(client)
+		p.rebuildActiveClientsLocked()
+		p.checkConnectionsLocked()
 
-		// remove it from the reconfiguring list and add it to the configured list
-		p.reconfigConnections[clientIdx] = p.reconfigConnections[len(p.reconfigConnections)-1]
-		p.reconfigConnections = p.reconfigConnections[:len(p.reconfigConnections)-1]
-		p.activeConnections = append(p.activeConnections, client)
+		completeCh <- struct{}{}
+	}()
 
-		p.rebuildFastMapLocked()
-		p.notifyClientWaitersLocked()
-
-		p.lock.Unlock()
-		return
-	}
+	return completeCh
 }
 
-func (p *kvClientPool) defunctClientThread(client KvClient) {
+func (p *kvClientPool) shutdownClientLocked(client KvClient) {
+	p.addShutdownClientLocked(client)
+
+	go func() {
+		// for now we just ungracefully kill them...
+		client.Close()
+
+		p.lock.Lock()
+		defer p.lock.Unlock()
+
+		p.removeShutdownClientLocked(client)
+	}()
 }
 
 func (p *kvClientPool) ShutdownClient(client KvClient) {
 	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	// find the index in our active connections
-	clientIdx := slices.IndexFunc(p.activeConnections, func(oclient KvClient) bool { return oclient == client })
-	if clientIdx == -1 {
-		p.lock.Unlock()
-		return
+	if !p.removeCurrentClientLocked(client) {
+		if !p.removeDefunctClientLocked(client) {
+			return
+		}
 	}
 
-	// remove the active client
-	defunctClient := p.activeConnections[clientIdx]
-	p.activeConnections[clientIdx] = p.activeConnections[len(p.activeConnections)-1]
-	p.activeConnections = p.activeConnections[:len(p.activeConnections)-1]
-	p.rebuildFastMapLocked()
-
-	// add it to defunct ones
-	p.defunctConnections = append(p.defunctConnections, defunctClient)
-	go p.defunctClientThread(defunctClient)
-
-	if len(p.activeConnections) == 0 {
-		// because we've invalidated all the clients, we need a new needsClientCh
-		p.needClientSigCh = make(chan struct{}, 1)
-	}
-
-	// wake the manager so it can build new connections
-	p.wakeManagerLocked()
-
-	p.lock.Unlock()
-
+	p.shutdownClientLocked(client)
+	p.rebuildActiveClientsLocked()
+	p.checkConnectionsLocked()
 }
 
-func (p *kvClientPool) rebuildFastMapLocked() {
-	// this function rebuilds the fast map by simply copying all the active
-	// connections from the slow data into the fast map data and storing it.
+func (p *kvClientPool) rebuildActiveClientsLocked() {
+	p.activeClients = p.activeClients[:0]
+	p.activeClients = append(p.activeClients, p.currentClients...)
+	p.activeClients = append(p.activeClients, p.defunctClients...)
 
-	fastMapConns := make([]KvClient, len(p.activeConnections))
-	copy(fastMapConns, p.activeConnections)
+	// this rebuilds the fast map by simply copying all the active connections
+	// from the slow data into the fast map data and storing it.
+	fastMapConns := make([]KvClient, len(p.activeClients))
+	copy(fastMapConns, p.activeClients)
 	p.fastMap.Store(&kvClientPoolFastMap{
 		activeConnections: fastMapConns,
 	})
 }
 
-func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig) error {
+func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) error {
 	if config == nil {
 		return errors.New("invalid arguments: cant reconfigure kvClientPool to nil")
 	}
-	// there are no options that make reconfiguring fail
 
 	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.config = *config
 
-	// move all the active connections to reconfiguring
-	reconfigureClients := p.activeConnections
-	p.activeConnections = p.activeConnections[:0]
-	p.reconfigConnections = append(p.reconfigConnections, reconfigureClients...)
-	p.rebuildFastMapLocked()
-
-	// start the reconfiguring
-	for _, client := range reconfigureClients {
-		go p.reconfigureClientThread(client)
+	numClientsReconfiguring := int64(len(p.currentClients))
+	markClientReconfigureDone := func() {
+		if (atomic.AddInt64(&numClientsReconfiguring, -1)) == 0 {
+			// once we are done reconfiguring all the connections, we need to
+			// wait until the list of defunct connections reaches 0.
+			go func() {
+				p.WaitUntilNoDefunctClients(context.Background())
+				cb(nil)
+			}()
+		}
 	}
 
-	// because we've invalidated all the clients, we need a new needsClientCh
-	p.needClientSigCh = make(chan struct{}, 1)
+	clientsToReconfigure := make([]KvClient, len(p.currentClients))
+	copy(clientsToReconfigure, p.currentClients)
+	for _, client := range clientsToReconfigure {
+		client := client
 
-	// we shouldn't need to wake the manager, since all the connections are valid, just
-	// being reconfigured, but we do it for consistency.
-	p.wakeManagerLocked()
+		err := client.Reconfigure(&config.ClientConfig, func(err error) {
+			// this can be invoke in the same call, where we already have this locked, so
+			// we push it into a goroutine to be handled instead.
+			go func() {
+				// if we fail to reconfigure a client, we need to throw it out.
+				p.lock.Lock()
+				defer p.lock.Unlock()
+
+				if !p.removeCurrentClientLocked(client) {
+					// if the client is no longer current anyways, we have nothing to do...
+					return
+				}
+
+				p.addDefunctClientLocked(client)
+				p.checkConnectionsLocked()
+				markClientReconfigureDone()
+			}()
+		})
+		if err != nil {
+			// we can't reconfigure this client so we need to replace it
+			p.removeCurrentClientLocked(client)
+			p.addDefunctClientLocked(client)
+			markClientReconfigureDone()
+			continue
+		}
+
+		// reconfiguring is successful up until this point, so it can stay in the
+		// current list of clients.  it may be moved later by the Reconfigure callback.
+	}
+
+	p.rebuildActiveClientsLocked()
+	p.checkConnectionsLocked()
+
+	return nil
+}
+
+func (p *kvClientPool) WaitUntilNoDefunctClients(ctx context.Context) error {
+	p.lock.Lock()
+
+	if p.needNoDefunctSigCh == nil {
+		p.needNoDefunctSigCh = make(chan struct{})
+	}
+	needNoDefunctSigCh := p.needNoDefunctSigCh
 
 	p.lock.Unlock()
-	return nil
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-needNoDefunctSigCh:
+		return nil
+	}
 }
 
 func (p *kvClientPool) GetClient(ctx context.Context) (KvClient, error) {
@@ -422,10 +378,10 @@ func (p *kvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	p.lock.Lock()
 
-	numConns := uint64(len(p.activeConnections))
+	numConns := uint64(len(p.activeClients))
 	if numConns > 0 {
 		clientIdx := atomic.AddUint64(&p.clientIdx, 1) - 1
-		conn := p.activeConnections[clientIdx%numConns]
+		conn := p.activeClients[clientIdx%numConns]
 		p.lock.Unlock()
 		return conn, nil
 	}
@@ -438,11 +394,10 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 		return nil, err
 	}
 
-	clientWaitCh, err := p.sleepClientWaiterLocked()
-	if err != nil {
-		p.lock.Unlock()
-		return nil, err
+	if p.needClientSigCh == nil {
+		p.needClientSigCh = make(chan struct{})
 	}
+	clientWaitCh := p.needClientSigCh
 
 	p.lock.Unlock()
 
@@ -464,4 +419,52 @@ func (p *kvClientPool) Shutdown(ctx context.Context) {
 }
 
 func (p *kvClientPool) Close() {
+}
+
+func (p *kvClientPool) addPendingClientLocked(client *pendingKvClient) {
+	p.pendingClients = append(p.pendingClients, client)
+}
+func (p *kvClientPool) removePendingClientLocked(client *pendingKvClient) bool {
+	clientIdx := slices.Index(p.pendingClients, client)
+	if clientIdx == -1 {
+		return false
+	}
+	p.pendingClients = sliceUnorderedDelete(p.pendingClients, clientIdx)
+	return true
+}
+
+func (p *kvClientPool) addCurrentClientLocked(client KvClient) {
+	p.currentClients = append(p.currentClients, client)
+}
+func (p *kvClientPool) removeCurrentClientLocked(client KvClient) bool {
+	clientIdx := slices.IndexFunc(p.currentClients, func(oclient KvClient) bool { return oclient == client })
+	if clientIdx == -1 {
+		return false
+	}
+	p.currentClients = slices.Delete(p.currentClients, clientIdx, clientIdx+1)
+	return true
+}
+
+func (p *kvClientPool) addDefunctClientLocked(client KvClient) {
+	p.defunctClients = append(p.defunctClients, client)
+}
+func (p *kvClientPool) removeDefunctClientLocked(client KvClient) bool {
+	clientIdx := slices.IndexFunc(p.defunctClients, func(oclient KvClient) bool { return oclient == client })
+	if clientIdx == -1 {
+		return false
+	}
+	p.defunctClients = slices.Delete(p.defunctClients, clientIdx, clientIdx+1)
+	return true
+}
+
+func (p *kvClientPool) addShutdownClientLocked(client KvClient) {
+	p.shutdownClients = append(p.shutdownClients, client)
+}
+func (p *kvClientPool) removeShutdownClientLocked(client KvClient) bool {
+	clientIdx := slices.IndexFunc(p.shutdownClients, func(oclient KvClient) bool { return oclient == client })
+	if clientIdx == -1 {
+		return false
+	}
+	p.shutdownClients = slices.Delete(p.shutdownClients, clientIdx, clientIdx+1)
+	return true
 }

@@ -456,7 +456,7 @@ func (agent *Agent) updateStateLocked() {
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            oldClients,
-	})
+	}, func(error) {})
 
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
@@ -467,7 +467,7 @@ func (agent *Agent) updateStateLocked() {
 	agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            agentComponentConfigs.KvClientManagerClients,
-	})
+	}, func(error) {})
 
 	agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
 	agent.mgmt.Reconfigure(&agentComponentConfigs.MgmtComponentConfig)
