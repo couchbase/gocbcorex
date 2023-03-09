@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"sync"
 	"sync/atomic"
 
 	"go.uber.org/zap"
@@ -44,9 +45,7 @@ type KvClientOptions struct {
 	NewMemdxClient GetMemdxClientFunc
 }
 
-type KvClient interface {
-	Reconfigure(ctx context.Context, opts *KvClientConfig) error
-
+type KvClientOps interface {
 	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
 	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
@@ -69,12 +68,19 @@ type KvClient interface {
 	DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error)
 	LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
 	MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error)
+}
+
+// KvClient implements a synchronous wrapper around a memdx.Client.
+type KvClient interface {
+	// Reconfigure reconfigures this KvClient to a new state.
+	Reconfigure(config *KvClientConfig, cb func(error)) error
 
 	HasFeature(feat memdx.HelloFeature) bool
-
 	Close() error
 
 	LoadFactor() float64
+
+	KvClientOps
 }
 
 type MemdxDispatcherCloser interface {
@@ -88,10 +94,8 @@ type kvClient struct {
 	pendingOperations uint64
 	cli               MemdxDispatcherCloser
 
-	hostname      string
-	tlsConfig     *tls.Config
-	authenticator Authenticator
-	bucket        string
+	lock          sync.Mutex
+	currentConfig KvClientConfig
 
 	supportedFeatures []memdx.HelloFeature
 }
@@ -101,10 +105,7 @@ var _ KvClient = (*kvClient)(nil)
 func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOptions) (*kvClient, error) {
 	kvCli := &kvClient{
 		logger:        loggerOrNop(opts.Logger),
-		hostname:      config.Address,
-		tlsConfig:     config.TlsConfig,
-		authenticator: config.Authenticator,
-		bucket:        config.SelectedBucket,
+		currentConfig: *config,
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
@@ -208,33 +209,60 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	return kvCli, nil
 }
 
-func (c *kvClient) Reconfigure(ctx context.Context, config *KvClientConfig) error {
+func (c *kvClient) Reconfigure(config *KvClientConfig, cb func(error)) error {
 	if config == nil {
-		return nil
+		return errors.New("must specify a configuration to reconfigure to")
 	}
 
-	if config.TlsConfig != c.tlsConfig {
-		return placeholderError{"cannot reconfigure tls config"}
-	}
-	if config.Address != c.hostname {
-		return placeholderError{"cannot reconfigure address"}
-	}
-	if config.Authenticator != c.authenticator {
-		return placeholderError{"cannot reconfigure authenticator"}
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.currentConfig.Address != config.Address ||
+		c.currentConfig.TlsConfig != config.TlsConfig ||
+		c.currentConfig.ClientName != config.ClientName ||
+		c.currentConfig.Authenticator != config.Authenticator ||
+		c.currentConfig.DisableDefaultFeatures != config.DisableDefaultFeatures ||
+		c.currentConfig.DisableErrorMap != config.DisableErrorMap ||
+		c.currentConfig.DisableBootstrap != config.DisableBootstrap {
+		// pretty much everything triggers a reconfigure
+		return errors.New("cannot reconfigure due to conflicting options")
 	}
 
-	if config.SelectedBucket != "" {
-		if c.bucket != "" {
-			return placeholderError{"cannot perform select bucket on an already bucket bound kvclient"}
+	var selectBucketName string
+	if config.SelectedBucket != c.currentConfig.SelectedBucket {
+		if c.currentConfig.SelectedBucket != "" {
+			return errors.New("cannot reconfigure from one selected bucket to another")
 		}
 
-		c.bucket = config.SelectedBucket
-		if err := c.SelectBucket(ctx, &memdx.SelectBucketRequest{
-			BucketName: c.bucket,
-		}); err != nil {
-			return err
-		}
+		// because we only support going from no selected bucket to a selected
+		// bucket, we simply update the state here and nobody will be permitted to
+		// reconfigure unless it fails and set its back to no selected bucket.
+		c.currentConfig.SelectedBucket = config.SelectedBucket
+		selectBucketName = config.SelectedBucket
 	}
+
+	if !c.currentConfig.Equals(config) {
+		return errors.New("client config after reconfigure did not match new configuration")
+	}
+
+	go func() {
+		if selectBucketName != "" {
+			err := c.SelectBucket(context.Background(), &memdx.SelectBucketRequest{
+				BucketName: selectBucketName,
+			})
+			if err != nil {
+				c.lock.Lock()
+				c.currentConfig.SelectedBucket = ""
+				c.lock.Unlock()
+
+				cb(err)
+				return
+			}
+		}
+
+		cb(nil)
+	}()
+
 	return nil
 }
 

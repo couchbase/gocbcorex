@@ -79,7 +79,7 @@ var _ KvClient = &KvClientMock{}
 //			PrependFunc: func(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error) {
 //				panic("mock out the Prepend method")
 //			},
-//			ReconfigureFunc: func(ctx context.Context, opts *KvClientConfig) error {
+//			ReconfigureFunc: func(config *KvClientConfig, cb func(error)) error {
 //				panic("mock out the Reconfigure method")
 //			},
 //			ReplaceFunc: func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
@@ -165,7 +165,7 @@ type KvClientMock struct {
 	PrependFunc func(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(ctx context.Context, opts *KvClientConfig) error
+	ReconfigureFunc func(config *KvClientConfig, cb func(error)) error
 
 	// ReplaceFunc mocks the Replace method.
 	ReplaceFunc func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
@@ -316,10 +316,10 @@ type KvClientMock struct {
 		}
 		// Reconfigure holds details about calls to the Reconfigure method.
 		Reconfigure []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Opts is the opts argument value.
-			Opts *KvClientConfig
+			// Config is the config argument value.
+			Config *KvClientConfig
+			// Cb is the cb argument value.
+			Cb func(error)
 		}
 		// Replace holds details about calls to the Replace method.
 		Replace []struct {
@@ -1084,21 +1084,21 @@ func (mock *KvClientMock) PrependCalls() []struct {
 }
 
 // Reconfigure calls ReconfigureFunc.
-func (mock *KvClientMock) Reconfigure(ctx context.Context, opts *KvClientConfig) error {
+func (mock *KvClientMock) Reconfigure(config *KvClientConfig, cb func(error)) error {
 	if mock.ReconfigureFunc == nil {
 		panic("KvClientMock.ReconfigureFunc: method is nil but KvClient.Reconfigure was just called")
 	}
 	callInfo := struct {
-		Ctx  context.Context
-		Opts *KvClientConfig
+		Config *KvClientConfig
+		Cb     func(error)
 	}{
-		Ctx:  ctx,
-		Opts: opts,
+		Config: config,
+		Cb:     cb,
 	}
 	mock.lockReconfigure.Lock()
 	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
 	mock.lockReconfigure.Unlock()
-	return mock.ReconfigureFunc(ctx, opts)
+	return mock.ReconfigureFunc(config, cb)
 }
 
 // ReconfigureCalls gets all the calls that were made to Reconfigure.
@@ -1106,12 +1106,12 @@ func (mock *KvClientMock) Reconfigure(ctx context.Context, opts *KvClientConfig)
 //
 //	len(mockedKvClient.ReconfigureCalls())
 func (mock *KvClientMock) ReconfigureCalls() []struct {
-	Ctx  context.Context
-	Opts *KvClientConfig
+	Config *KvClientConfig
+	Cb     func(error)
 } {
 	var calls []struct {
-		Ctx  context.Context
-		Opts *KvClientConfig
+		Config *KvClientConfig
+		Cb     func(error)
 	}
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure

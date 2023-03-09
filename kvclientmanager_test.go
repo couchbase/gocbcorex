@@ -99,7 +99,7 @@ func TestKvClientManagerReconfigureNilState(t *testing.T) {
 	err := mgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: 1,
 		Clients:            make(map[string]*KvClientConfig),
-	})
+	}, func(error) {})
 	var iErr illegalStateError
 	assert.ErrorAs(t, err, &iErr)
 }
@@ -148,10 +148,11 @@ func TestKvClientManagerReconfigureAddsEndpoints(t *testing.T) {
 					clientPools[clientOpts.ClientConfig.Address] = cli
 					return cli, nil
 				},
-				ReconfigureFunc: func(config *KvClientPoolConfig) error {
+				ReconfigureFunc: func(config *KvClientPoolConfig, cb func(error)) error {
 					assert.Equal(t, expectedNumConns, config.NumConnections)
 					reconfiguredPools[config.ClientConfig.Address] = struct{}{}
 
+					cb(nil)
 					return nil
 				},
 			}
@@ -166,7 +167,7 @@ func TestKvClientManagerReconfigureAddsEndpoints(t *testing.T) {
 	err = mgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: expectedNumConns,
 		Clients:            reconfigureClientConfigs,
-	})
+	}, func(error) {})
 	require.NoError(t, err)
 
 	assert.Len(t, reconfiguredPools, 1)
@@ -225,10 +226,11 @@ func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 					clientPools[clientOpts.ClientConfig.Address] = cli
 					return cli, nil
 				},
-				ReconfigureFunc: func(config *KvClientPoolConfig) error {
+				ReconfigureFunc: func(config *KvClientPoolConfig, cb func(error)) error {
 					assert.Equal(t, expectedNumConns, config.NumConnections)
 					reconfiguredPools[config.ClientConfig.Address] = struct{}{}
 
+					cb(nil)
 					return nil
 				},
 			}
@@ -245,7 +247,7 @@ func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 	err = mgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: expectedNumConns,
 		Clients:            reconfigureClientConfigs,
-	})
+	}, func(error) {})
 	require.NoError(t, err)
 
 	assert.Len(t, reconfiguredPools, 2)

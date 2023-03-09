@@ -8,6 +8,11 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+func sliceUnorderedDelete[E comparable](s []E, idx int) []E {
+	s[idx] = s[len(s)-1]
+	return s[:len(s)-1]
+}
+
 func getHostFromUri(uri string) (string, error) {
 	parsedUrl, err := url.Parse(uri)
 	if err != nil {
