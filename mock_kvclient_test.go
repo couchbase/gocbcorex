@@ -91,6 +91,9 @@ var _ KvClient = &KvClientMock{}
 //			SetMetaFunc: func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
 //				panic("mock out the SetMeta method")
 //			},
+//			ShutdownFunc: func(ctx context.Context) error {
+//				panic("mock out the Shutdown method")
+//			},
 //			TouchFunc: func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error) {
 //				panic("mock out the Touch method")
 //			},
@@ -175,6 +178,9 @@ type KvClientMock struct {
 
 	// SetMetaFunc mocks the SetMeta method.
 	SetMetaFunc func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error)
+
+	// ShutdownFunc mocks the Shutdown method.
+	ShutdownFunc func(ctx context.Context) error
 
 	// TouchFunc mocks the Touch method.
 	TouchFunc func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error)
@@ -342,6 +348,11 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.SetMetaRequest
 		}
+		// Shutdown holds details about calls to the Shutdown method.
+		Shutdown []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// Touch holds details about calls to the Touch method.
 		Touch []struct {
 			// Ctx is the ctx argument value.
@@ -381,6 +392,7 @@ type KvClientMock struct {
 	lockReplace          sync.RWMutex
 	lockSet              sync.RWMutex
 	lockSetMeta          sync.RWMutex
+	lockShutdown         sync.RWMutex
 	lockTouch            sync.RWMutex
 	lockUnlock           sync.RWMutex
 }
@@ -1224,6 +1236,38 @@ func (mock *KvClientMock) SetMetaCalls() []struct {
 	mock.lockSetMeta.RLock()
 	calls = mock.calls.SetMeta
 	mock.lockSetMeta.RUnlock()
+	return calls
+}
+
+// Shutdown calls ShutdownFunc.
+func (mock *KvClientMock) Shutdown(ctx context.Context) error {
+	if mock.ShutdownFunc == nil {
+		panic("KvClientMock.ShutdownFunc: method is nil but KvClient.Shutdown was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockShutdown.Lock()
+	mock.calls.Shutdown = append(mock.calls.Shutdown, callInfo)
+	mock.lockShutdown.Unlock()
+	return mock.ShutdownFunc(ctx)
+}
+
+// ShutdownCalls gets all the calls that were made to Shutdown.
+// Check the length with:
+//
+//	len(mockedKvClient.ShutdownCalls())
+func (mock *KvClientMock) ShutdownCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockShutdown.RLock()
+	calls = mock.calls.Shutdown
+	mock.lockShutdown.RUnlock()
 	return calls
 }
 

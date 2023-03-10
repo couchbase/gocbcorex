@@ -76,6 +76,7 @@ type KvClient interface {
 	Reconfigure(config *KvClientConfig, cb func(error)) error
 
 	HasFeature(feat memdx.HelloFeature) bool
+	Shutdown(ctx context.Context) error
 	Close() error
 
 	LoadFactor() float64
@@ -268,6 +269,10 @@ func (c *kvClient) Reconfigure(config *KvClientConfig, cb func(error)) error {
 
 func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
 	return slices.Contains(c.supportedFeatures, feat)
+}
+
+func (c *kvClient) Shutdown(ctx context.Context) error {
+	return c.Close()
 }
 
 func (c *kvClient) Close() error {

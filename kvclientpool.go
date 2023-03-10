@@ -40,6 +40,11 @@ type pendingKvClient struct {
 	CancelFn func()
 }
 
+type poolKvClient struct {
+	Client   KvClient
+	CancelFn func()
+}
+
 type kvClientPool struct {
 	logger      *zap.Logger
 	newKvClient NewKvClientFunc
@@ -320,7 +325,7 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 					return
 				}
 
-				p.addDefunctClientLocked(client)
+				p.shutdownClientLocked(client)
 				p.checkConnectionsLocked()
 				markClientReconfigureDone()
 			}()
