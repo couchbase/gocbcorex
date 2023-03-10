@@ -3,6 +3,7 @@ package cbmgmtx
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
@@ -154,17 +155,12 @@ func TestHttpMgmtBuckets(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// this can fail intermittently, so we retry up to 10 times
-	for i := 0; i < 10; i++ {
+	require.Eventually(t, func() bool {
 		err = getHttpMgmt().FlushBucket(ctx, &FlushBucketOptions{
 			BucketName: testBucketName,
 		})
-		if err == nil {
-			break
-		}
-		t.Logf("warning: had to retry flushing bucket...")
-	}
-	require.NoError(t, err)
+		return err == nil
+	}, 30*time.Second, 100*time.Millisecond)
 
 	err = getHttpMgmt().DeleteBucket(ctx, &DeleteBucketOptions{
 		BucketName: testBucketName,
