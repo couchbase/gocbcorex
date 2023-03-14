@@ -108,21 +108,6 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 		currentConfig: *config,
 	}
 
-	memdxClientOpts := &memdx.ClientOptions{
-		OrphanHandler: nil,
-		CloseHandler:  nil,
-	}
-	if opts.NewMemdxClient == nil {
-		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
-		if err != nil {
-			return nil, err
-		}
-
-		kvCli.cli = memdx.NewClient(conn, memdxClientOpts)
-	} else {
-		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
-	}
-
 	var requestedFeatures []memdx.HelloFeature
 	if !config.DisableDefaultFeatures {
 		requestedFeatures = []memdx.HelloFeature{
@@ -182,11 +167,28 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 		}
 	}
 
-	if bootstrapHello != nil || bootstrapAuth != nil || bootstrapGetErrorMap != nil {
-		if config.DisableBootstrap {
-			return nil, errors.New("bootstrap was disabled but options requiring bootstrap were specified")
+	shouldBootstrap := bootstrapHello != nil || bootstrapAuth != nil || bootstrapGetErrorMap != nil
+
+	if shouldBootstrap && config.DisableBootstrap {
+		return nil, errors.New("bootstrap was disabled but options requiring bootstrap were specified")
+	}
+
+	memdxClientOpts := &memdx.ClientOptions{
+		OrphanHandler: nil,
+		CloseHandler:  nil,
+	}
+	if opts.NewMemdxClient == nil {
+		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
+		if err != nil {
+			return nil, err
 		}
 
+		kvCli.cli = memdx.NewClient(conn, memdxClientOpts)
+	} else {
+		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
+	}
+
+	if shouldBootstrap {
 		res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
 			Hello:            bootstrapHello,
 			GetErrorMap:      bootstrapGetErrorMap,
@@ -195,6 +197,9 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			GetClusterConfig: nil,
 		})
 		if err != nil {
+			if closeErr := kvCli.Close(); closeErr != nil {
+				kvCli.logger.Debug("failed to close connection for KvClient", zap.Error(closeErr))
+			}
 			return nil, err
 		}
 
