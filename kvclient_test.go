@@ -58,8 +58,13 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 		VbucketID: 1,
 		Value:     []byte("test"),
 	})
-	require.NoError(t, err)
-	assert.NotZero(t, setRes.Cas)
+	// We don't know if we sent the Set to the correct node for the vbucket so check that the result is either ok or
+	// is a NMVB error.
+	if err == nil {
+		assert.NotZero(t, setRes.Cas)
+	} else {
+		assert.ErrorIs(t, err, memdx.ErrNotMyVbucket)
+	}
 
 	err = cli.Close()
 	require.NoError(t, err)
