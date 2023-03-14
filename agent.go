@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -276,13 +277,11 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 
 	bootstrapHosts := agent.state.latestConfig.AddressesGroupForNetworkType(agent.networkType)
 
-	var kvDataNodeIds []string
 	var kvDataHosts []string
 	var mgmtEndpoints []string
 	var queryEndpoints []string
 	var searchEndpoints []string
 	if agent.state.tlsConfig == nil {
-		kvDataNodeIds = bootstrapHosts.NonSSL.KvData
 		kvDataHosts = bootstrapHosts.NonSSL.KvData
 		for _, host := range bootstrapHosts.NonSSL.Mgmt {
 			mgmtEndpoints = append(mgmtEndpoints, "http://"+host)
@@ -294,7 +293,6 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 			searchEndpoints = append(searchEndpoints, "http://"+host)
 		}
 	} else {
-		kvDataNodeIds = bootstrapHosts.NonSSL.KvData
 		kvDataHosts = bootstrapHosts.SSL.KvData
 		for _, host := range bootstrapHosts.SSL.Mgmt {
 			mgmtEndpoints = append(mgmtEndpoints, "https://"+host)
@@ -305,6 +303,10 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		for _, host := range bootstrapHosts.SSL.Search {
 			searchEndpoints = append(searchEndpoints, "https://"+host)
 		}
+	}
+	kvDataNodeIds := make([]string, len(bootstrapHosts.NonSSL.KvData))
+	for i, hostPort := range bootstrapHosts.NonSSL.KvData {
+		kvDataNodeIds[i] = "ep-" + strings.Replace(hostPort, ":", "-", -1)
 	}
 
 	clients := make(map[string]*KvClientConfig)
