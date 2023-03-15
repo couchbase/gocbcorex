@@ -45,7 +45,7 @@ func NewNsConfigManager(opts NsConfigManagerOptions) (*NsConfigManager, error) {
 }
 
 func (w NsConfigManager) Bootstrap(ctx context.Context) (*ParsedConfig, error) {
-	username, password, err := w.authenticator.GetCredentials(MgmtService, w.endpointHost)
+	username, password, err := w.authenticator.GetCredentials(ServiceTypeMgmt, w.endpointHost)
 	if err != nil {
 		return nil, err
 	}

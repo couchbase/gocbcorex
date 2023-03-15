@@ -77,7 +77,7 @@ func configWatcherHttp_pollOne(
 		return nil, err
 	}
 
-	username, password, err := authenticator.GetCredentials(MgmtService, host)
+	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, host)
 	if err != nil {
 		return nil, err
 	}
