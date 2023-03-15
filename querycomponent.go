@@ -53,7 +53,7 @@ func OrchestrateQueryEndpoint[RespT any](
 func NewQueryComponent(retries RetryManager, config *QueryComponentConfig, opts *QueryComponentOptions) *QueryComponent {
 	return &QueryComponent{
 		baseHttpComponent: baseHttpComponent{
-			serviceType: QueryService,
+			serviceType: ServiceTypeQuery,
 			userAgent:   opts.UserAgent,
 			state: &baseHttpComponentState{
 				httpRoundTripper: config.HttpRoundTripper,

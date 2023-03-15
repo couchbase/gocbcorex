@@ -1,18 +1,35 @@
 package gocbcorex
 
+import "encoding/hex"
+
 // ServiceType specifies a particular Couchbase service type.
 type ServiceType int
 
 const (
-	// MemdService represents a memcached service.
-	MemdService = ServiceType(1)
+	// ServiceTypeMemd represents a memcached service.
+	ServiceTypeMemd = ServiceType(1)
 
-	// MgmtService represents a management service (typically ns_server).
-	MgmtService = ServiceType(2)
+	// ServiceTypeMgmt represents a management service (typically ns_server).
+	ServiceTypeMgmt = ServiceType(2)
 
-	// QueryService represents a N1QL service (typically for query).
-	QueryService = ServiceType(4)
+	// ServiceTypeQuery represents a N1QL service (typically for query).
+	ServiceTypeQuery = ServiceType(4)
 
-	// SearchService represents a full-text-search service.
-	SearchService = ServiceType(5)
+	// ServiceTypeSearch represents a full-text-search service.
+	ServiceTypeSearch = ServiceType(5)
 )
+
+func (s ServiceType) String() string {
+	switch s {
+	case ServiceTypeMemd:
+		return "Memd"
+	case ServiceTypeMgmt:
+		return "Mgmt"
+	case ServiceTypeQuery:
+		return "Query"
+	case ServiceTypeSearch:
+		return "Search"
+	}
+
+	return "x" + hex.EncodeToString([]byte{byte(s)})
+}

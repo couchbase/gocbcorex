@@ -47,7 +47,7 @@ func OrchestrateMgmtEndpoint[RespT any](
 func NewMgmtComponent(retries RetryManager, config *MgmtComponentConfig, opts *MgmtComponentOptions) *MgmtComponent {
 	return &MgmtComponent{
 		baseHttpComponent: baseHttpComponent{
-			serviceType: MgmtService,
+			serviceType: ServiceTypeMgmt,
 			userAgent:   opts.UserAgent,
 			state: &baseHttpComponentState{
 				httpRoundTripper: config.HttpRoundTripper,

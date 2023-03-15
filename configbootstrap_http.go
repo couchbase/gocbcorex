@@ -50,7 +50,7 @@ func configBootstrapHttp_bootstrapOne(
 		return nil, "", err
 	}
 
-	username, password, err := authenticator.GetCredentials(MgmtService, hostport)
+	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, hostport)
 	if err != nil {
 		return nil, "", err
 	}

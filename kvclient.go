@@ -146,7 +146,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 
 	var bootstrapAuth *memdx.SaslAuthAutoOptions
 	if config.Authenticator != nil {
-		username, password, err := config.Authenticator.GetCredentials(MemdService, config.Address)
+		username, password, err := config.Authenticator.GetCredentials(ServiceTypeMemd, config.Address)
 		if err != nil {
 			return nil, err
 		}
