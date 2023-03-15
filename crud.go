@@ -762,7 +762,7 @@ type GetMetaResult struct {
 	Expiry   uint32
 	SeqNo    uint64
 	Datatype memdx.DatatypeFlag
-	Deleted  uint32
+	Deleted  bool
 }
 
 func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*GetMetaResult, error) {
