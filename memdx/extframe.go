@@ -5,26 +5,27 @@ func AppendExtFrame(frameCode ExtFrameCode, frameBody []byte, buf []byte) ([]byt
 
 	// add the header
 	buf = append(buf, 0)
+	hdrBytePtr := &buf[len(buf)-1]
 
 	if frameCode < 15 {
-		buf[0] = buf[0] | (byte(frameCode&0xF) << 4)
+		*hdrBytePtr = *hdrBytePtr | (byte(frameCode&0xF) << 4)
 	} else {
 		if frameCode-15 >= 15 {
 			return nil, protocolError{"extframe code too large to encode"}
 		}
 
-		buf[0] = buf[0] | 0xF0
+		*hdrBytePtr = *hdrBytePtr | 0xF0
 		buf = append(buf, byte(frameCode-15))
 	}
 
 	if frameLen < 15 {
-		buf[0] = buf[0] | (byte(frameLen&0xF) << 0)
+		*hdrBytePtr = *hdrBytePtr | (byte(frameLen&0xF) << 0)
 	} else {
 		if frameLen-15 >= 15 {
 			return nil, protocolError{"extframe len too large to encode"}
 		}
 
-		buf[0] = buf[0] | 0x0F
+		*hdrBytePtr = *hdrBytePtr | 0x0F
 		buf = append(buf, byte(frameLen-15))
 	}
 
