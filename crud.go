@@ -402,6 +402,7 @@ type GetAndLockOptions struct {
 	CollectionName string
 	ScopeName      string
 	CollectionID   uint32
+	OnBehalfOf     string
 }
 
 type GetAndLockResult struct {
@@ -419,6 +420,7 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 				LockTime:     opts.LockTime,
 				Key:          opts.Key,
 				VbucketID:    vbID,
+				OnBehalfOf:   opts.OnBehalfOf,
 			})
 			if err != nil {
 				return nil, err
