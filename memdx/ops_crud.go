@@ -577,6 +577,7 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 			return false
 		} else if resp.Status == StatusTmpFail {
 			cb(nil, ErrDocLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1559,8 +1560,10 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			return false
 		} else if resp.Status == StatusSubDocXattrInvalidKeyCombo {
 			cb(nil, ErrSubDocXattrInvalidKeyCombo)
+			return false
 		} else if resp.Status == StatusSubDocXattrInvalidFlagCombo {
 			cb(nil, ErrSubDocXattrInvalidFlagCombo)
+			return false
 		}
 
 		var docIsDeleted bool
