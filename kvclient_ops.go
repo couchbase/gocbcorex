@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/couchbase/gocbcorex/memdx"
 )
@@ -52,11 +53,14 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 	req ReqT,
 ) (RespT, error) {
 	resulter := allocSyncCrudResulter()
+	var calledBack uint32
 
 	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
-		resulter.Ch <- syncCrudResult{
-			Result: resp,
-			Err:    err,
+		if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
+			resulter.Ch <- syncCrudResult{
+				Result: resp,
+				Err:    err,
+			}
 		}
 	})
 	if err != nil {

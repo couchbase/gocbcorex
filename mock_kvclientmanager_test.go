@@ -18,6 +18,9 @@ var _ KvClientManager = &KvClientManagerMock{}
 //
 //		// make and configure a mocked KvClientManager
 //		mockedKvClientManager := &KvClientManagerMock{
+//			CloseFunc: func() error {
+//				panic("mock out the Close method")
+//			},
 //			GetClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
 //				panic("mock out the GetClient method")
 //			},
@@ -37,6 +40,9 @@ var _ KvClientManager = &KvClientManagerMock{}
 //
 //	}
 type KvClientManagerMock struct {
+	// CloseFunc mocks the Close method.
+	CloseFunc func() error
+
 	// GetClientFunc mocks the GetClient method.
 	GetClientFunc func(ctx context.Context, endpoint string) (KvClient, error)
 
@@ -51,6 +57,9 @@ type KvClientManagerMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// Close holds details about calls to the Close method.
+		Close []struct {
+		}
 		// GetClient holds details about calls to the GetClient method.
 		GetClient []struct {
 			// Ctx is the ctx argument value.
@@ -78,10 +87,38 @@ type KvClientManagerMock struct {
 			Client KvClient
 		}
 	}
+	lockClose           sync.RWMutex
 	lockGetClient       sync.RWMutex
 	lockGetRandomClient sync.RWMutex
 	lockReconfigure     sync.RWMutex
 	lockShutdownClient  sync.RWMutex
+}
+
+// Close calls CloseFunc.
+func (mock *KvClientManagerMock) Close() error {
+	if mock.CloseFunc == nil {
+		panic("KvClientManagerMock.CloseFunc: method is nil but KvClientManager.Close was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockClose.Lock()
+	mock.calls.Close = append(mock.calls.Close, callInfo)
+	mock.lockClose.Unlock()
+	return mock.CloseFunc()
+}
+
+// CloseCalls gets all the calls that were made to Close.
+// Check the length with:
+//
+//	len(mockedKvClientManager.CloseCalls())
+func (mock *KvClientManagerMock) CloseCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockClose.RLock()
+	calls = mock.calls.Close
+	mock.lockClose.RUnlock()
+	return calls
 }
 
 // GetClient calls GetClientFunc.

@@ -408,6 +408,10 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 }
 
 func (agent *Agent) Close() error {
+	if err := agent.connMgr.Close(); err != nil {
+		agent.logger.Debug("Failed to close conn mgr", zap.Error(err))
+	}
+
 	return nil
 }
 

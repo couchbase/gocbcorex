@@ -5,6 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/couchbase/gocbcorex/testutils"
+
+	"go.uber.org/zap"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -793,4 +797,106 @@ func TestOrchestrateMemdCallbackReturnDispatchError(t *testing.T) {
 
 	assert.Equal(t, 1, res)
 	assert.Equal(t, 1, shutdowns)
+}
+
+func TestClientManagerClose(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+
+	endpointName := "endpoint1"
+
+	mgr, err := NewKvClientManager(
+		&KvClientManagerConfig{
+			NumPoolConnections: 3,
+			Clients: map[string]*KvClientConfig{
+				endpointName: {
+					Address:        testutils.TestOpts.MemdAddrs[0],
+					TlsConfig:      nil,
+					SelectedBucket: testutils.TestOpts.BucketName,
+					Authenticator:  auth,
+				},
+			},
+		},
+		&KvClientManagerOptions{
+			Logger: logger,
+		},
+	)
+	require.NoError(t, err)
+	defer mgr.Close()
+
+	// Check that we've connected at least 1 client
+	_, err = mgr.GetClient(context.Background(), endpointName)
+	require.NoError(t, err)
+
+	err = mgr.Close()
+	require.NoError(t, err)
+
+	// Check that getting a client fails after close.
+	_, err = mgr.GetClient(context.Background(), endpointName)
+	require.Error(t, err)
+}
+
+func TestClientManagerCloseAfterReconfigure(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+
+	endpointName := "endpoint1"
+
+	mgr, err := NewKvClientManager(
+		&KvClientManagerConfig{
+			NumPoolConnections: 3,
+			Clients: map[string]*KvClientConfig{
+				endpointName: {
+					Address:       testutils.TestOpts.MemdAddrs[0],
+					TlsConfig:     nil,
+					Authenticator: auth,
+				},
+			},
+		},
+		&KvClientManagerOptions{
+			Logger: logger,
+		},
+	)
+	require.NoError(t, err)
+	defer mgr.Close()
+
+	// Check that we've connected at least 1 client
+	_, err = mgr.GetClient(context.Background(), endpointName)
+	require.NoError(t, err)
+
+	err = mgr.Reconfigure(&KvClientManagerConfig{
+		NumPoolConnections: 3,
+		Clients: map[string]*KvClientConfig{
+			endpointName: {
+				Address:        testutils.TestOpts.MemdAddrs[0],
+				TlsConfig:      nil,
+				SelectedBucket: testutils.TestOpts.BucketName,
+				Authenticator:  auth,
+			},
+		},
+	}, func(err error) {
+		// We don't want to wait for reconfigure to complete.
+	})
+	require.NoError(t, err)
+
+	err = mgr.Close()
+	require.NoError(t, err)
+
+	// Check that getting a client fails after close.
+	_, err = mgr.GetClient(context.Background(), endpointName)
+	require.Error(t, err)
 }

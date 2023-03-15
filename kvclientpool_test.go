@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
+	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -188,4 +191,89 @@ func TestKvClientPoolNewAndGetRace(t *testing.T) {
 
 	_, err = pool.GetClient(context.Background())
 	require.ErrorIs(t, err, expectedErr)
+}
+
+// This test effectively just checks that pool close does not leak clients during normal operation.
+func TestKvClientPoolClose(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+	clientConfig := KvClientConfig{
+		Address:        testutils.TestOpts.MemdAddrs[0],
+		TlsConfig:      nil,
+		SelectedBucket: testutils.TestOpts.BucketName,
+		Authenticator:  auth,
+	}
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	pool, err := NewKvClientPool(&KvClientPoolConfig{
+		NumConnections: 5,
+		ClientConfig:   clientConfig,
+	}, &KvClientPoolOptions{
+		Logger: logger,
+	})
+	require.NoError(t, err)
+	defer pool.Close()
+
+	// Check that we've connected at least 1 client
+	_, err = pool.GetClient(context.Background())
+	require.NoError(t, err)
+
+	err = pool.Close()
+	require.NoError(t, err)
+
+	// Check that getting a client fails after close.
+	_, err = pool.GetClient(context.Background())
+	require.Error(t, err)
+}
+
+func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+	clientConfig := KvClientConfig{
+		Address:       testutils.TestOpts.MemdAddrs[0],
+		TlsConfig:     nil,
+		Authenticator: auth,
+	}
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	pool, err := NewKvClientPool(&KvClientPoolConfig{
+		NumConnections: 5,
+		ClientConfig:   clientConfig,
+	}, &KvClientPoolOptions{
+		Logger: logger,
+	})
+	require.NoError(t, err)
+
+	// Check that we've connected at least 1 client.
+	_, err = pool.GetClient(context.Background())
+	require.NoError(t, err)
+
+	err = pool.Reconfigure(&KvClientPoolConfig{
+		NumConnections: 5,
+		ClientConfig: KvClientConfig{
+			Address:        testutils.TestOpts.MemdAddrs[0],
+			TlsConfig:      nil,
+			SelectedBucket: testutils.TestOpts.BucketName,
+			Authenticator:  auth,
+		},
+	}, func(err error) {
+		assert.NoError(t, err)
+		// We don't need to wait for all of the clients to be fully reconfigured.
+	})
+	require.NoError(t, err)
+
+	err = pool.Close()
+	require.NoError(t, err)
 }

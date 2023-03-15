@@ -108,15 +108,15 @@ var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOptions) (*kvClient, error) {
 	logger := loggerOrNop(opts.Logger)
-	kvCli := &kvClient{
-		currentConfig: *config,
-	}
-
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
 		zap.String("clientId", uuid.NewString()[:8]),
 	)
-	kvCli.logger = logger
+
+	kvCli := &kvClient{
+		currentConfig: *config,
+		logger:        logger,
+	}
 
 	logger.Debug("id assigned for " + config.Address)
 

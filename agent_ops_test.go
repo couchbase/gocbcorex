@@ -33,6 +33,7 @@ func TestAgentDelete(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+	defer agent.Close()
 
 	docKey := uuid.NewString()
 

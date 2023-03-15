@@ -22,6 +22,7 @@ type KvClientPool interface {
 	Reconfigure(config *KvClientPoolConfig, cb func(error)) error
 	GetClient(ctx context.Context) (KvClient, error)
 	ShutdownClient(client KvClient)
+	Close() error
 }
 
 type KvClientPoolConfig struct {
@@ -49,9 +50,13 @@ type kvClientPool struct {
 	clientIdx uint64
 	fastMap   AtomicPointer[kvClientPoolFastMap]
 
-	lock            sync.Mutex
-	config          KvClientPoolConfig
-	connectErr      error
+	lock       sync.Mutex
+	config     KvClientPoolConfig
+	connectErr error
+	closeSig   chan struct{}
+	closed     bool
+	// activeClients contains both current and defunct clients, this allows us to continue
+	// dispatching operations during a rebalance.
 	activeClients   []KvClient
 	pendingClients  []*pendingKvClient
 	currentClients  []KvClient
@@ -60,6 +65,7 @@ type kvClientPool struct {
 
 	needClientSigCh    chan struct{}
 	needNoDefunctSigCh chan struct{}
+	needNoPendingSigCh chan struct{}
 }
 
 func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kvClientPool, error) {
@@ -69,7 +75,6 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 	if opts == nil {
 		opts = &KvClientPoolOptions{}
 	}
-
 	logger := loggerOrNop(opts.Logger)
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
@@ -92,7 +97,9 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		newKvClient: newKvClient,
 		config:      *config,
 
-		needClientSigCh: make(chan struct{}, 1),
+		closeSig:           make(chan struct{}),
+		needClientSigCh:    make(chan struct{}, 1),
+		needNoPendingSigCh: make(chan struct{}),
 	}
 
 	logger.Debug("id assigned for " + config.ClientConfig.Address)
@@ -195,6 +202,21 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 		p.lock.Lock()
 		defer p.lock.Unlock()
 
+		if p.closed {
+			p.logger.Debug("closed during new client creation")
+			if err == nil {
+				if closeErr := client.Close(); closeErr != nil {
+					p.logger.Debug("failed to close client")
+				}
+			}
+			p.removePendingClientLocked(pendingClient)
+			if len(p.pendingClients) == 0 {
+				close(p.needNoPendingSigCh)
+			}
+			completeCh <- struct{}{}
+			return
+		}
+
 		if !p.removePendingClientLocked(pendingClient) {
 			// if nobody was waiting for us anymore, we just return
 			completeCh <- struct{}{}
@@ -202,8 +224,6 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 		}
 
 		if err != nil {
-			p.logger.Warn("failed to create a new client connection", zap.Error(err))
-
 			p.connectErr = err
 			p.checkConnectionsLocked()
 			completeCh <- struct{}{}
@@ -396,6 +416,12 @@ func (p *kvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	p.lock.Lock()
 
+	// Check if we're already closed and if so return an error.
+	if p.closed {
+		p.lock.Unlock()
+		return nil, illegalStateError{"kv client pool already closed"}
+	}
+
 	numConns := uint64(len(p.activeClients))
 	if numConns > 0 {
 		clientIdx := atomic.AddUint64(&p.clientIdx, 1) - 1
@@ -410,7 +436,7 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 		err := p.connectErr
 		p.lock.Unlock()
 
-		p.logger.Debug("Found connect error in kv pool", zap.Error(err))
+		p.logger.Debug("found connect error", zap.Error(err))
 		return nil, err
 	}
 
@@ -431,6 +457,8 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 		} else {
 			return nil, ctxErr
 		}
+	case <-p.closeSig:
+		return nil, illegalStateError{"kv client pool already closed"}
 	}
 
 	return p.getClientSlow(ctx)
@@ -439,7 +467,60 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 func (p *kvClientPool) Shutdown(ctx context.Context) {
 }
 
-func (p *kvClientPool) Close() {
+func (p *kvClientPool) Close() error {
+	p.lock.Lock()
+
+	if p.closed {
+		p.lock.Unlock()
+		return nil
+	}
+
+	p.logger.Info("closing")
+
+	p.closed = true
+
+	// Signal to anyone watching that we're closing.
+	close(p.closeSig)
+
+	p.fastMap.Store(nil)
+
+	// Close anyone waiting on this.
+	if p.needNoDefunctSigCh != nil {
+		close(p.needNoDefunctSigCh)
+		p.needNoDefunctSigCh = nil
+	}
+
+	// Just close all the clients in all the lists containing alive clients.
+	for _, client := range p.currentClients {
+		if err := client.Close(); err != nil {
+			p.logger.Debug("failed to close kv client", zap.Error(err))
+		}
+	}
+	for _, client := range p.defunctClients {
+		if err := client.Close(); err != nil {
+			p.logger.Debug("failed to close kv client", zap.Error(err))
+		}
+	}
+	p.currentClients = p.currentClients[:0]
+	p.defunctClients = p.defunctClients[:0]
+
+	// We don't need to close clients in the active list as they're a part of the current and defunct
+	// lists. We can just truncate the list.
+	p.activeClients = p.activeClients[:0]
+
+	for _, client := range p.pendingClients {
+		client.CancelFn()
+	}
+	waitForPending := len(p.pendingClients) > 0
+	p.lock.Unlock()
+
+	if waitForPending {
+		// Wait for any pending clients to complete closing.
+		<-p.needNoPendingSigCh
+	}
+
+	p.logger.Info("closed")
+	return nil
 }
 
 func (p *kvClientPool) addPendingClientLocked(client *pendingKvClient) {
