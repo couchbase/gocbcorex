@@ -144,6 +144,7 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 		host, _, _ := net.SplitHostPort(d.RemoteAddr())
 		if host == "" {
 			cb(nil, errors.New("failed to identify memd hostname for $HOST replacement"))
+			return false
 		}
 
 		outValue := bytes.ReplaceAll(resp.Value, []byte("$HOST"), []byte(host))

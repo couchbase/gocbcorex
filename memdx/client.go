@@ -64,6 +64,7 @@ func (c *Client) run() {
 
 		err = c.dispatchCallback(pak)
 		if err != nil {
+			c.logger.Debug("failed to dispatch callback", zap.Error(err))
 			closeErr = err
 			break
 		}
@@ -97,6 +98,10 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 	}
 
 	c.lock.Unlock()
+
+	c.logger.Debug("cancelling operation",
+		zap.Uint32("opaque", opaqueID),
+	)
 
 	hasMorePackets := handler(nil, requestCancelledError{cause: err})
 	if hasMorePackets {
@@ -147,7 +152,11 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 
 	err := c.conn.WritePacket(req)
 	if err != nil {
-		c.logger.Debug("failed to write packet", zap.Error(err))
+		c.logger.Debug("failed to write packet",
+			zap.Error(err),
+			zap.Uint32("opaque", opaqueID),
+			zap.String("opcode", req.OpCode.String()),
+		)
 		c.lock.Lock()
 		delete(c.opaqueMap, opaqueID)
 		c.lock.Unlock()

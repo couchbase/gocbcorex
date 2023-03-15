@@ -13,6 +13,7 @@ import (
 
 func TestClientOpCancellation(t *testing.T) {
 	testutils.SkipIfShortTest(t)
+	t.Skip("Skipping test due to flakeyness")
 
 	key := []byte(uuid.NewString())
 

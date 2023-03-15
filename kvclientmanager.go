@@ -21,6 +21,7 @@ type KvClientManager interface {
 	GetClient(ctx context.Context, endpoint string) (KvClient, error)
 	Reconfigure(opts *KvClientManagerConfig, cb func(error)) error
 	GetRandomClient(ctx context.Context) (KvClient, error)
+	Close() error
 }
 
 type NewKvClientProviderFunc func(clientOpts *KvClientPoolConfig) (KvClientPool, error)
@@ -110,7 +111,7 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(err
 
 	state := m.state.Load()
 	if state == nil {
-		return illegalStateError{"KvClientManager reconfigure expected state"}
+		return illegalStateError{"kvClientManager reconfigure expected state"}
 	}
 
 	m.logger.Debug("reconfiguring")
@@ -251,6 +252,30 @@ func (m *kvClientManager) GetClient(ctx context.Context, endpoint string) (KvCli
 	}
 
 	return connProvider.GetClient(ctx)
+}
+func (m *kvClientManager) Close() error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	state := m.state.Load()
+	if state == nil {
+		return nil
+	}
+
+	m.logger.Info("closing kv client manager")
+
+	m.state.Store(nil)
+
+	for _, pool := range state.ClientPools {
+		if err := pool.Pool.Close(); err != nil {
+			m.logger.Debug("Failed to close kv client pool", zap.Error(err))
+		}
+
+	}
+
+	m.logger.Info("closed kv client manager")
+
+	return nil
 }
 
 func OrchestrateMemdClient[RespT any](

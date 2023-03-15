@@ -151,6 +151,7 @@ func TestQueryBasic(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
+	defer agent.Close()
 
 	helper := &n1qlTestHelper{
 		TestName: "testQuery",
@@ -172,6 +173,7 @@ func TestQueryPrepared(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
+	defer agent.Close()
 
 	helper := &n1qlTestHelper{
 		TestName: "testQuery",
