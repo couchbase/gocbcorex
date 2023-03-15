@@ -1250,7 +1250,7 @@ type GetMetaResponse struct {
 	Expiry   uint32
 	SeqNo    uint64
 	Datatype uint8
-	Deleted  uint32
+	Deleted  bool
 }
 
 func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResponse, error)) (PendingOp, error) {
@@ -1301,7 +1301,7 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			Value: resp.Value,
 			Cas:   resp.Cas,
 		}
-		res.Deleted = binary.BigEndian.Uint32(resp.Extras[0:])
+		res.Deleted = binary.BigEndian.Uint32(resp.Extras[0:]) != 0
 		res.Flags = binary.BigEndian.Uint32(resp.Extras[4:])
 		res.Expiry = binary.BigEndian.Uint32(resp.Extras[8:])
 		res.SeqNo = binary.BigEndian.Uint64(resp.Extras[12:])

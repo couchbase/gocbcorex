@@ -90,7 +90,7 @@ func TestOpsCrudGets(t *testing.T) {
 				assert.Zero(t, randRes.Flags)
 				assert.NotZero(t, randRes.Expiry)
 				assert.NotZero(t, randRes.SeqNo)
-				assert.Equal(t, uint32(0), randRes.Deleted)
+				assert.False(t, randRes.Deleted)
 				assert.Equal(t, datatype, randRes.Datatype)
 			},
 		},
