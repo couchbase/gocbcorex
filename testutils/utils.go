@@ -3,11 +3,14 @@ package testutils
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -63,6 +66,7 @@ var featsStr = envFlagString("GOCBFEAT", "features", "",
 	"A comma-delimited list of features to test")
 
 func SetupTests(m *testing.M) {
+	initialGoroutineCount := runtime.NumGoroutine()
 	flag.Parse()
 
 	if *connStr != "" && !testing.Short() {
@@ -115,6 +119,25 @@ func SetupTests(m *testing.M) {
 	TestOpts.RunName = strings.ReplaceAll(uuid.NewString(), "-", "")[0:8]
 
 	result := m.Run()
+
+	// Loop for at most a second checking for goroutines leaks, this gives any HTTP goroutines time to shutdown
+	start := time.Now()
+	var finalGoroutineCount int
+	for time.Since(start) <= 1*time.Second {
+		runtime.Gosched()
+		finalGoroutineCount = runtime.NumGoroutine()
+		if finalGoroutineCount == initialGoroutineCount {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if finalGoroutineCount != initialGoroutineCount {
+		log.Printf("Detected a goroutine leak (%d before != %d after)", initialGoroutineCount, finalGoroutineCount)
+		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+	} else {
+		log.Printf("No goroutines appear to have leaked (%d before == %d after)", initialGoroutineCount, finalGoroutineCount)
+	}
+
 	os.Exit(result)
 }
 
