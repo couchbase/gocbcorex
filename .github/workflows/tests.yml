@@ -1,4 +1,4 @@
-name: tests
+name: Run Tests
 
 on:
   push:
@@ -10,6 +10,8 @@ on:
 
 jobs:
   test:
+    name: Integration Test
+
     strategy:
       matrix:
         server:
@@ -38,8 +40,8 @@ jobs:
           go generate
 
       - name: Initialize couchbase
-#        env:
-#          CB_TRAVEL_SAMPLE: yes
+        #        env:
+        #          CB_TRAVEL_SAMPLE: yes
         run: ./.github/bin/init-cluster
       - name: Check couchbase
         run: ./.github/bin/check-cluster
