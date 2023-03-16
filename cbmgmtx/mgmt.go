@@ -16,30 +16,28 @@ import (
 )
 
 type Management struct {
-	Transport  http.RoundTripper
-	UserAgent  string
-	Endpoint   string
-	Username   string
-	Password   string
-	OnBehalfOf string
+	Transport http.RoundTripper
+	UserAgent string
+	Endpoint  string
+	Username  string
+	Password  string
 }
 
 func (h Management) NewRequest(
 	ctx context.Context,
-	method string, path string,
-	contentType string, body io.Reader,
+	method, path, contentType, onBehalfOf string,
+	body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
 		UserAgent:     h.UserAgent,
 		Endpoint:      h.Endpoint,
 		BasicAuthUser: h.Username,
 		BasicAuthPass: h.Password,
-		CbOnBehalfOf:  h.OnBehalfOf,
-	}.NewRequest(ctx, method, path, contentType, body)
+	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 
-func (h Management) Execute(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
-	req, err := h.NewRequest(ctx, method, path, contentType, body)
+func (h Management) Execute(ctx context.Context, method, path, contentType, onBehalfOf string, body io.Reader) (*http.Response, error) {
+	req, err := h.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 	if err != nil {
 		return nil, err
 	}
@@ -95,10 +93,11 @@ func (h Management) DecodeCommonError(resp *http.Response, resourceType string) 
 }
 
 type GetClusterConfigOptions struct {
+	OnBehalfOf string
 }
 
 func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfigOptions) (*cbconfig.FullConfigJson, error) {
-	resp, err := h.Execute(ctx, "GET", "/pools/default", "", nil)
+	resp, err := h.Execute(ctx, "GET", "/pools/default", "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -114,10 +113,11 @@ func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfig
 }
 
 type GetTerseClusterConfigOptions struct {
+	OnBehalfOf string
 }
 
 func (h Management) GetTerseClusterConfig(ctx context.Context, opts *GetTerseClusterConfigOptions) (*cbconfig.TerseConfigJson, error) {
-	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServices", "", nil)
+	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServices", "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +133,7 @@ func (h Management) GetTerseClusterConfig(ctx context.Context, opts *GetTerseClu
 }
 
 type StreamTerseClusterConfigOptions struct {
+	OnBehalfOf string
 }
 
 type TerseClusterConfig_Stream interface {
@@ -140,7 +141,7 @@ type TerseClusterConfig_Stream interface {
 }
 
 func (h Management) StreamTerseClusterConfig(ctx context.Context, opts *StreamTerseClusterConfigOptions) (TerseClusterConfig_Stream, error) {
-	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServicesStreaming", "", nil)
+	resp, err := h.Execute(ctx, "GET", "/pools/default/nodeServicesStreaming", "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +158,7 @@ func (h Management) StreamTerseClusterConfig(ctx context.Context, opts *StreamTe
 
 type GetBucketConfigOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullConfigJson, error) {
@@ -165,7 +167,7 @@ func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOp
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName), "", nil)
+		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +184,7 @@ func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOp
 
 type GetTerseBucketConfigOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBucketConfigOptions) (*cbconfig.TerseConfigJson, error) {
@@ -190,7 +193,7 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", nil)
+		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -207,6 +210,7 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 
 type StreamTerseBucketConfigOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 type TerseBucketConfig_Stream interface {
@@ -219,7 +223,7 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/bs/%s", opts.BucketName), "", nil)
+		fmt.Sprintf("/pools/default/bs/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +240,7 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 
 type GetCollectionManifestOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 type CollectionManifestCollectionJson struct {
@@ -261,7 +266,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName), "", nil)
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +283,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 type CreateScopeOptions struct {
 	BucketName string
 	ScopeName  string
+	OnBehalfOf string
 }
 
 func (h Management) CreateScope(
@@ -298,7 +304,7 @@ func (h Management) CreateScope(
 		ctx,
 		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName),
-		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
 	}
@@ -313,6 +319,7 @@ func (h Management) CreateScope(
 type DeleteScopeOptions struct {
 	BucketName string
 	ScopeName  string
+	OnBehalfOf string
 }
 
 func (h Management) DeleteScope(
@@ -330,7 +337,7 @@ func (h Management) DeleteScope(
 		ctx,
 		"DELETE",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", opts.BucketName, opts.ScopeName),
-		"", nil)
+		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
 	}
@@ -347,6 +354,7 @@ type CreateCollectionOptions struct {
 	ScopeName      string
 	CollectionName string
 	MaxTTL         uint32
+	OnBehalfOf     string
 }
 
 func (h Management) CreateCollection(
@@ -374,7 +382,7 @@ func (h Management) CreateCollection(
 		ctx,
 		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", opts.BucketName, opts.ScopeName),
-		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
 	}
@@ -390,6 +398,7 @@ type DeleteCollectionOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
+	OnBehalfOf     string
 }
 
 func (h Management) DeleteCollection(
@@ -410,7 +419,7 @@ func (h Management) DeleteCollection(
 		ctx,
 		"DELETE",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
-		"", nil)
+		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
 	}
@@ -548,6 +557,7 @@ func (h Management) decodeBucketDef(data *bucketSettingsJson) (*BucketDef, error
 }
 
 type GetAllBucketsOptions struct {
+	OnBehalfOf string
 }
 
 func (h Management) GetAllBuckets(
@@ -558,7 +568,7 @@ func (h Management) GetAllBuckets(
 		ctx,
 		"GET",
 		"/pools/default/buckets",
-		"", nil)
+		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -589,6 +599,7 @@ func (h Management) GetAllBuckets(
 
 type GetBucketOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 func (h Management) GetBucket(
@@ -603,7 +614,7 @@ func (h Management) GetBucket(
 		ctx,
 		"GET",
 		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
-		"", nil)
+		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -629,6 +640,7 @@ func (h Management) GetBucket(
 
 type CreateBucketOptions struct {
 	BucketName string
+	OnBehalfOf string
 	BucketSettings
 }
 
@@ -655,7 +667,7 @@ func (h Management) CreateBucket(
 		ctx,
 		"POST",
 		"/pools/default/buckets",
-		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
 	}
@@ -669,6 +681,7 @@ func (h Management) CreateBucket(
 
 type UpdateBucketOptions struct {
 	BucketName string
+	OnBehalfOf string
 	MutableBucketSettings
 }
 
@@ -691,7 +704,7 @@ func (h Management) UpdateBucket(
 		ctx,
 		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
-		"application/x-www-form-urlencoded", strings.NewReader(posts.Encode()))
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
 	}
@@ -705,6 +718,7 @@ func (h Management) UpdateBucket(
 
 type DeleteBucketOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 func (h Management) DeleteBucket(
@@ -719,7 +733,7 @@ func (h Management) DeleteBucket(
 		ctx,
 		"DELETE",
 		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
-		"", nil)
+		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
 	}
@@ -733,6 +747,7 @@ func (h Management) DeleteBucket(
 
 type FlushBucketOptions struct {
 	BucketName string
+	OnBehalfOf string
 }
 
 func (h Management) FlushBucket(
@@ -747,7 +762,7 @@ func (h Management) FlushBucket(
 		ctx,
 		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s/controller/doFlush", opts.BucketName),
-		"", nil)
+		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
 	}

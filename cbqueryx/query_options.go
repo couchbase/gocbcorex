@@ -129,6 +129,8 @@ type QueryOptions struct {
 
 	NamedArgs map[string]json.RawMessage
 	Raw       map[string]json.RawMessage
+
+	OnBehalfOf string
 }
 
 func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
