@@ -11,13 +11,12 @@ type RequestBuilder struct {
 	Endpoint      string
 	BasicAuthUser string
 	BasicAuthPass string
-	CbOnBehalfOf  string
 }
 
 func (h RequestBuilder) NewRequest(
 	ctx context.Context,
-	method string, path string,
-	contentType string, body io.Reader,
+	method, path, contentType, onBehalfOf string,
+	body io.Reader,
 ) (*http.Request, error) {
 	uri := h.Endpoint + path
 	req, err := http.NewRequestWithContext(ctx, method, uri, body)
@@ -33,8 +32,8 @@ func (h RequestBuilder) NewRequest(
 		req.Header.Set("User-Agent", h.UserAgent)
 	}
 
-	if h.CbOnBehalfOf != "" {
-		req.Header.Set("cb-on-behalf-of", h.CbOnBehalfOf)
+	if onBehalfOf != "" {
+		req.Header.Set("cb-on-behalf-of", onBehalfOf)
 	}
 
 	if h.BasicAuthUser != "" || h.BasicAuthPass != "" {

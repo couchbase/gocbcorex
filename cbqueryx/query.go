@@ -12,31 +12,28 @@ import (
 )
 
 type Query struct {
-	Logger     *zap.Logger
-	Transport  http.RoundTripper
-	UserAgent  string
-	Endpoint   string
-	Username   string
-	Password   string
-	OnBehalfOf string
+	Logger    *zap.Logger
+	Transport http.RoundTripper
+	UserAgent string
+	Endpoint  string
+	Username  string
+	Password  string
 }
 
 func (h Query) NewRequest(
 	ctx context.Context,
-	method string, path string,
-	contentType string, body io.Reader,
+	method, path, contentType, onBehalfOf string, body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
 		UserAgent:     h.UserAgent,
 		Endpoint:      h.Endpoint,
 		BasicAuthUser: h.Username,
 		BasicAuthPass: h.Password,
-		CbOnBehalfOf:  h.OnBehalfOf,
-	}.NewRequest(ctx, method, path, contentType, body)
+	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 
-func (h Query) Execute(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
-	req, err := h.NewRequest(ctx, method, path, contentType, body)
+func (h Query) Execute(ctx context.Context, method, path, contentType, onBehalfOf string, body io.Reader) (*http.Response, error) {
+	req, err := h.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +56,7 @@ func (h Query) Query(ctx context.Context, opts *QueryOptions) (QueryResultStream
 		return nil, err
 	}
 
-	resp, err := h.Execute(ctx, "POST", "/query/service", "application/json", bytes.NewReader(reqBytes))
+	resp, err := h.Execute(ctx, "POST", "/query/service", "application/json", opts.OnBehalfOf, bytes.NewReader(reqBytes))
 	if err != nil {
 		return nil, err
 	}
