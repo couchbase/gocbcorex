@@ -82,6 +82,9 @@ var _ KvClient = &KvClientMock{}
 //			ReconfigureFunc: func(config *KvClientConfig, cb func(error)) error {
 //				panic("mock out the Reconfigure method")
 //			},
+//			RemoteAddressFunc: func() string {
+//				panic("mock out the RemoteAddress method")
+//			},
 //			ReplaceFunc: func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
 //				panic("mock out the Replace method")
 //			},
@@ -166,6 +169,9 @@ type KvClientMock struct {
 
 	// ReconfigureFunc mocks the Reconfigure method.
 	ReconfigureFunc func(config *KvClientConfig, cb func(error)) error
+
+	// RemoteAddressFunc mocks the RemoteAddress method.
+	RemoteAddressFunc func() string
 
 	// ReplaceFunc mocks the Replace method.
 	ReplaceFunc func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
@@ -321,6 +327,9 @@ type KvClientMock struct {
 			// Cb is the cb argument value.
 			Cb func(error)
 		}
+		// RemoteAddress holds details about calls to the RemoteAddress method.
+		RemoteAddress []struct {
+		}
 		// Replace holds details about calls to the Replace method.
 		Replace []struct {
 			// Ctx is the ctx argument value.
@@ -378,6 +387,7 @@ type KvClientMock struct {
 	lockMutateIn         sync.RWMutex
 	lockPrepend          sync.RWMutex
 	lockReconfigure      sync.RWMutex
+	lockRemoteAddress    sync.RWMutex
 	lockReplace          sync.RWMutex
 	lockSet              sync.RWMutex
 	lockSetMeta          sync.RWMutex
@@ -1116,6 +1126,33 @@ func (mock *KvClientMock) ReconfigureCalls() []struct {
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure
 	mock.lockReconfigure.RUnlock()
+	return calls
+}
+
+// RemoteAddress calls RemoteAddressFunc.
+func (mock *KvClientMock) RemoteAddress() string {
+	if mock.RemoteAddressFunc == nil {
+		panic("KvClientMock.RemoteAddressFunc: method is nil but KvClient.RemoteAddress was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockRemoteAddress.Lock()
+	mock.calls.RemoteAddress = append(mock.calls.RemoteAddress, callInfo)
+	mock.lockRemoteAddress.Unlock()
+	return mock.RemoteAddressFunc()
+}
+
+// RemoteAddressCalls gets all the calls that were made to RemoteAddress.
+// Check the length with:
+//
+//	len(mockedKvClient.RemoteAddressCalls())
+func (mock *KvClientMock) RemoteAddressCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockRemoteAddress.RLock()
+	calls = mock.calls.RemoteAddress
+	mock.lockRemoteAddress.RUnlock()
 	return calls
 }
 
