@@ -80,6 +80,8 @@ type KvClient interface {
 
 	LoadFactor() float64
 
+	RemoteAddress() string
+
 	KvClientOps
 }
 
@@ -281,4 +283,12 @@ func (c *kvClient) Close() error {
 
 func (c *kvClient) LoadFactor() float64 {
 	return (float64)(atomic.LoadUint64(&c.pendingOperations))
+}
+
+func (c *kvClient) RemoteAddress() string {
+	c.lock.Lock()
+	addr := c.currentConfig.Address
+	c.lock.Unlock()
+
+	return addr
 }

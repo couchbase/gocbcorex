@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutils"
@@ -431,6 +432,21 @@ func TestAgentCrudDecompress(t *testing.T) {
 
 		})
 	}
+}
+
+func TestAgentWatchConfig(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	defer agent.Close()
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+	defer cancel()
+	configCh := agent.WatchConfig(ctx)
+
+	config, ok := <-configCh
+	require.True(t, ok)
+	require.NotNil(t, config)
 }
 
 func BenchmarkBasicGet(b *testing.B) {

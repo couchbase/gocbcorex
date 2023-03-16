@@ -63,14 +63,14 @@ func configWatcherMemd_pollOne(
 	kvClientManager KvClientManager,
 	endpoint string,
 ) (*ParsedConfig, error) {
-	host, _, _ := net.SplitHostPort(endpoint)
-	if host == "" {
-		return nil, errors.New("unexpected cccp endpoint format")
-	}
-
 	client, err := kvClientManager.GetClient(ctx, endpoint)
 	if err != nil {
 		return nil, err
+	}
+
+	host, _, _ := net.SplitHostPort(client.RemoteAddress())
+	if host == "" {
+		return nil, errors.New("unexpected cccp endpoint format")
 	}
 
 	resp, err := client.GetClusterConfig(ctx, &memdx.GetClusterConfigRequest{})
