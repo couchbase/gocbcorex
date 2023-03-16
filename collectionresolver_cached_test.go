@@ -486,9 +486,10 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	scope := uuid.NewString()
 	cid := uint32(9)
 	manifestRev := uint64(4)
-	blockCh := make(chan struct{}, 1)
+	blockCh := make(chan struct{})
 	mock := &CollectionResolverMock{
 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			blockCh <- struct{}{}
 			called++
 
 			assert.Equal(t, scope, scopeName)
@@ -519,10 +520,15 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 			wg.Done()
 		}()
 	}
+	// Wait for the resolve collection id op to be sent.
+	<-blockCh
+
 	cancel()
 
 	wg.Wait()
 
+	// We block the resolve collection id op from completing until we've received a response
+	// for all of our requests.
 	blockCh <- struct{}{}
 
 	assert.Equal(t, uint32(1), called)
