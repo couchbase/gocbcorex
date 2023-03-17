@@ -2,9 +2,10 @@ package gocbcorex
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMutationState_Add(t *testing.T) {
