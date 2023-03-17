@@ -5,8 +5,9 @@ package gocbcorex
 
 import (
 	"context"
-	"github.com/couchbase/gocbcorex/memdx"
 	"sync"
+
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 // Ensure, that KvClientMock does implement KvClient.

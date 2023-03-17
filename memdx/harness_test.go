@@ -3,9 +3,10 @@ package memdx
 import (
 	"context"
 	"encoding/json"
+	"testing"
+
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 const defaultTestVbucketID = 1
