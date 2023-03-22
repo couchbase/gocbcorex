@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/uuid"
+
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 
@@ -105,10 +107,18 @@ type kvClient struct {
 var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOptions) (*kvClient, error) {
+	logger := loggerOrNop(opts.Logger)
 	kvCli := &kvClient{
-		logger:        loggerOrNop(opts.Logger),
 		currentConfig: *config,
 	}
+
+	// We namespace the pool to improve debugging,
+	logger = logger.With(
+		zap.String("clientId", uuid.NewString()[:8]),
+	)
+	kvCli.logger = logger
+
+	logger.Debug("id assigned for " + config.Address)
 
 	var requestedFeatures []memdx.HelloFeature
 	if !config.DisableDefaultFeatures {
@@ -178,6 +188,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	memdxClientOpts := &memdx.ClientOptions{
 		OrphanHandler: nil,
 		CloseHandler:  nil,
+		Logger:        logger,
 	}
 	if opts.NewMemdxClient == nil {
 		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
@@ -191,6 +202,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	}
 
 	if shouldBootstrap {
+		kvCli.logger.Debug("bootstrapping")
 		res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
 			Hello:            bootstrapHello,
 			GetErrorMap:      bootstrapGetErrorMap,
@@ -199,6 +211,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			GetClusterConfig: nil,
 		})
 		if err != nil {
+			kvCli.logger.Debug("bootstrap failed", zap.Error(err))
 			if closeErr := kvCli.Close(); closeErr != nil {
 				kvCli.logger.Debug("failed to close connection for KvClient", zap.Error(closeErr))
 			}
@@ -223,6 +236,8 @@ func (c *kvClient) Reconfigure(config *KvClientConfig, cb func(error)) error {
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
+
+	c.logger.Debug("reconfiguring")
 
 	if c.currentConfig.Address != config.Address ||
 		c.currentConfig.TlsConfig != config.TlsConfig ||
@@ -278,6 +293,7 @@ func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
 }
 
 func (c *kvClient) Close() error {
+	c.logger.Info("closing")
 	return c.cli.Close()
 }
 

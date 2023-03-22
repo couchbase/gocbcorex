@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/uuid"
+
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
@@ -69,6 +71,10 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 	}
 
 	logger := loggerOrNop(opts.Logger)
+	// We namespace the pool to improve debugging,
+	logger = logger.With(
+		zap.String("poolId", uuid.NewString()[:8]),
+	)
 
 	var newKvClient NewKvClientFunc
 	if opts.NewKvClient != nil {
@@ -89,6 +95,8 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		needClientSigCh: make(chan struct{}, 1),
 	}
 
+	logger.Debug("id assigned for " + config.ClientConfig.Address)
+
 	// we need to lock here because checkConnectionsLocked can start goroutines
 	// which potentially access the shared state...
 	p.lock.Lock()
@@ -100,6 +108,7 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 }
 
 func (p *kvClientPool) checkConnectionsLocked() {
+	p.logger.Debug("checking connections")
 	numWantedClients := int(p.config.NumConnections)
 	numActiveClients := len(p.currentClients)
 	numDefunctClients := len(p.defunctClients)
@@ -108,6 +117,7 @@ func (p *kvClientPool) checkConnectionsLocked() {
 
 	numExcessClients := numAvailableClients - numWantedClients
 	if numExcessClients > 0 {
+		p.logger.Debug("trimming excess clients", zap.Int("excess", numExcessClients))
 		// if we have more clients available than we want, we can shut down
 		// a few of them, starting with the defunct clients...
 		numClosedClients := 0
@@ -129,12 +139,14 @@ func (p *kvClientPool) checkConnectionsLocked() {
 		}
 
 		if numClosedClients > 0 {
+			p.logger.Debug("closed excess clients", zap.Int("closed", numClosedClients))
 			p.rebuildActiveClientsLocked()
 		}
 	}
 
 	numNeededClients := numWantedClients - numAvailableClients - numPendingClients
 	if numNeededClients > 0 {
+		p.logger.Debug("needs new clients", zap.Int("needed", numNeededClients))
 		for i := 0; i < numNeededClients; i++ {
 			p.startNewClientLocked()
 		}
@@ -176,6 +188,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 
 	// create the goroutine to actually create the client
 	go func() {
+		p.logger.Debug("creating new client")
 		client, err := p.newKvClient(cancelCtx, &clientConfig)
 		cancelFn()
 
@@ -252,6 +265,7 @@ func (p *kvClientPool) shutdownClientLocked(client KvClient) {
 }
 
 func (p *kvClientPool) ShutdownClient(client KvClient) {
+	p.logger.Debug("Shutting down kv client")
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -287,6 +301,8 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
+
+	p.logger.Debug("reconfiguring")
 
 	p.config = *config
 
@@ -372,6 +388,8 @@ func (p *kvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 		}
 	}
 
+	p.logger.Debug("no client found in fast map")
+
 	return p.getClientSlow(ctx)
 }
 
@@ -391,6 +409,8 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 		// and should just return that error directly.
 		err := p.connectErr
 		p.lock.Unlock()
+
+		p.logger.Debug("Found connect error in kv pool", zap.Error(err))
 		return nil, err
 	}
 
@@ -405,6 +425,7 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	case <-clientWaitCh:
 	case <-ctx.Done():
 		ctxErr := ctx.Err()
+		p.logger.Debug("context Done triggered during get client slow", zap.Error(ctxErr))
 		if errors.Is(ctxErr, context.DeadlineExceeded) {
 			return nil, ErrPoolStillConnecting
 		} else {
