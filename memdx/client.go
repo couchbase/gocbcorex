@@ -3,6 +3,8 @@ package memdx
 import (
 	"errors"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 // Client is a basic memd client that provides opaque mapping and request dispatch...
@@ -12,6 +14,7 @@ type Client struct {
 	conn          *Conn
 	orphanHandler func(*Packet)
 	closeHandler  func(error)
+	logger        *zap.Logger
 
 	lock      sync.Mutex
 	opaqueCtr uint32
@@ -23,17 +26,23 @@ var _ Dispatcher = (*Client)(nil)
 type ClientOptions struct {
 	OrphanHandler func(*Packet)
 	CloseHandler  func(error)
+	Logger        *zap.Logger
 }
 
 func NewClient(conn *Conn, opts *ClientOptions) *Client {
 	if opts == nil {
 		opts = &ClientOptions{}
 	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 
 	c := &Client{
 		conn:          conn,
 		orphanHandler: opts.OrphanHandler,
 		closeHandler:  opts.CloseHandler,
+		logger:        logger,
 
 		opaqueCtr: 1,
 		opaqueMap: make(map[uint32]DispatchCallback),
@@ -138,6 +147,7 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 
 	err := c.conn.WritePacket(req)
 	if err != nil {
+		c.logger.Debug("failed to write packet", zap.Error(err))
 		c.lock.Lock()
 		delete(c.opaqueMap, opaqueID)
 		c.lock.Unlock()

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"go.uber.org/zap"
 )
 
@@ -64,8 +66,14 @@ func NewKvClientManager(
 		opts = &KvClientManagerOptions{}
 	}
 
+	logger := loggerOrNop(opts.Logger)
+	// We namespace the pool to improve debugging,
+	logger = logger.With(
+		zap.String("mgrId", uuid.NewString()[:8]),
+	)
+
 	mgr := &kvClientManager{
-		logger:                loggerOrNop(opts.Logger),
+		logger:                logger,
 		newKvClientProviderFn: opts.NewKvClientProviderFn,
 	}
 
@@ -87,7 +95,9 @@ func (m *kvClientManager) newKvClientProvider(poolOpts *KvClientPoolConfig) (KvC
 	if m.newKvClientProviderFn != nil {
 		return m.newKvClientProviderFn(poolOpts)
 	}
-	return NewKvClientPool(poolOpts, nil)
+	return NewKvClientPool(poolOpts, &KvClientPoolOptions{
+		Logger: m.logger.Named("pool"),
+	})
 }
 
 func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(error)) error {
@@ -102,6 +112,8 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(err
 	if state == nil {
 		return illegalStateError{"KvClientManager reconfigure expected state"}
 	}
+
+	m.logger.Debug("reconfiguring")
 
 	oldPools := make(map[string]*kvClientManagerPool)
 	for poolName, pool := range state.ClientPools {
