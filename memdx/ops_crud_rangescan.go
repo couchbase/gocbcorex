@@ -33,16 +33,16 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 		}
 
 		if resp.Status == StatusKeyNotFound {
-			cb(nil, ErrRangeEmpty)
+			cb(nil, ErrRangeScanEmpty)
 			return false
 		} else if resp.Status == StatusNotStored {
-			cb(nil, ErrSeqNoNotFound)
+			cb(nil, ErrRangeScanSeqNoNotFound)
 			return false
 		} else if resp.Status == StatusRangeError {
-			cb(nil, ErrSampleRangeImpossible)
+			cb(nil, ErrRangeScanRangeError)
 			return false
 		} else if resp.Status == StatusRangeScanVbUUIDNotEqual {
-			cb(nil, ErrVbUUIDMismatch)
+			cb(nil, ErrRangeScanVbUuidMismatch)
 			return false
 		} else if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
@@ -91,7 +91,7 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 		}
 
 		if resp.Status == StatusKeyNotFound {
-			actionCb(nil, ErrScanNotFound)
+			actionCb(nil, ErrRangeScanNotFound)
 			return false
 		} else if resp.Status == StatusRangeScanCancelled {
 			actionCb(nil, ErrRangeScanCancelled)
@@ -158,7 +158,7 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 		}
 
 		if resp.Status == StatusKeyNotFound {
-			cb(nil, ErrScanNotFound)
+			cb(nil, ErrRangeScanNotFound)
 			return false
 		} else if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
