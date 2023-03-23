@@ -308,6 +308,7 @@ func (h Management) CreateScope(
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
@@ -341,6 +342,7 @@ func (h Management) DeleteScope(
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
@@ -386,6 +388,7 @@ func (h Management) CreateCollection(
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
@@ -423,6 +426,7 @@ func (h Management) DeleteCollection(
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
