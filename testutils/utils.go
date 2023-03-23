@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"runtime"
@@ -120,6 +121,9 @@ func SetupTests(m *testing.M) {
 
 	result := m.Run()
 
+	// We need to close the transport used by the default client once tests complete, otherwise the transport
+	// will leak go routines.
+	http.DefaultClient.CloseIdleConnections()
 	// Loop for at most a second checking for goroutines leaks, this gives any HTTP goroutines time to shutdown
 	start := time.Now()
 	var finalGoroutineCount int
