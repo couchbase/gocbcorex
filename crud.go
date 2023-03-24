@@ -346,6 +346,7 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
+				Cas:          opts.Cas,
 				OnBehalfOf:   opts.OnBehalfOf,
 			})
 			if err != nil {
