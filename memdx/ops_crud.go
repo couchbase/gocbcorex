@@ -952,7 +952,10 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 			return false
 		}
 
-		if resp.Status == StatusNotStored {
+		if resp.Status == StatusKeyExists && req.Cas > 0 {
+			cb(nil, ErrCasMismatch)
+			return false
+		} else if resp.Status == StatusNotStored {
 			cb(nil, ErrDocNotFound)
 			return false
 		}
@@ -1026,7 +1029,10 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		}
 
-		if resp.Status == StatusNotStored {
+		if resp.Status == StatusKeyExists && req.Cas > 0 {
+			cb(nil, ErrCasMismatch)
+			return false
+		} else if resp.Status == StatusNotStored {
 			cb(nil, ErrDocNotFound)
 			return false
 		}
