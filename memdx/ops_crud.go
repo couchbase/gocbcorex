@@ -1618,7 +1618,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			case StatusSubDocXattrUnknownVAttr:
 				statusErr = ErrSubDocXattrUnknownVAttr
 			default:
-				statusErr = fmt.Errorf("unexpected lookupin op status code: %02x", resStatus)
+				statusErr = fmt.Errorf("unexpected lookupin op status code: %02x", uint16(resStatus))
 			}
 
 			if statusErr != nil {
@@ -1804,7 +1804,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			case StatusSubDocValueTooDeep:
 				statusErr = ErrSubDocValueTooDeep
 			default:
-				statusErr = fmt.Errorf("unexpected mutatein op status code: %02x", resStatus)
+				statusErr = fmt.Errorf("unexpected mutatein op status code: %02x", uint16(resStatus))
 			}
 
 			cb(nil, SubDocError{
