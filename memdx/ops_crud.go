@@ -222,8 +222,9 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists {
+		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -288,8 +289,6 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists {
-			cb(nil, ErrDocLocked)
 		}
 
 		if resp.Status != StatusSuccess {
@@ -360,8 +359,9 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists {
+		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -511,6 +511,9 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		if resp.Status == StatusKeyExists {
 			cb(nil, ErrCasMismatch)
 			return false
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -575,8 +578,8 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusTmpFail {
-			cb(nil, ErrDocLocked)
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrCasMismatch)
 			return false
 		}
 
@@ -643,8 +646,9 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists {
+		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -713,7 +717,12 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 		} else if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status != StatusSuccess {
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
@@ -876,10 +885,11 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 		if resp.Status == StatusKeyExists {
 			cb(nil, ErrCasMismatch)
 			return false
-		}
-
-		if resp.Status == StatusKeyNotFound {
+		} else if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
 			return false
 		}
 
@@ -958,6 +968,9 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		} else if resp.Status == StatusNotStored {
 			cb(nil, ErrDocNotFound)
 			return false
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1034,6 +1047,9 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		} else if resp.Status == StatusNotStored {
 			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
 			return false
 		}
 
@@ -1118,6 +1134,9 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
 			return false
 		}
 
@@ -1209,6 +1228,9 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
+			return false
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
 			return false
 		}
 
@@ -1552,11 +1574,8 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		if resp.Status == StatusKeyNotFound {
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusSubDocDocTooDeep {
-			cb(nil, ErrSubDocDocTooDeep)
-			return false
-		} else if resp.Status == StatusSubDocNotJSON {
-			cb(nil, ErrSubDocNotJSON)
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
 			return false
 		} else if resp.Status == StatusSubDocInvalidCombo {
 			cb(nil, ErrSubDocInvalidCombo)
@@ -1607,6 +1626,10 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			switch resStatus {
 			case StatusSuccess:
 				// no error
+			case StatusSubDocDocTooDeep:
+				statusErr = ErrSubDocDocTooDeep
+			case StatusSubDocNotJSON:
+				statusErr = ErrSubDocNotJSON
 			case StatusSubDocPathNotFound:
 				statusErr = ErrSubDocPathNotFound
 			case StatusSubDocPathMismatch:
@@ -1622,7 +1645,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			}
 
 			if statusErr != nil {
-				results[i].Err = SubDocError{
+				results[i].Err = &SubDocError{
 					Cause:   statusErr,
 					OpIndex: i,
 				}
@@ -1741,11 +1764,8 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		} else if resp.Status == StatusKeyExists {
 			cb(nil, ErrDocExists)
 			return false
-		} else if resp.Status == StatusSubDocDocTooDeep {
-			cb(nil, ErrSubDocDocTooDeep)
-			return false
-		} else if resp.Status == StatusSubDocNotJSON {
-			cb(nil, ErrSubDocNotJSON)
+		} else if resp.Status == StatusLocked {
+			cb(nil, ErrDocLocked)
 			return false
 		} else if resp.Status == StatusSubDocInvalidCombo {
 			cb(nil, ErrSubDocInvalidCombo)
@@ -1785,6 +1805,10 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 
 			var statusErr error
 			switch resStatus {
+			case StatusSubDocDocTooDeep:
+				statusErr = ErrSubDocDocTooDeep
+			case StatusSubDocNotJSON:
+				statusErr = ErrSubDocNotJSON
 			case StatusSubDocPathNotFound:
 				statusErr = ErrSubDocPathNotFound
 			case StatusSubDocPathMismatch:
@@ -1807,7 +1831,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 				statusErr = fmt.Errorf("unexpected mutatein op status code: %02x", uint16(resStatus))
 			}
 
-			cb(nil, SubDocError{
+			cb(nil, &SubDocError{
 				Cause:   statusErr,
 				OpIndex: opIndex,
 			})

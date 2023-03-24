@@ -973,7 +973,7 @@ func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
 		VbucketID:    1,
 		Cas:          222,
 	})
-	require.ErrorIs(t, err, ErrDocLocked)
+	require.ErrorIs(t, err, ErrCasMismatch)
 }
 
 func TestOpsCrudTouch(t *testing.T) {
@@ -1943,14 +1943,6 @@ func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
 			ExpectedError: ErrDocNotFound,
 		},
 		{
-			Status:        StatusSubDocDocTooDeep,
-			ExpectedError: ErrSubDocDocTooDeep,
-		},
-		{
-			Status:        StatusSubDocNotJSON,
-			ExpectedError: ErrSubDocNotJSON,
-		},
-		{
 			Status:        StatusSubDocInvalidCombo,
 			ExpectedError: ErrSubDocInvalidCombo,
 		},
@@ -1967,6 +1959,16 @@ func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
 			ExpectedError: ErrSubDocXattrInvalidKeyCombo,
 		},
 
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocDocTooDeep,
+			IndexStatus:   StatusSubDocDocTooDeep,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocNotJSON,
+			IndexStatus:   StatusSubDocNotJSON,
+		},
 		{
 			Status:        StatusSubDocMultiPathFailure,
 			ExpectedError: ErrSubDocPathNotFound,
@@ -2036,7 +2038,7 @@ func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
 				require.Len(tt, res.Ops, 1)
 				assert.ErrorIs(tt, res.Ops[0].Err, test.ExpectedError)
 
-				var subDocErr SubDocError
+				var subDocErr *SubDocError
 				if assert.ErrorAs(tt, res.Ops[0].Err, &subDocErr) {
 					assert.Equal(tt, 0, subDocErr.OpIndex)
 				}
@@ -2125,14 +2127,6 @@ func TestOpsCrudMutateInErrorStatusCodes(t *testing.T) {
 			ExpectedError: ErrCasMismatch,
 		},
 		{
-			Status:        StatusSubDocDocTooDeep,
-			ExpectedError: ErrSubDocDocTooDeep,
-		},
-		{
-			Status:        StatusSubDocNotJSON,
-			ExpectedError: ErrSubDocNotJSON,
-		},
-		{
 			Status:        StatusSubDocInvalidCombo,
 			ExpectedError: ErrSubDocInvalidCombo,
 		},
@@ -2169,6 +2163,16 @@ func TestOpsCrudMutateInErrorStatusCodes(t *testing.T) {
 			ExpectedError: ErrSubDocDeletedDocumentCantHaveValue,
 		},
 
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocDocTooDeep,
+			IndexStatus:   StatusSubDocDocTooDeep,
+		},
+		{
+			Status:        StatusSubDocMultiPathFailure,
+			ExpectedError: ErrSubDocNotJSON,
+			IndexStatus:   StatusSubDocNotJSON,
+		},
 		{
 			Status:        StatusSubDocMultiPathFailure,
 			ExpectedError: ErrSubDocPathNotFound,
@@ -2256,7 +2260,7 @@ func TestOpsCrudMutateInErrorStatusCodes(t *testing.T) {
 			require.ErrorIs(tt, err, test.ExpectedError)
 
 			if test.IndexStatus > 0 {
-				var subDocErr SubDocError
+				var subDocErr *SubDocError
 				if assert.ErrorAs(tt, err, &subDocErr) {
 					assert.Equal(tt, 1, subDocErr.OpIndex)
 				}
