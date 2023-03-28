@@ -47,6 +47,8 @@ var (
 	ErrSubDocXattrUnknownVattrMacro        = errors.New("subdoc xattr unknown vattr macro")
 	ErrSubDocCanOnlyReviveDeletedDocuments = errors.New("subdoc can only revive deleted documents")
 	ErrSubDocDeletedDocumentCantHaveValue  = errors.New("subdoc deleted document cant have value")
+
+	ErrClosedInFlight = errors.New("connection closed whilst operation in flight")
 )
 
 var ErrProtocol = errors.New("protocol error")

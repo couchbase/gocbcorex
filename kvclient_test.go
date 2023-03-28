@@ -234,3 +234,36 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	}, func(error) {})
 	require.Error(t, err)
 }
+
+func TestKvClientCloseAfterReconfigure(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+	clientConfig := &KvClientConfig{
+		Address:       testutils.TestOpts.MemdAddrs[0],
+		TlsConfig:     nil,
+		Authenticator: auth,
+	}
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	cli, err := NewKvClient(context.Background(), clientConfig, &KvClientOptions{Logger: logger})
+	require.NoError(t, err)
+
+	err = cli.Reconfigure(&KvClientConfig{
+		Address:        testutils.TestOpts.MemdAddrs[0],
+		TlsConfig:      nil,
+		SelectedBucket: testutils.TestOpts.BucketName,
+		Authenticator:  auth,
+	}, func(err error) {
+		// We don't need to wait for all of the clients to be fully reconfigured.
+	})
+	require.NoError(t, err)
+
+	err = cli.Close()
+	require.NoError(t, err)
+}
