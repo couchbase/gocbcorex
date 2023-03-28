@@ -222,6 +222,7 @@ func TestAgentCrudCompress(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+	defer agent.Close()
 
 	type test struct {
 		Op                    func(key, value []byte) error
@@ -357,6 +358,7 @@ func TestAgentCrudDecompress(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+	defer agent.Close()
 
 	type test struct {
 		Op   func(key []byte) ([]byte, error)
