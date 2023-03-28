@@ -38,8 +38,9 @@ type Agent struct {
 	retries     RetryManager
 	vbRouter    VbucketRouter
 
-	httpCfgWatcher *ConfigWatcherHttp
-	memdCfgWatcher *ConfigWatcherMemd
+	httpCfgWatcher   *ConfigWatcherHttp
+	memdCfgWatcher   *ConfigWatcherMemd
+	cfgWatcherCancel func()
 
 	crud   *CrudComponent
 	query  *QueryComponent
@@ -228,7 +229,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		agent.cfgWatcher = configWatcher
 	}
 
-	go agent.configWatcherThread()
+	agent.startConfigWatcher()
 
 	agent.crud = &CrudComponent{
 		logger:      agent.logger,
@@ -412,6 +413,7 @@ func (agent *Agent) Close() error {
 		agent.logger.Debug("Failed to close conn mgr", zap.Error(err))
 	}
 
+	agent.cfgWatcherCancel()
 	return nil
 }
 
@@ -499,11 +501,25 @@ func (agent *Agent) updateStateLocked() {
 	}
 }
 
-func (agent *Agent) configWatcherThread() {
-	configCh := agent.cfgWatcher.Watch(context.Background())
-	for config := range configCh {
-		agent.applyConfig(config)
+func (agent *Agent) startConfigWatcher() {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	configCh := agent.cfgWatcher.Watch(ctx)
+	stoppedSig := make(chan struct{})
+	agent.cfgWatcherCancel = func() {
+		// Cancel the context and wait for the configCh to be closed.
+		cancel()
+		<-stoppedSig
 	}
+
+	// We only watch for new configs, rather than also initiating Watch, in its own goroutine so that agent startup
+	// and close can't race on the cfgWatcherCancel.
+	go func() {
+		for config := range configCh {
+			agent.applyConfig(config)
+		}
+		close(stoppedSig)
+	}()
 }
 
 func (a *Agent) applyTerseConfigJson(config *cbconfig.TerseConfigJson, sourceHostname string) {
