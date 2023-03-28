@@ -20,6 +20,7 @@ type agentState struct {
 	tlsConfig          *tls.Config
 	authenticator      Authenticator
 	numPoolConnections uint
+	httpTransport      *http.Transport
 
 	lastClients  map[string]*KvClientConfig
 	latestConfig *ParsedConfig
@@ -104,30 +105,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	logger := loggerOrNop(opts.Logger)
 	httpUserAgent := "gocbcorex/0.0.1-dev"
 
-	httpDialer := &net.Dialer{
-		// Timeout:   connectTimeout,
-		KeepAlive: 30 * time.Second,
-	}
-
-	httpTransport := &http.Transport{
-		ForceAttemptHTTP2: true,
-
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return httpDialer.DialContext(ctx, network, addr)
-		},
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			tcpConn, err := httpDialer.DialContext(ctx, network, addr)
-			if err != nil {
-				return nil, err
-			}
-
-			tlsConn := tls.Client(tcpConn, opts.TLSConfig)
-			return tlsConn, nil
-		},
-		// MaxIdleConns:        maxIdleConns,
-		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
-		// IdleConnTimeout:     idleTimeout,
-	}
+	httpTransport := makeHTTPTransport(opts.TLSConfig)
 
 	bootstrapper, err := NewConfigBootstrapHttp(ConfigBoostrapHttpOptions{
 		Logger:           logger.Named("http-bootstrap"),
@@ -160,6 +138,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			authenticator:      opts.Authenticator,
 			numPoolConnections: 1,
 			latestConfig:       bootstrapConfig,
+			httpTransport:      httpTransport,
 		},
 
 		retries: NewRetryManagerFastFail(),
@@ -292,7 +271,9 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 	var mgmtEndpoints []string
 	var queryEndpoints []string
 	var searchEndpoints []string
-	if agent.state.tlsConfig == nil {
+
+	tlsConfig := agent.state.tlsConfig
+	if tlsConfig == nil {
 		kvDataHosts = bootstrapHosts.NonSSL.KvData
 		for _, host := range bootstrapHosts.NonSSL.Mgmt {
 			mgmtEndpoints = append(mgmtEndpoints, "http://"+host)
@@ -325,40 +306,15 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		nodeId := kvDataNodeIds[addrIdx]
 		clients[nodeId] = &KvClientConfig{
 			Address:        addr,
-			TlsConfig:      agent.state.tlsConfig,
+			TlsConfig:      tlsConfig,
 			SelectedBucket: agent.state.bucket,
 			Authenticator:  agent.state.authenticator,
 		}
 	}
 
-	httpDialer := &net.Dialer{
-		// Timeout:   connectTimeout,
-		KeepAlive: 30 * time.Second,
-	}
-
-	httpTransport := &http.Transport{
-		ForceAttemptHTTP2: true,
-
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return httpDialer.DialContext(ctx, network, addr)
-		},
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			tcpConn, err := httpDialer.DialContext(ctx, network, addr)
-			if err != nil {
-				return nil, err
-			}
-
-			tlsConn := tls.Client(tcpConn, agent.state.tlsConfig)
-			return tlsConn, nil
-		},
-		// MaxIdleConns:        maxIdleConns,
-		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
-		// IdleConnTimeout:     idleTimeout,
-	}
-
 	return &agentComponentConfigs{
 		ConfigWatcherHttpConfig: ConfigWatcherHttpConfig{
-			HttpRoundTripper: httpTransport,
+			HttpRoundTripper: agent.state.httpTransport,
 			Endpoints:        mgmtEndpoints,
 			UserAgent:        httpUserAgent,
 			Authenticator:    agent.state.authenticator,
@@ -373,17 +329,17 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 			ServerList: kvDataNodeIds,
 		},
 		QueryComponentConfig: QueryComponentConfig{
-			HttpRoundTripper: httpTransport,
+			HttpRoundTripper: agent.state.httpTransport,
 			Endpoints:        queryEndpoints,
 			Authenticator:    agent.state.authenticator,
 		},
 		MgmtComponentConfig: MgmtComponentConfig{
-			HttpRoundTripper: httpTransport,
+			HttpRoundTripper: agent.state.httpTransport,
 			Endpoints:        mgmtEndpoints,
 			Authenticator:    agent.state.authenticator,
 		},
 		SearchComponentConfig: SearchComponentConfig{
-			HttpRoundTripper: httpTransport,
+			HttpRoundTripper: agent.state.httpTransport,
 			Endpoints:        searchEndpoints,
 			Authenticator:    agent.state.authenticator,
 		},
@@ -403,6 +359,12 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	agent.state.tlsConfig = opts.TLSConfig
 	agent.state.authenticator = opts.Authenticator
 	agent.state.bucket = opts.BucketName
+
+	// Close the old http transport and make a new one with the new tls config.
+	agent.state.httpTransport.CloseIdleConnections()
+
+	agent.state.httpTransport = makeHTTPTransport(opts.TLSConfig)
+
 	agent.updateStateLocked()
 
 	return nil
@@ -414,6 +376,7 @@ func (agent *Agent) Close() error {
 	}
 
 	agent.cfgWatcherCancel()
+	agent.state.httpTransport.CloseIdleConnections()
 	return nil
 }
 
@@ -544,4 +507,31 @@ type agentNmvHandler struct {
 
 func (h *agentNmvHandler) HandleNotMyVbucketConfig(config *cbconfig.TerseConfigJson, sourceHostname string) {
 	h.agent.handleNotMyVbucketConfig(config, sourceHostname)
+}
+
+func makeHTTPTransport(tlsConfig *tls.Config) *http.Transport {
+	httpDialer := &net.Dialer{
+		// Timeout:   connectTimeout,
+		KeepAlive: 30 * time.Second,
+	}
+
+	return &http.Transport{
+		ForceAttemptHTTP2: true,
+
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return httpDialer.DialContext(ctx, network, addr)
+		},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			tcpConn, err := httpDialer.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+
+			tlsConn := tls.Client(tcpConn, tlsConfig)
+			return tlsConn, nil
+		},
+		// MaxIdleConns:        maxIdleConns,
+		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
+		// IdleConnTimeout:     idleTimeout,
+	}
 }
