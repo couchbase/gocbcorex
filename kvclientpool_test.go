@@ -16,7 +16,7 @@ import (
 )
 
 func TestKvClientPoolGetClient(t *testing.T) {
-	mock := &KvClientMock{}
+	mock := makeMockKvClient()
 	clientConfig := KvClientConfig{
 		Address:        "endpoint1",
 		TlsConfig:      nil,
@@ -48,10 +48,12 @@ func TestKvClientPoolGetClient(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, mock, cli)
+
+	assert.NoError(t, pool.Close())
 }
 
 func TestKvClientPoolGetClientConcurrent(t *testing.T) {
-	mock := &KvClientMock{}
+	mock := makeMockKvClient()
 	clientConfig := KvClientConfig{
 		Address:        "endpoint1",
 		TlsConfig:      nil,
@@ -85,6 +87,8 @@ func TestKvClientPoolGetClientConcurrent(t *testing.T) {
 		}()
 	}
 	wait.Wait()
+
+	assert.NoError(t, pool.Close())
 }
 
 func TestKvClientPoolCreates5Connections(t *testing.T) {
@@ -107,7 +111,7 @@ func TestKvClientPoolCreates5Connections(t *testing.T) {
 
 			atomic.AddUint32(&called, 1)
 
-			return &KvClientMock{}, nil
+			return makeMockKvClient(), nil
 		},
 	})
 	require.NoError(t, err)
@@ -119,6 +123,8 @@ func TestKvClientPoolCreates5Connections(t *testing.T) {
 
 	_, err = pool.GetClient(context.Background())
 	require.NoError(t, err)
+
+	assert.NoError(t, pool.Close())
 }
 
 func TestKvClientPoolReconfigure(t *testing.T) {
@@ -166,6 +172,8 @@ func TestKvClientPoolReconfigure(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, mock, cli)
+
+	assert.NoError(t, pool.Close())
 }
 
 func TestKvClientPoolNewAndGetRace(t *testing.T) {
@@ -191,6 +199,8 @@ func TestKvClientPoolNewAndGetRace(t *testing.T) {
 
 	_, err = pool.GetClient(context.Background())
 	require.ErrorIs(t, err, expectedErr)
+
+	assert.NoError(t, pool.Close())
 }
 
 // This test effectively just checks that pool close does not leak clients during normal operation.
@@ -269,11 +279,18 @@ func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 			Authenticator:  auth,
 		},
 	}, func(err error) {
-		assert.NoError(t, err)
 		// We don't need to wait for all of the clients to be fully reconfigured.
 	})
 	require.NoError(t, err)
 
 	err = pool.Close()
 	require.NoError(t, err)
+}
+
+func makeMockKvClient() KvClient {
+	return &KvClientMock{
+		CloseFunc: func() error {
+			return nil
+		},
+	}
 }

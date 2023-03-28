@@ -102,6 +102,8 @@ type kvClient struct {
 	currentConfig KvClientConfig
 
 	supportedFeatures []memdx.HelloFeature
+
+	closed uint32
 }
 
 var _ KvClient = (*kvClient)(nil)
@@ -294,6 +296,11 @@ func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
 
 func (c *kvClient) Close() error {
 	c.logger.Info("closing")
+	if !atomic.CompareAndSwapUint32(&c.closed, 0, 1) {
+		c.logger.Debug("already closed")
+		return nil
+	}
+
 	return c.cli.Close()
 }
 

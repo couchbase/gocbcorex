@@ -143,7 +143,23 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 }
 
 func (c *Client) Close() error {
-	return c.conn.Close()
+	// Close will prevent any further writes or reads from occurring.
+	// Writes will return an error. However, any already in flight ops will not
+	// be handled by the read thread, so we need to iterate any handlers and
+	// fail them.
+	err := c.conn.Close()
+	if err != nil {
+		return err
+	}
+
+	c.lock.Lock()
+	for _, handler := range c.opaqueMap {
+		handler(nil, ErrClosedInFlight)
+	}
+	c.opaqueMap = map[uint32]DispatchCallback{}
+	c.lock.Unlock()
+
+	return nil
 }
 
 func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, error) {
