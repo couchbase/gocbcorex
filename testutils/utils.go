@@ -138,6 +138,7 @@ func SetupTests(m *testing.M) {
 	if finalGoroutineCount != initialGoroutineCount {
 		log.Printf("Detected a goroutine leak (%d before != %d after)", initialGoroutineCount, finalGoroutineCount)
 		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		result = 1
 	} else {
 		log.Printf("No goroutines appear to have leaked (%d before == %d after)", initialGoroutineCount, finalGoroutineCount)
 	}
