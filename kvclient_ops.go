@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.uber.org/zap"
+
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
@@ -61,6 +63,8 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 				Result: resp,
 				Err:    err,
 			}
+		} else {
+			c.logger.DPanic("callback invoked twice", zap.Any("resp", resp), zap.Error(err))
 		}
 	})
 	if err != nil {
