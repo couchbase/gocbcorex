@@ -2,6 +2,7 @@ package memdx
 
 import (
 	"errors"
+	"sync/atomic"
 )
 
 type OpBootstrapEncoder interface {
@@ -60,8 +61,16 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	var dispatchSelectBucket func() error
 	var dispatchClusterConfig func() error
 	var dispatchCallback func() error
+	var calledBack uint32
 
-	maybeCallback := func() {
+	maybeCallback := func(err error) {
+		if err != nil {
+			if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
+				cb(nil, err)
+			}
+			return
+		}
+
 		if currentStage == stageHello && opts.Hello == nil {
 			currentStage = stageErrorMap
 		}
@@ -79,7 +88,9 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 		}
 
 		if currentStage == stageCallback {
-			cb(result, nil)
+			if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
+				cb(result, nil)
+			}
 		}
 	}
 
@@ -97,7 +108,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 			if err != nil {
 				if a.isRequestCancelledError(err) {
-					cb(nil, err)
+					maybeCallback(err)
 					return
 				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
@@ -107,7 +118,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 			result.Hello = resp
 			currentStage = stageErrorMap
-			maybeCallback()
+			maybeCallback(nil)
 		})
 		if err != nil {
 			return err
@@ -129,7 +140,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 			if err != nil {
 				if a.isRequestCancelledError(err) {
-					cb(nil, err)
+					maybeCallback(err)
 					return
 				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
@@ -139,7 +150,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 			result.ErrorMap = errorMap
 			currentStage = stageAuth
-			maybeCallback()
+			maybeCallback(nil)
 		})
 		if err != nil {
 			return err
@@ -159,7 +170,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 		}.SASLAuthAuto(d, opts.Auth, func() {
 			err := dispatchSelectBucket()
 			if err != nil {
-				cb(nil, err)
+				maybeCallback(err)
 			}
 		}, func(err error) {
 			if currentStage != stageAuth {
@@ -167,12 +178,12 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			}
 
 			if err != nil {
-				cb(nil, err)
+				maybeCallback(err)
 				return
 			}
 
 			currentStage = stageSelectBucket
-			maybeCallback()
+			maybeCallback(nil)
 		})
 		if err != nil {
 			return err
@@ -193,12 +204,12 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 			}
 
 			if err != nil {
-				cb(nil, err)
+				maybeCallback(err)
 				return
 			}
 
 			currentStage = stageClusterConfig
-			maybeCallback()
+			maybeCallback(nil)
 		})
 		if err != nil {
 			return err
@@ -220,7 +231,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 			if err != nil {
 				if a.isRequestCancelledError(err) {
-					cb(nil, err)
+					maybeCallback(err)
 					return
 				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
@@ -230,7 +241,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 			result.ClusterConfig = clusterConfig
 			currentStage = stageCallback
-			maybeCallback()
+			maybeCallback(nil)
 		})
 		if err != nil {
 			return err
@@ -249,7 +260,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 
 	// maybeCallback must be invoked before any dispatches to ensure
 	// we still own all the state and to avoid racing those threads.
-	maybeCallback()
+	maybeCallback(nil)
 
 	if err := dispatchHello(); err != nil {
 		return nil, err
