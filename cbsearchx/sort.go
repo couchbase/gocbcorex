@@ -8,12 +8,17 @@ type Sort interface {
 	encodeToJSON() (json.RawMessage, error)
 }
 
+var _ Sort = (*SortScore)(nil)
+var _ Sort = (*SortID)(nil)
+var _ Sort = (*SortField)(nil)
+var _ Sort = (*SortGeoDistance)(nil)
+
 // SortScore represents a search score sort.
 type SortScore struct {
 	Descending *bool
 }
 
-func (s *SortScore) isSearchFacet() {}
+func (s *SortScore) isSearchSort() {}
 
 func (s *SortScore) encodeToJSON() (json.RawMessage, error) {
 	encoder := &jsonRawMessageEncoder{}
@@ -37,7 +42,7 @@ type SortID struct {
 	Descending *bool
 }
 
-func (s *SortID) isSearchFacet() {}
+func (s *SortID) isSearchSort() {}
 
 func (s *SortID) encodeToJSON() (json.RawMessage, error) {
 	encoder := &jsonRawMessageEncoder{}
@@ -65,7 +70,7 @@ type SortField struct {
 	Type       string
 }
 
-func (s *SortField) isSearchFacet() {}
+func (s *SortField) isSearchSort() {}
 
 func (s *SortField) encodeToJSON() (json.RawMessage, error) {
 	encoder := &jsonRawMessageEncoder{}
@@ -109,7 +114,7 @@ type SortGeoDistance struct {
 	Unit       string
 }
 
-func (s *SortGeoDistance) isSearchFacet() {}
+func (s *SortGeoDistance) isSearchSort() {}
 
 func (s *SortGeoDistance) encodeToJSON() (json.RawMessage, error) {
 	encoder := &jsonRawMessageEncoder{}

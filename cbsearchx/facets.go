@@ -8,6 +8,10 @@ type Facet interface {
 	encodeToJSON() (json.RawMessage, error)
 }
 
+var _ Facet = (*NumericFacet)(nil)
+var _ Facet = (*DateFacet)(nil)
+var _ Facet = (*TermFacet)(nil)
+
 // TermFacet is a search term facet.
 type TermFacet struct {
 	Field string

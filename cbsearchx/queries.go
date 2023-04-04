@@ -8,6 +8,28 @@ type Query interface {
 	encodeToJSON() (json.RawMessage, error)
 }
 
+var _ Query = (*BooleanFieldQuery)(nil)
+var _ Query = (*BooleanQuery)(nil)
+var _ Query = (*ConjunctionQuery)(nil)
+var _ Query = (*DateRangeQuery)(nil)
+var _ Query = (*DisjunctionQuery)(nil)
+var _ Query = (*DocIDQuery)(nil)
+var _ Query = (*GeoBoundingBoxQuery)(nil)
+var _ Query = (*GeoDistanceQuery)(nil)
+var _ Query = (*GeoPolygonQuery)(nil)
+var _ Query = (*MatchAllQuery)(nil)
+var _ Query = (*MatchNoneQuery)(nil)
+var _ Query = (*MatchPhraseQuery)(nil)
+var _ Query = (*MatchQuery)(nil)
+var _ Query = (*NumericRangeQuery)(nil)
+var _ Query = (*PhraseQuery)(nil)
+var _ Query = (*PrefixQuery)(nil)
+var _ Query = (*QueryStringQuery)(nil)
+var _ Query = (*RegexpQuery)(nil)
+var _ Query = (*TermQuery)(nil)
+var _ Query = (*TermRangeQuery)(nil)
+var _ Query = (*WildcardQuery)(nil)
+
 // MatchOperator defines how the individual match terms should be logically concatenated.
 type MatchOperator string
 
