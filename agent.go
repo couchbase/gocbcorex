@@ -41,9 +41,10 @@ type Agent struct {
 	httpCfgWatcher *ConfigWatcherHttp
 	memdCfgWatcher *ConfigWatcherMemd
 
-	crud  *CrudComponent
-	query *QueryComponent
-	mgmt  *MgmtComponent
+	crud   *CrudComponent
+	query  *QueryComponent
+	mgmt   *MgmtComponent
+	search *SearchComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -259,6 +260,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			UserAgent: httpUserAgent,
 		},
 	)
+	agent.search = NewSearchComponent(
+		agent.retries,
+		&agentComponentConfigs.SearchComponentConfig,
+		&SearchComponentOptions{
+			Logger:    logger,
+			UserAgent: httpUserAgent,
+		},
+	)
 
 	return agent, nil
 }
@@ -270,6 +279,7 @@ type agentComponentConfigs struct {
 	VbucketRoutingInfo      *VbucketRoutingInfo
 	QueryComponentConfig    QueryComponentConfig
 	MgmtComponentConfig     MgmtComponentConfig
+	SearchComponentConfig   SearchComponentConfig
 }
 
 func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
@@ -369,6 +379,11 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		MgmtComponentConfig: MgmtComponentConfig{
 			HttpRoundTripper: httpTransport,
 			Endpoints:        mgmtEndpoints,
+			Authenticator:    agent.state.authenticator,
+		},
+		SearchComponentConfig: SearchComponentConfig{
+			HttpRoundTripper: httpTransport,
+			Endpoints:        searchEndpoints,
 			Authenticator:    agent.state.authenticator,
 		},
 	}
@@ -473,6 +488,7 @@ func (agent *Agent) updateStateLocked() {
 
 	agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
 	agent.mgmt.Reconfigure(&agentComponentConfigs.MgmtComponentConfig)
+	agent.search.Reconfigure(&agentComponentConfigs.SearchComponentConfig)
 
 	if agent.httpCfgWatcher != nil {
 		agent.httpCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
