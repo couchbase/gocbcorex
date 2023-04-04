@@ -3,6 +3,8 @@ package gocbcorex
 import (
 	"context"
 
+	"github.com/couchbase/gocbcorex/cbsearchx"
+
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 )
 
@@ -136,4 +138,16 @@ func (agent *Agent) FlushBucket(ctx context.Context, opts *cbmgmtx.FlushBucketOp
 
 func (agent *Agent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBucketOptions) error {
 	return agent.mgmt.DeleteBucket(ctx, opts)
+}
+
+func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
+	return agent.search.Query(ctx, opts)
+}
+
+func (agent *Agent) UpsertSearchIndex(ctx context.Context, opts *cbsearchx.UpsertIndexOptions) error {
+	return agent.search.UpsertIndex(ctx, opts)
+}
+
+func (agent *Agent) DeleteSearchIndex(ctx context.Context, opts *cbsearchx.DeleteIndexOptions) error {
+	return agent.search.DeleteIndex(ctx, opts)
 }
