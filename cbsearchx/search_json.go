@@ -56,13 +56,13 @@ type rowLocationJson struct {
 type rowLocationsJson map[string]map[string][]rowLocationJson
 
 type rowJson struct {
-	Index       string              `json:"index"`
-	ID          string              `json:"id"`
-	Score       float64             `json:"score"`
-	Explanation json.RawMessage     `json:"explanation"`
-	Locations   rowLocationsJson    `json:"locations"`
-	Fragments   map[string][]string `json:"fragments"`
-	Fields      json.RawMessage     `json:"fields"`
+	Index       string                     `json:"index"`
+	ID          string                     `json:"id"`
+	Score       float64                    `json:"score"`
+	Explanation json.RawMessage            `json:"explanation"`
+	Locations   rowLocationsJson           `json:"locations"`
+	Fragments   map[string][]string        `json:"fragments"`
+	Fields      map[string]json.RawMessage `json:"fields"`
 }
 
 type errorResponseJson struct {

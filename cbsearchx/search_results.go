@@ -16,7 +16,7 @@ type HitLocation struct {
 // QueryResultHit represents a single hit returned from a search query.
 type QueryResultHit struct {
 	Explanation json.RawMessage
-	Fields      json.RawMessage
+	Fields      map[string]json.RawMessage
 	Fragments   map[string][]string
 	ID          string
 	Index       string
