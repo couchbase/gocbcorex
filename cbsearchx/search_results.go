@@ -30,12 +30,12 @@ type MetaData struct {
 }
 
 type Metrics struct {
-	// ErrorPartitionCount   uint64
-	MaxScore float64
-	// SuccessPartitionCount uint64
-	Took time.Duration
-	// TotalPartitionCount   uint64
-	TotalHits uint64
+	FailedPartitionCount     uint64
+	MaxScore                 float64
+	SuccessfulPartitionCount uint64
+	Took                     time.Duration
+	TotalHits                uint64
+	TotalPartitionCount      uint64
 }
 
 // TermFacetResult holds the results of a term facet in search results.

@@ -118,9 +118,12 @@ func (nqh *searchTestHelper) testSearchBasic(t *testing.T) {
 	metadata, err := result.MetaData()
 	require.NoError(nqh.T, err)
 
-	assert.NotEmpty(nqh.T, metadata.Metrics.TotalHits)
-	assert.NotEmpty(nqh.T, metadata.Metrics.Took)
-	assert.NotEmpty(nqh.T, metadata.Metrics.MaxScore)
+	assert.NotZero(nqh.T, metadata.Metrics.TotalHits)
+	assert.NotZero(nqh.T, metadata.Metrics.Took)
+	assert.NotZero(nqh.T, metadata.Metrics.MaxScore)
+	assert.Zero(t, metadata.Metrics.FailedPartitionCount)
+	assert.NotZero(t, metadata.Metrics.SuccessfulPartitionCount)
+	assert.NotZero(t, metadata.Metrics.TotalPartitionCount)
 
 	facets, err := result.Facets()
 	require.NoError(nqh.T, err)
