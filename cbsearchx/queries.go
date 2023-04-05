@@ -589,7 +589,6 @@ type TermRangeQuery struct {
 	InclusiveMin bool
 	Max          string
 	Min          string
-	Term         string
 }
 
 func (s *TermRangeQuery) isSearchQuery() {}
@@ -597,9 +596,7 @@ func (s *TermRangeQuery) isSearchQuery() {}
 func (s *TermRangeQuery) encodeToJSON() (json.RawMessage, error) {
 	encoder := &jsonRawMessageEncoder{}
 
-	m := map[string]json.RawMessage{
-		"term": encoder.EncodeField(s.Term),
-	}
+	m := map[string]json.RawMessage{}
 	if s.Boost > 0 {
 		m["boost"] = encoder.EncodeField(s.Boost)
 	}
