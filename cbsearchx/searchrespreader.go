@@ -153,9 +153,12 @@ func (r *respReader) readFinalMetaData() error {
 func (r *respReader) parseMetaData(metaDataJson *searchEpilogJson) (*MetaData, error) {
 	return &MetaData{
 		Metrics: Metrics{
-			MaxScore:  metaDataJson.MaxScore,
-			Took:      time.Duration(metaDataJson.Took) / time.Nanosecond,
-			TotalHits: metaDataJson.TotalHits,
+			FailedPartitionCount:     metaDataJson.Status.Failed,
+			MaxScore:                 metaDataJson.MaxScore,
+			SuccessfulPartitionCount: metaDataJson.Status.Successful,
+			Took:                     time.Duration(metaDataJson.Took) / time.Nanosecond,
+			TotalHits:                metaDataJson.TotalHits,
+			TotalPartitionCount:      metaDataJson.Status.Total,
 		},
 		Errors: metaDataJson.Status.Errors,
 	}, nil

@@ -3,7 +3,10 @@ package cbsearchx
 import "encoding/json"
 
 type searchMetadataStatusJson struct {
-	Errors map[string]string `json:"errors"`
+	Errors     map[string]string `json:"errors"`
+	Failed     uint64            `json:"failed"`
+	Successful uint64            `json:"successful"`
+	Total      uint64            `json:"total"`
 }
 
 type searchEpilogJson struct {
