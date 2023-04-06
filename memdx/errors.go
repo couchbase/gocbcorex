@@ -154,11 +154,21 @@ type ServerErrorWithContext struct {
 }
 
 func (e ServerErrorWithContext) Error() string {
-	return fmt.Sprintf("%s (context: `%s`)", e.Cause, e.ContextJson)
+	return fmt.Sprintf("%s (context: `%s`)", e.Cause, e.ParseContext().Text)
 }
 
 func (e ServerErrorWithContext) Unwrap() error {
 	return e.Cause
+}
+
+type serverErrorWithContextParsedContextJson struct {
+	Context string `json:"context"`
+}
+
+type serverErrorWithContextParsedJson struct {
+	Error       serverErrorWithContextParsedContextJson `json:"error"`
+	Ref         string                                  `json:"ref"`
+	ManifestUID string                                  `json:"manifest_uid"`
 }
 
 func (o ServerErrorWithContext) ParseContext() ServerErrorContext {
@@ -168,19 +178,14 @@ func (o ServerErrorWithContext) ParseContext() ServerErrorContext {
 		return contextOut
 	}
 
-	parsedJson := struct {
-		Context     string `json:"context"`
-		Ref         string `json:"ref"`
-		ManifestUID string `json:"manifest_uid"`
-	}{}
-
+	var parsedJson serverErrorWithContextParsedJson
 	err := json.Unmarshal(o.ContextJson, &parsedJson)
 	if err != nil {
 		return contextOut
 	}
 
-	if parsedJson.Context != "" {
-		contextOut.Text = parsedJson.Context
+	if parsedJson.Error.Context != "" {
+		contextOut.Text = parsedJson.Error.Context
 	}
 	if parsedJson.Ref != "" {
 		contextOut.Ref = parsedJson.Ref
