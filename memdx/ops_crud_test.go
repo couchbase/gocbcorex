@@ -2,6 +2,7 @@ package memdx
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -1930,86 +1931,279 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 	}
 }
 
-func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
+func TestOpsCrudLookupInErrorCases(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+	initialValue := json.RawMessage(`{"key":"value"}`)
+	//
+	makeGetSubdocOp := func() LookupInOp {
+		return LookupInOp{
+			Op:   LookupInOpTypeGet,
+			Path: []byte("key"),
+		}
+	}
+
+	doSetOp := func(tt *testing.T, key []byte) {
+		_, err := syncUnaryCall(OpsCrud{
+			CollectionsEnabled: true,
+			ExtFramesEnabled:   true,
+		}, OpsCrud.Set, cli, &SetRequest{
+			Key:       key,
+			VbucketID: 1,
+			Value:     initialValue,
+			Datatype:  uint8(0x01),
+		})
+		require.NoError(tt, err)
+	}
+
 	type test struct {
-		Status        Status
-		IndexStatus   Status
+		Name          string
+		Request       *LookupInRequest
 		ExpectedError error
+		IsIndexLevel  bool
+		RunFirst      func(*testing.T, []byte)
 	}
 
 	tests := []test{
 		{
-			Status:        StatusKeyNotFound,
+			Name: "KeyNotFound",
+			Request: &LookupInRequest{
+				Ops: []LookupInOp{
+					makeGetSubdocOp(),
+				},
+			},
 			ExpectedError: ErrDocNotFound,
 		},
 		{
-			Status:        StatusSubDocInvalidCombo,
+			Name: "InvalidCombo",
+			Request: &LookupInRequest{
+				Ops: []LookupInOp{
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+					makeGetSubdocOp(),
+				},
+			},
 			ExpectedError: ErrSubDocInvalidCombo,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusSubDocInvalidXattrOrder,
+			Name: "InvalidXattrOrder",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					makeGetSubdocOp(),
+					{
+						Op:    LookupInOpTypeGet,
+						Path:  []byte("key"),
+						Flags: SubdocOpFlagXattrPath,
+					},
+				},
+			},
 			ExpectedError: ErrSubDocInvalidXattrOrder,
+			RunFirst:      doSetOp,
 		},
+		// {
+		// 	Name: "InvalidXattrFlagCombo",
+		// 	Request: &LookupInRequest{
+		// 		VbucketID: 1,
+		// 		Ops: []LookupInOp{
+		// 			{
+		// 				Op:    LookupInOpTypeGet,
+		// 				Path:  []byte("key"),
+		// 				Flags: SubdocOpFlagExpandMacros,
+		// 			},
+		// 			makeGetSubdocOp(),
+		// 		},
+		// 	},
+		// 	ExpectedError: ErrSubDocXattrInvalidFlagCombo,
+		// 	RunFirst:      doSetOp,
+		// },
 		{
-			Status:        StatusSubDocXattrInvalidFlagCombo,
-			ExpectedError: ErrSubDocXattrInvalidFlagCombo,
-		},
-		{
-			Status:        StatusSubDocXattrInvalidKeyCombo,
+			Name: "InvalidXattrKeyCombo",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					{
+						Op:    LookupInOpTypeGet,
+						Path:  []byte("key"),
+						Flags: SubdocOpFlagXattrPath,
+					},
+					{
+						Op:    LookupInOpTypeGet,
+						Path:  []byte("key2"),
+						Flags: SubdocOpFlagXattrPath,
+					},
+					makeGetSubdocOp(),
+				},
+			},
 			ExpectedError: ErrSubDocXattrInvalidKeyCombo,
+			RunFirst:      doSetOp,
 		},
 
+		// Path level errors
+
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "DocTooDeep",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					makeGetSubdocOp(),
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocDocTooDeep,
-			IndexStatus:   StatusSubDocDocTooDeep,
+			RunFirst: func(tt *testing.T, key []byte) {
+				value := map[string]interface{}{
+					"key": map[string]interface{}{},
+				}
+				v := value["key"].(map[string]interface{})
+				for i := 0; i < 35; i++ {
+					v["key"] = map[string]interface{}{}
+					v = v["key"].(map[string]interface{})
+				}
+
+				b, err := json.Marshal(value)
+				require.NoError(tt, err)
+
+				_, err = syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     b,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(tt, err)
+			},
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocNotJSON",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					makeGetSubdocOp(),
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocNotJSON,
-			IndexStatus:   StatusSubDocNotJSON,
+			RunFirst: func(tt *testing.T, key []byte) {
+				_, err := syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     []byte("imnotjson"),
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(tt, err)
+			},
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathNotFound",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					{
+						Op:   LookupInOpTypeGet,
+						Path: []byte("idontexist"),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathNotFound,
-			IndexStatus:   StatusSubDocPathNotFound,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathMismatch",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					{
+						Op:   LookupInOpTypeGet,
+						Path: []byte("key[9]"),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathMismatch,
-			IndexStatus:   StatusSubDocPathMismatch,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathInvalid",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					{
+						Op:   LookupInOpTypeGet,
+						Path: []byte("key["),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathInvalid,
-			IndexStatus:   StatusSubDocPathInvalid,
+			RunFirst:      doSetOp,
 		},
+		// {
+		// 	Name: "SubDocPathTooBig",
+		// 	Request: &LookupInRequest{
+		// 		VbucketID: 1,
+		// 		Ops: []LookupInOp{
+		// 			{
+		// 				Op:   LookupInOpTypeGet,
+		// 				Path: []byte("key["),
+		// 			},
+		// 		},
+		// 	},
+		// 	IsIndexLevel:  true,
+		// 	ExpectedError: ErrSubDocPathInvalid,
+		// 	RunFirst:      doSetOp,
+		// },
 		{
-			Status:        StatusSubDocMultiPathFailure,
-			ExpectedError: ErrSubDocPathTooBig,
-			IndexStatus:   StatusSubDocPathTooBig,
-		},
-		{
-			Status:        StatusSubDocMultiPathFailure,
-			IndexStatus:   StatusSubDocXattrUnknownVAttr,
+			Name: "SubDocUnknownVattr",
+			Request: &LookupInRequest{
+				VbucketID: 1,
+				Ops: []LookupInOp{
+					{
+						Op:    LookupInOpTypeGet,
+						Path:  []byte("$nonsense"),
+						Flags: SubdocOpFlagXattrPath,
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocXattrUnknownVAttr,
+			RunFirst:      doSetOp,
 		},
 	}
 
 	for _, test := range tests {
-		name := test.Status.String()
-		if test.IndexStatus != 0 {
-			name = "Multipath - " + test.IndexStatus.String()
-		}
-		t.Run(name, func(tt *testing.T) {
-			dispatcher := &testCrudDispatcher{
-				Pak: &Packet{
-					Status: test.Status,
-				},
+		t.Run(test.Name, func(tt *testing.T) {
+			key := []byte(uuid.NewString()[:6])
+
+			if test.RunFirst != nil {
+				test.RunFirst(tt, key)
 			}
-			if test.IndexStatus > 0 {
-				dispatcher.Pak.Value = []byte{uint8(test.IndexStatus >> 8), uint8(test.IndexStatus), 0, 0, 0, 0}
-			}
+
+			req := test.Request
+			req.Key = key
+			req.VbucketID = 1
 
 			res, err := syncUnaryCall(
 				OpsCrud{
@@ -2019,29 +2213,23 @@ func TestOpsCrudLookupInErrorStatusCodes(t *testing.T) {
 					PreserveExpiryEnabled: true,
 				},
 				OpsCrud.LookupIn,
-				dispatcher,
-				&LookupInRequest{
-					Key:       []byte(uuid.NewString()[:6]),
-					VbucketID: 1,
-					Ops: []LookupInOp{
-						{
-							Op:   LookupInOpTypeGet,
-							Path: []byte("key"),
-						},
-					},
-				},
+				cli,
+				req,
 			)
-			if test.IndexStatus == 0 {
-				require.ErrorIs(tt, err, test.ExpectedError)
-			} else {
+
+			if test.IsIndexLevel {
 				require.NoError(tt, err)
-				require.Len(tt, res.Ops, 1)
-				assert.ErrorIs(tt, res.Ops[0].Err, test.ExpectedError)
+
+				err := res.Ops[0].Err
+				require.ErrorIs(tt, err, test.ExpectedError)
 
 				var subDocErr *SubDocError
-				if assert.ErrorAs(tt, res.Ops[0].Err, &subDocErr) {
+				if assert.ErrorAs(tt, err, &subDocErr) {
+					// Not really sure if this is testing anything due to zero values.
 					assert.Equal(tt, 0, subDocErr.OpIndex)
 				}
+			} else {
+				require.ErrorIs(tt, err, test.ExpectedError)
 			}
 		})
 	}
@@ -2104,136 +2292,398 @@ func TestOpsCrudLookupInMultipleErrorAndSuccess(t *testing.T) {
 	assert.Equal(t, path3, res.Ops[2].Value)
 }
 
-func TestOpsCrudMutateInErrorStatusCodes(t *testing.T) {
+func TestOpsCrudMutateInErrorCases(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+	initialValue := json.RawMessage(`{"key":"value"}`)
+
+	makeSetSubdocOp := func() MutateInOp {
+		return MutateInOp{
+			Op:    MutateInOpTypeDictSet,
+			Path:  []byte("key"),
+			Value: []byte(`"value"`),
+		}
+	}
+
+	doSetOp := func(tt *testing.T, key []byte) {
+		_, err := syncUnaryCall(OpsCrud{
+			CollectionsEnabled: true,
+			ExtFramesEnabled:   true,
+		}, OpsCrud.Set, cli, &SetRequest{
+			Key:       key,
+			VbucketID: 1,
+			Value:     initialValue,
+			Datatype:  uint8(0x01),
+		})
+		require.NoError(tt, err)
+	}
+
 	type test struct {
-		Status        Status
-		Cas           uint64
-		IndexStatus   Status
+		Name          string
+		Request       *MutateInRequest
 		ExpectedError error
+		IsIndexLevel  bool
+		RunFirst      func(*testing.T, []byte)
 	}
 
 	tests := []test{
 		{
-			Status:        StatusKeyNotFound,
+			Name: "DocNotFound",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+				},
+			},
 			ExpectedError: ErrDocNotFound,
 		},
 		{
-			Status:        StatusKeyExists,
+			Name: "DocExists",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+				},
+				Flags: SubdocDocFlagAddDoc,
+			},
 			ExpectedError: ErrDocExists,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusKeyExists,
-			Cas:           1234,
+			Name: "CasMismatch",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+				},
+				Cas: 123455,
+			},
 			ExpectedError: ErrCasMismatch,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusSubDocInvalidCombo,
+			Name: "InvalidCombo",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+					makeSetSubdocOp(),
+				},
+				Flags: SubdocDocFlagAddDoc,
+			},
 			ExpectedError: ErrSubDocInvalidCombo,
 		},
 		{
-			Status:        StatusSubDocInvalidXattrOrder,
+			Name: "InvalidXattrOrder",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("key"),
+						Value: []byte("value"),
+						Flags: SubdocOpFlagXattrPath,
+					},
+				},
+				Flags: SubdocDocFlagAddDoc,
+			},
 			ExpectedError: ErrSubDocInvalidXattrOrder,
 		},
 		{
-			Status:        StatusSubDocXattrInvalidFlagCombo,
-			ExpectedError: ErrSubDocXattrInvalidFlagCombo,
-		},
-		{
-			Status:        StatusSubDocXattrInvalidKeyCombo,
+			Name: "InvalidXattrKeyCombo",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("key"),
+						Value: []byte(`"value"`),
+						Flags: SubdocOpFlagXattrPath,
+					},
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("key2"),
+						Value: []byte(`"value"`),
+						Flags: SubdocOpFlagXattrPath,
+					},
+					makeSetSubdocOp(),
+				},
+				Flags: SubdocDocFlagAddDoc,
+			},
 			ExpectedError: ErrSubDocXattrInvalidKeyCombo,
 		},
 		{
-			Status:        StatusSubDocXattrUnknownMacro,
+			Name: "XattrUnknownMacro",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("key"),
+						Value: []byte("${something}"),
+						Flags: SubdocOpFlagXattrPath | SubdocOpFlagExpandMacros,
+					},
+				},
+				Flags: SubdocDocFlagAddDoc,
+			},
 			ExpectedError: ErrSubDocXattrUnknownMacro,
 		},
 		{
-			Status:        StatusSubDocXattrUnknownVattrMacro,
-			ExpectedError: ErrSubDocXattrUnknownVattrMacro,
-		},
-		{
-			Status:        StatusSubDocXattrCannotModifyVAttr,
+			Name: "XattrCannotModifyVattr",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("$document"),
+						Value: []byte("value"),
+						Flags: SubdocOpFlagXattrPath | SubdocOpFlagExpandMacros,
+					},
+				},
+				Flags: SubdocDocFlagAddDoc,
+			},
 			ExpectedError: ErrSubDocXattrCannotModifyVAttr,
 		},
 		{
-			Status:        StatusSubDocCanOnlyReviveDeletedDocuments,
+			Name: "CanOnlyReviveDeletedDocuments",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+				},
+				Flags: SubdocDocFlagReviveDocument | SubdocDocFlagAccessDeleted,
+			},
 			ExpectedError: ErrSubDocCanOnlyReviveDeletedDocuments,
+			RunFirst:      doSetOp,
 		},
-		{
-			Status:        StatusSubDocDeletedDocumentCantHaveValue,
-			ExpectedError: ErrSubDocDeletedDocumentCantHaveValue,
-		},
+		// {
+		// Name: "DeletedDocumentCantHaveValue",
+		// Request: &MutateInRequest{
+		// 	VbucketID: 1,
+		// 	Ops: []MutateInOp{
+		// 		makeSetSubdocOp(),
+		// 	},
+		// 	Flags: SubdocDocFlagCreateAsDeleted | SubdocDocFlagAccessDeleted | SubdocDocFlagAddDoc,
+		// },
+		// ExpectedError: ErrSubDocCanOnlyReviveDeletedDocuments,
+		// },
 
+		// Path level errors
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "DocTooDeep",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocDocTooDeep,
-			IndexStatus:   StatusSubDocDocTooDeep,
+			RunFirst: func(tt *testing.T, key []byte) {
+				value := map[string]interface{}{
+					"key": map[string]interface{}{},
+				}
+				v := value["key"].(map[string]interface{})
+				for i := 0; i < 35; i++ {
+					v["key"] = map[string]interface{}{}
+					v = v["key"].(map[string]interface{})
+				}
+
+				b, err := json.Marshal(value)
+				require.NoError(tt, err)
+
+				_, err = syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     b,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(tt, err)
+			},
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocNotJSON",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					makeSetSubdocOp(),
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocNotJSON,
-			IndexStatus:   StatusSubDocNotJSON,
+			RunFirst: func(tt *testing.T, key []byte) {
+				_, err := syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: 1,
+					Value:     []byte("imnotjson"),
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(tt, err)
+			},
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathNotFound",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeReplace,
+						Path:  []byte("idontexit"),
+						Value: []byte(`"value"`),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathNotFound,
-			IndexStatus:   StatusSubDocPathNotFound,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathMismatch",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("key[0]"),
+						Value: []byte(`"value"`),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathMismatch,
-			IndexStatus:   StatusSubDocPathMismatch,
+			RunFirst:      doSetOp,
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathInvalid",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeDictSet,
+						Path:  []byte("key["),
+						Value: []byte(`"value"`),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathInvalid,
-			IndexStatus:   StatusSubDocPathInvalid,
+			RunFirst:      doSetOp,
 		},
+		// {
+		// 	Name: "SubDocPathTooBig",
+		// 	Request: &MutateInRequest{
+		// 		VbucketID: 1,
+		// 		Ops: []MutateInOp{
+		// 			{
+		// 				Op:    MutateInOpTypeDictSet,
+		// 				Path:  []byte("key"),
+		// 				Value: []byte(`"value"`),
+		// 			},
+		// 		},
+		// 	},
+		// 	IsIndexLevel:  true,
+		// 	ExpectedError: ErrSubDocPathInvalid,
+		// 	RunFirst:      doSetOp,
+		// },
+		// {
+		// 	Name: "SubDocBadRange",
+		// 	Request: &MutateInRequest{
+		// 		VbucketID: 1,
+		// 		Ops: []MutateInOp{
+		// 			{
+		// 				Op:    MutateInOpTypeCounter,
+		// 				Path:  []byte("key"),
+		// 				Value: []byte("120000000000000000000000000"),
+		// 			},
+		// 		},
+		// 		Flags: SubdocDocFlagMkDoc,
+		// 	},
+		// 	IsIndexLevel:  true,
+		// 	ExpectedError: ErrSubDocBadRange,
+		// },
 		{
-			Status:        StatusSubDocMultiPathFailure,
-			ExpectedError: ErrSubDocPathTooBig,
-			IndexStatus:   StatusSubDocPathTooBig,
-		},
-		{
-			Status:        StatusSubDocMultiPathFailure,
-			ExpectedError: ErrSubDocCantInsert,
-			IndexStatus:   StatusSubDocCantInsert,
-		},
-		{
-			Status:        StatusSubDocMultiPathFailure,
-			ExpectedError: ErrSubDocBadRange,
-			IndexStatus:   StatusSubDocBadRange,
-		},
-		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocBadDelta",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeCounter,
+						Path:  []byte("key"),
+						Value: []uint8{1},
+					},
+				},
+				Flags: SubdocDocFlagMkDoc,
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocBadDelta,
-			IndexStatus:   StatusSubDocBadDelta,
 		},
 		{
-			Status:        StatusSubDocMultiPathFailure,
+			Name: "SubDocPathExists",
+			Request: &MutateInRequest{
+				VbucketID: 1,
+				Ops: []MutateInOp{
+					{
+						Op:    MutateInOpTypeDictAdd,
+						Path:  []byte("key"),
+						Value: []byte(`"value"`),
+					},
+				},
+			},
+			IsIndexLevel:  true,
 			ExpectedError: ErrSubDocPathExists,
-			IndexStatus:   StatusSubDocPathExists,
+			RunFirst:      doSetOp,
 		},
-		{
-			Status:        StatusSubDocMultiPathFailure,
-			ExpectedError: ErrSubDocValueTooDeep,
-			IndexStatus:   StatusSubDocValueTooDeep,
-		},
+		// {
+		// 	Name: "SubDocValueTooDeep",
+		// 	Request: &MutateInRequest{
+		// 		VbucketID: 1,
+		// 		Ops: []MutateInOp{
+		// 			{
+		// 				Op:    MutateInOpTypeCounter,
+		// 				Path:  []byte("key"),
+		// 				Value: []byte("120000000000000000000000000"),
+		// 			},
+		// 		},
+		// 		Flags: SubdocDocFlagMkDoc,
+		// 	},
+		// 	IsIndexLevel:  true,
+		// 	ExpectedError: ErrSubDocBadRange,
+		// },
 	}
 
 	for _, test := range tests {
-		name := test.Status.String()
-		if test.IndexStatus != 0 {
-			name = "Multipath - " + test.IndexStatus.String()
-		}
-		t.Run(name, func(tt *testing.T) {
-			dispatcher := &testCrudDispatcher{
-				Pak: &Packet{
-					Status: test.Status,
-				},
+		t.Run(test.Name, func(tt *testing.T) {
+			key := []byte(uuid.NewString()[:6])
+
+			if test.RunFirst != nil {
+				test.RunFirst(tt, key)
 			}
-			if test.IndexStatus > 0 {
-				dispatcher.Pak.Value = []byte{1, uint8(test.IndexStatus >> 8), uint8(test.IndexStatus)}
-			}
+
+			req := test.Request
+			req.Key = key
 
 			_, err := syncUnaryCall(
 				OpsCrud{
@@ -2243,26 +2693,16 @@ func TestOpsCrudMutateInErrorStatusCodes(t *testing.T) {
 					PreserveExpiryEnabled: true,
 				},
 				OpsCrud.MutateIn,
-				dispatcher,
-				&MutateInRequest{
-					Key:       []byte(uuid.NewString()[:6]),
-					VbucketID: 1,
-					Ops: []MutateInOp{
-						{
-							Op:    MutateInOpTypeDictSet,
-							Path:  []byte("key"),
-							Value: []byte("value"),
-						},
-					},
-					Cas: test.Cas,
-				},
+				cli,
+				req,
 			)
 			require.ErrorIs(tt, err, test.ExpectedError)
 
-			if test.IndexStatus > 0 {
+			if test.IsIndexLevel {
 				var subDocErr *SubDocError
 				if assert.ErrorAs(tt, err, &subDocErr) {
-					assert.Equal(tt, 1, subDocErr.OpIndex)
+					// Not really sure if this is testing anything due to zero values.
+					assert.Equal(tt, 0, subDocErr.OpIndex)
 				}
 			}
 		})

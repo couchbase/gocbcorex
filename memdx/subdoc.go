@@ -163,4 +163,8 @@ const (
 	// That is, to create a tombstone only.
 	// Internal: This should never be used and is not supported.
 	SubdocDocFlagCreateAsDeleted = SubdocDocFlag(0x08)
+
+	// SubdocDocFlagReviveDocument indicates that the document should be revived from a tombstone.
+	// Internal: This should never be used and is not supported.
+	SubdocDocFlagReviveDocument = SubdocDocFlag(0x10)
 )
