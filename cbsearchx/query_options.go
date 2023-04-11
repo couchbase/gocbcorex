@@ -3,6 +3,8 @@ package cbsearchx
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/couchbase/gocbcorex/cbhttpx"
 )
 
 // HighlightStyle indicates the type of highlighting to use for a search query.
@@ -76,7 +78,7 @@ type QueryOptions struct {
 
 	Raw map[string]json.RawMessage
 
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {

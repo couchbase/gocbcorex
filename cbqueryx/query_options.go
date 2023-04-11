@@ -3,6 +3,8 @@ package cbqueryx
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/couchbase/gocbcorex/cbhttpx"
 )
 
 type QueryScanConsistency string
@@ -130,7 +132,7 @@ type QueryOptions struct {
 	NamedArgs map[string]json.RawMessage
 	Raw       map[string]json.RawMessage
 
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {

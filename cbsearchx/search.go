@@ -25,7 +25,9 @@ type Search struct {
 
 func (h Search) NewRequest(
 	ctx context.Context,
-	method, path, contentType, onBehalfOf string, body io.Reader,
+	method, path, contentType string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
+	body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
 		UserAgent:     h.UserAgent,
@@ -35,7 +37,13 @@ func (h Search) NewRequest(
 	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 
-func (h Search) Execute(ctx context.Context, method, path, contentType, onBehalfOf string, headers map[string]string, body io.Reader) (*http.Response, error) {
+func (h Search) Execute(
+	ctx context.Context,
+	method, path, contentType string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
+	headers map[string]string,
+	body io.Reader,
+) (*http.Response, error) {
 	req, err := h.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 	if err != nil {
 		return nil, err
@@ -84,7 +92,7 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 }
 
 type UpsertIndexOptions struct {
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 	Index
 }
 
@@ -126,7 +134,7 @@ func (h Search) UpsertIndex(
 
 type DeleteIndexOptions struct {
 	IndexName  string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Search) DeleteIndex(
