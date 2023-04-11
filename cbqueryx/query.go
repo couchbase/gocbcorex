@@ -22,7 +22,9 @@ type Query struct {
 
 func (h Query) NewRequest(
 	ctx context.Context,
-	method, path, contentType, onBehalfOf string, body io.Reader,
+	method, path, contentType string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
+	body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
 		UserAgent:     h.UserAgent,
@@ -32,7 +34,12 @@ func (h Query) NewRequest(
 	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 
-func (h Query) Execute(ctx context.Context, method, path, contentType, onBehalfOf string, body io.Reader) (*http.Response, error) {
+func (h Query) Execute(
+	ctx context.Context,
+	method, path, contentType string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
+	body io.Reader,
+) (*http.Response, error) {
 	req, err := h.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 	if err != nil {
 		return nil, err

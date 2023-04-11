@@ -25,7 +25,8 @@ type Management struct {
 
 func (h Management) NewRequest(
 	ctx context.Context,
-	method, path, contentType, onBehalfOf string,
+	method, path, contentType string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
 	body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
@@ -36,7 +37,12 @@ func (h Management) NewRequest(
 	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 
-func (h Management) Execute(ctx context.Context, method, path, contentType, onBehalfOf string, body io.Reader) (*http.Response, error) {
+func (h Management) Execute(
+	ctx context.Context,
+	method, path, contentType string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
+	body io.Reader,
+) (*http.Response, error) {
 	req, err := h.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 	if err != nil {
 		return nil, err
@@ -93,7 +99,7 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 }
 
 type GetClusterConfigOptions struct {
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfigOptions) (*cbconfig.FullConfigJson, error) {
@@ -113,7 +119,7 @@ func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfig
 }
 
 type GetTerseClusterConfigOptions struct {
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) GetTerseClusterConfig(ctx context.Context, opts *GetTerseClusterConfigOptions) (*cbconfig.TerseConfigJson, error) {
@@ -133,7 +139,7 @@ func (h Management) GetTerseClusterConfig(ctx context.Context, opts *GetTerseClu
 }
 
 type StreamTerseClusterConfigOptions struct {
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 type TerseClusterConfig_Stream interface {
@@ -158,7 +164,12 @@ func (h Management) StreamTerseClusterConfig(ctx context.Context, opts *StreamTe
 
 type GetBucketConfigOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func Test() {
+	var x GetBucketConfigOptions
+	x.OnBehalfOf.Username = ""
 }
 
 func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullConfigJson, error) {
@@ -184,7 +195,7 @@ func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOp
 
 type GetTerseBucketConfigOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBucketConfigOptions) (*cbconfig.TerseConfigJson, error) {
@@ -210,7 +221,7 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 
 type StreamTerseBucketConfigOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 type TerseBucketConfig_Stream interface {
@@ -240,7 +251,7 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 
 type GetCollectionManifestOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 type CollectionManifestCollectionJson struct {
@@ -283,7 +294,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 type CreateScopeOptions struct {
 	BucketName string
 	ScopeName  string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) CreateScope(
@@ -320,7 +331,7 @@ func (h Management) CreateScope(
 type DeleteScopeOptions struct {
 	BucketName string
 	ScopeName  string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) DeleteScope(
@@ -356,7 +367,7 @@ type CreateCollectionOptions struct {
 	ScopeName      string
 	CollectionName string
 	MaxTTL         uint32
-	OnBehalfOf     string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) CreateCollection(
@@ -401,7 +412,7 @@ type DeleteCollectionOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
-	OnBehalfOf     string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) DeleteCollection(
@@ -561,7 +572,7 @@ func (h Management) decodeBucketDef(data *bucketSettingsJson) (*BucketDef, error
 }
 
 type GetAllBucketsOptions struct {
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) GetAllBuckets(
@@ -603,7 +614,7 @@ func (h Management) GetAllBuckets(
 
 type GetBucketOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) GetBucket(
@@ -644,7 +655,7 @@ func (h Management) GetBucket(
 
 type CreateBucketOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 	BucketSettings
 }
 
@@ -685,7 +696,7 @@ func (h Management) CreateBucket(
 
 type UpdateBucketOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 	MutableBucketSettings
 }
 
@@ -722,7 +733,7 @@ func (h Management) UpdateBucket(
 
 type DeleteBucketOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) DeleteBucket(
@@ -751,7 +762,7 @@ func (h Management) DeleteBucket(
 
 type FlushBucketOptions struct {
 	BucketName string
-	OnBehalfOf string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
 func (h Management) FlushBucket(
