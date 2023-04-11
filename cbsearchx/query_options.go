@@ -138,10 +138,13 @@ func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
 		m["from"] = encoder.EncodeField(o.From)
 	}
 	if o.Highlight != nil {
-		m["highlight"] = encoder.EncodeField(map[string]json.RawMessage{
-			"style":  encoder.EncodeField(o.Highlight.Style),
+		highlight := map[string]json.RawMessage{
 			"fields": encoder.EncodeField(o.Highlight.Fields),
-		})
+		}
+		if o.Highlight.Style != "" {
+			highlight["style"] = encoder.EncodeField(o.Highlight.Style)
+		}
+		m["highlight"] = encoder.EncodeField(highlight)
 	}
 	if o.IncludeLocations {
 		m["includeLocations"] = encoder.EncodeField(o.IncludeLocations)
