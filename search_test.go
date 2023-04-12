@@ -20,6 +20,7 @@ func TestSearchBasic(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
+	defer agent.Close()
 
 	helper := &searchTestHelper{
 		TestName: "testSearchQuery",
