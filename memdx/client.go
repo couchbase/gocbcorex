@@ -16,9 +16,14 @@ type Client struct {
 	closeHandler  func(error)
 	logger        *zap.Logger
 
-	lock      sync.Mutex
-	opaqueCtr uint32
-	opaqueMap map[uint32]DispatchCallback
+	// opaqueMapLock control access to the opaque map itself and is used for all access to it.
+	opaqueMapLock sync.Mutex
+	// handlerInvokeLock controls being able to call handlers from the opaque map, and is not used on the write side.
+	// This allows us to coordinate between Close, cancelHandler, and dispatchCallback without having to lock for longer
+	// in Dispatch.
+	handlerInvokeLock sync.Mutex
+	opaqueCtr         uint32
+	opaqueMap         map[uint32]DispatchCallback
 }
 
 var _ Dispatcher = (*Client)(nil)
@@ -76,28 +81,31 @@ func (c *Client) run() {
 }
 
 func (c *Client) registerHandler(handler DispatchCallback) uint32 {
-	c.lock.Lock()
+	c.opaqueMapLock.Lock()
 
 	opaqueID := c.opaqueCtr
 	c.opaqueCtr++
 
 	c.opaqueMap[opaqueID] = handler
 
-	c.lock.Unlock()
+	c.opaqueMapLock.Unlock()
 
 	return opaqueID
 }
 
 func (c *Client) cancelHandler(opaqueID uint32, err error) {
-	c.lock.Lock()
+	c.handlerInvokeLock.Lock()
+	defer c.handlerInvokeLock.Unlock()
+	c.opaqueMapLock.Lock()
 
 	handler, handlerIsValid := c.opaqueMap[opaqueID]
 	if !handlerIsValid {
-		c.lock.Unlock()
+		c.opaqueMapLock.Unlock()
 		return
 	}
 
-	c.lock.Unlock()
+	delete(c.opaqueMap, opaqueID)
+	c.opaqueMapLock.Unlock()
 
 	c.logger.Debug("cancelling operation",
 		zap.Uint32("opaque", opaqueID),
@@ -105,21 +113,19 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 
 	hasMorePackets := handler(nil, requestCancelledError{cause: err})
 	if hasMorePackets {
-		panic("memd packet handler returned hasMorePackets after an error")
+		c.logger.DPanic("memd packet handler returned hasMorePackets after an error", zap.Uint32("opaque", opaqueID))
 	}
-
-	c.lock.Lock()
-	delete(c.opaqueMap, opaqueID)
-	c.lock.Unlock()
 }
 
 func (c *Client) dispatchCallback(pak *Packet) error {
-	c.lock.Lock()
+	c.handlerInvokeLock.Lock()
+	defer c.handlerInvokeLock.Unlock()
+	c.opaqueMapLock.Lock()
 
 	handler, handlerIsValid := c.opaqueMap[pak.Opaque]
 	if !handlerIsValid {
 		orphanHandler := c.orphanHandler
-		c.lock.Unlock()
+		c.opaqueMapLock.Unlock()
 
 		if orphanHandler == nil {
 			return errors.New("invalid opaque on response packet")
@@ -128,15 +134,14 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 		orphanHandler(pak)
 		return nil
 	}
-
-	c.lock.Unlock()
+	c.opaqueMapLock.Unlock()
 
 	hasMorePackets := handler(pak, nil)
 
 	if !hasMorePackets {
-		c.lock.Lock()
+		c.opaqueMapLock.Lock()
 		delete(c.opaqueMap, pak.Opaque)
-		c.lock.Unlock()
+		c.opaqueMapLock.Unlock()
 	}
 
 	return nil
@@ -152,12 +157,17 @@ func (c *Client) Close() error {
 		return err
 	}
 
-	c.lock.Lock()
-	for _, handler := range c.opaqueMap {
+	c.handlerInvokeLock.Lock()
+	c.opaqueMapLock.Lock()
+	handlers := c.opaqueMap
+	c.opaqueMap = map[uint32]DispatchCallback{}
+	c.opaqueMapLock.Unlock()
+
+	for _, handler := range handlers {
 		handler(nil, ErrClosedInFlight)
 	}
-	c.opaqueMap = map[uint32]DispatchCallback{}
-	c.lock.Unlock()
+
+	c.handlerInvokeLock.Unlock()
 
 	return nil
 }
@@ -173,9 +183,9 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 			zap.Uint32("opaque", opaqueID),
 			zap.String("opcode", req.OpCode.String()),
 		)
-		c.lock.Lock()
+		c.opaqueMapLock.Lock()
 		delete(c.opaqueMap, opaqueID)
-		c.lock.Unlock()
+		c.opaqueMapLock.Unlock()
 
 		return nil, err
 	}

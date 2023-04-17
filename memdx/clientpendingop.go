@@ -6,5 +6,5 @@ type clientPendingOp struct {
 }
 
 func (po clientPendingOp) Cancel(err error) {
-	po.client.cancelHandler(po.opaqueID, err)
+	go po.client.cancelHandler(po.opaqueID, err)
 }
