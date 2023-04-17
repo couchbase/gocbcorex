@@ -2,7 +2,6 @@ package memdx
 
 import (
 	"errors"
-	"sync/atomic"
 )
 
 type OpBootstrapEncoder interface {
@@ -61,16 +60,12 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	var dispatchSelectBucket func() error
 	var dispatchClusterConfig func() error
 	var dispatchCallback func() error
-	var calledBack uint32
 
 	maybeCallback := func(err error) {
 		if err != nil {
-			if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
-				cb(nil, err)
-			}
+			cb(nil, err)
 			return
 		}
-
 		if currentStage == stageHello && opts.Hello == nil {
 			currentStage = stageErrorMap
 		}
@@ -88,9 +83,7 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 		}
 
 		if currentStage == stageCallback {
-			if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
-				cb(result, nil)
-			}
+			cb(result, nil)
 		}
 	}
 
