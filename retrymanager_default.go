@@ -1,9 +1,10 @@
 package gocbcorex
 
 import (
-	"context"
 	"errors"
 	"time"
+
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 type RetryManagerDefault struct {
@@ -29,12 +30,7 @@ type retryControllerDefault struct {
 
 func (rc *retryControllerDefault) isRetriableError(err error) bool {
 	// Implement the default classification of retriable errors...
-	if errors.Is(err, context.DeadlineExceeded) ||
-		errors.Is(err, context.Canceled) {
-		return false
-	}
-
-	return true
+	return errors.Is(err, memdx.ErrTmpFail)
 }
 
 func (rc *retryControllerDefault) ShouldRetry(err error) (time.Duration, bool) {
