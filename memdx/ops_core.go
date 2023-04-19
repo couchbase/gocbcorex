@@ -40,6 +40,8 @@ func (o OpsCore) decodeError(resp *Packet, dispatchedTo string, dispatchedFrom s
 	var err error
 	if resp.Status == StatusNotMyVBucket {
 		err = ErrNotMyVbucket
+	} else if resp.Status == StatusTmpFail {
+		err = ErrTmpFail
 	} else {
 		err = errors.New("unexpected status: " + resp.Status.String())
 	}
