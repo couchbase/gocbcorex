@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -45,6 +46,7 @@ func (o KvClientConfig) Equals(b *KvClientConfig) bool {
 type KvClientOptions struct {
 	Logger         *zap.Logger
 	NewMemdxClient GetMemdxClientFunc
+	CloseHandler   func(KvClient, error)
 }
 
 type KvClientOps interface {
@@ -103,7 +105,8 @@ type kvClient struct {
 
 	supportedFeatures []memdx.HelloFeature
 
-	closed uint32
+	closed       uint32
+	closeHandler func(KvClient, error)
 }
 
 var _ KvClient = (*kvClient)(nil)
@@ -118,6 +121,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	kvCli := &kvClient{
 		currentConfig: *config,
 		logger:        logger,
+		closeHandler:  opts.CloseHandler,
 	}
 
 	logger.Debug("id assigned for " + config.Address)
@@ -188,8 +192,8 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
-		OrphanHandler: nil,
-		CloseHandler:  nil,
+		OrphanHandler: kvCli.handleOrphanResponse,
+		CloseHandler:  kvCli.handleConnectionClose,
 		Logger:        logger,
 	}
 	if opts.NewMemdxClient == nil {
@@ -314,4 +318,22 @@ func (c *kvClient) RemoteAddress() string {
 	c.lock.Unlock()
 
 	return addr
+}
+
+func (c *kvClient) handleOrphanResponse(packet *memdx.Packet) {
+	c.logger.Info(
+		"orphaned response encountered",
+		zap.String("opaque", strconv.Itoa(int(packet.Opaque))),
+		zap.String("opcode", packet.OpCode.String()),
+	)
+}
+
+func (c *kvClient) handleConnectionClose(err error) {
+	// Just mark ourselves as closed. The connection is already
+	// closed so there's no actual work to do, and we might already actually be closed.
+	atomic.StoreUint32(&c.closed, 1)
+
+	if c.closeHandler != nil {
+		c.closeHandler(c, err)
+	}
 }

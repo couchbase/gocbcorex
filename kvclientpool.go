@@ -81,26 +81,27 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		zap.String("poolId", uuid.NewString()[:8]),
 	)
 
+	p := &kvClientPool{
+		logger: logger,
+		config: *config,
+
+		closeSig:           make(chan struct{}),
+		needClientSigCh:    make(chan struct{}, 1),
+		needNoPendingSigCh: make(chan struct{}),
+	}
+
 	var newKvClient NewKvClientFunc
 	if opts.NewKvClient != nil {
 		newKvClient = opts.NewKvClient
 	} else {
 		newKvClient = func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
 			return NewKvClient(ctx, config, &KvClientOptions{
-				Logger: logger.Named("client"),
+				Logger:       logger.Named("client"),
+				CloseHandler: p.handleClientClosed,
 			})
 		}
 	}
-
-	p := &kvClientPool{
-		logger:      logger,
-		newKvClient: newKvClient,
-		config:      *config,
-
-		closeSig:           make(chan struct{}),
-		needClientSigCh:    make(chan struct{}, 1),
-		needNoPendingSigCh: make(chan struct{}),
-	}
+	p.newKvClient = newKvClient
 
 	logger.Debug("id assigned for " + config.ClientConfig.Address)
 
@@ -312,6 +313,20 @@ func (p *kvClientPool) rebuildActiveClientsLocked() {
 	p.fastMap.Store(&kvClientPoolFastMap{
 		activeConnections: fastMapConns,
 	})
+}
+
+func (p *kvClientPool) handleClientClosed(client KvClient, err error) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if !p.removeCurrentClientLocked(client) {
+		// If the client is no longer current anyways, we have nothing to do...
+		// We can get here when we Close a client so this prevents us from taking action there too.
+		return
+	}
+
+	p.rebuildActiveClientsLocked()
+	p.checkConnectionsLocked()
 }
 
 func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) error {
