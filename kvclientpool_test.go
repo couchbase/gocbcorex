@@ -203,6 +203,8 @@ func TestKvClientPoolNewAndGetRace(t *testing.T) {
 	assert.NoError(t, pool.Close())
 }
 
+// ======== Integration tests ========
+
 // This test effectively just checks that pool close does not leak clients during normal operation.
 func TestKvClientPoolClose(t *testing.T) {
 	testutils.SkipIfShortTest(t)
@@ -282,6 +284,53 @@ func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 		// We don't need to wait for all of the clients to be fully reconfigured.
 	})
 	require.NoError(t, err)
+
+	err = pool.Close()
+	require.NoError(t, err)
+}
+
+func TestKvClientPoolHandleClientClose(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	auth := &PasswordAuthenticator{
+		Username: testutils.TestOpts.Username,
+		Password: testutils.TestOpts.Password,
+	}
+	clientConfig := &KvClientConfig{
+		Address:       testutils.TestOpts.MemdAddrs[0],
+		TlsConfig:     nil,
+		Authenticator: auth,
+	}
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	pool, err := NewKvClientPool(&KvClientPoolConfig{
+		NumConnections: 1,
+		ClientConfig:   *clientConfig,
+	}, &KvClientPoolOptions{
+		Logger: logger,
+	})
+	require.NoError(t, err)
+
+	cli, err := pool.GetClient(context.Background())
+	require.NoError(t, err)
+
+	// Close the client out of band and check that the pool fetches a new client.
+	err = cli.Close()
+	require.NoError(t, err)
+
+	// The read side close handling happens in a different goroutine to Close so we need
+	// to Eventually this.
+	require.Eventually(t, func() bool {
+		cli2, err := pool.GetClient(context.Background())
+		if err != nil {
+			t.Logf("failed to get client %s", err)
+			return false
+		}
+
+		return cli2 != cli
+	}, 10*time.Second, 100*time.Millisecond)
 
 	err = pool.Close()
 	require.NoError(t, err)

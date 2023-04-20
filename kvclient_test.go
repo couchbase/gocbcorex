@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"testing"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -234,6 +235,100 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 	}, func(error) {})
 	require.Error(t, err)
 }
+
+// This just tests that orphan responses are handled in some way.
+func TestKvClientOrphanResponseHandler(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	memdxCli := &MemdxDispatcherCloserMock{
+		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+			return memdxPendingOpMock{}, nil
+		},
+	}
+
+	cli, err := NewKvClient(context.Background(), &KvClientConfig{
+		Address: "endpoint1",
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
+	})
+	require.NoError(t, err)
+
+	cli.handleOrphanResponse(&memdx.Packet{OpCode: memdx.OpCodeSet, Opaque: 1})
+}
+
+func TestKvClientConnCloseHandlerDefault(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	memdxCli := &MemdxDispatcherCloserMock{
+		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+			return memdxPendingOpMock{}, nil
+		},
+	}
+
+	cli, err := NewKvClient(context.Background(), &KvClientConfig{
+		Address: "endpoint1",
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
+	})
+	require.NoError(t, err)
+
+	cli.handleConnectionClose(errors.New("some error"))
+	assert.Equal(t, 1, int(cli.closed))
+}
+
+func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	memdxCli := &MemdxDispatcherCloserMock{
+		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+			return memdxPendingOpMock{}, nil
+		},
+	}
+
+	var closedCli KvClient
+	var closeErr error
+	cli, err := NewKvClient(context.Background(), &KvClientConfig{
+		Address: "endpoint1",
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
+		CloseHandler: func(client KvClient, err error) {
+			closedCli = client
+			closeErr = err
+		},
+	})
+	require.NoError(t, err)
+
+	err = errors.New("some error")
+	cli.handleConnectionClose(err)
+	assert.Equal(t, cli, closedCli)
+	assert.Equal(t, err, closeErr)
+}
+
+// ======== Integration tests ========
 
 func TestKvClientCloseAfterReconfigure(t *testing.T) {
 	testutils.SkipIfShortTest(t)
