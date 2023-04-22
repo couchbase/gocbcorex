@@ -92,6 +92,7 @@ func TestOpsCoreDecodeError(t *testing.T) {
 			},
 			ExpectedError: ServerErrorWithConfig{
 				Cause: ServerError{
+					Status:         StatusNotMyVBucket,
 					Cause:          ErrNotMyVbucket,
 					DispatchedTo:   dispatchedTo,
 					DispatchedFrom: dispatchedFrom,
