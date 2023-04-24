@@ -68,6 +68,9 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 		}
 	})
 	if err != nil {
+		if !atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
+			c.logger.DPanic("error returned after callback", zap.Error(err))
+		}
 		releaseSyncCrudResulter(resulter)
 		var emptyResp RespT
 		return emptyResp, KvClientDispatchError{err}
