@@ -13,6 +13,7 @@ var (
 	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
 	ErrServiceNotAvailable        = errors.New("specified service is not available")
+	ErrVbucketMapEntriesEmpty     = errors.New("the vbucket map is empty")
 )
 
 type placeholderError struct {

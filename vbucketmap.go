@@ -29,10 +29,15 @@ func (vbMap VbucketMap) NumReplicas() int {
 	return vbMap.numReplicas
 }
 
-func (vbMap VbucketMap) VbucketByKey(key []byte) uint16 {
+func (vbMap VbucketMap) VbucketByKey(key []byte) (uint16, error) {
+	numVbs := uint16(len(vbMap.entries))
+	if numVbs == 0 {
+		return 0, ErrVbucketMapEntriesEmpty
+	}
+
 	crc := crc32.ChecksumIEEE(key)
 	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
-	return crcMidBits % uint16(len(vbMap.entries))
+	return (crcMidBits % numVbs), nil
 }
 
 func (vbMap VbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error) {
@@ -101,5 +106,9 @@ func (vbMap VbucketMap) VbucketsByServer(replicaID int) ([][]uint16, error) {
 }
 
 func (vbMap VbucketMap) NodeByKey(key []byte, replicaID uint32) (int, error) {
-	return vbMap.NodeByVbucket(vbMap.VbucketByKey(key), replicaID)
+	vbID, err := vbMap.VbucketByKey(key)
+	if err != nil {
+		return 0, err
+	}
+	return vbMap.NodeByVbucket(vbID, replicaID)
 }

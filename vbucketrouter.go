@@ -68,7 +68,11 @@ func (vbd *vbucketRouter) DispatchByKey(key []byte, replicaIdx uint32) (string, 
 		return "", 0, err
 	}
 
-	vbID := info.VbMap.VbucketByKey(key)
+	vbID, err := info.VbMap.VbucketByKey(key)
+	if err != nil {
+		return "", 0, err
+	}
+
 	idx, err := info.VbMap.NodeByVbucket(vbID, replicaIdx)
 	if err != nil {
 		return "", 0, err
