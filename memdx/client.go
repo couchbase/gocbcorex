@@ -172,6 +172,11 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// Dispatches a packet to the network, calling the handler with responses.
+// Note that the handlers can be invoked before this function returns due to races
+// between this function returning and the IO thread receiving responses. This out
+// of order invocation can also happen in cancel cases.  You are guarenteed however
+// to either receive callbacks OR receive an error from this call, never both.
 func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, error) {
 	opaqueID := c.registerHandler(handler)
 	req.Opaque = opaqueID
@@ -183,7 +188,17 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 			zap.Uint32("opaque", opaqueID),
 			zap.String("opcode", req.OpCode.String()),
 		)
+
 		c.opaqueMapLock.Lock()
+		if _, ok := c.opaqueMap[opaqueID]; !ok {
+			// if the handler isn't in the opaque map anymore, we can assume that
+			// we've been cancelled by someone while we were waiting for the Write.
+			// We pretend that the write was successful in this case, since the
+			// callback will already have been invoked with errors by someone else.
+			c.opaqueMapLock.Unlock()
+			return pendingOpNoop{}, nil
+		}
+
 		delete(c.opaqueMap, opaqueID)
 		c.opaqueMapLock.Unlock()
 
