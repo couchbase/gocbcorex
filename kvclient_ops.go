@@ -29,7 +29,9 @@ type syncCrudResult struct {
 }
 
 type syncCrudResulter struct {
-	Ch chan syncCrudResult
+	Ch         chan syncCrudResult
+	AllocCount uint32
+	SendCount  uint32
 }
 
 var syncCrudResulterPool sync.Pool
@@ -55,22 +57,25 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 	req ReqT,
 ) (RespT, error) {
 	resulter := allocSyncCrudResulter()
-	var calledBack uint32
+	atomic.AddUint32(&resulter.AllocCount, 1)
 
 	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
-		if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
-			resulter.Ch <- syncCrudResult{
-				Result: resp,
-				Err:    err,
-			}
-		} else {
-			c.logger.DPanic("callback invoked twice", zap.Any("resp", resp), zap.Error(err))
+		newSendCount := atomic.AddUint32(&resulter.SendCount, 1)
+		if newSendCount != atomic.LoadUint32(&resulter.AllocCount) {
+			c.logger.DPanic("sync resulter executed multiple sends", zap.Any("resp", resp), zap.Error(err))
+		}
+
+		resulter.Ch <- syncCrudResult{
+			Result: resp,
+			Err:    err,
 		}
 	})
 	if err != nil {
-		if !atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
-			c.logger.DPanic("error returned after callback", zap.Error(err))
+		newSendCount := atomic.AddUint32(&resulter.SendCount, 1)
+		if newSendCount != atomic.LoadUint32(&resulter.AllocCount) {
+			c.logger.DPanic("sync resulter executed error after send", zap.Error(err))
 		}
+
 		releaseSyncCrudResulter(resulter)
 		var emptyResp RespT
 		return emptyResp, KvClientDispatchError{err}
