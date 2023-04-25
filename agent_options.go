@@ -27,6 +27,8 @@ type AgentOptions struct {
 
 	ConfigPollerConfig ConfigPollerConfig
 
+	RetryManager RetryManager
+
 	HTTPConfig HTTPConfig
 }
 
