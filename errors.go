@@ -64,7 +64,7 @@ func (e VbucketMapOutdatedError) Error() string {
 }
 
 func (e VbucketMapOutdatedError) Unwrap() error {
-	return ErrCollectionManifestOutdated
+	return ErrVbucketMapOutdated
 }
 
 type contextualDeadline struct {
