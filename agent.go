@@ -140,8 +140,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			latestConfig:       bootstrapConfig,
 			httpTransport:      httpTransport,
 		},
-
-		retries: NewRetryManagerFastFail(),
+	}
+	if opts.RetryManager == nil {
+		agent.retries = NewRetryManagerFastFail()
+	} else {
+		agent.retries = opts.RetryManager
 	}
 
 	agentComponentConfigs := agent.genAgentComponentConfigsLocked()
