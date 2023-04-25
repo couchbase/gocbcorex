@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
@@ -50,50 +51,65 @@ func configBootstrapHttp_bootstrapOne(
 		return nil, "", err
 	}
 
-	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, hostport)
-	if err != nil {
-		return nil, "", err
-	}
-
-	hostOnly, err := hostFromHostPort(hostport)
-	if err != nil {
-		return nil, "", err
-	}
-
 	var parsedConfig *ParsedConfig
-	if bucketName == "" {
-		resp, err := cbmgmtx.Management{
-			Transport: httpRoundTripper,
-			UserAgent: userAgent,
-			Endpoint:  endpoint,
-			Username:  username,
-			Password:  password,
-		}.GetTerseClusterConfig(ctx, &cbmgmtx.GetTerseClusterConfigOptions{})
+	for {
+		username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, hostport)
 		if err != nil {
 			return nil, "", err
 		}
 
-		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostOnly)
-		if err != nil {
-			return nil, "", err
-		}
-	} else {
-		resp, err := cbmgmtx.Management{
-			Transport: httpRoundTripper,
-			UserAgent: userAgent,
-			Endpoint:  endpoint,
-			Username:  username,
-			Password:  password,
-		}.GetTerseBucketConfig(ctx, &cbmgmtx.GetTerseBucketConfigOptions{
-			BucketName: bucketName,
-		})
+		hostOnly, err := hostFromHostPort(hostport)
 		if err != nil {
 			return nil, "", err
 		}
 
-		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostOnly)
-		if err != nil {
-			return nil, "", err
+		if bucketName == "" {
+			resp, err := cbmgmtx.Management{
+				Transport: httpRoundTripper,
+				UserAgent: userAgent,
+				Endpoint:  endpoint,
+				Username:  username,
+				Password:  password,
+			}.GetTerseClusterConfig(ctx, &cbmgmtx.GetTerseClusterConfigOptions{})
+			if err != nil {
+				return nil, "", err
+			}
+
+			parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostOnly)
+			if err != nil {
+				return nil, "", err
+			}
+		} else {
+			resp, err := cbmgmtx.Management{
+				Transport: httpRoundTripper,
+				UserAgent: userAgent,
+				Endpoint:  endpoint,
+				Username:  username,
+				Password:  password,
+			}.GetTerseBucketConfig(ctx, &cbmgmtx.GetTerseBucketConfigOptions{
+				BucketName: bucketName,
+			})
+			if err != nil {
+				return nil, "", err
+			}
+
+			parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostOnly)
+			if err != nil {
+				return nil, "", err
+			}
+		}
+
+		// On initial startup it's possible for the bucket (if applicable) to be in a state
+		// where it isn't "ready" yet and is sending us an empty vbucket map. When this happens
+		// we will retry fetching a config until we get one with a valid vbucket map.
+		if parsedConfig.BucketName == "" || parsedConfig.VbucketMap.IsValid() {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, "", ctx.Err()
+		case <-time.After(1 * time.Millisecond):
 		}
 	}
 
@@ -103,20 +119,9 @@ func configBootstrapHttp_bootstrapOne(
 }
 
 func (w ConfigBootstrapHttp) Bootstrap(ctx context.Context) (*ParsedConfig, string, error) {
-	if len(w.endpoints) == 1 {
-		return configBootstrapHttp_bootstrapOne(
-			ctx,
-			w.httpRoundTripper,
-			w.endpoints[0],
-			w.userAgent,
-			w.authenticator,
-			w.bucketName,
-		)
-	}
-
 	attemptErrs := make(map[string]error)
-
 	for _, endpoint := range w.endpoints {
+		var err error
 		parsedConfig, networkType, err := configBootstrapHttp_bootstrapOne(
 			ctx,
 			w.httpRoundTripper,

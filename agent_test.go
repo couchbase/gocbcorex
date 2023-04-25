@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbmgmtx"
+
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/golang/snappy"
@@ -449,6 +451,53 @@ func TestAgentWatchConfig(t *testing.T) {
 	config, ok := <-configCh
 	require.True(t, ok)
 	require.NotNil(t, config)
+}
+
+func TestAgentConnectAfterCreateBucket(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	opts := CreateDefaultAgentOptions()
+	opts.BucketName = ""
+
+	agent, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
+	defer agent.Close()
+
+	bucketName := "testBucket"
+
+	err = agent.CreateBucket(context.Background(), &cbmgmtx.CreateBucketOptions{
+		BucketName: bucketName,
+		BucketSettings: cbmgmtx.BucketSettings{
+			MutableBucketSettings: cbmgmtx.MutableBucketSettings{
+				RAMQuotaMB: 100,
+				BucketType: cbmgmtx.BucketTypeCouchbase,
+			},
+		},
+	})
+	require.NoError(t, err)
+	defer agent.DeleteBucket(context.Background(), &cbmgmtx.DeleteBucketOptions{
+		BucketName: bucketName,
+	})
+
+	opts = CreateDefaultAgentOptions()
+	opts.BucketName = bucketName
+	opts.RetryManager = NewRetryManagerDefault()
+
+	agent2, err := CreateAgent(context.Background(), opts)
+	require.NoError(t, err)
+	defer agent2.Close()
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
+	defer cancel()
+
+	upsertRes, err := agent2.Upsert(ctx, &UpsertOptions{
+		Key:            []byte("test"),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, upsertRes.Cas)
 }
 
 func BenchmarkBasicGet(b *testing.B) {
