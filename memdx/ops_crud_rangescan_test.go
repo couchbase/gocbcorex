@@ -28,7 +28,7 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 	})
@@ -39,7 +39,7 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 		ExtFramesEnabled:   true,
 	}, OpsCrud.RangeScanCreate, cli, &RangeScanCreateRequest{
 		CollectionID: 0,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Range: &RangeScanCreateRangeScanConfig{
 			Start: key,
 			End:   append(key, "\xFF"...),
@@ -62,7 +62,7 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
 	}.RangeScanContinue(cli, &RangeScanContinueRequest{
-		VbucketID: 1,
+		VbucketID: defaultTestVbucketID,
 		ScanUUID:  scanUUID,
 	}, func(response *RangeScanDataResponse) {
 		assert.False(t, response.KeysOnly)
@@ -113,7 +113,7 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 		}, OpsCrud.Set, cli, &SetRequest{
 			CollectionID: 0,
 			Key:          []byte(string(baseKey) + "-" + strconv.Itoa(i)),
-			VbucketID:    1,
+			VbucketID:    defaultTestVbucketID,
 			Value:        value,
 			Datatype:     datatype,
 		})
@@ -130,7 +130,7 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 		ExtFramesEnabled:   true,
 	}, OpsCrud.RangeScanCreate, cli, &RangeScanCreateRequest{
 		CollectionID: 0,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Range: &RangeScanCreateRangeScanConfig{
 			Start: []byte(baseKey),
 			End:   append([]byte(baseKey), "\xFF"...),
@@ -153,7 +153,7 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
 	}.RangeScanContinue(cli, &RangeScanContinueRequest{
-		VbucketID: 1,
+		VbucketID: defaultTestVbucketID,
 		ScanUUID:  scanUUID,
 		MaxCount:  1,
 	}, func(response *RangeScanDataResponse) {
@@ -205,7 +205,7 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 		}, OpsCrud.Set, cli, &SetRequest{
 			CollectionID: 0,
 			Key:          []byte(string(baseKey) + "-" + strconv.Itoa(i)),
-			VbucketID:    1,
+			VbucketID:    defaultTestVbucketID,
 			Value:        value,
 			Datatype:     datatype,
 		})
@@ -222,7 +222,7 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 		ExtFramesEnabled:   true,
 	}, OpsCrud.RangeScanCreate, cli, &RangeScanCreateRequest{
 		CollectionID: 0,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Range: &RangeScanCreateRangeScanConfig{
 			Start: []byte(baseKey),
 			End:   append([]byte(baseKey), "-\xFF"...),
@@ -245,7 +245,7 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 		CollectionsEnabled: true,
 		ExtFramesEnabled:   true,
 	}.RangeScanContinue(cli, &RangeScanContinueRequest{
-		VbucketID: 1,
+		VbucketID: defaultTestVbucketID,
 		ScanUUID:  scanUUID,
 		MaxCount:  1,
 	}, func(response *RangeScanDataResponse) {
@@ -270,7 +270,7 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 		ExtFramesEnabled:   true,
 	}, OpsCrud.RangeScanCancel, cli, &RangeScanCancelRequest{
 		ScanUUID:  scanUUID,
-		VbucketID: 1,
+		VbucketID: defaultTestVbucketID,
 	})
 	require.NoError(t, err)
 }

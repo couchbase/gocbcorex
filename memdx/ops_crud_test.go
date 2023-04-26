@@ -34,7 +34,7 @@ func TestOpsCrudGets(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Get(cli, &GetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *GetResponse, err error) {
 					cb(resp, err)
 				})
@@ -63,7 +63,7 @@ func TestOpsCrudGets(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Expiry:    60,
 				}, func(resp *GetAndTouchResponse, err error) {
 					cb(resp, err)
@@ -75,7 +75,7 @@ func TestOpsCrudGets(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetMeta(cli, &GetMetaRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *GetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -100,7 +100,7 @@ func TestOpsCrudGets(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.LookupIn(cli, &LookupInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []LookupInOp{
 						{
 							Op:   LookupInOpTypeGet,
@@ -135,7 +135,7 @@ func TestOpsCrudGets(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 		Expiry:       60,
@@ -189,7 +189,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Get(cli, &GetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *GetResponse, err error) {
 					cb(resp, err)
 				})
@@ -200,7 +200,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndLock(cli, &GetAndLockRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *GetAndLockResponse, err error) {
 					cb(resp, err)
 				})
@@ -211,7 +211,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *GetAndTouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -223,7 +223,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Unlock(cli, &UnlockRequest{
 					Key:       key,
 					Cas:       1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *UnlockResponse, err error) {
 					cb(resp, err)
 				})
@@ -235,7 +235,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Touch(cli, &TouchRequest{
 					Key:       key,
 					Expiry:    60,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *TouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -246,7 +246,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -258,7 +258,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -270,7 +270,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Append(cli, &AppendRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
 				})
@@ -282,7 +282,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Prepend(cli, &PrependRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
 				})
@@ -294,7 +294,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Increment(cli, &IncrementRequest{
 					Key:       key,
 					Initial:   uint64(0xFFFFFFFFFFFFFFFF),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *IncrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -306,7 +306,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
 					Key:       key,
 					Initial:   uint64(0xFFFFFFFFFFFFFFFF),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DecrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -317,7 +317,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetMeta(cli, &GetMetaRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *GetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -330,7 +330,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
 		// 			Key:       key,
 		// 			Options:   0x08, // SKIP_CONFLICT_RESOLUTION_FLAG
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *DeleteMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -341,7 +341,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.LookupIn(cli, &LookupInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []LookupInOp{
 						{
 							Op:   LookupInOpTypeGet,
@@ -358,7 +358,7 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -412,7 +412,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.Get(cli, &GetRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *GetResponse, err error) {
 					cb(resp, err)
 				})
@@ -435,7 +435,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.GetAndLock(cli, &GetAndLockRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *GetAndLockResponse, err error) {
 					cb(resp, err)
 				})
@@ -447,7 +447,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *GetAndTouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -460,7 +460,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *SetResponse, err error) {
 					cb(resp, err)
 				})
@@ -473,7 +473,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Cas:          1,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *UnlockResponse, err error) {
 					cb(resp, err)
 				})
@@ -486,7 +486,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Expiry:       60,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *TouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -498,7 +498,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -511,7 +511,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *AddResponse, err error) {
 					cb(resp, err)
 				})
@@ -524,7 +524,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -537,7 +537,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
 				})
@@ -550,7 +550,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
 				})
@@ -563,7 +563,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *IncrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -576,7 +576,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *DecrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -588,7 +588,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.GetMeta(cli, &GetMetaRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *GetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -602,7 +602,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					Key:          key,
 					Value:        []byte("value"),
 					Cas:          1, // For some reason Cas is required here.
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 				}, func(resp *SetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -626,7 +626,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.LookupIn(cli, &LookupInRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 					Ops: []LookupInOp{
 						{
 							Op:   LookupInOpTypeGet,
@@ -644,7 +644,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					CollectionID: 2222,
 					Key:          key,
-					VbucketID:    1,
+					VbucketID:    defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -699,7 +699,7 @@ func TestOpsCrudDocExists(t *testing.T) {
 				return opsCrud.Add(cli, &AddRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *AddResponse, err error) {
 					cb(resp, err)
 				})
@@ -710,7 +710,7 @@ func TestOpsCrudDocExists(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -732,7 +732,7 @@ func TestOpsCrudDocExists(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 		Expiry:       60,
@@ -780,7 +780,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 					Key:       key,
 					Value:     key,
 					Cas:       1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *SetResponse, err error) {
 					cb(resp, err)
 				})
@@ -792,7 +792,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key:       key,
 					Cas:       1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -805,7 +805,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 					Key:       key,
 					Value:     []byte("value"),
 					Cas:       1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -818,7 +818,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 					Key:       key,
 					Value:     []byte("value"),
 					Cas:       1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *SetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -830,7 +830,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 				return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
 					Key:       key,
 					Cas:       1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DeleteMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -841,7 +841,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Cas:       1,
 					Ops: []MutateInOp{
 						{
@@ -861,7 +861,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 			Op: func(opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Cas:       1,
 					Ops: []MutateInOp{
 						{
@@ -884,7 +884,7 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 		Expiry:       60,
@@ -925,7 +925,7 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 	})
@@ -937,7 +937,7 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 	}, OpsCrud.GetAndLock, cli, &GetAndLockRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 	})
 	require.NoError(t, err)
 
@@ -950,7 +950,7 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 	}, OpsCrud.Unlock, cli, &UnlockRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Cas:          res.Cas,
 	})
 	require.NoError(t, err)
@@ -971,7 +971,7 @@ func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 	})
@@ -983,7 +983,7 @@ func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
 	}, OpsCrud.GetAndLock, cli, &GetAndLockRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 	})
 	require.NoError(t, err)
 
@@ -996,7 +996,7 @@ func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
 	}, OpsCrud.Unlock, cli, &UnlockRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Cas:          222,
 	})
 	require.ErrorIs(t, err, ErrCasMismatch)
@@ -1017,7 +1017,7 @@ func TestOpsCrudTouch(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 	})
@@ -1029,7 +1029,7 @@ func TestOpsCrudTouch(t *testing.T) {
 	}, OpsCrud.Touch, cli, &TouchRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Expiry:       1,
 	})
 	require.NoError(t, err)
@@ -1055,7 +1055,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				return opsCrud.Set(cli, &SetRequest{
 					Key:       key,
 					Value:     key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *SetResponse, err error) {
 					cb(resp, err)
 				})
@@ -1067,7 +1067,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 		// 		return opsCrud.Unlock(cli, &UnlockRequest{
 		// 			Key:       key,
 		// 			Cas:       cas,
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *UnlockResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -1078,7 +1078,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -1090,7 +1090,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				return opsCrud.Add(cli, &AddRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *AddResponse, err error) {
 					cb(resp, err)
 				})
@@ -1103,7 +1103,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -1115,7 +1115,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				return opsCrud.Append(cli, &AppendRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
 				})
@@ -1127,7 +1127,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 				return opsCrud.Prepend(cli, &PrependRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
 				})
@@ -1138,7 +1138,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Increment(cli, &IncrementRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *IncrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -1150,7 +1150,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DecrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -1164,7 +1164,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 		// 			Key:   key,
 		// 			Value: []byte("value"),
 		// 			Cas:       cas, // For some reason Cas is required here.
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *SetMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -1175,7 +1175,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
 		// 			Key:       key,
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *DeleteMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -1186,7 +1186,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -1215,7 +1215,7 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     []byte("{\"key\": \"value\"}"),
 					Datatype:  uint8(0x01),
 				})
@@ -1267,7 +1267,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Set(cli, &SetRequest{
 					Key:       key,
 					Value:     usualExpectedValue,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *SetResponse, err error) {
 					cb(resp, err)
 				})
@@ -1280,7 +1280,7 @@ func TestOpsCrudMutations(t *testing.T) {
 		// 		return opsCrud.Unlock(cli, &UnlockRequest{
 		// 			Key:       key,
 		// 			Cas:       cas,
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *UnlockResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -1291,7 +1291,7 @@ func TestOpsCrudMutations(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -1304,7 +1304,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Add(cli, &AddRequest{
 					Key:       key,
 					Value:     usualExpectedValue,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *AddResponse, err error) {
 					cb(resp, err)
 				})
@@ -1318,7 +1318,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
 					Key:       key,
 					Value:     usualExpectedValue,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -1331,7 +1331,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Append(cli, &AppendRequest{
 					Key:       key,
 					Value:     usualExpectedValue,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
 				})
@@ -1344,7 +1344,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Prepend(cli, &PrependRequest{
 					Key:       key,
 					Value:     usualExpectedValue,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
 				})
@@ -1357,7 +1357,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Increment(cli, &IncrementRequest{
 					Key:       key,
 					Initial:   1,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *IncrementResponse, err error) {
 					if err != nil {
 						cb(nil, err)
@@ -1366,7 +1366,7 @@ func TestOpsCrudMutations(t *testing.T) {
 					_, err = opsCrud.Increment(cli, &IncrementRequest{
 						Key:       key,
 						Delta:     2,
-						VbucketID: 1,
+						VbucketID: defaultTestVbucketID,
 					}, func(response *IncrementResponse, err error) {
 						cb(resp, err)
 					})
@@ -1384,7 +1384,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
 					Key:       key,
 					Initial:   5,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 				}, func(resp *DecrementResponse, err error) {
 					if err != nil {
 						cb(nil, err)
@@ -1393,7 +1393,7 @@ func TestOpsCrudMutations(t *testing.T) {
 					_, err = opsCrud.Decrement(cli, &DecrementRequest{
 						Key:       key,
 						Delta:     2,
-						VbucketID: 1,
+						VbucketID: defaultTestVbucketID,
 					}, func(response *DecrementResponse, err error) {
 						cb(resp, err)
 					})
@@ -1412,7 +1412,7 @@ func TestOpsCrudMutations(t *testing.T) {
 		// 			Key:   key,
 		// 			Value: []byte("value"),
 		// 			Cas:       cas, // For some reason Cas is required here.
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *SetMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -1423,7 +1423,7 @@ func TestOpsCrudMutations(t *testing.T) {
 		// 	Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
 		// 			Key:       key,
-		// 			VbucketID: 1,
+		// 			VbucketID: defaultTestVbucketID,
 		// 		}, func(resp *DeleteMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
@@ -1435,7 +1435,7 @@ func TestOpsCrudMutations(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -1465,7 +1465,7 @@ func TestOpsCrudMutations(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     initialValue,
 					Datatype:  uint8(0x01),
 				})
@@ -1491,7 +1491,7 @@ func TestOpsCrudMutations(t *testing.T) {
 				ExtFramesEnabled:   true,
 			}, OpsCrud.Get, cli, &GetRequest{
 				Key:       key,
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 			})
 
 			if test.ExpectDeleted {
@@ -1523,7 +1523,7 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 	}, OpsCrud.Set, cli, &SetRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Value:        value,
 		Datatype:     datatype,
 		Expiry:       60,
@@ -1536,7 +1536,7 @@ func TestOpsCrudLookupinPathNotFound(t *testing.T) {
 	}, OpsCrud.LookupIn, cli, &LookupInRequest{
 		CollectionID: 0,
 		Key:          key,
-		VbucketID:    1,
+		VbucketID:    defaultTestVbucketID,
 		Ops: []LookupInOp{
 			{
 				Op:   LookupInOpTypeGet,
@@ -1571,7 +1571,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Set(cli, &SetRequest{
 					Key:             key,
 					Value:           usualExpectedValue,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *SetResponse, err error) {
 					cb(resp, err)
@@ -1584,7 +1584,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key:             key,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
@@ -1598,7 +1598,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Add(cli, &AddRequest{
 					Key:             key,
 					Value:           usualExpectedValue,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *AddResponse, err error) {
 					cb(resp, err)
@@ -1613,7 +1613,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
 					Key:             key,
 					Value:           usualExpectedValue,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
@@ -1627,7 +1627,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Append(cli, &AppendRequest{
 					Key:             key,
 					Value:           usualExpectedValue,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
@@ -1641,7 +1641,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Prepend(cli, &PrependRequest{
 					Key:             key,
 					Value:           usualExpectedValue,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
@@ -1655,7 +1655,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Increment(cli, &IncrementRequest{
 					Key:             key,
 					Initial:         1,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *IncrementResponse, err error) {
 					if err != nil {
@@ -1665,7 +1665,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					_, err = opsCrud.Increment(cli, &IncrementRequest{
 						Key:       key,
 						Delta:     2,
-						VbucketID: 1,
+						VbucketID: defaultTestVbucketID,
 					}, func(response *IncrementResponse, err error) {
 						cb(resp, err)
 					})
@@ -1683,7 +1683,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
 					Key:             key,
 					Initial:         5,
-					VbucketID:       1,
+					VbucketID:       defaultTestVbucketID,
 					DurabilityLevel: DurabilityLevelMajority,
 				}, func(resp *DecrementResponse, err error) {
 					if err != nil {
@@ -1693,7 +1693,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					_, err = opsCrud.Decrement(cli, &DecrementRequest{
 						Key:       key,
 						Delta:     2,
-						VbucketID: 1,
+						VbucketID: defaultTestVbucketID,
 					}, func(response *DecrementResponse, err error) {
 						cb(resp, err)
 					})
@@ -1710,7 +1710,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -1732,7 +1732,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Set(cli, &SetRequest{
 					Key:                    key,
 					Value:                  usualExpectedValue,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *SetResponse, err error) {
@@ -1746,7 +1746,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					Key:                    key,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *DeleteResponse, err error) {
@@ -1761,7 +1761,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Add(cli, &AddRequest{
 					Key:                    key,
 					Value:                  usualExpectedValue,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *AddResponse, err error) {
@@ -1777,7 +1777,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
 					Key:                    key,
 					Value:                  usualExpectedValue,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *ReplaceResponse, err error) {
@@ -1792,7 +1792,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Append(cli, &AppendRequest{
 					Key:                    key,
 					Value:                  usualExpectedValue,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *AppendResponse, err error) {
@@ -1807,7 +1807,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Prepend(cli, &PrependRequest{
 					Key:                    key,
 					Value:                  usualExpectedValue,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *PrependResponse, err error) {
@@ -1822,7 +1822,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Increment(cli, &IncrementRequest{
 					Key:                    key,
 					Initial:                1,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *IncrementResponse, err error) {
@@ -1833,7 +1833,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					_, err = opsCrud.Increment(cli, &IncrementRequest{
 						Key:       key,
 						Delta:     2,
-						VbucketID: 1,
+						VbucketID: defaultTestVbucketID,
 					}, func(response *IncrementResponse, err error) {
 						cb(resp, err)
 					})
@@ -1851,7 +1851,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
 					Key:                    key,
 					Initial:                5,
-					VbucketID:              1,
+					VbucketID:              defaultTestVbucketID,
 					DurabilityLevel:        DurabilityLevelMajority,
 					DurabilityLevelTimeout: 10 * time.Second,
 				}, func(resp *DecrementResponse, err error) {
@@ -1862,7 +1862,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					_, err = opsCrud.Decrement(cli, &DecrementRequest{
 						Key:       key,
 						Delta:     2,
-						VbucketID: 1,
+						VbucketID: defaultTestVbucketID,
 					}, func(response *DecrementResponse, err error) {
 						cb(resp, err)
 					})
@@ -1879,7 +1879,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.MutateIn(cli, &MutateInRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Ops: []MutateInOp{
 						{
 							Op:    MutateInOpTypeDictSet,
@@ -1911,7 +1911,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     initialValue,
 					Datatype:  uint8(0x01),
 				})
@@ -1939,7 +1939,7 @@ func TestOpsCrudMutationsDurabilityLevel(t *testing.T) {
 				DurabilityEnabled:  true,
 			}, OpsCrud.Get, cli, &GetRequest{
 				Key:       key,
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 			})
 
 			if test.ExpectDeleted {
@@ -1975,7 +1975,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 			ExtFramesEnabled:   true,
 		}, OpsCrud.Set, cli, &SetRequest{
 			Key:       key,
-			VbucketID: 1,
+			VbucketID: defaultTestVbucketID,
 			Value:     initialValue,
 			Datatype:  uint8(0x01),
 		})
@@ -2029,7 +2029,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "InvalidXattrOrder",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					makeGetSubdocOp(),
 					{
@@ -2045,7 +2045,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		// {
 		// 	Name: "InvalidXattrFlagCombo",
 		// 	Request: &LookupInRequest{
-		// 		VbucketID: 1,
+		// 		VbucketID: defaultTestVbucketID,
 		// 		Ops: []LookupInOp{
 		// 			{
 		// 				Op:    LookupInOpTypeGet,
@@ -2061,7 +2061,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "InvalidXattrKeyCombo",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					{
 						Op:    LookupInOpTypeGet,
@@ -2085,7 +2085,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "DocTooDeep",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					makeGetSubdocOp(),
 				},
@@ -2110,7 +2110,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     b,
 					Datatype:  uint8(0x01),
 				})
@@ -2120,7 +2120,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocNotJSON",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					makeGetSubdocOp(),
 				},
@@ -2133,7 +2133,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     []byte("imnotjson"),
 					Datatype:  uint8(0x01),
 				})
@@ -2143,7 +2143,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathNotFound",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					{
 						Op:   LookupInOpTypeGet,
@@ -2158,7 +2158,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathMismatch",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					{
 						Op:   LookupInOpTypeGet,
@@ -2173,7 +2173,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathInvalid",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					{
 						Op:   LookupInOpTypeGet,
@@ -2188,7 +2188,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		// {
 		// 	Name: "SubDocPathTooBig",
 		// 	Request: &LookupInRequest{
-		// 		VbucketID: 1,
+		// 		VbucketID: defaultTestVbucketID,
 		// 		Ops: []LookupInOp{
 		// 			{
 		// 				Op:   LookupInOpTypeGet,
@@ -2203,7 +2203,7 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocUnknownVattr",
 			Request: &LookupInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []LookupInOp{
 					{
 						Op:    LookupInOpTypeGet,
@@ -2291,7 +2291,7 @@ func TestOpsCrudLookupInMultipleErrorAndSuccess(t *testing.T) {
 		dispatcher,
 		&LookupInRequest{
 			Key:       []byte(uuid.NewString()[:6]),
-			VbucketID: 1,
+			VbucketID: defaultTestVbucketID,
 			Ops: []LookupInOp{
 				{
 					Op:   LookupInOpTypeGet,
@@ -2337,7 +2337,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 			ExtFramesEnabled:   true,
 		}, OpsCrud.Set, cli, &SetRequest{
 			Key:       key,
-			VbucketID: 1,
+			VbucketID: defaultTestVbucketID,
 			Value:     initialValue,
 			Datatype:  uint8(0x01),
 		})
@@ -2356,7 +2356,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "DocNotFound",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 				},
@@ -2366,7 +2366,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "DocExists",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 				},
@@ -2378,7 +2378,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "CasMismatch",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 				},
@@ -2390,7 +2390,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "InvalidCombo",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 					makeSetSubdocOp(),
@@ -2417,7 +2417,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "InvalidXattrOrder",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 					{
@@ -2434,7 +2434,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "InvalidXattrKeyCombo",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeDictSet,
@@ -2457,7 +2457,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "XattrUnknownMacro",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeDictSet,
@@ -2473,7 +2473,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "XattrCannotModifyVattr",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeDictSet,
@@ -2489,7 +2489,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "CanOnlyReviveDeletedDocuments",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 				},
@@ -2501,7 +2501,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		// {
 		// Name: "DeletedDocumentCantHaveValue",
 		// Request: &MutateInRequest{
-		// 	VbucketID: 1,
+		// 	VbucketID: defaultTestVbucketID,
 		// 	Ops: []MutateInOp{
 		// 		makeSetSubdocOp(),
 		// 	},
@@ -2514,7 +2514,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "DocTooDeep",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 				},
@@ -2539,7 +2539,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     b,
 					Datatype:  uint8(0x01),
 				})
@@ -2549,7 +2549,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocNotJSON",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					makeSetSubdocOp(),
 				},
@@ -2562,7 +2562,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 					ExtFramesEnabled:   true,
 				}, OpsCrud.Set, cli, &SetRequest{
 					Key:       key,
-					VbucketID: 1,
+					VbucketID: defaultTestVbucketID,
 					Value:     []byte("imnotjson"),
 					Datatype:  uint8(0x01),
 				})
@@ -2572,7 +2572,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathNotFound",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeReplace,
@@ -2588,7 +2588,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathMismatch",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeDictSet,
@@ -2604,7 +2604,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathInvalid",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeDictSet,
@@ -2620,7 +2620,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		// {
 		// 	Name: "SubDocPathTooBig",
 		// 	Request: &MutateInRequest{
-		// 		VbucketID: 1,
+		// 		VbucketID: defaultTestVbucketID,
 		// 		Ops: []MutateInOp{
 		// 			{
 		// 				Op:    MutateInOpTypeDictSet,
@@ -2636,7 +2636,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		// {
 		// 	Name: "SubDocBadRange",
 		// 	Request: &MutateInRequest{
-		// 		VbucketID: 1,
+		// 		VbucketID: defaultTestVbucketID,
 		// 		Ops: []MutateInOp{
 		// 			{
 		// 				Op:    MutateInOpTypeCounter,
@@ -2652,7 +2652,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocBadDelta",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeCounter,
@@ -2668,7 +2668,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		{
 			Name: "SubDocPathExists",
 			Request: &MutateInRequest{
-				VbucketID: 1,
+				VbucketID: defaultTestVbucketID,
 				Ops: []MutateInOp{
 					{
 						Op:    MutateInOpTypeDictAdd,
@@ -2684,7 +2684,7 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 		// {
 		// 	Name: "SubDocValueTooDeep",
 		// 	Request: &MutateInRequest{
-		// 		VbucketID: 1,
+		// 		VbucketID: defaultTestVbucketID,
 		// 		Ops: []MutateInOp{
 		// 			{
 		// 				Op:    MutateInOpTypeCounter,
