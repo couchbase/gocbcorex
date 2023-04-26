@@ -25,7 +25,7 @@ func TestClientOpCancellation(t *testing.T) {
 		Magic:     MagicReq,
 		OpCode:    OpCodeGet,
 		Key:       key,
-		VbucketID: 1,
+		VbucketID: defaultTestVbucketID,
 	}, func(packet *Packet, err error) bool {
 		result <- unaryResult[*Packet]{
 			Resp: packet,
@@ -56,7 +56,7 @@ func TestClientOpCancellationAfterResult(t *testing.T) {
 		Magic:     MagicReq,
 		OpCode:    OpCodeGet,
 		Key:       key,
-		VbucketID: 1,
+		VbucketID: defaultTestVbucketID,
 	}, func(packet *Packet, err error) bool {
 		result <- unaryResult[*Packet]{
 			Resp: packet,
