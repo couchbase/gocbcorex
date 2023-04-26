@@ -80,6 +80,15 @@ var _ KvClient = &KvClientMock{}
 //			PrependFunc: func(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error) {
 //				panic("mock out the Prepend method")
 //			},
+//			RangeScanCancelFunc: func(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error) {
+//				panic("mock out the RangeScanCancel method")
+//			},
+//			RangeScanContinueFunc: func(ctx context.Context, req *memdx.RangeScanContinueRequest, dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error) {
+//				panic("mock out the RangeScanContinue method")
+//			},
+//			RangeScanCreateFunc: func(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error) {
+//				panic("mock out the RangeScanCreate method")
+//			},
 //			ReconfigureFunc: func(config *KvClientConfig, cb func(error)) error {
 //				panic("mock out the Reconfigure method")
 //			},
@@ -167,6 +176,15 @@ type KvClientMock struct {
 
 	// PrependFunc mocks the Prepend method.
 	PrependFunc func(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error)
+
+	// RangeScanCancelFunc mocks the RangeScanCancel method.
+	RangeScanCancelFunc func(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error)
+
+	// RangeScanContinueFunc mocks the RangeScanContinue method.
+	RangeScanContinueFunc func(ctx context.Context, req *memdx.RangeScanContinueRequest, dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error)
+
+	// RangeScanCreateFunc mocks the RangeScanCreate method.
+	RangeScanCreateFunc func(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
 	ReconfigureFunc func(config *KvClientConfig, cb func(error)) error
@@ -321,6 +339,29 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.PrependRequest
 		}
+		// RangeScanCancel holds details about calls to the RangeScanCancel method.
+		RangeScanCancel []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.RangeScanCancelRequest
+		}
+		// RangeScanContinue holds details about calls to the RangeScanContinue method.
+		RangeScanContinue []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.RangeScanContinueRequest
+			// DataCb is the dataCb argument value.
+			DataCb func(*memdx.RangeScanDataResponse) error
+		}
+		// RangeScanCreate holds details about calls to the RangeScanCreate method.
+		RangeScanCreate []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.RangeScanCreateRequest
+		}
 		// Reconfigure holds details about calls to the Reconfigure method.
 		Reconfigure []struct {
 			// Config is the config argument value.
@@ -367,33 +408,36 @@ type KvClientMock struct {
 			Req *memdx.UnlockRequest
 		}
 	}
-	lockAdd              sync.RWMutex
-	lockAppend           sync.RWMutex
-	lockClose            sync.RWMutex
-	lockDecrement        sync.RWMutex
-	lockDelete           sync.RWMutex
-	lockDeleteMeta       sync.RWMutex
-	lockGet              sync.RWMutex
-	lockGetAndLock       sync.RWMutex
-	lockGetAndTouch      sync.RWMutex
-	lockGetClusterConfig sync.RWMutex
-	lockGetCollectionID  sync.RWMutex
-	lockGetMeta          sync.RWMutex
-	lockGetRandom        sync.RWMutex
-	lockGetReplica       sync.RWMutex
-	lockHasFeature       sync.RWMutex
-	lockIncrement        sync.RWMutex
-	lockLoadFactor       sync.RWMutex
-	lockLookupIn         sync.RWMutex
-	lockMutateIn         sync.RWMutex
-	lockPrepend          sync.RWMutex
-	lockReconfigure      sync.RWMutex
-	lockRemoteAddress    sync.RWMutex
-	lockReplace          sync.RWMutex
-	lockSet              sync.RWMutex
-	lockSetMeta          sync.RWMutex
-	lockTouch            sync.RWMutex
-	lockUnlock           sync.RWMutex
+	lockAdd               sync.RWMutex
+	lockAppend            sync.RWMutex
+	lockClose             sync.RWMutex
+	lockDecrement         sync.RWMutex
+	lockDelete            sync.RWMutex
+	lockDeleteMeta        sync.RWMutex
+	lockGet               sync.RWMutex
+	lockGetAndLock        sync.RWMutex
+	lockGetAndTouch       sync.RWMutex
+	lockGetClusterConfig  sync.RWMutex
+	lockGetCollectionID   sync.RWMutex
+	lockGetMeta           sync.RWMutex
+	lockGetRandom         sync.RWMutex
+	lockGetReplica        sync.RWMutex
+	lockHasFeature        sync.RWMutex
+	lockIncrement         sync.RWMutex
+	lockLoadFactor        sync.RWMutex
+	lockLookupIn          sync.RWMutex
+	lockMutateIn          sync.RWMutex
+	lockPrepend           sync.RWMutex
+	lockRangeScanCancel   sync.RWMutex
+	lockRangeScanContinue sync.RWMutex
+	lockRangeScanCreate   sync.RWMutex
+	lockReconfigure       sync.RWMutex
+	lockRemoteAddress     sync.RWMutex
+	lockReplace           sync.RWMutex
+	lockSet               sync.RWMutex
+	lockSetMeta           sync.RWMutex
+	lockTouch             sync.RWMutex
+	lockUnlock            sync.RWMutex
 }
 
 // Add calls AddFunc.
@@ -1091,6 +1135,118 @@ func (mock *KvClientMock) PrependCalls() []struct {
 	mock.lockPrepend.RLock()
 	calls = mock.calls.Prepend
 	mock.lockPrepend.RUnlock()
+	return calls
+}
+
+// RangeScanCancel calls RangeScanCancelFunc.
+func (mock *KvClientMock) RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error) {
+	if mock.RangeScanCancelFunc == nil {
+		panic("KvClientMock.RangeScanCancelFunc: method is nil but KvClient.RangeScanCancel was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.RangeScanCancelRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockRangeScanCancel.Lock()
+	mock.calls.RangeScanCancel = append(mock.calls.RangeScanCancel, callInfo)
+	mock.lockRangeScanCancel.Unlock()
+	return mock.RangeScanCancelFunc(ctx, req)
+}
+
+// RangeScanCancelCalls gets all the calls that were made to RangeScanCancel.
+// Check the length with:
+//
+//	len(mockedKvClient.RangeScanCancelCalls())
+func (mock *KvClientMock) RangeScanCancelCalls() []struct {
+	Ctx context.Context
+	Req *memdx.RangeScanCancelRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.RangeScanCancelRequest
+	}
+	mock.lockRangeScanCancel.RLock()
+	calls = mock.calls.RangeScanCancel
+	mock.lockRangeScanCancel.RUnlock()
+	return calls
+}
+
+// RangeScanContinue calls RangeScanContinueFunc.
+func (mock *KvClientMock) RangeScanContinue(ctx context.Context, req *memdx.RangeScanContinueRequest, dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error) {
+	if mock.RangeScanContinueFunc == nil {
+		panic("KvClientMock.RangeScanContinueFunc: method is nil but KvClient.RangeScanContinue was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Req    *memdx.RangeScanContinueRequest
+		DataCb func(*memdx.RangeScanDataResponse) error
+	}{
+		Ctx:    ctx,
+		Req:    req,
+		DataCb: dataCb,
+	}
+	mock.lockRangeScanContinue.Lock()
+	mock.calls.RangeScanContinue = append(mock.calls.RangeScanContinue, callInfo)
+	mock.lockRangeScanContinue.Unlock()
+	return mock.RangeScanContinueFunc(ctx, req, dataCb)
+}
+
+// RangeScanContinueCalls gets all the calls that were made to RangeScanContinue.
+// Check the length with:
+//
+//	len(mockedKvClient.RangeScanContinueCalls())
+func (mock *KvClientMock) RangeScanContinueCalls() []struct {
+	Ctx    context.Context
+	Req    *memdx.RangeScanContinueRequest
+	DataCb func(*memdx.RangeScanDataResponse) error
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Req    *memdx.RangeScanContinueRequest
+		DataCb func(*memdx.RangeScanDataResponse) error
+	}
+	mock.lockRangeScanContinue.RLock()
+	calls = mock.calls.RangeScanContinue
+	mock.lockRangeScanContinue.RUnlock()
+	return calls
+}
+
+// RangeScanCreate calls RangeScanCreateFunc.
+func (mock *KvClientMock) RangeScanCreate(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error) {
+	if mock.RangeScanCreateFunc == nil {
+		panic("KvClientMock.RangeScanCreateFunc: method is nil but KvClient.RangeScanCreate was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.RangeScanCreateRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockRangeScanCreate.Lock()
+	mock.calls.RangeScanCreate = append(mock.calls.RangeScanCreate, callInfo)
+	mock.lockRangeScanCreate.Unlock()
+	return mock.RangeScanCreateFunc(ctx, req)
+}
+
+// RangeScanCreateCalls gets all the calls that were made to RangeScanCreate.
+// Check the length with:
+//
+//	len(mockedKvClient.RangeScanCreateCalls())
+func (mock *KvClientMock) RangeScanCreateCalls() []struct {
+	Ctx context.Context
+	Req *memdx.RangeScanCreateRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.RangeScanCreateRequest
+	}
+	mock.lockRangeScanCreate.RLock()
+	calls = mock.calls.RangeScanCreate
+	mock.lockRangeScanCreate.RUnlock()
 	return calls
 }
 
