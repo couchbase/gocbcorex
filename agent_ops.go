@@ -151,3 +151,16 @@ func (agent *Agent) UpsertSearchIndex(ctx context.Context, opts *cbsearchx.Upser
 func (agent *Agent) DeleteSearchIndex(ctx context.Context, opts *cbsearchx.DeleteIndexOptions) error {
 	return agent.search.DeleteIndex(ctx, opts)
 }
+
+func (agent *Agent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
+	return agent.crud.RangeScanCreate(ctx, opts)
+}
+
+func (agent *Agent) RangeScanContinue(ctx context.Context, opts *RangeScanContinueOptions,
+	dataCb func(RangeScanContinueDataResult)) (*RangeScanContinueResult, error) {
+	return agent.crud.RangeScanContinue(ctx, opts, dataCb)
+}
+
+func (agent *Agent) RangeScanCancel(ctx context.Context, opts *RangeScanCancelOptions) (*RangeScanCancelResult, error) {
+	return agent.crud.RangeScanCancel(ctx, opts)
+}

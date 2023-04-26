@@ -232,3 +232,61 @@ func (c *kvClient) LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*m
 func (c *kvClient) MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.MutateIn, req)
 }
+
+func (c *kvClient) RangeScanCreate(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.RangeScanCreate, req)
+}
+
+func (c *kvClient) RangeScanContinue(ctx context.Context, req *memdx.RangeScanContinueRequest,
+	dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error) {
+	resulter := allocSyncCrudResulter()
+	errChan := make(chan error, 1)
+	var calledBack uint32
+
+	pendingOp, err := memdx.OpsCrud{
+		ExtFramesEnabled:      c.HasFeature(memdx.HelloFeatureAltRequests),
+		CollectionsEnabled:    c.HasFeature(memdx.HelloFeatureCollections),
+		DurabilityEnabled:     c.HasFeature(memdx.HelloFeatureSyncReplication),
+		PreserveExpiryEnabled: c.HasFeature(memdx.HelloFeaturePreserveExpiry),
+	}.RangeScanContinue(c.cli, req, func(resp *memdx.RangeScanDataResponse) {
+		err := dataCb(resp)
+		if err != nil {
+			errChan <- err
+		}
+	}, func(resp *memdx.RangeScanActionResponse, err error) {
+		if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
+			resulter.Ch <- syncCrudResult{
+				Result: resp,
+				Err:    err,
+			}
+		} else {
+			c.logger.DPanic("callback invoked twice", zap.Any("resp", resp), zap.Error(err))
+		}
+	})
+	if err != nil {
+		releaseSyncCrudResulter(resulter)
+		return nil, KvClientDispatchError{err}
+	}
+
+	select {
+	case err := <-errChan:
+		pendingOp.Cancel(err)
+
+		res := <-resulter.Ch
+		releaseSyncCrudResulter(resulter)
+		return res.Result.(*memdx.RangeScanActionResponse), res.Err
+	case res := <-resulter.Ch:
+		releaseSyncCrudResulter(resulter)
+		return res.Result.(*memdx.RangeScanActionResponse), res.Err
+	case <-ctx.Done():
+		pendingOp.Cancel(ctx.Err())
+
+		res := <-resulter.Ch
+		releaseSyncCrudResulter(resulter)
+		return res.Result.(*memdx.RangeScanActionResponse), res.Err
+	}
+}
+
+func (c *kvClient) RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.RangeScanCancel, req)
+}
