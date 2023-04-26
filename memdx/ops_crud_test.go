@@ -199,7 +199,8 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "GetAndLock",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndLock(cli, &GetAndLockRequest{
-					Key: key,
+					Key:       key,
+					VbucketID: 1,
 				}, func(resp *GetAndLockResponse, err error) {
 					cb(resp, err)
 				})
@@ -209,7 +210,8 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "GetAndTouch",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
-					Key: key,
+					Key:       key,
+					VbucketID: 1,
 				}, func(resp *GetAndTouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -219,8 +221,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Unlock",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Unlock(cli, &UnlockRequest{
-					Key: key,
-					Cas: 1,
+					Key:       key,
+					Cas:       1,
+					VbucketID: 1,
 				}, func(resp *UnlockResponse, err error) {
 					cb(resp, err)
 				})
@@ -230,8 +233,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Touch",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Touch(cli, &TouchRequest{
-					Key:    key,
-					Expiry: 60,
+					Key:       key,
+					Expiry:    60,
+					VbucketID: 1,
 				}, func(resp *TouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -241,7 +245,8 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Delete",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Delete(cli, &DeleteRequest{
-					Key: key,
+					Key:       key,
+					VbucketID: 1,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -251,8 +256,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Replace",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Replace(cli, &ReplaceRequest{
-					Key:   key,
-					Value: []byte("value"),
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -262,8 +268,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Append",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Append(cli, &AppendRequest{
-					Key:   key,
-					Value: []byte("value"),
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
 				})
@@ -273,8 +280,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Prepend",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Prepend(cli, &PrependRequest{
-					Key:   key,
-					Value: []byte("value"),
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: 1,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
 				})
@@ -284,8 +292,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Increment",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Increment(cli, &IncrementRequest{
-					Key:     key,
-					Initial: uint64(0xFFFFFFFFFFFFFFFF),
+					Key:       key,
+					Initial:   uint64(0xFFFFFFFFFFFFFFFF),
+					VbucketID: 1,
 				}, func(resp *IncrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -295,8 +304,9 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "Decrement",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.Decrement(cli, &DecrementRequest{
-					Key:     key,
-					Initial: uint64(0xFFFFFFFFFFFFFFFF),
+					Key:       key,
+					Initial:   uint64(0xFFFFFFFFFFFFFFFF),
+					VbucketID: 1,
 				}, func(resp *DecrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -306,7 +316,8 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 			Name: "GetMeta",
 			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
 				return opsCrud.GetMeta(cli, &GetMetaRequest{
-					Key: key,
+					Key:       key,
+					VbucketID: 1,
 				}, func(resp *GetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -424,6 +435,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.GetAndLock(cli, &GetAndLockRequest{
 					CollectionID: 2222,
 					Key:          key,
+					VbucketID:    1,
 				}, func(resp *GetAndLockResponse, err error) {
 					cb(resp, err)
 				})
@@ -435,6 +447,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
 					CollectionID: 2222,
 					Key:          key,
+					VbucketID:    1,
 				}, func(resp *GetAndTouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -447,6 +460,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        key,
+					VbucketID:    1,
 				}, func(resp *SetResponse, err error) {
 					cb(resp, err)
 				})
@@ -459,6 +473,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Cas:          1,
+					VbucketID:    1,
 				}, func(resp *UnlockResponse, err error) {
 					cb(resp, err)
 				})
@@ -471,6 +486,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Expiry:       60,
+					VbucketID:    1,
 				}, func(resp *TouchResponse, err error) {
 					cb(resp, err)
 				})
@@ -482,6 +498,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.Delete(cli, &DeleteRequest{
 					CollectionID: 2222,
 					Key:          key,
+					VbucketID:    1,
 				}, func(resp *DeleteResponse, err error) {
 					cb(resp, err)
 				})
@@ -494,6 +511,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
+					VbucketID:    1,
 				}, func(resp *AddResponse, err error) {
 					cb(resp, err)
 				})
@@ -506,6 +524,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
+					VbucketID:    1,
 				}, func(resp *ReplaceResponse, err error) {
 					cb(resp, err)
 				})
@@ -518,6 +537,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
+					VbucketID:    1,
 				}, func(resp *AppendResponse, err error) {
 					cb(resp, err)
 				})
@@ -530,6 +550,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
+					VbucketID:    1,
 				}, func(resp *PrependResponse, err error) {
 					cb(resp, err)
 				})
@@ -542,6 +563,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
+					VbucketID:    1,
 				}, func(resp *IncrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -554,6 +576,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					CollectionID: 2222,
 					Key:          key,
 					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
+					VbucketID:    1,
 				}, func(resp *DecrementResponse, err error) {
 					cb(resp, err)
 				})
@@ -565,6 +588,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return opsCrud.GetMeta(cli, &GetMetaRequest{
 					CollectionID: 2222,
 					Key:          key,
+					VbucketID:    1,
 				}, func(resp *GetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -578,6 +602,7 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 					Key:          key,
 					Value:        []byte("value"),
 					Cas:          1, // For some reason Cas is required here.
+					VbucketID:    1,
 				}, func(resp *SetMetaResponse, err error) {
 					cb(resp, err)
 				})
