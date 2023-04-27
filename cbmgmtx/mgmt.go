@@ -297,15 +297,23 @@ type CreateScopeOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
+type CreateScopeResponse struct {
+	ManifestUid string
+}
+
+type manifestUidJSON struct {
+	ManifestUid string `json:"uid"`
+}
+
 func (h Management) CreateScope(
 	ctx context.Context,
 	opts *CreateScopeOptions,
-) error {
+) (*CreateScopeResponse, error) {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when creating a scope")
+		return nil, errors.New("must specify bucket name when creating a scope")
 	}
 	if opts.ScopeName == "" {
-		return errors.New("must specify scope name when creating a scope")
+		return nil, errors.New("must specify scope name when creating a scope")
 	}
 
 	posts := url.Values{}
@@ -317,15 +325,24 @@ func (h Management) CreateScope(
 		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp)
 	}
 
-	return nil
+	var createResp *manifestUidJSON
+	jsonDec := json.NewDecoder(resp.Body)
+	err = jsonDec.Decode(&createResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateScopeResponse{
+		ManifestUid: createResp.ManifestUid,
+	}, nil
 }
 
 type DeleteScopeOptions struct {
@@ -334,15 +351,19 @@ type DeleteScopeOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
+type DeleteScopeResponse struct {
+	ManifestUid string
+}
+
 func (h Management) DeleteScope(
 	ctx context.Context,
 	opts *DeleteScopeOptions,
-) error {
+) (*DeleteScopeResponse, error) {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when deleting a scope")
+		return nil, errors.New("must specify bucket name when deleting a scope")
 	}
 	if opts.ScopeName == "" {
-		return errors.New("must specify scope name when deleting a scope")
+		return nil, errors.New("must specify scope name when deleting a scope")
 	}
 
 	resp, err := h.Execute(
@@ -351,15 +372,24 @@ func (h Management) DeleteScope(
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", opts.BucketName, opts.ScopeName),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp)
 	}
 
-	return nil
+	var deleteResp *manifestUidJSON
+	jsonDec := json.NewDecoder(resp.Body)
+	err = jsonDec.Decode(&deleteResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeleteScopeResponse{
+		ManifestUid: deleteResp.ManifestUid,
+	}, nil
 }
 
 type CreateCollectionOptions struct {
@@ -370,18 +400,22 @@ type CreateCollectionOptions struct {
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
+type CreateCollectionResponse struct {
+	ManifestUid string
+}
+
 func (h Management) CreateCollection(
 	ctx context.Context,
 	opts *CreateCollectionOptions,
-) error {
+) (*CreateCollectionResponse, error) {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when creating a collection")
+		return nil, errors.New("must specify bucket name when creating a collection")
 	}
 	if opts.ScopeName == "" {
-		return errors.New("must specify scope name when creating a collection")
+		return nil, errors.New("must specify scope name when creating a collection")
 	}
 	if opts.CollectionName == "" {
-		return errors.New("must specify collection name when creating a collection")
+		return nil, errors.New("must specify collection name when creating a collection")
 	}
 
 	posts := url.Values{}
@@ -397,15 +431,24 @@ func (h Management) CreateCollection(
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", opts.BucketName, opts.ScopeName),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp)
 	}
 
-	return nil
+	var createResp *manifestUidJSON
+	jsonDec := json.NewDecoder(resp.Body)
+	err = jsonDec.Decode(&createResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateCollectionResponse{
+		ManifestUid: createResp.ManifestUid,
+	}, nil
 }
 
 type DeleteCollectionOptions struct {
@@ -415,18 +458,22 @@ type DeleteCollectionOptions struct {
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
+type DeleteCollectionResponse struct {
+	ManifestUid string
+}
+
 func (h Management) DeleteCollection(
 	ctx context.Context,
 	opts *DeleteCollectionOptions,
-) error {
+) (*DeleteCollectionResponse, error) {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when deleting a collection")
+		return nil, errors.New("must specify bucket name when deleting a collection")
 	}
 	if opts.ScopeName == "" {
-		return errors.New("must specify scope name when deleting a collection")
+		return nil, errors.New("must specify scope name when deleting a collection")
 	}
 	if opts.CollectionName == "" {
-		return errors.New("must specify collection name when deleting a collection")
+		return nil, errors.New("must specify collection name when deleting a collection")
 	}
 
 	resp, err := h.Execute(
@@ -435,15 +482,24 @@ func (h Management) DeleteCollection(
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp)
 	}
 
-	return nil
+	var deleteResp *manifestUidJSON
+	jsonDec := json.NewDecoder(resp.Body)
+	err = jsonDec.Decode(&deleteResp)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DeleteCollectionResponse{
+		ManifestUid: deleteResp.ManifestUid,
+	}, nil
 }
 
 type MutableBucketSettings struct {

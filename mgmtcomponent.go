@@ -111,20 +111,20 @@ func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetCollectionManifest, opts)
 }
 
-func (w *MgmtComponent) CreateScope(ctx context.Context, opts *cbmgmtx.CreateScopeOptions) error {
-	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.CreateScope, opts)
+func (w *MgmtComponent) CreateScope(ctx context.Context, opts *cbmgmtx.CreateScopeOptions) (*cbmgmtx.CreateScopeResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.CreateScope, opts)
 }
 
-func (w *MgmtComponent) DeleteScope(ctx context.Context, opts *cbmgmtx.DeleteScopeOptions) error {
-	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteScope, opts)
+func (w *MgmtComponent) DeleteScope(ctx context.Context, opts *cbmgmtx.DeleteScopeOptions) (*cbmgmtx.DeleteScopeResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.DeleteScope, opts)
 }
 
-func (w *MgmtComponent) CreateCollection(ctx context.Context, opts *cbmgmtx.CreateCollectionOptions) error {
-	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.CreateCollection, opts)
+func (w *MgmtComponent) CreateCollection(ctx context.Context, opts *cbmgmtx.CreateCollectionOptions) (*cbmgmtx.CreateCollectionResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.CreateCollection, opts)
 }
 
-func (w *MgmtComponent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) error {
-	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteCollection, opts)
+func (w *MgmtComponent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) (*cbmgmtx.DeleteCollectionResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.DeleteCollection, opts)
 }
 
 func (w *MgmtComponent) GetAllBuckets(ctx context.Context, opts *cbmgmtx.GetAllBucketsOptions) ([]*cbmgmtx.BucketDef, error) {
