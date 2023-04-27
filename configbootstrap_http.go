@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -131,6 +132,10 @@ func (w ConfigBootstrapHttp) Bootstrap(ctx context.Context) (*ParsedConfig, stri
 			w.bucketName,
 		)
 		if err != nil {
+			if errors.Is(err, cbmgmtx.ErrBucketNotFound) {
+				return nil, "", err
+			}
+
 			attemptErrs[endpoint] = err
 			continue
 		}
