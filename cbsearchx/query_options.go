@@ -74,7 +74,9 @@ type QueryOptions struct {
 	Size             int
 	Sort             []Sort
 
-	IndexName string
+	IndexName  string
+	ScopeName  string
+	BucketName string
 
 	Raw map[string]json.RawMessage
 

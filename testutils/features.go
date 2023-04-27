@@ -9,11 +9,13 @@ import (
 type TestFeature string
 
 const (
-	TestFeatureRangeScan TestFeature = "range-scan"
+	TestFeatureRangeScan    TestFeature = "range-scan"
+	TestFeatureScopedSearch TestFeature = "scoped-search"
 )
 
 var AllTestFeatures = []TestFeature{
 	TestFeatureRangeScan,
+	TestFeatureScopedSearch,
 }
 
 func SupportsFeature(feat TestFeature) bool {

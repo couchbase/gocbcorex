@@ -70,7 +70,15 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 		return nil, err
 	}
 
-	reqURI := fmt.Sprintf("/api/index/%s/query", opts.IndexName)
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s/query", opts.IndexName)
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return nil, errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/query", opts.BucketName, opts.ScopeName, opts.IndexName)
+	}
 
 	resp, err := h.Execute(
 		ctx,
@@ -92,6 +100,8 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 }
 
 type UpsertIndexOptions struct {
+	BucketName string
+	ScopeName  string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 	Index
 }
@@ -107,6 +117,16 @@ func (h Search) UpsertIndex(
 		return errors.New("must specify index type when creating an index")
 	}
 
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s", opts.Name)
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.Name)
+	}
+
 	iJson, err := h.encodeIndex(&opts.Index)
 	if err != nil {
 		return err
@@ -115,7 +135,7 @@ func (h Search) UpsertIndex(
 	resp, err := h.Execute(
 		ctx,
 		"PUT",
-		fmt.Sprintf("/api/index/%s", opts.Name),
+		reqURI,
 		"application/json",
 		opts.OnBehalfOf,
 		map[string]string{"cache-control": "no-cache"},
@@ -133,6 +153,8 @@ func (h Search) UpsertIndex(
 }
 
 type DeleteIndexOptions struct {
+	BucketName string
+	ScopeName  string
 	IndexName  string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
@@ -145,10 +167,20 @@ func (h Search) DeleteIndex(
 		return errors.New("must specify index name when deleting an index")
 	}
 
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s", opts.IndexName)
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.IndexName)
+	}
+
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/api/index/%s", opts.IndexName),
+		reqURI,
 		"application/json",
 		opts.OnBehalfOf,
 		map[string]string{"cache-control": "no-cache"},
