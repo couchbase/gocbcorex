@@ -36,19 +36,19 @@ func TestHttpMgmtCollections(t *testing.T) {
 	testScopeName := "testscope-" + testutils.TestOpts.RunName
 	testCollectionName := "testscope-" + testutils.TestOpts.RunName
 
-	err := getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
+	_, err := getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
 		BucketName: bucketName,
 		ScopeName:  testScopeName,
 	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
+	_, err = getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
 		BucketName: bucketName,
 		ScopeName:  testScopeName,
 	})
 	require.ErrorIs(t, err, ErrScopeExists)
 
-	err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
+	_, err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
 		BucketName:     bucketName,
 		ScopeName:      testScopeName,
 		CollectionName: testCollectionName,
@@ -56,7 +56,7 @@ func TestHttpMgmtCollections(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
+	_, err = getHttpMgmt().CreateCollection(ctx, &CreateCollectionOptions{
 		BucketName:     bucketName,
 		ScopeName:      testScopeName,
 		CollectionName: testCollectionName,
@@ -90,27 +90,27 @@ func TestHttpMgmtCollections(t *testing.T) {
 	require.NotNil(t, foundCollection)
 	require.NotEmpty(t, foundScope.UID)
 
-	err = getHttpMgmt().DeleteCollection(ctx, &DeleteCollectionOptions{
+	_, err = getHttpMgmt().DeleteCollection(ctx, &DeleteCollectionOptions{
 		BucketName:     bucketName,
 		ScopeName:      testScopeName,
 		CollectionName: testCollectionName,
 	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().DeleteCollection(ctx, &DeleteCollectionOptions{
+	_, err = getHttpMgmt().DeleteCollection(ctx, &DeleteCollectionOptions{
 		BucketName:     bucketName,
 		ScopeName:      testScopeName,
 		CollectionName: testCollectionName,
 	})
 	require.ErrorIs(t, err, ErrCollectionNotFound)
 
-	err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
+	_, err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
 		BucketName: bucketName,
 		ScopeName:  testScopeName,
 	})
 	require.NoError(t, err)
 
-	err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
+	_, err = getHttpMgmt().DeleteScope(ctx, &DeleteScopeOptions{
 		BucketName: bucketName,
 		ScopeName:  testScopeName,
 	})

@@ -100,19 +100,19 @@ func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.Get
 	return agent.mgmt.GetCollectionManifest(ctx, opts)
 }
 
-func (agent *Agent) CreateScope(ctx context.Context, opts *cbmgmtx.CreateScopeOptions) error {
+func (agent *Agent) CreateScope(ctx context.Context, opts *cbmgmtx.CreateScopeOptions) (*cbmgmtx.CreateScopeResponse, error) {
 	return agent.mgmt.CreateScope(ctx, opts)
 }
 
-func (agent *Agent) DeleteScope(ctx context.Context, opts *cbmgmtx.DeleteScopeOptions) error {
+func (agent *Agent) DeleteScope(ctx context.Context, opts *cbmgmtx.DeleteScopeOptions) (*cbmgmtx.DeleteScopeResponse, error) {
 	return agent.mgmt.DeleteScope(ctx, opts)
 }
 
-func (agent *Agent) CreateCollection(ctx context.Context, opts *cbmgmtx.CreateCollectionOptions) error {
+func (agent *Agent) CreateCollection(ctx context.Context, opts *cbmgmtx.CreateCollectionOptions) (*cbmgmtx.CreateCollectionResponse, error) {
 	return agent.mgmt.CreateCollection(ctx, opts)
 }
 
-func (agent *Agent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) error {
+func (agent *Agent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCollectionOptions) (*cbmgmtx.DeleteCollectionResponse, error) {
 	return agent.mgmt.DeleteCollection(ctx, opts)
 }
 
