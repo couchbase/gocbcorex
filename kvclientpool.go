@@ -40,7 +40,8 @@ type kvClientPoolFastMap struct {
 }
 
 type pendingKvClient struct {
-	CancelFn func()
+	CancelFn   func()
+	CompleteCh chan struct{}
 }
 
 type kvClientPool struct {
@@ -65,7 +66,6 @@ type kvClientPool struct {
 
 	needClientSigCh    chan struct{}
 	needNoDefunctSigCh chan struct{}
-	needNoPendingSigCh chan struct{}
 }
 
 func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kvClientPool, error) {
@@ -85,9 +85,8 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		logger: logger,
 		config: *config,
 
-		closeSig:           make(chan struct{}),
-		needClientSigCh:    make(chan struct{}, 1),
-		needNoPendingSigCh: make(chan struct{}),
+		closeSig:        make(chan struct{}),
+		needClientSigCh: make(chan struct{}, 1),
 	}
 
 	var newKvClient NewKvClientFunc
@@ -184,15 +183,16 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 	// pool closing to cancel creating that client...
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
 
+	completeCh := make(chan struct{})
+
 	// setup the new pending connection state
 	pendingClient := &pendingKvClient{
-		CancelFn: cancelFn,
+		CancelFn:   cancelFn,
+		CompleteCh: completeCh,
 	}
 	p.addPendingClientLocked(pendingClient)
 
 	clientConfig := p.config.ClientConfig
-
-	completeCh := make(chan struct{}, 1)
 
 	// create the goroutine to actually create the client
 	go func() {
@@ -211,23 +211,21 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 				}
 			}
 			p.removePendingClientLocked(pendingClient)
-			if len(p.pendingClients) == 0 {
-				close(p.needNoPendingSigCh)
-			}
-			completeCh <- struct{}{}
+
+			close(completeCh)
 			return
 		}
 
 		if !p.removePendingClientLocked(pendingClient) {
 			// if nobody was waiting for us anymore, we just return
-			completeCh <- struct{}{}
+			close(completeCh)
 			return
 		}
 
 		if err != nil {
 			p.connectErr = err
 			p.checkConnectionsLocked()
-			completeCh <- struct{}{}
+			close(completeCh)
 			return
 		}
 
@@ -246,7 +244,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 				p.logger.Warn("failed to reconfigure a new client connection", zap.Error(err))
 
 				p.checkConnectionsLocked()
-				completeCh <- struct{}{}
+				close(completeCh)
 				return
 			}
 
@@ -255,7 +253,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 				p.logger.Warn("failed to finalize new configuration on a new client connection", zap.Error(err))
 
 				p.checkConnectionsLocked()
-				completeCh <- struct{}{}
+				close(completeCh)
 				return
 			}
 		}
@@ -265,7 +263,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 		p.rebuildActiveClientsLocked()
 		p.checkConnectionsLocked()
 
-		completeCh <- struct{}{}
+		close(completeCh)
 	}()
 
 	return completeCh
@@ -523,15 +521,17 @@ func (p *kvClientPool) Close() error {
 	// lists. We can just truncate the list.
 	p.activeClients = p.activeClients[:0]
 
+	pendingWaitChs := make([]chan struct{}, 0, len(p.pendingClients))
 	for _, client := range p.pendingClients {
 		client.CancelFn()
+		pendingWaitChs = append(pendingWaitChs, client.CompleteCh)
 	}
-	waitForPending := len(p.pendingClients) > 0
 	p.lock.Unlock()
 
-	if waitForPending {
-		// Wait for any pending clients to complete closing.
-		<-p.needNoPendingSigCh
+	p.logger.Debug("waiting for pending clients to complete", zap.Int("numPendingClients", len(pendingWaitChs)))
+	for _, completeCh := range pendingWaitChs {
+		<-completeCh
+		p.logger.Debug("a pending client has completed")
 	}
 
 	p.logger.Info("closed")
