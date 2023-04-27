@@ -112,23 +112,27 @@ type testBreweryDocumentJson struct {
 }
 
 type testBreweryDocs struct {
-	t       *testing.T
-	agent   *Agent
-	service string
-	docs    []testBreweryDocumentJson
+	t          *testing.T
+	agent      *Agent
+	service    string
+	docs       []testBreweryDocumentJson
+	scope      string
+	collection string
 }
 
-func makeBreweryTestDocs(ctx context.Context, t *testing.T, agent *Agent, service string) *testBreweryDocs {
+func makeBreweryTestDocs(ctx context.Context, t *testing.T, agent *Agent, service, scopeName, collectionName string) *testBreweryDocs {
 	raw := testutils.LoadTestData(t, "beer_sample_brewery_five.json")
 	var dataset []testBreweryDocumentJson
 	err := json.Unmarshal(raw, &dataset)
 	require.NoError(t, err)
 
 	td := &testBreweryDocs{
-		t:       t,
-		agent:   agent,
-		service: service,
-		docs:    dataset,
+		t:          t,
+		agent:      agent,
+		service:    service,
+		docs:       dataset,
+		scope:      scopeName,
+		collection: collectionName,
 	}
 
 	waitCh := make(chan error, len(dataset))
@@ -142,8 +146,10 @@ func makeBreweryTestDocs(ctx context.Context, t *testing.T, agent *Agent, servic
 			require.NoError(t, err)
 
 			_, err = td.agent.Upsert(ctx, &UpsertOptions{
-				Key:   []byte(testDocName),
-				Value: bytes,
+				Key:            []byte(testDocName),
+				Value:          bytes,
+				ScopeName:      scopeName,
+				CollectionName: collectionName,
 			})
 			waitCh <- err
 		}(i, doc)
@@ -167,7 +173,9 @@ func (td *testBreweryDocs) Remove(ctx context.Context) {
 			testDocName := fmt.Sprintf("%s-%s", td.service, doc.Name)
 
 			_, err := td.agent.Delete(ctx, &DeleteOptions{
-				Key: []byte(testDocName),
+				Key:            []byte(testDocName),
+				ScopeName:      td.scope,
+				CollectionName: td.collection,
 			})
 			waitCh <- err
 		}(i, doc)
