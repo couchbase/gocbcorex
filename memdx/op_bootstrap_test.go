@@ -154,32 +154,39 @@ func TestOpBootstrapCancelled(t *testing.T) {
 	type test struct {
 		Name            string
 		TargetFieldName string
+		ShouldFail      bool
 	}
 
 	tests := []test{
 		{
 			Name:            "Hello",
 			TargetFieldName: "HelloBlockCh",
+			ShouldFail:      true,
 		},
 		{
 			Name:            "ErrMap",
 			TargetFieldName: "ErrMapBlockCh",
+			ShouldFail:      true,
 		},
 		{
 			Name:            "SASLListMechs",
 			TargetFieldName: "SASLListBlockCh",
+			ShouldFail:      true,
 		},
 		{
 			Name:            "SASLAuth",
 			TargetFieldName: "SASLAuthBlockCh",
+			ShouldFail:      true,
 		},
 		{
 			Name:            "SelectBucket",
 			TargetFieldName: "SelectBucketBlockCh",
+			ShouldFail:      true,
 		},
 		{
 			Name:            "GetClusterConfig",
 			TargetFieldName: "GetClusterConfigBlockCh",
+			ShouldFail:      false,
 		},
 	}
 
@@ -209,8 +216,19 @@ func TestOpBootstrapCancelled(t *testing.T) {
 			op.Cancel(requestCancelledError{expectedErr})
 			pair.Continue <- struct{}{}
 
-			res := <-wait
-			assert.ErrorIs(tt, res.Err, expectedErr)
+			// Due to the nature of bootstrap having some optional components which
+			// are permitted to fail, some cancellations involving these operations
+			// will not normally yield an errored bootstrap.  The one caveat to this
+			// is that the second-last operation (SelectBucket) is required, and thus
+			// even a cancellation ignored at an earlier stage will lead to the whole
+			// bootstrap failing.  In the case of the final GetClusterConfig operation,
+			// this does not happen and thus we need to ignore it's error.
+			if test.ShouldFail {
+				res := <-wait
+				assert.ErrorIs(tt, res.Err, expectedErr)
+			} else {
+				<-wait
+			}
 		})
 	}
 }
