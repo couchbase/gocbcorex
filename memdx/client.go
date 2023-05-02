@@ -2,10 +2,13 @@ package memdx
 
 import (
 	"errors"
+	"os"
 	"sync"
 
 	"go.uber.org/zap"
 )
+
+var enablePacketLogging bool = os.Getenv("GCBCX_PACKET_LOGGING") != ""
 
 // Client is a basic memd client that provides opaque mapping and request dispatch...
 // note that it is not thread-safe, but does use locks to prevent internal races
@@ -118,6 +121,13 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 }
 
 func (c *Client) dispatchCallback(pak *Packet) error {
+	if enablePacketLogging {
+		c.logger.Debug("read packet",
+			zap.Uint32("opaque", pak.Opaque),
+			zap.String("opcode", pak.OpCode.String()),
+		)
+	}
+
 	c.handlerInvokeLock.Lock()
 	defer c.handlerInvokeLock.Unlock()
 	c.opaqueMapLock.Lock()
@@ -180,6 +190,13 @@ func (c *Client) Close() error {
 func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, error) {
 	opaqueID := c.registerHandler(handler)
 	req.Opaque = opaqueID
+
+	if enablePacketLogging {
+		c.logger.Debug("writing packet",
+			zap.Uint32("opaque", req.Opaque),
+			zap.String("opcode", req.OpCode.String()),
+		)
+	}
 
 	err := c.conn.WritePacket(req)
 	if err != nil {
