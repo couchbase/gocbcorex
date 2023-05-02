@@ -149,12 +149,6 @@ func TestOpBootstrapCancelled(t *testing.T) {
 	errmap := testutils.LoadTestData(t, "err_map71_v2.json")
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
-	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.HelloBlockCh = &bootstrapCoordinationPair{
-		Reached:  make(chan struct{}, 1),
-		Continue: make(chan struct{}, 1),
-	}
-
 	opts := makeDefaultBootstrapOptions()
 
 	type test struct {
