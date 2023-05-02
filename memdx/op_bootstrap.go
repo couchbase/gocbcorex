@@ -2,7 +2,6 @@ package memdx
 
 import (
 	"errors"
-	"sync/atomic"
 )
 
 type OpBootstrapEncoder interface {
@@ -39,234 +38,91 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	// NOTE(brett19): The following logic is dependant on operation ordering that
 	// is guarenteed by memcached, even when Out-Of-Order Execution is enabled.
 
-	const (
-		stageHello         = 0
-		stageErrorMap      = 1
-		stageAuth          = 2
-		stageSelectBucket  = 3
-		stageClusterConfig = 4
-		stageCallback      = 5
-	)
-
-	// we don't need to lock because we do everything with these objects ourselves
-	// first, and then dispatch them all at once, relying on the fact that the callbacks
-	// are always invoked by a single reader thread.  result holds the result data,
-	// and currentStage represents the current stage that is being attempted.
-	currentStage := stageHello
 	result := &BootstrapResult{}
+	pipeline := OpPipeline{}
 
-	var dispatchHello func() error
-	var dispatchErrorMap func() error
-	var dispatchAuth func() error
-	var dispatchSelectBucket func() error
-	var dispatchClusterConfig func() error
-	var dispatchCallback func() error
-	var calledBack uint32
-
-	maybeCallback := func(err error) {
-		if err != nil {
-			if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
-				cb(nil, err)
-			}
-			return
-		}
-
-		if currentStage == stageHello && opts.Hello == nil {
-			currentStage = stageErrorMap
-		}
-		if currentStage == stageErrorMap && opts.GetErrorMap == nil {
-			currentStage = stageAuth
-		}
-		if currentStage == stageAuth && opts.Auth == nil {
-			currentStage = stageSelectBucket
-		}
-		if currentStage == stageSelectBucket && opts.SelectBucket == nil {
-			currentStage = stageClusterConfig
-		}
-		if currentStage == stageClusterConfig && opts.GetClusterConfig == nil {
-			currentStage = stageCallback
-		}
-
-		if currentStage == stageCallback {
-			if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
-				cb(result, nil)
-			}
-		}
-	}
-
-	pendingOp := &multiPendingOp{}
-
-	dispatchHello = func() error {
-		if opts.Hello == nil {
-			return dispatchErrorMap()
-		}
-
-		op, err := a.Encoder.Hello(d, opts.Hello, func(resp *HelloResponse, err error) {
-			if currentStage != stageHello {
-				return
-			}
-
+	if opts.Hello != nil {
+		OpPipelineAdd(&pipeline, func(opCb func(res *HelloResponse, err error)) (PendingOp, error) {
+			return a.Encoder.Hello(d, opts.Hello, opCb)
+		}, func(res *HelloResponse, err error) bool {
 			if err != nil {
-				if a.isRequestCancelledError(err) {
-					maybeCallback(err)
-					return
-				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no Hello result...
-				resp = nil
+				res = nil
 			}
 
-			result.Hello = resp
-			currentStage = stageErrorMap
-			maybeCallback(nil)
+			result.Hello = res
+			return true
 		})
-		if err != nil {
-			return err
-		}
-		pendingOp.Add(op)
-
-		return dispatchErrorMap()
 	}
 
-	dispatchErrorMap = func() error {
-		if opts.GetErrorMap == nil {
-			return dispatchAuth()
-		}
-
-		op, err := a.Encoder.GetErrorMap(d, opts.GetErrorMap, func(errorMap []byte, err error) {
-			if currentStage != stageErrorMap {
-				return
-			}
-
+	if opts.GetErrorMap != nil {
+		OpPipelineAdd(&pipeline, func(opCb func(errorMap []byte, err error)) (PendingOp, error) {
+			return a.Encoder.GetErrorMap(d, opts.GetErrorMap, opCb)
+		}, func(errorMap []byte, err error) bool {
 			if err != nil {
-				if a.isRequestCancelledError(err) {
-					maybeCallback(err)
-					return
-				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no ErrorMap result...
 				errorMap = nil
 			}
 
 			result.ErrorMap = errorMap
-			currentStage = stageAuth
-			maybeCallback(nil)
+			return true
 		})
-		if err != nil {
-			return err
-		}
-		pendingOp.Add(op)
-
-		return dispatchAuth()
 	}
 
-	dispatchAuth = func() error {
-		if opts.Auth == nil {
-			return dispatchSelectBucket()
-		}
-
-		op, err := OpSaslAuthAuto{
-			Encoder: a.Encoder,
-		}.SASLAuthAuto(d, opts.Auth, func() {
-			err := dispatchSelectBucket()
+	if opts.Auth != nil {
+		OpPipelineAddWithNext(&pipeline, func(nextFn func(), opCb func(res struct{}, err error)) (PendingOp, error) {
+			return OpSaslAuthAuto{
+				Encoder: a.Encoder,
+			}.SASLAuthAuto(d, opts.Auth, nextFn, func(err error) {
+				opCb(struct{}{}, err)
+			})
+		}, func(res struct{}, err error) bool {
 			if err != nil {
-				maybeCallback(err)
-			}
-		}, func(err error) {
-			if currentStage != stageAuth {
-				return
+				cb(nil, err)
+				return false
 			}
 
-			if err != nil {
-				maybeCallback(err)
-				return
-			}
-
-			currentStage = stageSelectBucket
-			maybeCallback(nil)
+			return true
 		})
-		if err != nil {
-			return err
-		}
-		pendingOp.Add(op)
-
-		return nil
 	}
 
-	dispatchSelectBucket = func() error {
-		if opts.SelectBucket == nil {
-			return dispatchClusterConfig()
-		}
-
-		op, err := a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
-			if currentStage != stageSelectBucket {
-				return
-			}
-
+	if opts.SelectBucket != nil {
+		OpPipelineAdd(&pipeline, func(opCb func(res struct{}, err error)) (PendingOp, error) {
+			return a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
+				opCb(struct{}{}, err)
+			})
+		}, func(res struct{}, err error) bool {
 			if err != nil {
-				maybeCallback(err)
-				return
+				cb(nil, err)
+				return false
 			}
 
-			currentStage = stageClusterConfig
-			maybeCallback(nil)
+			return true
 		})
-		if err != nil {
-			return err
-		}
-		pendingOp.Add(op)
-
-		return dispatchClusterConfig()
 	}
 
-	dispatchClusterConfig = func() error {
-		if opts.GetClusterConfig == nil {
-			return dispatchCallback()
-		}
-
-		op, err := a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, func(clusterConfig []byte, err error) {
-			if currentStage != stageClusterConfig {
-				return
-			}
-
+	if opts.GetClusterConfig != nil {
+		OpPipelineAdd(&pipeline, func(opCb func(clusterConfig []byte, err error)) (PendingOp, error) {
+			return a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, opCb)
+		}, func(clusterConfig []byte, err error) bool {
 			if err != nil {
-				if a.isRequestCancelledError(err) {
-					maybeCallback(err)
-					return
-				}
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no Config result...
 				clusterConfig = nil
 			}
 
 			result.ClusterConfig = clusterConfig
-			currentStage = stageCallback
-			maybeCallback(nil)
+			return true
 		})
-		if err != nil {
-			return err
-		}
-		pendingOp.Add(op)
-
-		return dispatchCallback()
 	}
 
-	dispatchCallback = func() error {
-		// this function does nothing because we have no way to easily
-		// schedule a callback to be invoked serialy by the connection
-		// so we rely on maybeCallback() to handle this behaviour.
-		return nil
-	}
+	OpPipelineAddSync(&pipeline, func() {
+		cb(result, nil)
+	})
 
-	// maybeCallback must be invoked before any dispatches to ensure
-	// we still own all the state and to avoid racing those threads.
-	maybeCallback(nil)
-
-	if err := dispatchHello(); err != nil {
-		return nil, err
-	}
-
-	return pendingOp, nil
+	return pipeline.Start(), nil
 }
 
 func (a OpBootstrap) isRequestCancelledError(err error) bool {
