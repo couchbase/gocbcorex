@@ -463,7 +463,7 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 	require.NoError(t, err)
 	defer agent.Close()
 
-	bucketName := "testBucket"
+	bucketName := "testBucket-" + uuid.NewString()[:6]
 
 	err = agent.CreateBucket(context.Background(), &cbmgmtx.CreateBucketOptions{
 		BucketName: bucketName,
