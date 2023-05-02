@@ -14,7 +14,7 @@ func syncUnaryCall[Encoder any, ReqT any, RespT any](
 	d Dispatcher,
 	req ReqT,
 ) (RespT, error) {
-	waitCh := make(chan unaryResult[RespT])
+	waitCh := make(chan unaryResult[RespT], 1)
 
 	_, err := fn(e, d, req, func(resp RespT, err error) {
 		waitCh <- unaryResult[RespT]{
