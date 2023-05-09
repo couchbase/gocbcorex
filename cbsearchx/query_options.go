@@ -120,9 +120,7 @@ func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
 		}
 		m["ctl"] = encoder.EncodeField(control)
 	}
-	if o.Explain {
-		m["explain"] = encoder.EncodeField(o.Explain)
-	}
+	m["explain"] = encoder.EncodeField(o.Explain)
 	if len(o.Facets) > 0 {
 		facets := make(map[string]json.RawMessage, len(o.Facets))
 		for k, facet := range o.Facets {
