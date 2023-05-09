@@ -123,12 +123,14 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 				More:     resp.Status == StatusRangeScanMore,
 				Complete: resp.Status == StatusRangeScanComplete,
 			}, nil)
+
+			// If range scan responds with status more then the caller must issue another request,
+			// if the status is complete the scan is finished.
+			return false
 		}
 
-		// If range scan responds with status more then the caller must issue another request,
-		// if the status is complete the scan is finished. Otherwise, we can expect more
-		// responses to this request.
-		return resp.Status != StatusRangeScanMore && resp.Status != StatusRangeScanComplete
+		// This means that the status is success, which indicates that there are more packets to comes.
+		return true
 	})
 }
 
