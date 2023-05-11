@@ -1,6 +1,7 @@
 package gocbcorex
 
 import (
+	"errors"
 	"hash/crc32"
 )
 
@@ -9,12 +10,16 @@ type VbucketMap struct {
 	numReplicas int
 }
 
-func NewVbucketMap(entries [][]int, numReplicas int) *VbucketMap {
+func NewVbucketMap(entries [][]int, numReplicas int) (*VbucketMap, error) {
+	if len(entries) == 0 {
+		return nil, errors.New("vbucket map must have at least a single entry")
+	}
+
 	vbMap := VbucketMap{
 		entries:     entries,
 		numReplicas: numReplicas,
 	}
-	return &vbMap
+	return &vbMap, nil
 }
 
 func (vbMap VbucketMap) IsValid() bool {

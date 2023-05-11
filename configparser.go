@@ -100,10 +100,21 @@ func (p ConfigParser) ParseTerseConfig(config *cbconfig.TerseConfigJson, sourceH
 		case "ketama":
 			out.BucketType = bktTypeMemcached
 		case "vbucket":
-			out.BucketType = bktTypeCouchbase
-			out.VbucketMap = NewVbucketMap(
+			if len(config.VBucketServerMap.VBucketMap) == 0 {
+				out.BucketType = bktTypeCouchbase
+				out.VbucketMap = nil
+				break
+			}
+
+			vbMap, err := NewVbucketMap(
 				config.VBucketServerMap.VBucketMap,
 				config.VBucketServerMap.NumReplicas)
+			if err != nil {
+				return nil, err
+			}
+
+			out.BucketType = bktTypeCouchbase
+			out.VbucketMap = vbMap
 		default:
 			out.BucketType = bktTypeInvalid
 		}
