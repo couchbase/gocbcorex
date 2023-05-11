@@ -100,18 +100,25 @@ func configBootstrapHttp_bootstrapOne(
 			}
 		}
 
-		// On initial startup it's possible for the bucket (if applicable) to be in a state
-		// where it isn't "ready" yet and is sending us an empty vbucket map. When this happens
-		// we will retry fetching a config until we get one with a valid vbucket map.
-		if parsedConfig.BucketName == "" || parsedConfig.VbucketMap.IsValid() {
-			break
+		if parsedConfig.BucketType == bktTypeCouchbase && parsedConfig.VbucketMap == nil {
+			// This is a transient scenario that can occur when a bucket is initially warming
+			// up.  Instead of failing bootstrap for this, we instead sleep for a bit and then
+			// try bootstrapping again.
+			select {
+			case <-ctx.Done():
+				err := ctx.Err()
+				if errors.Is(err, context.DeadlineExceeded) {
+					return nil, "", &contextualDeadline{"bucket warming up and has no vbucket map"}
+				} else {
+					return nil, "", err
+				}
+			case <-time.After(1 * time.Millisecond):
+			}
+
+			continue
 		}
 
-		select {
-		case <-ctx.Done():
-			return nil, "", ctx.Err()
-		case <-time.After(1 * time.Millisecond):
-		}
+		break
 	}
 
 	networkType := NetworkTypeHeuristic{}.Identify(parsedConfig, hostport)
