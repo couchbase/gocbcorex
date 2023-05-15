@@ -26,6 +26,7 @@ type queryRespReader struct {
 	clientContextId string
 	statusCode      int
 
+	stream        io.ReadCloser
 	streamer      cbhttpx.RawJsonRowStreamer
 	earlyMetaData *QueryEarlyMetaData
 	metaData      *QueryMetaData
@@ -77,6 +78,7 @@ func (r *queryRespReader) init(resp *http.Response) error {
 		return r.parseErrors(respJson.Errors)
 	}
 
+	r.stream = resp.Body
 	r.streamer = cbhttpx.RawJsonRowStreamer{
 		Decoder:    json.NewDecoder(resp.Body),
 		RowsAttrib: "results",
@@ -254,6 +256,10 @@ func (r *queryRespReader) readFinalMetaData() error {
 	if err != nil {
 		return err
 	}
+
+	// We close the stream so that if there is some extra data on the wire
+	// it gets ignored and the stream is properly closed.
+	_ = r.stream.Close()
 
 	var metaDataJson queryMetaDataJson
 	err = json.Unmarshal(epilogBytes, &metaDataJson)

@@ -23,6 +23,7 @@ type respReader struct {
 	endpoint   string
 	statusCode int
 
+	stream    io.ReadCloser
 	streamer  cbhttpx.RawJsonRowStreamer
 	metaData  *MetaData
 	epilogErr error
@@ -68,6 +69,7 @@ func (r *respReader) init(resp *http.Response) error {
 		return r.parseError(resp.StatusCode, respJson.Error)
 	}
 
+	r.stream = resp.Body
 	r.streamer = cbhttpx.RawJsonRowStreamer{
 		Decoder:    json.NewDecoder(resp.Body),
 		RowsAttrib: "hits",
@@ -128,6 +130,10 @@ func (r *respReader) readFinalMetaData() error {
 	if err != nil {
 		return err
 	}
+
+	// We close the stream so that if there is some extra data on the wire
+	// it gets ignored and the stream is properly closed.
+	_ = r.stream.Close()
 
 	var epiJson searchEpilogJson
 	err = json.Unmarshal(epilogBytes, &epiJson)
