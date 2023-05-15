@@ -13,6 +13,7 @@ type OpsCore struct {
 
 func (o OpsCore) decodeErrorContext(resp *Packet, err error, dispatchedTo string, dispatchedFrom string) error {
 	baseCause := ServerError{
+		OpCode:         resp.OpCode,
 		Status:         resp.Status,
 		Cause:          err,
 		DispatchedTo:   dispatchedTo,
