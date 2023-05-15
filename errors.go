@@ -167,3 +167,16 @@ func (e BootstrapAllFailedError) Error() string {
 func (e BootstrapAllFailedError) Unwrap() error {
 	return ErrBootstrapAllFailed
 }
+
+type contextualError struct {
+	Message string
+	Cause   error
+}
+
+func (e contextualError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Message, e.Cause.Error())
+}
+
+func (e contextualError) Unwrap() error {
+	return e.Cause
+}

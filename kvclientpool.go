@@ -223,7 +223,10 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 		}
 
 		if err != nil {
-			p.connectErr = err
+			p.connectErr = contextualError{
+				Message: "failed to async connect",
+				Cause:   err,
+			}
 			p.checkConnectionsLocked()
 			close(completeCh)
 			return

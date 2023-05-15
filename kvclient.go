@@ -225,7 +225,11 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			if closeErr := kvCli.Close(); closeErr != nil {
 				kvCli.logger.Debug("failed to close connection for KvClient", zap.Error(closeErr))
 			}
-			return nil, err
+
+			return nil, contextualError{
+				Message: "failed to bootstrap",
+				Cause:   err,
+			}
 		}
 
 		kvCli.logger.Debug("successfully bootstrapped new KvClient",
