@@ -3,13 +3,15 @@ package cbhttpx
 import (
 	"errors"
 	"net/http"
+
+	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 )
 
 type Client struct {
 	Transport http.RoundTripper
 }
 
-func (c Client) GetHttpclient() *http.Client {
+func (c Client) GetHttpClient() *http.Client {
 	return &http.Client{
 		Transport: c.Transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -32,5 +34,10 @@ func (c Client) GetHttpclient() *http.Client {
 }
 
 func (c Client) Do(req *http.Request) (*http.Response, error) {
-	return c.GetHttpclient().Do(req)
+	resp, err := c.GetHttpClient().Do(req)
+	if err != nil {
+		return resp, err
+	}
+
+	return leakcheck.WrapHttpResponse(resp), err
 }
