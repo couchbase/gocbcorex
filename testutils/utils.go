@@ -3,20 +3,18 @@ package testutils
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"runtime"
-	"runtime/pprof"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/couchbase/gocbcore/v10/connstr"
+	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 )
@@ -67,7 +65,6 @@ var featsStr = envFlagString("GOCBFEAT", "features", "",
 	"A comma-delimited list of features to test")
 
 func SetupTests(m *testing.M) {
-	initialGoroutineCount := runtime.NumGoroutine()
 	flag.Parse()
 
 	if *connStr != "" && !testing.Short() {
@@ -119,28 +116,16 @@ func SetupTests(m *testing.M) {
 
 	TestOpts.RunName = strings.ReplaceAll(uuid.NewString(), "-", "")[0:8]
 
+	leakcheck.EnableAll()
+
 	result := m.Run()
 
-	// We need to close the transport used by the default client once tests complete, otherwise the transport
-	// will leak go routines.
+	// We need to close the transport used by the default client once tests
+	// complete, otherwise the transport will leak go routines.
 	http.DefaultClient.CloseIdleConnections()
-	// Loop for at most a second checking for goroutines leaks, this gives any HTTP goroutines time to shutdown
-	start := time.Now()
-	var finalGoroutineCount int
-	for time.Since(start) <= 1*time.Second {
-		runtime.Gosched()
-		finalGoroutineCount = runtime.NumGoroutine()
-		if finalGoroutineCount == initialGoroutineCount {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if finalGoroutineCount != initialGoroutineCount {
-		log.Printf("Detected a goroutine leak (%d before != %d after)", initialGoroutineCount, finalGoroutineCount)
-		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+
+	if !leakcheck.ReportAll() {
 		result = 1
-	} else {
-		log.Printf("No goroutines appear to have leaked (%d before == %d after)", initialGoroutineCount, finalGoroutineCount)
 	}
 
 	os.Exit(result)
