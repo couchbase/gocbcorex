@@ -333,9 +333,7 @@ func (h Management) CreateScope(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	var createResp *manifestUidJSON
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&createResp)
+	createResp, err := cbhttpx.ReadAsJsonAndClose[manifestUidJSON](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -380,9 +378,7 @@ func (h Management) DeleteScope(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	var deleteResp *manifestUidJSON
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&deleteResp)
+	deleteResp, err := cbhttpx.ReadAsJsonAndClose[manifestUidJSON](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -439,9 +435,7 @@ func (h Management) CreateCollection(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	var createResp *manifestUidJSON
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&createResp)
+	createResp, err := cbhttpx.ReadAsJsonAndClose[manifestUidJSON](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -490,9 +484,7 @@ func (h Management) DeleteCollection(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	var deleteResp *manifestUidJSON
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&deleteResp)
+	deleteResp, err := cbhttpx.ReadAsJsonAndClose[manifestUidJSON](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -648,9 +640,7 @@ func (h Management) GetAllBuckets(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	var bucketsData []bucketSettingsJson
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&bucketsData)
+	bucketsData, err := cbhttpx.ReadAsJsonAndClose[[]bucketSettingsJson](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -694,9 +684,7 @@ func (h Management) GetBucket(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	var bucketData bucketSettingsJson
-	jsonDec := json.NewDecoder(resp.Body)
-	err = jsonDec.Decode(&bucketData)
+	bucketData, err := cbhttpx.ReadAsJsonAndClose[bucketSettingsJson](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -747,6 +735,7 @@ func (h Management) CreateBucket(
 		return h.DecodeCommonError(resp)
 	}
 
+	_ = resp.Body.Close()
 	return nil
 }
 
@@ -784,6 +773,7 @@ func (h Management) UpdateBucket(
 		return h.DecodeCommonError(resp)
 	}
 
+	_ = resp.Body.Close()
 	return nil
 }
 
@@ -813,6 +803,7 @@ func (h Management) DeleteBucket(
 		return h.DecodeCommonError(resp)
 	}
 
+	_ = resp.Body.Close()
 	return nil
 }
 
@@ -842,5 +833,6 @@ func (h Management) FlushBucket(
 		return h.DecodeCommonError(resp)
 	}
 
+	_ = resp.Body.Close()
 	return nil
 }
