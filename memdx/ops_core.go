@@ -185,6 +185,12 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(er
 		if resp.Status == StatusAccessError {
 			cb(ErrUnknownBucketName)
 			return false
+		} else if resp.Status == StatusKeyNotFound {
+			// in some cases, it seems that kv_engine returns KeyNotFound rather
+			// than access error when a bucket does not exist yet.	I believe this
+			// is a race between the RBAC data updating and the bucket data updating.
+			cb(ErrUnknownBucketName)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {

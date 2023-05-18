@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -479,25 +480,40 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 		BucketName: bucketName,
 	})
 
-	opts = CreateDefaultAgentOptions()
-	opts.BucketName = bucketName
-	opts.RetryManager = NewRetryManagerDefault()
+	// we have to run this in an eventually loop as gocbcorex itself does not
+	// provide any direct guarentees about the consistency of bucket states.
+	// if the bucket is not found during the runs, we simply retry a little
+	// bit later.
+	require.Eventually(t, func() bool {
+		opts = CreateDefaultAgentOptions()
+		opts.BucketName = bucketName
+		opts.RetryManager = NewRetryManagerDefault()
 
-	agent2, err := CreateAgent(context.Background(), opts)
-	require.NoError(t, err)
-	defer agent2.Close()
+		agent2, err := CreateAgent(context.Background(), opts)
+		if errors.Is(err, memdx.ErrUnknownBucketName) {
+			return false
+		}
+		require.NoError(t, err)
+		defer agent2.Close()
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
-	defer cancel()
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
+		defer cancel()
 
-	upsertRes, err := agent2.Upsert(ctx, &UpsertOptions{
-		Key:            []byte("test"),
-		ScopeName:      "",
-		CollectionName: "",
-		Value:          []byte(`{"foo": "bar"}`),
-	})
-	require.NoError(t, err)
-	assert.NotZero(t, upsertRes.Cas)
+		upsertRes, err := agent2.Upsert(ctx, &UpsertOptions{
+			Key:            []byte("test"),
+			ScopeName:      "",
+			CollectionName: "",
+			Value:          []byte(`{"foo": "bar"}`),
+		})
+		if errors.Is(err, memdx.ErrUnknownBucketName) {
+			return false
+		}
+
+		require.NoError(t, err)
+		assert.NotZero(t, upsertRes.Cas)
+
+		return true
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func BenchmarkBasicGet(b *testing.B) {
