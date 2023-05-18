@@ -91,6 +91,7 @@ type GetReplicaOptions struct {
 	ScopeName      string
 	CollectionName string
 	ReplicaIdx     uint32
+	OnBehalfOf     string
 }
 
 type GetReplicaResult struct {
@@ -106,6 +107,7 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 			CollectionID: collectionID,
 			Key:          opts.Key,
 			VbucketID:    vbID,
+			OnBehalfOf:   opts.OnBehalfOf,
 		})
 		if err != nil {
 			return nil, err
