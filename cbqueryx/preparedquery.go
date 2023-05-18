@@ -32,6 +32,7 @@ func (p PreparedQuery) PreparedQuery(ctx context.Context, opts *QueryOptions) (Q
 			return res, nil
 		}
 
+		newOpts.Prepared = ""
 	}
 
 	newOpts.Statement = "PREPARE " + opts.Statement
