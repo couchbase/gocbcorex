@@ -237,6 +237,14 @@ func (s *DateRangeQuery) encodeToJSON() (json.RawMessage, error) {
 	if s.Field != "" {
 		m["field"] = encoder.EncodeField(s.Field)
 	}
+	if s.Start != "" {
+		m["start"] = encoder.EncodeField(s.Start)
+		m["inclusive_start"] = encoder.EncodeField(s.InclusiveStart)
+	}
+	if s.End != "" {
+		m["end"] = encoder.EncodeField(s.End)
+		m["inclusive_end"] = encoder.EncodeField(s.InclusiveEnd)
+	}
 
 	if err := encoder.Err(); err != nil {
 		return nil, err
