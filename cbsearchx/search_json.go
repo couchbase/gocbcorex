@@ -37,7 +37,6 @@ type dateFacetJson struct {
 }
 
 type facetJson struct {
-	Name          string             `json:"name"`
 	Field         string             `json:"field"`
 	Total         uint64             `json:"total"`
 	Missing       uint64             `json:"missing"`
