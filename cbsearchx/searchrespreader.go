@@ -182,7 +182,6 @@ func (r *respReader) parseFacets(facetsJson *searchEpilogJson) (map[string]Facet
 
 func (r *respReader) parseFacet(data facetJson) FacetResult {
 	var result FacetResult
-	result.Name = data.Name
 	result.Field = data.Field
 	result.Total = data.Total
 	result.Missing = data.Missing

@@ -62,7 +62,6 @@ type DateRangeFacetResult struct {
 
 // FacetResult provides access to the result of a faceted query.
 type FacetResult struct {
-	Name          string
 	Field         string
 	Total         uint64
 	Missing       uint64
