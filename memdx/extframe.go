@@ -1,5 +1,10 @@
 package memdx
 
+import (
+	"math"
+	"time"
+)
+
 func AppendExtFrame(frameCode ExtFrameCode, frameBody []byte, buf []byte) ([]byte, error) {
 	frameLen := len(frameBody)
 
@@ -92,4 +97,75 @@ func IterExtFrames(buf []byte, cb func(ExtFrameCode, []byte)) error {
 	}
 
 	return nil
+}
+
+func EncodeDurabilityExtFrame(
+	level DurabilityLevel,
+	timeout time.Duration,
+) ([]byte, error) {
+	if level == 0 {
+		return nil, &protocolError{"cannot encode durability without a level"}
+	}
+
+	if timeout == 0 {
+		return []byte{byte(level)}, nil
+	}
+
+	timeoutMillis := uint64(timeout / time.Millisecond)
+	if timeoutMillis > 65535 {
+		return nil, &protocolError{"cannot encode durability timeout greater than 65535 milliseconds"}
+	} else if timeoutMillis == 0 {
+		timeoutMillis = 1
+	}
+
+	return []byte{
+		byte(level),
+		uint8(timeoutMillis >> 8),
+		byte(timeoutMillis),
+	}, nil
+}
+
+func DecodeDurabilityExtFrame(
+	buf []byte,
+) (DurabilityLevel, time.Duration, error) {
+	if len(buf) == 1 {
+		durabilityLevel := DurabilityLevel(buf[0])
+		return durabilityLevel, 0, nil
+	} else if len(buf) == 3 {
+		durabilityLevel := DurabilityLevel(buf[0])
+		timeoutMillis := uint64(buf[1])<<8 | uint64(buf[2])
+		timeout := time.Duration(timeoutMillis) * time.Millisecond
+		return durabilityLevel, timeout, nil
+	}
+
+	return 0, 0, &protocolError{"invalid durability extframe length"}
+}
+
+func EncodeServerDurationExtFrame(
+	dura time.Duration,
+) ([]byte, error) {
+	duraUs := dura / time.Microsecond
+	duraEnc := int(math.Pow(float64(duraUs)*2, 1.0/1.74))
+	if duraEnc > 65535 {
+		duraEnc = 65535
+	}
+
+	return []byte{
+		byte(duraEnc >> 8),
+		byte(duraEnc),
+	}, nil
+}
+
+func DecodeServerDurationExtFrame(
+	buf []byte,
+) (time.Duration, error) {
+	if len(buf) != 2 {
+		return 0, &protocolError{"invalid server duration extframe length"}
+	}
+
+	duraEnc := uint64(buf[0])<<8 | uint64(buf[1])
+	duraUs := math.Round(math.Pow(float64(duraEnc), 1.74) / 2)
+	dura := time.Duration(duraUs) * time.Microsecond
+
+	return dura, nil
 }

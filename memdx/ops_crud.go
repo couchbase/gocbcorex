@@ -47,25 +47,17 @@ func (o OpsCrud) encodeReqExtFrames(
 			return 0, nil, protocolError{"cannot use synchronous durability when its not enabled"}
 		}
 
-		if durabilityLevelTimeout == 0 {
-			buf, err = AppendExtFrame(ExtFrameCodeReqDurability, []byte{byte(durabilityLevel)}, buf)
-			if err != nil {
-				return 0, nil, err
-			}
-		} else {
-			durabilityTimeoutMillis := uint64(durabilityLevelTimeout / time.Millisecond)
-			if durabilityTimeoutMillis > 65535 {
-				durabilityTimeoutMillis = 65535
-			}
+		duraBuf, err := EncodeDurabilityExtFrame(durabilityLevel, durabilityLevelTimeout)
+		if err != nil {
+			return 0, nil, err
+		}
 
-			duraBuf := make([]byte, 3)
-			duraBuf[0] = byte(durabilityLevel)
-			duraBuf[1] = uint8(durabilityTimeoutMillis >> 8)
-			duraBuf[2] = byte(durabilityTimeoutMillis)
-			buf, err = AppendExtFrame(ExtFrameCodeReqDurability, duraBuf, buf)
-			if err != nil {
-				return 0, nil, err
-			}
+		buf, err = AppendExtFrame(
+			ExtFrameCodeReqDurability,
+			duraBuf,
+			buf)
+		if err != nil {
+			return 0, nil, err
 		}
 	} else if durabilityLevelTimeout > 0 {
 		return 0, nil, protocolError{"cannot encode durability timeout without durability level"}
