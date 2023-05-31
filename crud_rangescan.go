@@ -45,7 +45,9 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 							Range:        opts.Range,
 							Sampling:     opts.Sampling,
 							Snapshot:     opts.Snapshot,
-							OnBehalfOf:   opts.OnBehalfOf,
+							CrudRequestMeta: memdx.CrudRequestMeta{
+								OnBehalfOf: opts.OnBehalfOf,
+							},
 						})
 						if err != nil {
 							return nil, err
@@ -90,12 +92,14 @@ func (cc *CrudComponent) RangeScanContinue(ctx context.Context, opts *RangeScanC
 			return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanContinueResult, error) {
 				deadline, _ := ctx.Deadline()
 				res, err := client.RangeScanContinue(ctx, &memdx.RangeScanContinueRequest{
-					ScanUUID:   opts.ScanUUID,
-					MaxCount:   opts.MaxCount,
-					MaxBytes:   opts.MaxBytes,
-					VbucketID:  opts.VbucketID,
-					Deadline:   deadline,
-					OnBehalfOf: opts.OnBehalfOf,
+					ScanUUID:  opts.ScanUUID,
+					MaxCount:  opts.MaxCount,
+					MaxBytes:  opts.MaxBytes,
+					VbucketID: opts.VbucketID,
+					Deadline:  deadline,
+					CrudRequestMeta: memdx.CrudRequestMeta{
+						OnBehalfOf: opts.OnBehalfOf,
+					},
 				}, func(response *memdx.RangeScanDataResponse) error {
 					// We don't use a for i, item range here so that we can modify the entry in place.
 					for i := range response.Items {
@@ -147,9 +151,11 @@ func (cc *CrudComponent) RangeScanCancel(ctx context.Context, opts *RangeScanCan
 			}
 			return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanCancelResult, error) {
 				_, err := client.RangeScanCancel(ctx, &memdx.RangeScanCancelRequest{
-					ScanUUID:   opts.ScanUUID,
-					VbucketID:  opts.VbucketID,
-					OnBehalfOf: opts.OnBehalfOf,
+					ScanUUID:  opts.ScanUUID,
+					VbucketID: opts.VbucketID,
+					CrudRequestMeta: memdx.CrudRequestMeta{
+						OnBehalfOf: opts.OnBehalfOf,
+					},
 				})
 				if err != nil {
 					return nil, err

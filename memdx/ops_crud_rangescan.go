@@ -211,6 +211,8 @@ type RangeScanCreateSnapshotRequirements struct {
 }
 
 type RangeScanCreateRequest struct {
+	CrudRequestMeta
+
 	CollectionID uint32
 	VbucketID    uint16
 
@@ -219,8 +221,6 @@ type RangeScanCreateRequest struct {
 	Range    *RangeScanCreateRangeScanConfig
 	Sampling *RangeScanCreateRandomSamplingConfig
 	Snapshot *RangeScanCreateSnapshotRequirements
-
-	OnBehalfOf string
 }
 
 func (opts RangeScanCreateRequest) toJSON() ([]byte, error) {
@@ -315,13 +315,13 @@ type RangeScanItem struct {
 }
 
 type RangeScanContinueRequest struct {
+	CrudRequestMeta
+
 	ScanUUID  []byte
 	MaxCount  uint32
 	MaxBytes  uint32
 	VbucketID uint16
 	Deadline  time.Time
-
-	OnBehalfOf string
 }
 
 type RangeScanDataResponse struct {
@@ -335,10 +335,10 @@ type RangeScanActionResponse struct {
 }
 
 type RangeScanCancelRequest struct {
+	CrudRequestMeta
+
 	ScanUUID  []byte
 	VbucketID uint16
-
-	OnBehalfOf string
 }
 
 type RangeScanCancelResponse struct{}
