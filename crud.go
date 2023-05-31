@@ -66,7 +66,9 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -107,7 +109,9 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 			CollectionID: collectionID,
 			Key:          opts.Key,
 			VbucketID:    vbID,
-			OnBehalfOf:   opts.OnBehalfOf,
+			CrudRequestMeta: memdx.CrudRequestMeta{
+				OnBehalfOf: opts.OnBehalfOf,
+			},
 		})
 		if err != nil {
 			return nil, err
@@ -181,7 +185,9 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 				PreserveExpiry:  opts.PreserveExpiry,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -223,7 +229,9 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 				VbucketID:       vbID,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -265,7 +273,9 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Expiry:       opts.Expiry,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -306,7 +316,9 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetRandomResult, error) {
 			resp, err := client.GetRandom(ctx, &memdx.GetRandomRequest{
 				CollectionID: collectionID,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -349,7 +361,9 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Cas:          opts.Cas,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -387,7 +401,9 @@ func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchR
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Expiry:       opts.Expiry,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -423,7 +439,9 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 				LockTime:     opts.LockTime,
 				Key:          opts.Key,
 				VbucketID:    vbID,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -479,7 +497,9 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 				Datatype:        uint8(datatype),
 				Expiry:          opts.Expiry,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -536,7 +556,9 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 				PreserveExpiry:  opts.PreserveExpiry,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -586,7 +608,9 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 				Datatype:        uint8(datatype),
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -636,7 +660,9 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 				Datatype:        uint8(datatype),
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -684,7 +710,9 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 				Delta:           opts.Delta,
 				Expiry:          opts.Expiry,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -733,7 +761,9 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 				Delta:           opts.Delta,
 				Expiry:          opts.Expiry,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -777,7 +807,9 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -832,7 +864,9 @@ func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*Se
 				RevNo:        opts.RevNo,
 				Cas:          opts.Cas,
 				Options:      opts.Options,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -882,7 +916,9 @@ func (cc *CrudComponent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions
 				RevNo:        opts.RevNo,
 				Cas:          opts.Cas,
 				Options:      opts.Options,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -925,7 +961,9 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 				VbucketID:    vbID,
 				Flags:        opts.Flags,
 				Ops:          opts.Ops,
-				OnBehalfOf:   opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err
@@ -973,7 +1011,9 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 				PreserveExpiry:  opts.PreserveExpiry,
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
-				OnBehalfOf:      opts.OnBehalfOf,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
 			})
 			if err != nil {
 				return nil, err

@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+type CrudRequestMeta struct {
+	OnBehalfOf string
+}
+
+type CrudResponseMeta struct{}
+
 type OpsCrud struct {
 	ExtFramesEnabled      bool
 	CollectionsEnabled    bool
@@ -105,14 +111,14 @@ func (o OpsCrud) decodeCommonError(resp *Packet, dispatchedTo string, dispatched
 }
 
 type GetRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
-
-	OnBehalfOf string
 }
 
 type GetResponse struct {
+	CrudResponseMeta
 	Cas      uint64
 	Flags    uint32
 	Value    []byte
@@ -170,14 +176,15 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 }
 
 type GetAndTouchRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Expiry       uint32
 	Key          []byte
 	VbucketID    uint16
-	OnBehalfOf   string
 }
 
 type GetAndTouchResponse struct {
+	CrudResponseMeta
 	Cas      uint64
 	Flags    uint32
 	Value    []byte
@@ -242,13 +249,14 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 }
 
 type GetReplicaRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
-	OnBehalfOf   string
 }
 
 type GetReplicaResponse struct {
+	CrudResponseMeta
 	Cas      uint64
 	Flags    uint32
 	Value    []byte
@@ -306,15 +314,15 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 }
 
 type GetAndLockRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	LockTime     uint32
 	Key          []byte
 	VbucketID    uint16
-
-	OnBehalfOf string
 }
 
 type GetAndLockResponse struct {
+	CrudResponseMeta
 	Cas      uint64
 	Flags    uint32
 	Value    []byte
@@ -379,12 +387,12 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 }
 
 type GetRandomRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
-
-	OnBehalfOf string
 }
 
 type GetRandomResponse struct {
+	CrudResponseMeta
 	Key      []byte
 	Cas      uint64
 	Flags    uint32
@@ -445,6 +453,7 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 }
 
 type SetRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
@@ -453,13 +462,13 @@ type SetRequest struct {
 	Datatype               uint8
 	Expiry                 uint32
 	PreserveExpiry         bool
-	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
 
 type SetResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -531,15 +540,15 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 }
 
 type UnlockRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Cas          uint64
 	Key          []byte
 	VbucketID    uint16
-
-	OnBehalfOf string
 }
 
 type UnlockResponse struct {
+	CrudResponseMeta
 	MutationToken MutationToken
 }
 
@@ -597,14 +606,15 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 }
 
 type TouchRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
 	Expiry       uint32
-	OnBehalfOf   string
 }
 
 type TouchResponse struct {
+	CrudResponseMeta
 	Cas uint64
 }
 
@@ -661,16 +671,17 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 }
 
 type DeleteRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
-	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
 
 type DeleteResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -737,6 +748,7 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 }
 
 type AddRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
@@ -744,12 +756,12 @@ type AddRequest struct {
 	Value                  []byte
 	Datatype               uint8
 	Expiry                 uint32
-	OnBehalfOf             string
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
 
 type AddResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -816,6 +828,7 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 }
 
 type ReplaceRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
@@ -824,13 +837,13 @@ type ReplaceRequest struct {
 	Datatype               uint8
 	Expiry                 uint32
 	PreserveExpiry         bool
-	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
 
 type ReplaceResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -908,11 +921,11 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 }
 
 type AppendRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
 	Value                  []byte
-	OnBehalfOf             string
 	Datatype               uint8
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
@@ -920,6 +933,7 @@ type AppendRequest struct {
 }
 
 type AppendResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -988,11 +1002,11 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 }
 
 type PrependRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
 	Value                  []byte
-	OnBehalfOf             string
 	Datatype               uint8
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
@@ -1000,6 +1014,7 @@ type PrependRequest struct {
 }
 
 type PrependResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -1068,10 +1083,10 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 }
 
 type IncrementRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
-	OnBehalfOf             string
 	Initial                uint64
 	Delta                  uint64
 	Expiry                 uint32
@@ -1080,6 +1095,7 @@ type IncrementRequest struct {
 }
 
 type IncrementResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 	Value         uint64
@@ -1162,10 +1178,10 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 }
 
 type DecrementRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
-	OnBehalfOf             string
 	Initial                uint64
 	Delta                  uint64
 	Expiry                 uint32
@@ -1174,6 +1190,7 @@ type DecrementRequest struct {
 }
 
 type DecrementResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 	Value         uint64
@@ -1256,14 +1273,14 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 }
 
 type GetMetaRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
-
-	OnBehalfOf string
 }
 
 type GetMetaResponse struct {
+	CrudResponseMeta
 	Value    []byte
 	Flags    uint32
 	Cas      uint64
@@ -1333,6 +1350,7 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 }
 
 type SetMetaRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
@@ -1340,7 +1358,6 @@ type SetMetaRequest struct {
 	Value        []byte
 	Datatype     uint8
 	Expiry       uint32
-	OnBehalfOf   string
 	Extra        []byte
 	RevNo        uint64
 	Cas          uint64
@@ -1348,6 +1365,7 @@ type SetMetaRequest struct {
 }
 
 type SetMetaResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -1416,12 +1434,12 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 }
 
 type DeleteMetaRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
 	Flags        uint32
 	Expiry       uint32
-	OnBehalfOf   string
 	Cas          uint64
 	Extra        []byte
 	RevNo        uint64
@@ -1429,6 +1447,7 @@ type DeleteMetaRequest struct {
 }
 
 type DeleteMetaResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
@@ -1495,16 +1514,16 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 }
 
 type LookupInRequest struct {
+	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
 	Flags        SubdocDocFlag
 	Ops          []LookupInOp
-
-	OnBehalfOf string
 }
 
 type LookupInResponse struct {
+	CrudResponseMeta
 	Ops          []SubDocResult
 	DocIsDeleted bool
 	Cas          uint64
@@ -1656,6 +1675,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 }
 
 type MutateInRequest struct {
+	CrudRequestMeta
 	CollectionID           uint32
 	Key                    []byte
 	VbucketID              uint16
@@ -1663,13 +1683,13 @@ type MutateInRequest struct {
 	Ops                    []MutateInOp
 	Expiry                 uint32
 	PreserveExpiry         bool
-	OnBehalfOf             string
 	Cas                    uint64
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
 
 type MutateInResponse struct {
+	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 	Ops           []SubDocResult
