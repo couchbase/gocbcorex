@@ -29,7 +29,7 @@ func createTestClient(t *testing.T) *Client {
 		VBucketServerMap vbucketServerMap `json:"vBucketServerMap"`
 	}
 	var config cbConfig
-	require.NoError(t, json.Unmarshal(resp.ClusterConfig, &config))
+	require.NoError(t, json.Unmarshal(resp.ClusterConfig.Config, &config))
 
 	// This is all a bit rough and can be improved, in time.
 	vbIdx := config.VBucketServerMap.VBucketMap[defaultTestVbucketID][0]

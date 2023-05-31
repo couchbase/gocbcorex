@@ -104,7 +104,11 @@ type GetErrorMapRequest struct {
 	Version uint16
 }
 
-func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]byte, error)) (PendingOp, error) {
+type GetErrorMapResponse struct {
+	ErrorMap []byte
+}
+
+func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func(*GetErrorMapResponse, error)) (PendingOp, error) {
 	valueBuf := make([]byte, 2)
 	binary.BigEndian.PutUint16(valueBuf[0:], req.Version)
 
@@ -123,14 +127,20 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func([]by
 			return false
 		}
 
-		cb(resp.Value, nil)
+		cb(&GetErrorMapResponse{
+			ErrorMap: resp.Value,
+		}, nil)
 		return false
 	})
 }
 
 type GetClusterConfigRequest struct{}
 
-func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func([]byte, error)) (PendingOp, error) {
+type GetClusterConfigResponse struct {
+	Config []byte
+}
+
+func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func(*GetClusterConfigResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeGetClusterConfig,
@@ -162,7 +172,9 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 
 		outValue := bytes.ReplaceAll(resp.Value, []byte("$HOST"), []byte(host))
 
-		cb(outValue, nil)
+		cb(&GetClusterConfigResponse{
+			Config: outValue,
+		}, nil)
 		return false
 	})
 }
@@ -171,43 +183,49 @@ type SelectBucketRequest struct {
 	BucketName string
 }
 
-func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(error)) (PendingOp, error) {
+type SelectBucketResponse struct {
+}
+
+func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*SelectBucketResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSelectBucket,
 		Key:    []byte(req.BucketName),
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
-			cb(err)
+			cb(nil, err)
 			return false
 		}
 
 		if resp.Status == StatusAccessError {
-			cb(ErrUnknownBucketName)
+			cb(nil, ErrUnknownBucketName)
 			return false
 		} else if resp.Status == StatusKeyNotFound {
 			// in some cases, it seems that kv_engine returns KeyNotFound rather
 			// than access error when a bucket does not exist yet.	I believe this
 			// is a race between the RBAC data updating and the bucket data updating.
-			cb(ErrUnknownBucketName)
+			cb(nil, ErrUnknownBucketName)
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, o.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
 
-		cb(nil)
+		cb(&SelectBucketResponse{}, nil)
 		return false
 	})
+}
+
+type SASLListMechsRequest struct {
 }
 
 type SASLListMechsResponse struct {
 	AvailableMechs []AuthMechanism
 }
 
-func (o OpsCore) SASLListMechs(d Dispatcher, cb func(*SASLListMechsResponse, error)) (PendingOp, error) {
+func (o OpsCore) SASLListMechs(d Dispatcher, req *SASLListMechsRequest, cb func(*SASLListMechsResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
 		Magic:  MagicReq,
 		OpCode: OpCodeSASLListMechs,

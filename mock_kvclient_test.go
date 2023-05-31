@@ -47,7 +47,7 @@ var _ KvClient = &KvClientMock{}
 //			GetAndTouchFunc: func(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error) {
 //				panic("mock out the GetAndTouch method")
 //			},
-//			GetClusterConfigFunc: func(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error) {
+//			GetClusterConfigFunc: func(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error) {
 //				panic("mock out the GetClusterConfig method")
 //			},
 //			GetCollectionIDFunc: func(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error) {
@@ -145,7 +145,7 @@ type KvClientMock struct {
 	GetAndTouchFunc func(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error)
 
 	// GetClusterConfigFunc mocks the GetClusterConfig method.
-	GetClusterConfigFunc func(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
+	GetClusterConfigFunc func(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error)
 
 	// GetCollectionIDFunc mocks the GetCollectionID method.
 	GetCollectionIDFunc func(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
@@ -756,7 +756,7 @@ func (mock *KvClientMock) GetAndTouchCalls() []struct {
 }
 
 // GetClusterConfig calls GetClusterConfigFunc.
-func (mock *KvClientMock) GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error) {
+func (mock *KvClientMock) GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error) {
 	if mock.GetClusterConfigFunc == nil {
 		panic("KvClientMock.GetClusterConfigFunc: method is nil but KvClient.GetClusterConfig was just called")
 	}

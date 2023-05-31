@@ -12,7 +12,8 @@ import (
 func TestOpSaslAuthAuto_Plain(t *testing.T) {
 	enc := &testOpSaslAutoEncoder{
 		sASLListMech: unaryResult[*SASLListMechsResponse]{
-			Resp: &SASLListMechsResponse{[]AuthMechanism{PlainAuthMechanism}},
+			Resp: &SASLListMechsResponse{
+				AvailableMechs: []AuthMechanism{PlainAuthMechanism}},
 		},
 		sASLAuth: []unaryResult[*SASLAuthResponse]{
 			{
@@ -64,7 +65,8 @@ func TestOpSaslAuthAuto_FirstAuthFails(t *testing.T) {
 	// and attempt auth again with the second mech.
 	enc := &testOpSaslAutoEncoder{
 		sASLListMech: unaryResult[*SASLListMechsResponse]{
-			Resp: &SASLListMechsResponse{[]AuthMechanism{PlainAuthMechanism}},
+			Resp: &SASLListMechsResponse{
+				AvailableMechs: []AuthMechanism{PlainAuthMechanism}},
 		},
 		sASLAuth: []unaryResult[*SASLAuthResponse]{
 			{
@@ -110,7 +112,8 @@ func TestOpSaslAuthAuto_FirstAuthFailsNoCompatibleMechs(t *testing.T) {
 	// and then find that it has no supported mechanisms.
 	enc := &testOpSaslAutoEncoder{
 		sASLListMech: unaryResult[*SASLListMechsResponse]{
-			Resp: &SASLListMechsResponse{[]AuthMechanism{ScramSha1AuthMechanism}},
+			Resp: &SASLListMechsResponse{
+				AvailableMechs: []AuthMechanism{ScramSha1AuthMechanism}},
 		},
 		sASLAuth: []unaryResult[*SASLAuthResponse]{
 			{
@@ -226,7 +229,7 @@ func (t *testOpSaslAutoEncoder) SASLAuth(dispatcher Dispatcher, request *SASLAut
 	return pendingOpNoop{}, nil
 }
 
-func (t *testOpSaslAutoEncoder) SASLListMechs(dispatcher Dispatcher, f func(*SASLListMechsResponse, error)) (PendingOp, error) {
+func (t *testOpSaslAutoEncoder) SASLListMechs(dispatcher Dispatcher, request *SASLListMechsRequest, f func(*SASLListMechsResponse, error)) (PendingOp, error) {
 	go func() {
 		f(t.sASLListMech.Resp, t.sASLListMech.Err)
 		t.syncCh <- struct{}{}
