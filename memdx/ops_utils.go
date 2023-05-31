@@ -3,14 +3,16 @@ package memdx
 import (
 	"encoding/binary"
 	"fmt"
-	"time"
 )
 
 type UtilsRequestMeta struct {
 	OnBehalfOf string
 }
 
-type UtilsResponseMeta struct{}
+type UtilsResponseMeta struct {
+	// While these operations typically support ServerDuration, they wouldn't make
+	// a lot of sense to expose here, so we do not.
+}
 
 type OpsUtils struct {
 	ExtFramesEnabled bool

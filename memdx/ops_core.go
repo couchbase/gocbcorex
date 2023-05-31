@@ -6,12 +6,15 @@ import (
 	"errors"
 	"net"
 	"strings"
-	"time"
 )
 
 type CoreRequestMeta struct{}
 
-type CoreResponseMeta struct{}
+type CoreResponseMeta struct {
+	// Note that while the server technically supports server durations for some
+	// of these core commands, the client needs to enable durations first, so we
+	// ignore that capability here.
+}
 
 type OpsCore struct {
 }
