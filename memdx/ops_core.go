@@ -6,7 +6,12 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"time"
 )
+
+type CoreRequestMeta struct{}
+
+type CoreResponseMeta struct{}
 
 type OpsCore struct {
 }
@@ -52,11 +57,13 @@ func (o OpsCore) decodeError(resp *Packet, dispatchedTo string, dispatchedFrom s
 }
 
 type HelloRequest struct {
+	CoreRequestMeta
 	ClientName        []byte
 	RequestedFeatures []HelloFeature
 }
 
 type HelloResponse struct {
+	CoreResponseMeta
 	EnabledFeatures []HelloFeature
 }
 
@@ -101,10 +108,12 @@ func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, 
 }
 
 type GetErrorMapRequest struct {
+	CoreRequestMeta
 	Version uint16
 }
 
 type GetErrorMapResponse struct {
+	CoreResponseMeta
 	ErrorMap []byte
 }
 
@@ -134,9 +143,12 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func(*Get
 	})
 }
 
-type GetClusterConfigRequest struct{}
+type GetClusterConfigRequest struct {
+	CoreRequestMeta
+}
 
 type GetClusterConfigResponse struct {
+	CoreResponseMeta
 	Config []byte
 }
 
@@ -180,10 +192,12 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 }
 
 type SelectBucketRequest struct {
+	CoreRequestMeta
 	BucketName string
 }
 
 type SelectBucketResponse struct {
+	CoreResponseMeta
 }
 
 func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*SelectBucketResponse, error)) (PendingOp, error) {
@@ -219,9 +233,11 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*S
 }
 
 type SASLListMechsRequest struct {
+	CoreRequestMeta
 }
 
 type SASLListMechsResponse struct {
+	CoreResponseMeta
 	AvailableMechs []AuthMechanism
 }
 
@@ -255,11 +271,13 @@ func (o OpsCore) SASLListMechs(d Dispatcher, req *SASLListMechsRequest, cb func(
 }
 
 type SASLAuthRequest struct {
+	CoreRequestMeta
 	Mechanism AuthMechanism
 	Payload   []byte
 }
 
 type SASLAuthResponse struct {
+	CoreResponseMeta
 	NeedsMoreSteps bool
 	Payload        []byte
 }
@@ -301,11 +319,13 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 }
 
 type SASLStepRequest struct {
+	CoreRequestMeta
 	Mechanism AuthMechanism
 	Payload   []byte
 }
 
 type SASLStepResponse struct {
+	CoreResponseMeta
 	NeedsMoreSteps bool
 	Payload        []byte
 }

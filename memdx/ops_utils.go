@@ -3,7 +3,14 @@ package memdx
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 )
+
+type UtilsRequestMeta struct {
+	OnBehalfOf string
+}
+
+type UtilsResponseMeta struct{}
 
 type OpsUtils struct {
 	ExtFramesEnabled bool
@@ -31,12 +38,12 @@ func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []by
 }
 
 type StatsRequest struct {
+	UtilsRequestMeta
 	GroupName string
-
-	OnBehalfOf string
 }
 
 type StatsResponse struct {
+	UtilsResponseMeta
 	Key   string
 	Value string
 }
@@ -77,13 +84,13 @@ func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse,
 }
 
 type GetCollectionIDRequest struct {
+	UtilsRequestMeta
 	ScopeName      string
 	CollectionName string
-
-	OnBehalfOf string
 }
 
 type GetCollectionIDResponse struct {
+	UtilsResponseMeta
 	ManifestRev  uint64
 	CollectionID uint32
 }
