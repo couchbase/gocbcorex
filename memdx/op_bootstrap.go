@@ -6,10 +6,10 @@ import (
 
 type OpBootstrapEncoder interface {
 	Hello(Dispatcher, *HelloRequest, func(*HelloResponse, error)) (PendingOp, error)
-	GetErrorMap(Dispatcher, *GetErrorMapRequest, func([]byte, error)) (PendingOp, error)
+	GetErrorMap(Dispatcher, *GetErrorMapRequest, func(*GetErrorMapResponse, error)) (PendingOp, error)
 	OpSaslAuthAutoEncoder
-	SelectBucket(Dispatcher, *SelectBucketRequest, func(error)) (PendingOp, error)
-	GetClusterConfig(Dispatcher, *GetClusterConfigRequest, func([]byte, error)) (PendingOp, error)
+	SelectBucket(Dispatcher, *SelectBucketRequest, func(*SelectBucketResponse, error)) (PendingOp, error)
+	GetClusterConfig(Dispatcher, *GetClusterConfigRequest, func(*GetClusterConfigResponse, error)) (PendingOp, error)
 }
 
 var _ OpBootstrapEncoder = (*OpsCore)(nil)
@@ -30,8 +30,8 @@ type BootstrapOptions struct {
 
 type BootstrapResult struct {
 	Hello         *HelloResponse
-	ErrorMap      []byte
-	ClusterConfig []byte
+	ErrorMap      *GetErrorMapResponse
+	ClusterConfig *GetClusterConfigResponse
 }
 
 func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res *BootstrapResult, err error)) (PendingOp, error) {
@@ -57,16 +57,16 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	}
 
 	if opts.GetErrorMap != nil {
-		OpPipelineAdd(&pipeline, func(opCb func(errorMap []byte, err error)) (PendingOp, error) {
+		OpPipelineAdd(&pipeline, func(opCb func(res *GetErrorMapResponse, err error)) (PendingOp, error) {
 			return a.Encoder.GetErrorMap(d, opts.GetErrorMap, opCb)
-		}, func(errorMap []byte, err error) bool {
+		}, func(res *GetErrorMapResponse, err error) bool {
 			if err != nil {
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no ErrorMap result...
-				errorMap = nil
+				res = nil
 			}
 
-			result.ErrorMap = errorMap
+			result.ErrorMap = res
 			return true
 		})
 	}
@@ -89,11 +89,9 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	}
 
 	if opts.SelectBucket != nil {
-		OpPipelineAdd(&pipeline, func(opCb func(res struct{}, err error)) (PendingOp, error) {
-			return a.Encoder.SelectBucket(d, opts.SelectBucket, func(err error) {
-				opCb(struct{}{}, err)
-			})
-		}, func(res struct{}, err error) bool {
+		OpPipelineAdd(&pipeline, func(opCb func(res *SelectBucketResponse, err error)) (PendingOp, error) {
+			return a.Encoder.SelectBucket(d, opts.SelectBucket, opCb)
+		}, func(res *SelectBucketResponse, err error) bool {
 			if err != nil {
 				cb(nil, err)
 				return false
@@ -104,16 +102,16 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 	}
 
 	if opts.GetClusterConfig != nil {
-		OpPipelineAdd(&pipeline, func(opCb func(clusterConfig []byte, err error)) (PendingOp, error) {
+		OpPipelineAdd(&pipeline, func(opCb func(res *GetClusterConfigResponse, err error)) (PendingOp, error) {
 			return a.Encoder.GetClusterConfig(d, opts.GetClusterConfig, opCb)
-		}, func(clusterConfig []byte, err error) bool {
+		}, func(res *GetClusterConfigResponse, err error) bool {
 			if err != nil {
 				// when an error occurs, we dont fail bootstrap entirely, we instead
 				// return the result indicating no Config result...
-				clusterConfig = nil
+				res = nil
 			}
 
-			result.ClusterConfig = clusterConfig
+			result.ClusterConfig = res
 			return true
 		})
 	}

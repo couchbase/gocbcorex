@@ -9,7 +9,7 @@ import (
 
 type OpSaslAuthAutoEncoder interface {
 	OpSaslAuthByNameEncoder
-	SASLListMechs(Dispatcher, func(*SASLListMechsResponse, error)) (PendingOp, error)
+	SASLListMechs(Dispatcher, *SASLListMechsRequest, func(*SASLListMechsResponse, error)) (PendingOp, error)
 }
 
 type OpSaslAuthAuto struct {
@@ -39,7 +39,7 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 
 	pendingOp := &multiPendingOp{}
 
-	op, err := a.Encoder.SASLListMechs(d, func(resp *SASLListMechsResponse, err error) {
+	op, err := a.Encoder.SASLListMechs(d, &SASLListMechsRequest{}, func(resp *SASLListMechsResponse, err error) {
 		if err != nil {
 			// log.Printf("failed to list available authentication mechanisms: %s", err)
 			return

@@ -79,7 +79,7 @@ func configWatcherMemd_pollOne(
 	}
 
 	var config cbconfig.TerseConfigJson
-	err = json.Unmarshal(resp, &config)
+	err = json.Unmarshal(resp.Config, &config)
 	if err != nil {
 		return nil, err
 	}

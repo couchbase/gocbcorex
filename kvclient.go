@@ -51,7 +51,7 @@ type KvClientOptions struct {
 
 type KvClientOps interface {
 	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
-	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) ([]byte, error)
+	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error)
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
@@ -283,7 +283,7 @@ func (c *kvClient) Reconfigure(config *KvClientConfig, cb func(error)) error {
 
 	go func() {
 		if selectBucketName != "" {
-			err := c.SelectBucket(context.Background(), &memdx.SelectBucketRequest{
+			_, err := c.SelectBucket(context.Background(), &memdx.SelectBucketRequest{
 				BucketName: selectBucketName,
 			})
 			if err != nil {

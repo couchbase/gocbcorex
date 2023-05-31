@@ -25,8 +25,8 @@ func TestOpBootstrapPlainAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, enc.Responses.Hello.Resp.EnabledFeatures, res.Hello.EnabledFeatures)
-	assert.Equal(t, errmap, res.ErrorMap)
-	assert.Equal(t, cfg, res.ClusterConfig)
+	assert.Equal(t, errmap, res.ErrorMap.ErrorMap)
+	assert.Equal(t, cfg, res.ClusterConfig.Config)
 }
 
 func TestOpBootstrapHelloFails(t *testing.T) {
@@ -46,8 +46,8 @@ func TestOpBootstrapHelloFails(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Nil(t, res.Hello)
-	assert.Equal(t, errmap, res.ErrorMap)
-	assert.Equal(t, cfg, res.ClusterConfig)
+	assert.Equal(t, errmap, res.ErrorMap.ErrorMap)
+	assert.Equal(t, cfg, res.ClusterConfig.Config)
 }
 
 func TestOpBootstrapGetErrMapFails(t *testing.T) {
@@ -55,7 +55,7 @@ func TestOpBootstrapGetErrMapFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.GetErrorMap = unaryResult[[]byte]{
+	enc.Responses.GetErrorMap = unaryResult[*GetErrorMapResponse]{
 		Err: errors.New("i failed"),
 	}
 
@@ -68,7 +68,7 @@ func TestOpBootstrapGetErrMapFails(t *testing.T) {
 
 	assert.Equal(t, enc.Responses.Hello.Resp.EnabledFeatures, res.Hello.EnabledFeatures)
 	assert.Nil(t, res.ErrorMap)
-	assert.Equal(t, cfg, res.ClusterConfig)
+	assert.Equal(t, cfg, res.ClusterConfig.Config)
 }
 
 func TestOpBootstrapListMechFails(t *testing.T) {
@@ -88,8 +88,8 @@ func TestOpBootstrapListMechFails(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, enc.Responses.Hello.Resp.EnabledFeatures, res.Hello.EnabledFeatures)
-	assert.Equal(t, errmap, res.ErrorMap)
-	assert.Equal(t, cfg, res.ClusterConfig)
+	assert.Equal(t, errmap, res.ErrorMap.ErrorMap)
+	assert.Equal(t, cfg, res.ClusterConfig.Config)
 }
 
 func TestOpBootstrapAuthFails(t *testing.T) {
@@ -114,14 +114,16 @@ func TestOpBootstrapSelectBucketFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.SelectBucket = errors.New("imnobucket")
+	enc.Responses.SelectBucket = unaryResult[*SelectBucketResponse]{
+		Err: errors.New("imnobucket"),
+	}
 
 	opts := makeDefaultBootstrapOptions()
 
 	_, err := syncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
-	assert.ErrorIs(t, err, enc.Responses.SelectBucket)
+	assert.ErrorIs(t, err, enc.Responses.SelectBucket.Err)
 }
 
 func TestOpBootstrapGetClusterConfigFails(t *testing.T) {
@@ -129,7 +131,7 @@ func TestOpBootstrapGetClusterConfigFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.GetClusterConfig = unaryResult[[]byte]{
+	enc.Responses.GetClusterConfig = unaryResult[*GetClusterConfigResponse]{
 		Err: errors.New("i failed"),
 	}
 
@@ -141,7 +143,7 @@ func TestOpBootstrapGetClusterConfigFails(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, enc.Responses.Hello.Resp.EnabledFeatures, res.Hello.EnabledFeatures)
-	assert.Equal(t, errmap, res.ErrorMap)
+	assert.Equal(t, errmap, res.ErrorMap.ErrorMap)
 	assert.Nil(t, res.ClusterConfig)
 }
 
@@ -260,8 +262,10 @@ func makeDefaultTestBootstrapEncoder(errmap []byte, cfg []byte) *testOpBootstrap
 					EnabledFeatures: []HelloFeature{1, 2, 3, 4, 5},
 				},
 			},
-			GetErrorMap: unaryResult[[]byte]{
-				Resp: errmap,
+			GetErrorMap: unaryResult[*GetErrorMapResponse]{
+				Resp: &GetErrorMapResponse{
+					ErrorMap: errmap,
+				},
 			},
 			SASLAuth: unaryResult[*SASLAuthResponse]{
 				Resp: &SASLAuthResponse{
@@ -270,11 +274,15 @@ func makeDefaultTestBootstrapEncoder(errmap []byte, cfg []byte) *testOpBootstrap
 			},
 			SASLStep: unaryResult[*SASLStepResponse]{},
 			SASLListMech: unaryResult[*SASLListMechsResponse]{
-				Resp: &SASLListMechsResponse{AvailableMechs: []AuthMechanism{PlainAuthMechanism}},
+				Resp: &SASLListMechsResponse{
+					AvailableMechs: []AuthMechanism{PlainAuthMechanism},
+				},
 			},
-			SelectBucket: nil,
-			GetClusterConfig: unaryResult[[]byte]{
-				Resp: cfg,
+			SelectBucket: unaryResult[*SelectBucketResponse]{},
+			GetClusterConfig: unaryResult[*GetClusterConfigResponse]{
+				Resp: &GetClusterConfigResponse{
+					Config: cfg,
+				},
 			},
 		},
 		helloDoneCh:    make(chan struct{}),
@@ -315,12 +323,12 @@ type testOpBootstrapEncoderRequests struct {
 
 type testOpBootstrapEncoderResponses struct {
 	Hello            unaryResult[*HelloResponse]
-	GetErrorMap      unaryResult[[]byte]
+	GetErrorMap      unaryResult[*GetErrorMapResponse]
 	SASLAuth         unaryResult[*SASLAuthResponse]
 	SASLStep         unaryResult[*SASLStepResponse]
 	SASLListMech     unaryResult[*SASLListMechsResponse]
-	SelectBucket     error
-	GetClusterConfig unaryResult[[]byte]
+	SelectBucket     unaryResult[*SelectBucketResponse]
+	GetClusterConfig unaryResult[*GetClusterConfigResponse]
 }
 
 type testOpBootstrapEncoderDispatchErrors struct {
@@ -389,7 +397,7 @@ func (t *testOpBootstrapEncoder) Hello(dispatcher Dispatcher, request *HelloRequ
 	}, nil
 }
 
-func (t *testOpBootstrapEncoder) GetErrorMap(dispatcher Dispatcher, request *GetErrorMapRequest, f func([]byte, error)) (PendingOp, error) {
+func (t *testOpBootstrapEncoder) GetErrorMap(dispatcher Dispatcher, request *GetErrorMapRequest, f func(*GetErrorMapResponse, error)) (PendingOp, error) {
 	t.Requests.GetErrorMap = append(t.Requests.GetErrorMap, request)
 
 	if t.DispatchErrors.GetErrorMap != nil {
@@ -406,7 +414,7 @@ func (t *testOpBootstrapEncoder) GetErrorMap(dispatcher Dispatcher, request *Get
 		t.errMapDoneCh <- struct{}{}
 	}()
 
-	return &bootstrapPendingOp[[]byte]{
+	return &bootstrapPendingOp[*GetErrorMapResponse]{
 		cb: f,
 	}, nil
 }
@@ -437,7 +445,7 @@ func (t *testOpBootstrapEncoder) SASLStep(dispatcher Dispatcher, request *SASLSt
 	panic("not implemented")
 }
 
-func (t *testOpBootstrapEncoder) SASLListMechs(dispatcher Dispatcher, f func(*SASLListMechsResponse, error)) (PendingOp, error) {
+func (t *testOpBootstrapEncoder) SASLListMechs(dispatcher Dispatcher, request *SASLListMechsRequest, f func(*SASLListMechsResponse, error)) (PendingOp, error) {
 	t.Requests.SASLListMech++
 
 	if t.DispatchErrors.SASLListMech != nil {
@@ -459,7 +467,7 @@ func (t *testOpBootstrapEncoder) SASLListMechs(dispatcher Dispatcher, f func(*SA
 	}, nil
 }
 
-func (t *testOpBootstrapEncoder) SelectBucket(dispatcher Dispatcher, request *SelectBucketRequest, f func(error)) (PendingOp, error) {
+func (t *testOpBootstrapEncoder) SelectBucket(dispatcher Dispatcher, request *SelectBucketRequest, f func(*SelectBucketResponse, error)) (PendingOp, error) {
 	t.Requests.SelectBucket = append(t.Requests.SelectBucket, request)
 
 	if t.DispatchErrors.SelectBucket != nil {
@@ -472,20 +480,16 @@ func (t *testOpBootstrapEncoder) SelectBucket(dispatcher Dispatcher, request *Se
 			t.SelectBucketBlockCh.Reached <- struct{}{}
 			<-t.SelectBucketBlockCh.Continue
 		}
-		f(t.Responses.SelectBucket)
+		f(t.Responses.SelectBucket.Resp, t.Responses.SelectBucket.Err)
 		t.selectBucketCh <- struct{}{}
 	}()
 
-	wrapper := func(_ struct{}, err error) {
-		f(err)
-	}
-
-	return &bootstrapPendingOp[struct{}]{
-		cb: wrapper,
+	return &bootstrapPendingOp[*SelectBucketResponse]{
+		cb: f,
 	}, nil
 }
 
-func (t *testOpBootstrapEncoder) GetClusterConfig(dispatcher Dispatcher, request *GetClusterConfigRequest, f func([]byte, error)) (PendingOp, error) {
+func (t *testOpBootstrapEncoder) GetClusterConfig(dispatcher Dispatcher, request *GetClusterConfigRequest, f func(*GetClusterConfigResponse, error)) (PendingOp, error) {
 	t.Requests.GetClusterConfig = append(t.Requests.GetClusterConfig, request)
 
 	if t.DispatchErrors.GetClusterConfig != nil {
@@ -501,7 +505,7 @@ func (t *testOpBootstrapEncoder) GetClusterConfig(dispatcher Dispatcher, request
 		f(t.Responses.GetClusterConfig.Resp, t.Responses.GetClusterConfig.Err)
 	}()
 
-	return &bootstrapPendingOp[[]byte]{
+	return &bootstrapPendingOp[*GetClusterConfigResponse]{
 		cb: f,
 	}, nil
 }
