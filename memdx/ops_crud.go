@@ -10,7 +10,9 @@ type CrudRequestMeta struct {
 	OnBehalfOf string
 }
 
-type CrudResponseMeta struct{}
+type CrudResponseMeta struct {
+	ServerDuration time.Duration
+}
 
 type OpsCrud struct {
 	ExtFramesEnabled      bool
@@ -91,6 +93,32 @@ func (o OpsCrud) encodeReqExtFrames(
 	return MagicReq, nil, nil
 }
 
+func (o OpsCrud) decodeResExtFrames(
+	buf []byte,
+) (time.Duration, error) {
+	var serverDurationData []byte
+	var serverDuration time.Duration = 0
+	err := IterExtFrames(buf, func(code ExtFrameCode, data []byte) {
+		if code == ExtFrameCodeResServerDuration {
+			serverDurationData = data
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	if len(serverDurationData) > 0 {
+		dura, err := DecodeServerDurationExtFrame(serverDurationData)
+		if err != nil {
+			return 0, err
+		}
+
+		serverDuration = dura
+	}
+
+	return serverDuration, nil
+}
+
 func (o OpsCrud) decodeCommonStatus(status Status) error {
 	switch status {
 	case StatusCollectionUnknown:
@@ -165,11 +193,20 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&GetResponse{
 			Cas:      resp.Cas,
 			Flags:    flags,
 			Value:    resp.Value,
 			Datatype: resp.Datatype,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -238,11 +275,20 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&GetAndTouchResponse{
 			Cas:      resp.Cas,
 			Flags:    flags,
 			Value:    resp.Value,
 			Datatype: resp.Datatype,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -303,11 +349,20 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&GetReplicaResponse{
 			Cas:      resp.Cas,
 			Flags:    flags,
 			Value:    resp.Value,
 			Datatype: resp.Datatype,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -376,11 +431,20 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&GetAndLockResponse{
 			Cas:      resp.Cas,
 			Flags:    flags,
 			Value:    resp.Value,
 			Datatype: resp.Datatype,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -441,12 +505,21 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&GetRandomResponse{
 			Key:      resp.Key,
 			Cas:      resp.Cas,
 			Flags:    flags,
 			Value:    resp.Value,
 			Datatype: resp.Datatype,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -531,9 +604,18 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&SetResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -598,8 +680,17 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&UnlockResponse{
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -663,8 +754,17 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&TouchResponse{
 			Cas: resp.Cas,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -739,9 +839,18 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&DeleteResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -819,9 +928,18 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&AddResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -912,9 +1030,18 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&ReplaceResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -993,9 +1120,18 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&AppendResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -1074,9 +1210,18 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&PrependResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -1168,10 +1313,19 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&IncrementResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
 			Value:         intVal,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -1263,10 +1417,19 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&DecrementResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
 			Value:         intVal,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -1334,17 +1497,24 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			return false
 		}
 
-		res := &GetMetaResponse{
-			Value: resp.Value,
-			Cas:   resp.Cas,
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
 		}
-		res.Deleted = binary.BigEndian.Uint32(resp.Extras[0:]) != 0
-		res.Flags = binary.BigEndian.Uint32(resp.Extras[4:])
-		res.Expiry = binary.BigEndian.Uint32(resp.Extras[8:])
-		res.SeqNo = binary.BigEndian.Uint64(resp.Extras[12:])
-		res.Datatype = resp.Extras[20]
 
-		cb(res, nil)
+		cb(&GetMetaResponse{
+			Value:    resp.Value,
+			Deleted:  binary.BigEndian.Uint32(resp.Extras[0:]) != 0,
+			Flags:    binary.BigEndian.Uint32(resp.Extras[4:]),
+			Expiry:   binary.BigEndian.Uint32(resp.Extras[8:]),
+			SeqNo:    binary.BigEndian.Uint64(resp.Extras[12:]),
+			Datatype: resp.Extras[20],
+			Cas:      resp.Cas,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
+		}, nil)
 		return false
 	})
 }
@@ -1425,9 +1595,18 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&SetMetaResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -1505,9 +1684,18 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&DeleteMetaResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
@@ -1663,10 +1851,19 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			}
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		res := &LookupInResponse{
 			Ops:          results,
 			Cas:          resp.Cas,
 			DocIsDeleted: docIsDeleted,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}
 
 		cb(res, nil)
@@ -1879,10 +2076,19 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		cb(&MutateInResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
 			Ops:           results,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
 		}, nil)
 		return false
 	})
