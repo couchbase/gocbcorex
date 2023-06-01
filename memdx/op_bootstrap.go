@@ -28,6 +28,8 @@ type BootstrapOptions struct {
 	GetClusterConfig *GetClusterConfigRequest
 }
 
+func (o BootstrapOptions) OpName() string { return "Boostrap" }
+
 type BootstrapResult struct {
 	Hello         *HelloResponse
 	ErrorMap      *GetErrorMapResponse

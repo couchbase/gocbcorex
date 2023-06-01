@@ -145,6 +145,8 @@ type GetRequest struct {
 	VbucketID    uint16
 }
 
+func (r GetRequest) OpName() string { return OpCodeGet.String() }
+
 type GetResponse struct {
 	CrudResponseMeta
 	Cas      uint64
@@ -219,6 +221,8 @@ type GetAndTouchRequest struct {
 	Key          []byte
 	VbucketID    uint16
 }
+
+func (r GetAndTouchRequest) OpName() string { return OpCodeGAT.String() }
 
 type GetAndTouchResponse struct {
 	CrudResponseMeta
@@ -301,6 +305,8 @@ type GetReplicaRequest struct {
 	VbucketID    uint16
 }
 
+func (r GetReplicaRequest) OpName() string { return OpCodeGetReplica.String() }
+
 type GetReplicaResponse struct {
 	CrudResponseMeta
 	Cas      uint64
@@ -375,6 +381,8 @@ type GetAndLockRequest struct {
 	Key          []byte
 	VbucketID    uint16
 }
+
+func (r GetAndLockRequest) OpName() string { return OpCodeGetLocked.String() }
 
 type GetAndLockResponse struct {
 	CrudResponseMeta
@@ -454,6 +462,8 @@ type GetRandomRequest struct {
 	CrudRequestMeta
 	CollectionID uint32
 }
+
+func (r GetRandomRequest) OpName() string { return OpCodeGetRandom.String() }
 
 type GetRandomResponse struct {
 	CrudResponseMeta
@@ -539,6 +549,8 @@ type SetRequest struct {
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
+
+func (r SetRequest) OpName() string { return OpCodeSet.String() }
 
 type SetResponse struct {
 	CrudResponseMeta
@@ -629,6 +641,8 @@ type UnlockRequest struct {
 	VbucketID    uint16
 }
 
+func (r UnlockRequest) OpName() string { return OpCodeUnlockKey.String() }
+
 type UnlockResponse struct {
 	CrudResponseMeta
 	MutationToken MutationToken
@@ -703,6 +717,8 @@ type TouchRequest struct {
 	VbucketID    uint16
 	Expiry       uint32
 }
+
+func (r TouchRequest) OpName() string { return OpCodeTouch.String() }
 
 type TouchResponse struct {
 	CrudResponseMeta
@@ -779,6 +795,8 @@ type DeleteRequest struct {
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
+
+func (r DeleteRequest) OpName() string { return OpCodeDelete.String() }
 
 type DeleteResponse struct {
 	CrudResponseMeta
@@ -868,6 +886,8 @@ type AddRequest struct {
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
+
+func (r AddRequest) OpName() string { return OpCodeAdd.String() }
 
 type AddResponse struct {
 	CrudResponseMeta
@@ -959,6 +979,8 @@ type ReplaceRequest struct {
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
+
+func (r ReplaceRequest) OpName() string { return OpCodeReplace.String() }
 
 type ReplaceResponse struct {
 	CrudResponseMeta
@@ -1059,6 +1081,8 @@ type AppendRequest struct {
 	DurabilityLevelTimeout time.Duration
 }
 
+func (r AppendRequest) OpName() string { return OpCodeAppend.String() }
+
 type AppendResponse struct {
 	CrudResponseMeta
 	Cas           uint64
@@ -1149,6 +1173,8 @@ type PrependRequest struct {
 	DurabilityLevelTimeout time.Duration
 }
 
+func (r PrependRequest) OpName() string { return OpCodePrepend.String() }
+
 type PrependResponse struct {
 	CrudResponseMeta
 	Cas           uint64
@@ -1238,6 +1264,8 @@ type IncrementRequest struct {
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
+
+func (r IncrementRequest) OpName() string { return OpCodeIncrement.String() }
 
 type IncrementResponse struct {
 	CrudResponseMeta
@@ -1343,6 +1371,8 @@ type DecrementRequest struct {
 	DurabilityLevelTimeout time.Duration
 }
 
+func (r DecrementRequest) OpName() string { return OpCodeDecrement.String() }
+
 type DecrementResponse struct {
 	CrudResponseMeta
 	Cas           uint64
@@ -1442,6 +1472,8 @@ type GetMetaRequest struct {
 	VbucketID    uint16
 }
 
+func (r GetMetaRequest) OpName() string { return OpCodeGetMeta.String() }
+
 type GetMetaResponse struct {
 	CrudResponseMeta
 	Value    []byte
@@ -1534,6 +1566,8 @@ type SetMetaRequest struct {
 	Options      uint32
 }
 
+func (r SetMetaRequest) OpName() string { return OpCodeSetMeta.String() }
+
 type SetMetaResponse struct {
 	CrudResponseMeta
 	Cas           uint64
@@ -1625,6 +1659,8 @@ type DeleteMetaRequest struct {
 	Options      uint32
 }
 
+func (r DeleteMetaRequest) OpName() string { return OpCodeDelMeta.String() }
+
 type DeleteMetaResponse struct {
 	CrudResponseMeta
 	Cas           uint64
@@ -1709,6 +1745,8 @@ type LookupInRequest struct {
 	Flags        SubdocDocFlag
 	Ops          []LookupInOp
 }
+
+func (r LookupInRequest) OpName() string { return OpCodeSubDocMultiLookup.String() }
 
 type LookupInResponse struct {
 	CrudResponseMeta
@@ -1884,6 +1922,8 @@ type MutateInRequest struct {
 	DurabilityLevel        DurabilityLevel
 	DurabilityLevelTimeout time.Duration
 }
+
+func (r MutateInRequest) OpName() string { return OpCodeSubDocMultiMutation.String() }
 
 type MutateInResponse struct {
 	CrudResponseMeta

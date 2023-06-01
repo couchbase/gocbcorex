@@ -223,6 +223,8 @@ type RangeScanCreateRequest struct {
 	Snapshot *RangeScanCreateSnapshotRequirements
 }
 
+func (r RangeScanCreateRequest) OpName() string { return OpCodeRangeScanCreate.String() }
+
 func (opts RangeScanCreateRequest) toJSON() ([]byte, error) {
 	if opts.Range != nil && opts.Sampling != nil {
 		return nil, invalidArgError{"only one of range and sampling can be set"}
@@ -324,6 +326,8 @@ type RangeScanContinueRequest struct {
 	Deadline  time.Time
 }
 
+func (r RangeScanContinueRequest) OpName() string { return OpCodeRangeScanContinue.String() }
+
 type RangeScanDataResponse struct {
 	Items    []RangeScanItem
 	KeysOnly bool
@@ -340,6 +344,8 @@ type RangeScanCancelRequest struct {
 	ScanUUID  []byte
 	VbucketID uint16
 }
+
+func (r RangeScanCancelRequest) OpName() string { return OpCodeRangeScanCancel.String() }
 
 type RangeScanCancelResponse struct{}
 

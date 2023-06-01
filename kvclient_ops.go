@@ -49,13 +49,16 @@ func releaseSyncCrudResulter(v *syncCrudResulter) {
 	syncCrudResulterPool.Put(v)
 }
 
-func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
+func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	ctx context.Context,
 	c *kvClient,
 	o Encoder,
 	execFn func(o Encoder, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
 	req ReqT,
 ) (RespT, error) {
+
+	//tracer.Start(ctx, "")
+
 	resulter := allocSyncCrudResulter()
 	atomic.AddUint32(&resulter.AllocCount, 1)
 
@@ -94,7 +97,7 @@ func kvClient_SimpleCall[Encoder any, ReqT any, RespT any](
 	}
 }
 
-func kvClient_SimpleCoreCall[ReqT any, RespT any](
+func kvClient_SimpleCoreCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	ctx context.Context,
 	c *kvClient,
 	execFn func(o memdx.OpsCore, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
@@ -103,7 +106,7 @@ func kvClient_SimpleCoreCall[ReqT any, RespT any](
 	return kvClient_SimpleCall(ctx, c, memdx.OpsCore{}, execFn, req)
 }
 
-func kvClient_SimpleUtilsCall[ReqT any, RespT any](
+func kvClient_SimpleUtilsCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	ctx context.Context,
 	c *kvClient,
 	execFn func(o memdx.OpsUtils, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
@@ -114,7 +117,7 @@ func kvClient_SimpleUtilsCall[ReqT any, RespT any](
 	}, execFn, req)
 }
 
-func kvClient_SimpleCrudCall[ReqT any, RespT any](
+func kvClient_SimpleCrudCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	ctx context.Context,
 	c *kvClient,
 	execFn func(o memdx.OpsCrud, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),

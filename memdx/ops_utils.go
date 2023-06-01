@@ -44,6 +44,8 @@ type StatsRequest struct {
 	GroupName string
 }
 
+func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String() }
+
 type StatsResponse struct {
 	UtilsResponseMeta
 	Key   string
@@ -90,6 +92,8 @@ type GetCollectionIDRequest struct {
 	ScopeName      string
 	CollectionName string
 }
+
+func (r GetCollectionIDRequest) OpName() string { return OpCodeCollectionsGetID.String() }
 
 type GetCollectionIDResponse struct {
 	UtilsResponseMeta

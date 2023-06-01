@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+type OpRequest interface {
+	OpName() string
+}
+
+type OpResponse interface {
+}
+
 type CoreRequestMeta struct{}
 
 type CoreResponseMeta struct {
@@ -65,6 +72,8 @@ type HelloRequest struct {
 	RequestedFeatures []HelloFeature
 }
 
+func (r HelloRequest) OpName() string { return OpCodeHello.String() }
+
 type HelloResponse struct {
 	CoreResponseMeta
 	EnabledFeatures []HelloFeature
@@ -115,6 +124,8 @@ type GetErrorMapRequest struct {
 	Version uint16
 }
 
+func (r GetErrorMapRequest) OpName() string { return OpCodeGetErrorMap.String() }
+
 type GetErrorMapResponse struct {
 	CoreResponseMeta
 	ErrorMap []byte
@@ -149,6 +160,8 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func(*Get
 type GetClusterConfigRequest struct {
 	CoreRequestMeta
 }
+
+func (r GetClusterConfigRequest) OpName() string { return OpCodeGetClusterConfig.String() }
 
 type GetClusterConfigResponse struct {
 	CoreResponseMeta
@@ -199,6 +212,8 @@ type SelectBucketRequest struct {
 	BucketName string
 }
 
+func (r SelectBucketRequest) OpName() string { return OpCodeSelectBucket.String() }
+
 type SelectBucketResponse struct {
 	CoreResponseMeta
 }
@@ -239,6 +254,8 @@ type SASLListMechsRequest struct {
 	CoreRequestMeta
 }
 
+func (r SASLListMechsRequest) OpName() string { return OpCodeSASLListMechs.String() }
+
 type SASLListMechsResponse struct {
 	CoreResponseMeta
 	AvailableMechs []AuthMechanism
@@ -278,6 +295,8 @@ type SASLAuthRequest struct {
 	Mechanism AuthMechanism
 	Payload   []byte
 }
+
+func (r SASLAuthRequest) OpName() string { return OpCodeSASLAuth.String() }
 
 type SASLAuthResponse struct {
 	CoreResponseMeta
@@ -326,6 +345,8 @@ type SASLStepRequest struct {
 	Mechanism AuthMechanism
 	Payload   []byte
 }
+
+func (r SASLStepRequest) OpName() string { return OpCodeSASLStep.String() }
 
 type SASLStepResponse struct {
 	CoreResponseMeta
