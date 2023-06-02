@@ -58,6 +58,9 @@ type GetResult struct {
 }
 
 func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult, error) {
+	ctx, span := tracer.Start(ctx, "Get")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -104,6 +107,9 @@ type GetReplicaResult struct {
 }
 
 func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions) (*GetReplicaResult, error) {
+	ctx, span := tracer.Start(ctx, "GetReplica")
+	defer span.End()
+
 	fn := func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetReplicaResult, error) {
 		resp, err := client.GetReplica(ctx, &memdx.GetReplicaRequest{
 			CollectionID: collectionID,
@@ -165,6 +171,9 @@ type UpsertResult struct {
 }
 
 func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
+	ctx, span := tracer.Start(ctx, "Upsert")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -219,6 +228,9 @@ type DeleteResult struct {
 }
 
 func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteResult, error) {
+	ctx, span := tracer.Start(ctx, "Delete")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -264,6 +276,9 @@ type GetAndTouchResult struct {
 }
 
 func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptions) (*GetAndTouchResult, error) {
+	ctx, span := tracer.Start(ctx, "GetAndTouch")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -310,6 +325,9 @@ type GetRandomResult struct {
 }
 
 func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) (*GetRandomResult, error) {
+	ctx, span := tracer.Start(ctx, "GetRandom")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, nil,
@@ -352,6 +370,9 @@ type UnlockResult struct {
 }
 
 func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*UnlockResult, error) {
+	ctx, span := tracer.Start(ctx, "Unlock")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -392,6 +413,9 @@ type TouchResult struct {
 }
 
 func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchResult, error) {
+	ctx, span := tracer.Start(ctx, "Touch")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -432,6 +456,9 @@ type GetAndLockResult struct {
 }
 
 func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions) (*GetAndLockResult, error) {
+	ctx, span := tracer.Start(ctx, "GetAndLock")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
 			resp, err := client.GetAndLock(ctx, &memdx.GetAndLockRequest{
@@ -479,6 +506,9 @@ type AddResult struct {
 }
 
 func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult, error) {
+	ctx, span := tracer.Start(ctx, "Add")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -536,6 +566,9 @@ type ReplaceResult struct {
 }
 
 func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*ReplaceResult, error) {
+	ctx, span := tracer.Start(ctx, "Replace")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -591,6 +624,9 @@ type AppendResult struct {
 }
 
 func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*AppendResult, error) {
+	ctx, span := tracer.Start(ctx, "Append")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -643,6 +679,9 @@ type PrependResult struct {
 }
 
 func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*PrependResult, error) {
+	ctx, span := tracer.Start(ctx, "Prepend")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -698,6 +737,9 @@ type IncrementResult struct {
 }
 
 func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) (*IncrementResult, error) {
+	ctx, span := tracer.Start(ctx, "Increment")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -749,6 +791,9 @@ type DecrementResult struct {
 }
 
 func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) (*DecrementResult, error) {
+	ctx, span := tracer.Start(ctx, "Decrement")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -799,6 +844,9 @@ type GetMetaResult struct {
 }
 
 func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*GetMetaResult, error) {
+	ctx, span := tracer.Start(ctx, "GetMeta")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -848,6 +896,9 @@ type SetMetaResult struct {
 }
 
 func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*SetMetaResult, error) {
+	ctx, span := tracer.Start(ctx, "SetMeta")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -902,6 +953,9 @@ type DeleteMetaResult struct {
 }
 
 func (cc *CrudComponent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions) (*DeleteMetaResult, error) {
+	ctx, span := tracer.Start(ctx, "DeleteMeta")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -951,6 +1005,9 @@ type LookupInResult struct {
 }
 
 func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*LookupInResult, error) {
+	ctx, span := tracer.Start(ctx, "LookupIn")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
@@ -997,6 +1054,9 @@ type MutateInResult struct {
 }
 
 func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*MutateInResult, error) {
+	ctx, span := tracer.Start(ctx, "MutateIn")
+	defer span.End()
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,

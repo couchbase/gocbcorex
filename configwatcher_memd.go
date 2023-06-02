@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"sync"
 	"time"
 
@@ -68,7 +67,7 @@ func configWatcherMemd_pollOne(
 		return nil, err
 	}
 
-	host, _, _ := net.SplitHostPort(client.RemoteAddress())
+	host, _, _ := client.RemoteHostPort()
 	if host == "" {
 		return nil, errors.New("unexpected cccp endpoint format")
 	}

@@ -71,6 +71,9 @@ var _ KvClient = &KvClientMock{}
 //			LoadFactorFunc: func() float64 {
 //				panic("mock out the LoadFactor method")
 //			},
+//			LocalHostPortFunc: func() (string, int) {
+//				panic("mock out the LocalHostPort method")
+//			},
 //			LookupInFunc: func(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
 //				panic("mock out the LookupIn method")
 //			},
@@ -92,8 +95,8 @@ var _ KvClient = &KvClientMock{}
 //			ReconfigureFunc: func(config *KvClientConfig, cb func(error)) error {
 //				panic("mock out the Reconfigure method")
 //			},
-//			RemoteAddressFunc: func() string {
-//				panic("mock out the RemoteAddress method")
+//			RemoteHostPortFunc: func() (string, string, int) {
+//				panic("mock out the RemoteHostPort method")
 //			},
 //			ReplaceFunc: func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
 //				panic("mock out the Replace method")
@@ -168,6 +171,9 @@ type KvClientMock struct {
 	// LoadFactorFunc mocks the LoadFactor method.
 	LoadFactorFunc func() float64
 
+	// LocalHostPortFunc mocks the LocalHostPort method.
+	LocalHostPortFunc func() (string, int)
+
 	// LookupInFunc mocks the LookupIn method.
 	LookupInFunc func(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
 
@@ -189,8 +195,8 @@ type KvClientMock struct {
 	// ReconfigureFunc mocks the Reconfigure method.
 	ReconfigureFunc func(config *KvClientConfig, cb func(error)) error
 
-	// RemoteAddressFunc mocks the RemoteAddress method.
-	RemoteAddressFunc func() string
+	// RemoteHostPortFunc mocks the RemoteHostPort method.
+	RemoteHostPortFunc func() (string, string, int)
 
 	// ReplaceFunc mocks the Replace method.
 	ReplaceFunc func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
@@ -318,6 +324,9 @@ type KvClientMock struct {
 		// LoadFactor holds details about calls to the LoadFactor method.
 		LoadFactor []struct {
 		}
+		// LocalHostPort holds details about calls to the LocalHostPort method.
+		LocalHostPort []struct {
+		}
 		// LookupIn holds details about calls to the LookupIn method.
 		LookupIn []struct {
 			// Ctx is the ctx argument value.
@@ -369,8 +378,8 @@ type KvClientMock struct {
 			// Cb is the cb argument value.
 			Cb func(error)
 		}
-		// RemoteAddress holds details about calls to the RemoteAddress method.
-		RemoteAddress []struct {
+		// RemoteHostPort holds details about calls to the RemoteHostPort method.
+		RemoteHostPort []struct {
 		}
 		// Replace holds details about calls to the Replace method.
 		Replace []struct {
@@ -425,6 +434,7 @@ type KvClientMock struct {
 	lockHasFeature        sync.RWMutex
 	lockIncrement         sync.RWMutex
 	lockLoadFactor        sync.RWMutex
+	lockLocalHostPort     sync.RWMutex
 	lockLookupIn          sync.RWMutex
 	lockMutateIn          sync.RWMutex
 	lockPrepend           sync.RWMutex
@@ -432,7 +442,7 @@ type KvClientMock struct {
 	lockRangeScanContinue sync.RWMutex
 	lockRangeScanCreate   sync.RWMutex
 	lockReconfigure       sync.RWMutex
-	lockRemoteAddress     sync.RWMutex
+	lockRemoteHostPort    sync.RWMutex
 	lockReplace           sync.RWMutex
 	lockSet               sync.RWMutex
 	lockSetMeta           sync.RWMutex
@@ -1030,6 +1040,33 @@ func (mock *KvClientMock) LoadFactorCalls() []struct {
 	return calls
 }
 
+// LocalHostPort calls LocalHostPortFunc.
+func (mock *KvClientMock) LocalHostPort() (string, int) {
+	if mock.LocalHostPortFunc == nil {
+		panic("KvClientMock.LocalHostPortFunc: method is nil but KvClient.LocalHostPort was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockLocalHostPort.Lock()
+	mock.calls.LocalHostPort = append(mock.calls.LocalHostPort, callInfo)
+	mock.lockLocalHostPort.Unlock()
+	return mock.LocalHostPortFunc()
+}
+
+// LocalHostPortCalls gets all the calls that were made to LocalHostPort.
+// Check the length with:
+//
+//	len(mockedKvClient.LocalHostPortCalls())
+func (mock *KvClientMock) LocalHostPortCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockLocalHostPort.RLock()
+	calls = mock.calls.LocalHostPort
+	mock.lockLocalHostPort.RUnlock()
+	return calls
+}
+
 // LookupIn calls LookupInFunc.
 func (mock *KvClientMock) LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
 	if mock.LookupInFunc == nil {
@@ -1286,30 +1323,30 @@ func (mock *KvClientMock) ReconfigureCalls() []struct {
 	return calls
 }
 
-// RemoteAddress calls RemoteAddressFunc.
-func (mock *KvClientMock) RemoteAddress() string {
-	if mock.RemoteAddressFunc == nil {
-		panic("KvClientMock.RemoteAddressFunc: method is nil but KvClient.RemoteAddress was just called")
+// RemoteHostPort calls RemoteHostPortFunc.
+func (mock *KvClientMock) RemoteHostPort() (string, string, int) {
+	if mock.RemoteHostPortFunc == nil {
+		panic("KvClientMock.RemoteHostPortFunc: method is nil but KvClient.RemoteHostPort was just called")
 	}
 	callInfo := struct {
 	}{}
-	mock.lockRemoteAddress.Lock()
-	mock.calls.RemoteAddress = append(mock.calls.RemoteAddress, callInfo)
-	mock.lockRemoteAddress.Unlock()
-	return mock.RemoteAddressFunc()
+	mock.lockRemoteHostPort.Lock()
+	mock.calls.RemoteHostPort = append(mock.calls.RemoteHostPort, callInfo)
+	mock.lockRemoteHostPort.Unlock()
+	return mock.RemoteHostPortFunc()
 }
 
-// RemoteAddressCalls gets all the calls that were made to RemoteAddress.
+// RemoteHostPortCalls gets all the calls that were made to RemoteHostPort.
 // Check the length with:
 //
-//	len(mockedKvClient.RemoteAddressCalls())
-func (mock *KvClientMock) RemoteAddressCalls() []struct {
+//	len(mockedKvClient.RemoteHostPortCalls())
+func (mock *KvClientMock) RemoteHostPortCalls() []struct {
 } {
 	var calls []struct {
 	}
-	mock.lockRemoteAddress.RLock()
-	calls = mock.calls.RemoteAddress
-	mock.lockRemoteAddress.RUnlock()
+	mock.lockRemoteHostPort.RLock()
+	calls = mock.calls.RemoteHostPort
+	mock.lockRemoteHostPort.RUnlock()
 	return calls
 }
 

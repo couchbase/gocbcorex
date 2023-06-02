@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -88,7 +89,8 @@ type KvClient interface {
 
 	LoadFactor() float64
 
-	RemoteAddress() string
+	RemoteHostPort() (string, string, int)
+	LocalHostPort() (string, int)
 
 	KvClientOps
 }
@@ -99,7 +101,12 @@ type MemdxDispatcherCloser interface {
 }
 
 type kvClient struct {
-	logger *zap.Logger
+	logger         *zap.Logger
+	remoteHostName string
+	remoteHost     string
+	remotePort     int
+	localHost      string
+	localPort      int
 
 	pendingOperations uint64
 	cli               MemdxDispatcherCloser
@@ -116,14 +123,24 @@ type kvClient struct {
 var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOptions) (*kvClient, error) {
+	parseHostPort := func(addr string) (string, int) {
+		host, portStr, _ := net.SplitHostPort(addr)
+		parsedPort, _ := strconv.ParseInt(portStr, 10, 64)
+		return host, int(parsedPort)
+	}
+
 	logger := loggerOrNop(opts.Logger)
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
 		zap.String("clientId", uuid.NewString()[:8]),
 	)
 
+	remoteHostname, remotePort := parseHostPort(config.Address)
+
 	kvCli := &kvClient{
 		currentConfig: *config,
+		remoteHost:    remoteHostname,
+		remotePort:    remotePort,
 		logger:        logger,
 		closeHandler:  opts.CloseHandler,
 	}
@@ -210,6 +227,12 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	} else {
 		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
 	}
+
+	remoteHost, _ := parseHostPort(kvCli.cli.RemoteAddr())
+	localHost, localPort := parseHostPort(kvCli.cli.LocalAddr())
+	kvCli.remoteHost = remoteHost
+	kvCli.localHost = localHost
+	kvCli.localPort = localPort
 
 	if shouldBootstrap {
 		kvCli.logger.Debug("bootstrapping")
@@ -320,12 +343,12 @@ func (c *kvClient) LoadFactor() float64 {
 	return (float64)(atomic.LoadUint64(&c.pendingOperations))
 }
 
-func (c *kvClient) RemoteAddress() string {
-	c.lock.Lock()
-	addr := c.currentConfig.Address
-	c.lock.Unlock()
+func (c *kvClient) RemoteHostPort() (string, string, int) {
+	return c.remoteHostName, c.remoteHost, c.remotePort
+}
 
-	return addr
+func (c *kvClient) LocalHostPort() (string, int) {
+	return c.localHost, c.localPort
 }
 
 func (c *kvClient) handleOrphanResponse(packet *memdx.Packet) {

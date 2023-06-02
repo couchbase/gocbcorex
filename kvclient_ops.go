@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -56,13 +60,29 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	execFn func(o Encoder, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
 	req ReqT,
 ) (RespT, error) {
-
-	//tracer.Start(ctx, "")
+	ctx, span := tracer.Start(ctx, "memcached/"+req.OpName(),
+		trace.WithSpanKind(trace.SpanKindClient))
+	if span.IsRecording() {
+		remoteName, remoteHost, remotePort := c.RemoteHostPort()
+		span.SetAttributes(semconv.NetPeerNameKey.String(remoteName),
+			semconv.NetPeerIPKey.String(remoteHost),
+			semconv.NetPeerPortKey.Int(remotePort),
+			semconv.RPCMethodKey.String(req.OpName()),
+			semconv.RPCSystemKey.String("memcached"))
+	}
 
 	resulter := allocSyncCrudResulter()
 	atomic.AddUint32(&resulter.AllocCount, 1)
 
 	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
+		span.AddEvent("RECEIVED")
+
+		if sdResp, ok := any(resp).(memdx.ServerDurationResponse); ok {
+			span.SetAttributes(attribute.Int(
+				"db.couchbase.server_duration",
+				int(sdResp.GetServerDuration()/time.Microsecond)))
+		}
+
 		newSendCount := atomic.AddUint32(&resulter.SendCount, 1)
 		if newSendCount != atomic.LoadUint32(&resulter.AllocCount) {
 			c.logger.DPanic("sync resulter executed multiple sends", zap.Any("resp", resp), zap.Error(err))
@@ -80,19 +100,32 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		}
 
 		releaseSyncCrudResulter(resulter)
+
+		span.RecordError(err)
+		span.End()
+
 		var emptyResp RespT
 		return emptyResp, KvClientDispatchError{err}
 	}
 
+	span.AddEvent("SENT")
+
 	select {
 	case res := <-resulter.Ch:
 		releaseSyncCrudResulter(resulter)
+
+		span.End()
+
 		return res.Result.(RespT), res.Err
 	case <-ctx.Done():
 		pendingOp.Cancel(ctx.Err())
-
 		res := <-resulter.Ch
+
 		releaseSyncCrudResulter(resulter)
+
+		span.RecordError(ctx.Err())
+		span.End()
+
 		return res.Result.(RespT), res.Err
 	}
 }

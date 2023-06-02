@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+type ServerDurationResponse interface {
+	GetServerDuration() time.Duration
+}
+
 type CrudRequestMeta struct {
 	OnBehalfOf string
 }
@@ -13,6 +17,12 @@ type CrudRequestMeta struct {
 type CrudResponseMeta struct {
 	ServerDuration time.Duration
 }
+
+func (m CrudResponseMeta) GetServerDuration() time.Duration {
+	return m.ServerDuration
+}
+
+var _ ServerDurationResponse = (*CrudResponseMeta)(nil)
 
 type OpsCrud struct {
 	ExtFramesEnabled      bool
