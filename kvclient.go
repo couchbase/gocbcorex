@@ -135,14 +135,14 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 		zap.String("clientId", uuid.NewString()[:8]),
 	)
 
-	remoteHostname, remotePort := parseHostPort(config.Address)
+	remoteHostName, remotePort := parseHostPort(config.Address)
 
 	kvCli := &kvClient{
-		currentConfig: *config,
-		remoteHost:    remoteHostname,
-		remotePort:    remotePort,
-		logger:        logger,
-		closeHandler:  opts.CloseHandler,
+		currentConfig:  *config,
+		remoteHostName: remoteHostName,
+		remotePort:     remotePort,
+		logger:         logger,
+		closeHandler:   opts.CloseHandler,
 	}
 
 	logger.Debug("id assigned for " + config.Address)
