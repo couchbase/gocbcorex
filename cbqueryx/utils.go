@@ -6,7 +6,10 @@ import (
 )
 
 func EncodeIdentifier(identifier string) string {
-	return "`" + strings.ReplaceAll(identifier, "`", "\\`") + "`"
+	out := identifier
+	out = strings.ReplaceAll(out, "\\", "\\\\")
+	out = strings.ReplaceAll(out, "`", "\\`")
+	return "`" + out + "`"
 }
 
 func EncodeValue(value interface{}) (string, error) {
