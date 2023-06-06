@@ -142,7 +142,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 	}
 	if opts.RetryManager == nil {
-		agent.retries = NewRetryManagerFastFail()
+		agent.retries = NewRetryManagerDefault()
 	} else {
 		agent.retries = opts.RetryManager
 	}
