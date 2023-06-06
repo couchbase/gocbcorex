@@ -33,7 +33,7 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 		},
 	}
 	vb := &VbucketRouterMock{
-		DispatchByKeyFunc: func(key []byte, replicaID uint32) (string, uint16, error) {
+		DispatchByKeyFunc: func(key []byte, vbServerIdx uint32) (string, uint16, error) {
 			return "endpoint", 1, nil
 		},
 	}

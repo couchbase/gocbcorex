@@ -40,7 +40,7 @@ func (vbMap VbucketMap) VbucketByKey(key []byte) uint16 {
 	return crcMidBits % uint16(len(vbMap.entries))
 }
 
-func (vbMap VbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error) {
+func (vbMap VbucketMap) NodeByVbucket(vbID uint16, vbServerIdx uint32) (int, error) {
 	numVbs := uint16(len(vbMap.entries))
 	if vbID >= numVbs {
 		return 0, invalidVbucketError{
@@ -50,18 +50,18 @@ func (vbMap VbucketMap) NodeByVbucket(vbID uint16, replicaID uint32) (int, error
 	}
 
 	numServers := uint32(vbMap.numReplicas) + 1
-	if replicaID >= numServers {
+	if vbServerIdx >= numServers {
 		return 0, invalidReplicaError{
-			RequestedReplica: replicaID,
+			RequestedReplica: vbServerIdx,
 			NumServers:       numServers,
 		}
 	}
 
-	if replicaID >= uint32(len(vbMap.entries[vbID])) {
+	if vbServerIdx >= uint32(len(vbMap.entries[vbID])) {
 		return -1, nil
 	}
 
-	return vbMap.entries[vbID][replicaID], nil
+	return vbMap.entries[vbID][vbServerIdx], nil
 }
 
 func (vbMap VbucketMap) VbucketsOnServer(index int) ([]uint16, error) {
@@ -78,20 +78,20 @@ func (vbMap VbucketMap) VbucketsOnServer(index int) ([]uint16, error) {
 	return vbList[index], nil
 }
 
-func (vbMap VbucketMap) VbucketsByServer(replicaID int) ([][]uint16, error) {
+func (vbMap VbucketMap) VbucketsByServer(vbServerIdx int) ([][]uint16, error) {
 	var vbList [][]uint16
 
 	// We do not currently support listing for all replicas at once
-	if replicaID < 0 {
+	if vbServerIdx < 0 {
 		return nil, placeholderError{"errInvalidReplica"}
 	}
 
 	for vbID, entry := range vbMap.entries {
-		if len(entry) <= replicaID {
+		if len(entry) <= vbServerIdx {
 			continue
 		}
 
-		serverID := entry[replicaID]
+		serverID := entry[vbServerIdx]
 
 		for len(vbList) <= serverID {
 			vbList = append(vbList, nil)
@@ -105,6 +105,6 @@ func (vbMap VbucketMap) VbucketsByServer(replicaID int) ([][]uint16, error) {
 	return vbList, nil
 }
 
-func (vbMap VbucketMap) NodeByKey(key []byte, replicaID uint32) (int, error) {
-	return vbMap.NodeByVbucket(vbMap.VbucketByKey(key), replicaID)
+func (vbMap VbucketMap) NodeByKey(key []byte, vbServerIdx uint32) (int, error) {
+	return vbMap.NodeByVbucket(vbMap.VbucketByKey(key), vbServerIdx)
 }

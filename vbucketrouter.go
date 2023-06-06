@@ -17,7 +17,7 @@ var (
 
 type VbucketRouter interface {
 	UpdateRoutingInfo(*VbucketRoutingInfo)
-	DispatchByKey(key []byte, replicaID uint32) (string, uint16, error)
+	DispatchByKey(key []byte, vbServerIdx uint32) (string, uint16, error)
 	DispatchToVbucket(vbID uint16) (string, error)
 }
 
@@ -62,14 +62,14 @@ func (vbd *vbucketRouter) getRoutingInfo() (*VbucketRoutingInfo, error) {
 	return routing, nil
 }
 
-func (vbd *vbucketRouter) DispatchByKey(key []byte, replicaIdx uint32) (string, uint16, error) {
+func (vbd *vbucketRouter) DispatchByKey(key []byte, vbServerIdx uint32) (string, uint16, error) {
 	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return "", 0, err
 	}
 
 	vbID := info.VbMap.VbucketByKey(key)
-	idx, err := info.VbMap.NodeByVbucket(vbID, replicaIdx)
+	idx, err := info.VbMap.NodeByVbucket(vbID, vbServerIdx)
 	if err != nil {
 		return "", 0, err
 	}
@@ -107,9 +107,9 @@ type NotMyVbucketConfigHandler interface {
 	HandleNotMyVbucketConfig(config *cbconfig.TerseConfigJson, sourceHostname string)
 }
 
-func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch NotMyVbucketConfigHandler, key []byte, replicaIdx uint32,
+func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch NotMyVbucketConfigHandler, key []byte, vbServerIdx uint32,
 	fn func(endpoint string, vbID uint16) (RespT, error)) (RespT, error) {
-	endpoint, vbID, err := vb.DispatchByKey(key, replicaIdx)
+	endpoint, vbID, err := vb.DispatchByKey(key, vbServerIdx)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
@@ -153,7 +153,7 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch
 
 				ch.HandleNotMyVbucketConfig(configJson, endpoint)
 
-				newEndpoint, newVbID, err := vb.DispatchByKey(key, replicaIdx)
+				newEndpoint, newVbID, err := vb.DispatchByKey(key, vbServerIdx)
 				if err != nil {
 					var emptyResp RespT
 					return emptyResp, &VbucketMapOutdatedError{
