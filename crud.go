@@ -136,13 +136,14 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 		}, nil
 	}
 
+	vbServerIdx := 1 + opts.ReplicaIdx
 	return OrchestrateMemdRetries(
 		ctx, cc.retries,
 		func() (*GetReplicaResult, error) {
 			return OrchestrateMemdCollectionID(
 				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
 				func(collectionID uint32, manifestID uint64) (*GetReplicaResult, error) {
-					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, opts.ReplicaIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
+					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
 						return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*GetReplicaResult, error) {
 							return fn(collectionID, manifestID, endpoint, vbID, client)
 						})
