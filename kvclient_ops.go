@@ -77,10 +77,12 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
 		span.AddEvent("RECEIVED")
 
-		if sdResp, ok := any(resp).(memdx.ServerDurationResponse); ok {
-			span.SetAttributes(attribute.Int(
-				"db.couchbase.server_duration",
-				int(sdResp.GetServerDuration()/time.Microsecond)))
+		if span.IsRecording() {
+			if sdResp, _ := any(resp).(memdx.ServerDurationResponse); sdResp != nil {
+				span.SetAttributes(attribute.Int(
+					"db.couchbase.server_duration",
+					int(sdResp.GetServerDuration()/time.Microsecond)))
+			}
 		}
 
 		newSendCount := atomic.AddUint32(&resulter.SendCount, 1)
