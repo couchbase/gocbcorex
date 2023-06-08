@@ -255,10 +255,12 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			}
 		}
 
-		kvCli.logger.Debug("successfully bootstrapped new KvClient",
-			zap.Any("features", res.Hello.EnabledFeatures))
+		if res.Hello != nil {
+			kvCli.supportedFeatures = res.Hello.EnabledFeatures
+		}
 
-		kvCli.supportedFeatures = res.Hello.EnabledFeatures
+		kvCli.logger.Debug("successfully bootstrapped new KvClient",
+			zap.Stringers("features", kvCli.supportedFeatures))
 	} else {
 		kvCli.logger.Debug("skipped bootstrapping new KvClient")
 	}
