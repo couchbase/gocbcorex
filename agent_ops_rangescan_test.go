@@ -46,9 +46,7 @@ func TestRangeScanRangeLargeValues(t *testing.T) {
 			CollectionName: "",
 			VbucketID:      12,
 		},
-		&RangeScanContinueOptions{
-			VbucketID: 12,
-		},
+		&RangeScanContinueOptions{},
 	)
 
 	itemsMap := make(map[string]memdx.RangeScanItem)
@@ -95,9 +93,7 @@ func TestRangeScanRangeSmallValues(t *testing.T) {
 			CollectionName: "",
 			VbucketID:      12,
 		},
-		&RangeScanContinueOptions{
-			VbucketID: 12,
-		},
+		&RangeScanContinueOptions{},
 	)
 
 	itemsMap := make(map[string]memdx.RangeScanItem)
@@ -142,9 +138,7 @@ func TestRangeScanRangeKeysOnly(t *testing.T) {
 			KeysOnly:  true,
 			VbucketID: 12,
 		},
-		&RangeScanContinueOptions{
-			VbucketID: 12,
-		},
+		&RangeScanContinueOptions{},
 	)
 
 	itemsMap := make(map[string]memdx.RangeScanItem)
@@ -207,9 +201,7 @@ func TestRangeScanSamplingKeysOnly(t *testing.T) {
 			CollectionName: collectionName,
 			VbucketID:      12,
 		},
-		&RangeScanContinueOptions{
-			VbucketID: 12,
-		},
+		&RangeScanContinueOptions{},
 	)
 
 	itemsMap := make(map[string]memdx.RangeScanItem)
@@ -241,7 +233,6 @@ func TestRangeScanRangeCancellation(t *testing.T) {
 
 	muts := setupRangeScan(t, agent, docIDs, []byte(value), "", "")
 
-	var scanUUID []byte
 	res, err := agent.RangeScanCreate(context.Background(), &RangeScanCreateOptions{
 		Range: &memdx.RangeScanCreateRangeScanConfig{
 			Start: []byte("rangescancancel"),
@@ -255,13 +246,76 @@ func TestRangeScanRangeCancellation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanUUID = res.ScanUUUID
+	_, err = res.Cancel(context.Background(), &RangeScanCancelOptions{})
+	require.NoError(t, err)
+}
 
-	_, err = agent.RangeScanCancel(context.Background(), &RangeScanCancelOptions{
+func TestRangeScanRangeContinueClosedClient(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
+
+	agent := CreateDefaultAgent(t)
+	defer agent.Close()
+
+	value := "value"
+	docIDs := []string{"rangescancancel-2746", "rangescancancel-37795", "rangescancancel-63440", "rangescancancel-116036",
+		"rangescancancel-136879", "rangescancancel-156589", "rangescancancel-196316", "rangescancancel-203197",
+		"rangescancancel-243428", "rangescancancel-257242"}
+
+	muts := setupRangeScan(t, agent, docIDs, []byte(value), "", "")
+
+	res, err := agent.RangeScanCreate(context.Background(), &RangeScanCreateOptions{
+		Range: &memdx.RangeScanCreateRangeScanConfig{
+			Start: []byte("rangescancancel"),
+			End:   []byte("rangescancancel\xFF"),
+		},
+		Snapshot: &memdx.RangeScanCreateSnapshotRequirements{
+			VbUUID: muts.vbuuid,
+			SeqNo:  muts.highSeqNo,
+		},
 		VbucketID: 12,
-		ScanUUID:  scanUUID,
 	})
 	require.NoError(t, err)
+
+	err = agent.connMgr.Close()
+	require.NoError(t, err)
+
+	_, err = res.Continue(context.Background(), &RangeScanContinueOptions{}, func(result RangeScanContinueDataResult) {})
+	require.Error(t, err)
+}
+
+func TestRangeScanRangeCancelClosedClient(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
+
+	agent := CreateDefaultAgent(t)
+	defer agent.Close()
+
+	value := "value"
+	docIDs := []string{"rangescancancel-2746", "rangescancancel-37795", "rangescancancel-63440", "rangescancancel-116036",
+		"rangescancancel-136879", "rangescancancel-156589", "rangescancancel-196316", "rangescancancel-203197",
+		"rangescancancel-243428", "rangescancancel-257242"}
+
+	muts := setupRangeScan(t, agent, docIDs, []byte(value), "", "")
+
+	res, err := agent.RangeScanCreate(context.Background(), &RangeScanCreateOptions{
+		Range: &memdx.RangeScanCreateRangeScanConfig{
+			Start: []byte("rangescancancel"),
+			End:   []byte("rangescancancel\xFF"),
+		},
+		Snapshot: &memdx.RangeScanCreateSnapshotRequirements{
+			VbUUID: muts.vbuuid,
+			SeqNo:  muts.highSeqNo,
+		},
+		VbucketID: 12,
+	})
+	require.NoError(t, err)
+
+	err = agent.connMgr.Close()
+	require.NoError(t, err)
+
+	_, err = res.Cancel(context.Background(), &RangeScanCancelOptions{})
+	require.Error(t, err)
 }
 
 type rangeScanMutation struct {
@@ -307,16 +361,12 @@ func doRangeScan(t *testing.T, agent *Agent, opts *RangeScanCreateOptions,
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	var scanUUID []byte
-	res, err := agent.RangeScanCreate(ctx, opts)
+	cRes, err := agent.RangeScanCreate(ctx, opts)
 	require.NoError(t, err)
-
-	scanUUID = res.ScanUUUID
-	contOpts.ScanUUID = scanUUID
 
 	var data []memdx.RangeScanItem
 	for {
-		res, err := agent.RangeScanContinue(ctx, contOpts, func(result RangeScanContinueDataResult) {
+		res, err := cRes.Continue(ctx, contOpts, func(result RangeScanContinueDataResult) {
 			data = append(data, result.Items...)
 		})
 		require.NoError(t, err)
