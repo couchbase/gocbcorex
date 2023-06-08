@@ -195,12 +195,3 @@ func (agent *Agent) UnfreezeSearchIndexPlan(ctx context.Context, opts *cbsearchx
 func (agent *Agent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
 	return agent.crud.RangeScanCreate(ctx, opts)
 }
-
-func (agent *Agent) RangeScanContinue(ctx context.Context, opts *RangeScanContinueOptions,
-	dataCb func(RangeScanContinueDataResult)) (*RangeScanContinueResult, error) {
-	return agent.crud.RangeScanContinue(ctx, opts, dataCb)
-}
-
-func (agent *Agent) RangeScanCancel(ctx context.Context, opts *RangeScanCancelOptions) (*RangeScanCancelResult, error) {
-	return agent.crud.RangeScanCancel(ctx, opts)
-}

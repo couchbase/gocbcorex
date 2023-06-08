@@ -22,7 +22,11 @@ type RangeScanCreateOptions struct {
 }
 
 type RangeScanCreateResult struct {
-	ScanUUUID []byte
+	ScanUUID []byte
+
+	vbucketID uint16
+	client    KvClient
+	parent    *CrudComponent
 }
 
 func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
@@ -54,7 +58,10 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 						}
 
 						return &RangeScanCreateResult{
-							ScanUUUID: res.ScanUUUID,
+							ScanUUID:  res.ScanUUUID,
+							client:    client,
+							vbucketID: opts.VbucketID,
+							parent:    cc,
 						}, nil
 					})
 				})
@@ -62,10 +69,8 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 }
 
 type RangeScanContinueOptions struct {
-	ScanUUID  []byte
-	MaxCount  uint32
-	MaxBytes  uint32
-	VbucketID uint16
+	MaxCount uint32
+	MaxBytes uint32
 
 	OnBehalfOf string
 }
@@ -80,88 +85,73 @@ type RangeScanContinueResult struct {
 	Complete bool
 }
 
-func (cc *CrudComponent) RangeScanContinue(ctx context.Context, opts *RangeScanContinueOptions,
+func (cr *RangeScanCreateResult) Continue(ctx context.Context, opts *RangeScanContinueOptions,
 	dataCb func(RangeScanContinueDataResult)) (*RangeScanContinueResult, error) {
 	return OrchestrateMemdRetries(
-		ctx, cc.retries,
+		ctx, cr.parent.retries,
 		func() (*RangeScanContinueResult, error) {
-			endpoint, err := cc.vbs.DispatchToVbucket(opts.VbucketID)
+			deadline, _ := ctx.Deadline()
+			res, err := cr.client.RangeScanContinue(ctx, &memdx.RangeScanContinueRequest{
+				ScanUUID:  cr.ScanUUID,
+				MaxCount:  opts.MaxCount,
+				MaxBytes:  opts.MaxBytes,
+				VbucketID: cr.vbucketID,
+				Deadline:  deadline,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
+			}, func(response *memdx.RangeScanDataResponse) error {
+				// We don't use a for i, item range here so that we can modify the entry in place.
+				for i := range response.Items {
+					item := &response.Items[i]
+					value, datatype, err := cr.parent.compression.Decompress(memdx.DatatypeFlag(item.Datatype), item.Value)
+					if err != nil {
+						return err
+					}
+
+					(item).Value = value
+					(item).Datatype = uint8(datatype)
+				}
+				dataCb(RangeScanContinueDataResult{
+					Items:    response.Items,
+					KeysOnly: response.KeysOnly,
+				})
+
+				return nil
+			})
 			if err != nil {
 				return nil, err
 			}
-			return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanContinueResult, error) {
-				deadline, _ := ctx.Deadline()
-				res, err := client.RangeScanContinue(ctx, &memdx.RangeScanContinueRequest{
-					ScanUUID:  opts.ScanUUID,
-					MaxCount:  opts.MaxCount,
-					MaxBytes:  opts.MaxBytes,
-					VbucketID: opts.VbucketID,
-					Deadline:  deadline,
-					CrudRequestMeta: memdx.CrudRequestMeta{
-						OnBehalfOf: opts.OnBehalfOf,
-					},
-				}, func(response *memdx.RangeScanDataResponse) error {
-					// We don't use a for i, item range here so that we can modify the entry in place.
-					for i := range response.Items {
-						item := &response.Items[i]
-						value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(item.Datatype), item.Value)
-						if err != nil {
-							return err
-						}
 
-						(item).Value = value
-						(item).Datatype = uint8(datatype)
-					}
-					dataCb(RangeScanContinueDataResult{
-						Items:    response.Items,
-						KeysOnly: response.KeysOnly,
-					})
-
-					return nil
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				return &RangeScanContinueResult{
-					More:     res.More,
-					Complete: res.Complete,
-				}, nil
-			})
+			return &RangeScanContinueResult{
+				More:     res.More,
+				Complete: res.Complete,
+			}, nil
 		})
 }
 
 type RangeScanCancelOptions struct {
-	ScanUUID  []byte
-	VbucketID uint16
-
 	OnBehalfOf string
 }
 
 type RangeScanCancelResult struct {
 }
 
-func (cc *CrudComponent) RangeScanCancel(ctx context.Context, opts *RangeScanCancelOptions) (*RangeScanCancelResult, error) {
+func (cr *RangeScanCreateResult) Cancel(ctx context.Context, opts *RangeScanCancelOptions) (*RangeScanCancelResult, error) {
 	return OrchestrateMemdRetries(
-		ctx, cc.retries,
+		ctx, cr.parent.retries,
 		func() (*RangeScanCancelResult, error) {
-			endpoint, err := cc.vbs.DispatchToVbucket(opts.VbucketID)
+			_, err := cr.client.RangeScanCancel(ctx, &memdx.RangeScanCancelRequest{
+				ScanUUID:  cr.ScanUUID,
+				VbucketID: cr.vbucketID,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
+			})
 			if err != nil {
 				return nil, err
 			}
-			return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanCancelResult, error) {
-				_, err := client.RangeScanCancel(ctx, &memdx.RangeScanCancelRequest{
-					ScanUUID:  opts.ScanUUID,
-					VbucketID: opts.VbucketID,
-					CrudRequestMeta: memdx.CrudRequestMeta{
-						OnBehalfOf: opts.OnBehalfOf,
-					},
-				})
-				if err != nil {
-					return nil, err
-				}
 
-				return &RangeScanCancelResult{}, nil
-			})
+			return &RangeScanCancelResult{}, nil
 		})
 }
