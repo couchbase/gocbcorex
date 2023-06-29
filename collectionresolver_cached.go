@@ -159,6 +159,7 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 			pendingCh := entry.PendingCh
 			entry.PendingCh = nil
 
+			cr.rebuildFastCacheLocked()
 			cr.slowLock.Unlock()
 
 			if pendingCh != nil {
@@ -180,6 +181,7 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 		pendingCh := entry.PendingCh
 		entry.PendingCh = nil
 
+		cr.rebuildFastCacheLocked()
 		cr.slowLock.Unlock()
 
 		if pendingCh != nil {
