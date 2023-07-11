@@ -168,3 +168,14 @@ const (
 	// Internal: This should never be used and is not supported.
 	SubdocDocFlagReviveDocument = SubdocDocFlag(0x10)
 )
+
+var (
+	SubdocXattrPathHLC = []byte("$vbucket.HLC")
+)
+
+var (
+	SubdocMacroCrc32c  = []byte("\"${Mutation.value_crc32c}\"")
+	SubdocMacroRevID   = []byte("\"${$document.revid}\"")
+	SubdocMacroExptime = []byte("\"${$document.exptime}\"")
+	SubdocMacroCas     = []byte("\"${$document.CAS}\"")
+)
