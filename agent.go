@@ -373,6 +373,14 @@ func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
 	return nil
 }
 
+func (agent *Agent) BucketName() string {
+	agent.lock.Lock()
+	defer agent.lock.Unlock()
+
+	// TODO(brett19): There may be a bug here since we might not have selected yet.
+	return agent.state.bucket
+}
+
 func (agent *Agent) Close() error {
 	if err := agent.connMgr.Close(); err != nil {
 		agent.logger.Debug("Failed to close conn mgr", zap.Error(err))
