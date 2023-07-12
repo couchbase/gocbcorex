@@ -1,17 +1,17 @@
-package gocbcore
+package transactionsx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/couchbase/gocbcorex"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
-
-type addCleanupRequest func(req *TransactionsCleanupRequest) bool
-type addLostCleanupLocation func(bucket, scope, collection string)
 
 // Transaction represents a single active transaction, it can be used to
 // stage mutations and finally commit them.
@@ -32,13 +32,7 @@ type Transaction struct {
 	transactionID string
 	attempt       *transactionAttempt
 	hooks         TransactionHooks
-
-	addCleanupRequest      addCleanupRequest
-	addLostCleanupLocation addLostCleanupLocation
-
-	recordResourceUnit resourceUnitCallback
-
-	logger *internalTransactionLogWrapper
+	logger        *zap.Logger
 }
 
 // ID returns the transaction ID of this transaction.
@@ -47,9 +41,9 @@ func (t *Transaction) ID() string {
 }
 
 // Attempt returns meta-data about the current attempt to complete the transaction.
-func (t *Transaction) Attempt() TransactionAttempt {
+func (t *Transaction) Attempt() TransactionAttemptResult {
 	if t.attempt == nil {
-		return TransactionAttempt{}
+		return TransactionAttemptResult{}
 	}
 
 	return t.attempt.State()
@@ -58,6 +52,9 @@ func (t *Transaction) Attempt() TransactionAttempt {
 // NewAttempt begins a new attempt with this transaction.
 func (t *Transaction) NewAttempt() error {
 	attemptUUID := uuid.New().String()
+
+	logger := t.logger
+	logger = logger.With(zap.String("aid", attemptUUID))
 
 	t.attempt = &transactionAttempt{
 		expiryTime:              t.expiryTime,
@@ -80,12 +77,7 @@ func (t *Transaction) NewAttempt() error {
 		atrCollectionName: "",
 		atrKey:            nil,
 		hooks:             t.hooks,
-
-		addCleanupRequest:      t.addCleanupRequest,
-		addLostCleanupLocation: t.addLostCleanupLocation,
-		logger:                 t.logger,
-
-		recordResourceUnit: t.recordResourceUnit,
+		logger:            logger,
 	}
 
 	return nil
@@ -99,7 +91,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 	attemptUUID := txnData.ID.Attempt
 
 	var txnState TransactionAttemptState
-	var atrAgent *Agent
+	var atrAgent *gocbcorex.Agent
 	var atrOboUser string
 	var atrScope, atrCollection string
 	var atrKey []byte
@@ -169,7 +161,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 			ScopeName:      mutationData.Scope,
 			CollectionName: mutationData.Collection,
 			Key:            []byte(mutationData.ID),
-			Cas:            Cas(cas),
+			Cas:            cas,
 			Staged:         nil,
 		}
 	}
@@ -196,13 +188,6 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 		atrCollectionName: atrCollection,
 		atrKey:            atrKey,
 		hooks:             t.hooks,
-
-		addCleanupRequest:      t.addCleanupRequest,
-		addLostCleanupLocation: t.addLostCleanupLocation,
-
-		logger: t.logger,
-
-		recordResourceUnit: t.recordResourceUnit,
 	}
 
 	return nil
@@ -210,7 +195,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 
 // TransactionGetOptions provides options for a Get operation.
 type TransactionGetOptions struct {
-	Agent          *Agent
+	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
 	CollectionName string
@@ -241,7 +226,7 @@ type TransactionMutableItemMeta struct {
 
 // TransactionGetResult represents the result of a Get or GetOptional operation.
 type TransactionGetResult struct {
-	agent          *Agent
+	agent          *gocbcorex.Agent
 	oboUser        string
 	scopeName      string
 	collectionName string
@@ -249,24 +234,21 @@ type TransactionGetResult struct {
 
 	Meta  *TransactionMutableItemMeta
 	Value []byte
-	Cas   Cas
+	Cas   uint64
 }
 
-// TransactionGetCallback describes a callback for a completed Get or GetOptional operation.
-type TransactionGetCallback func(*TransactionGetResult, error)
-
 // Get will attempt to fetch a document, and fail the transaction if it does not exist.
-func (t *Transaction) Get(opts TransactionGetOptions, cb TransactionGetCallback) error {
+func (t *Transaction) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
 	if t.attempt == nil {
-		return ErrNoAttempt
+		return nil, ErrNoAttempt
 	}
 
-	return t.attempt.Get(opts, cb)
+	return t.attempt.Get(ctx, opts)
 }
 
 // TransactionInsertOptions provides options for a Insert operation.
 type TransactionInsertOptions struct {
-	Agent          *Agent
+	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
 	CollectionName string
@@ -278,12 +260,12 @@ type TransactionInsertOptions struct {
 type TransactionStoreCallback func(*TransactionGetResult, error)
 
 // Insert will attempt to insert a document.
-func (t *Transaction) Insert(opts TransactionInsertOptions, cb TransactionStoreCallback) error {
+func (t *Transaction) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
 	if t.attempt == nil {
-		return ErrNoAttempt
+		return nil, ErrNoAttempt
 	}
 
-	return t.attempt.Insert(opts, cb)
+	return t.attempt.Insert(ctx, opts)
 }
 
 // TransactionReplaceOptions provides options for a Replace operation.
@@ -293,12 +275,12 @@ type TransactionReplaceOptions struct {
 }
 
 // Replace will attempt to replace an existing document.
-func (t *Transaction) Replace(opts TransactionReplaceOptions, cb TransactionStoreCallback) error {
+func (t *Transaction) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
 	if t.attempt == nil {
-		return ErrNoAttempt
+		return nil, ErrNoAttempt
 	}
 
-	return t.attempt.Replace(opts, cb)
+	return t.attempt.Replace(ctx, opts)
 }
 
 // TransactionRemoveOptions provides options for a Remove operation.
@@ -307,37 +289,31 @@ type TransactionRemoveOptions struct {
 }
 
 // Remove will attempt to remove a previously fetched document.
-func (t *Transaction) Remove(opts TransactionRemoveOptions, cb TransactionStoreCallback) error {
+func (t *Transaction) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
 	if t.attempt == nil {
-		return ErrNoAttempt
+		return nil, ErrNoAttempt
 	}
 
-	return t.attempt.Remove(opts, cb)
+	return t.attempt.Remove(ctx, opts)
 }
-
-// TransactionCommitCallback describes a callback for a completed commit operation.
-type TransactionCommitCallback func(error)
 
 // Commit will attempt to commit the transaction, rolling it back and cancelling
 // it if it is not capable of doing so.
-func (t *Transaction) Commit(cb TransactionCommitCallback) error {
+func (t *Transaction) Commit(ctx context.Context) error {
 	if t.attempt == nil {
 		return ErrNoAttempt
 	}
 
-	return t.attempt.Commit(cb)
+	return t.attempt.Commit(ctx)
 }
 
-// TransactionRollbackCallback describes a callback for a completed rollback operation.
-type TransactionRollbackCallback func(error)
-
 // Rollback will attempt to rollback the transaction.
-func (t *Transaction) Rollback(cb TransactionRollbackCallback) error {
+func (t *Transaction) Rollback(ctx context.Context) error {
 	if t.attempt == nil {
 		return ErrNoAttempt
 	}
 
-	return t.attempt.Rollback(cb)
+	return t.attempt.Rollback(ctx)
 }
 
 // HasExpired indicates whether this attempt has expired.
@@ -397,8 +373,8 @@ func (t *Transaction) TimeRemaining() time.Duration {
 // to be resumed later, potentially under a different transactions client.  It
 // is no longer safe to use this attempt once this has occurred, a new attempt
 // must be started to use this object following this call.
-func (t *Transaction) SerializeAttempt(cb func([]byte, error)) error {
-	return t.attempt.Serialize(cb)
+func (t *Transaction) SerializeAttempt(ctx context.Context) ([]byte, error) {
+	return t.attempt.Serialize(ctx)
 }
 
 // GetMutations returns a list of all the current mutations that have been performed
@@ -470,10 +446,4 @@ func (t *Transaction) UpdateState(opts TransactionUpdateStateOptions) {
 	}
 
 	t.attempt.UpdateState(opts)
-}
-
-// Logger returns the logger used by this transaction.
-// Uncommitted: This API may change in the future.
-func (t *Transaction) Logger() TransactionLogger {
-	return t.logger.wrapped
 }
