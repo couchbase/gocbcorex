@@ -457,7 +457,7 @@ func TestPartitionControl(t *testing.T) {
 
 		var sErr cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
-		require.ErrorIs(t, cbsearchx.ErrIndexNotFound, sErr.Cause)
+		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
 
 	t.Run("ScopedSuccess", func(t *testing.T) {
@@ -531,13 +531,13 @@ func TestIngestControl(t *testing.T) {
 		})
 		var sErr cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
-		require.ErrorIs(t, cbsearchx.ErrIndexNotFound, sErr.Cause)
+		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 
 		err = search.ResumeIngest(ctx, &cbsearchx.ResumeIngestOptions{
 			IndexName: "notAnIndex",
 		})
 		require.ErrorAs(t, err, &sErr)
-		require.ErrorIs(t, cbsearchx.ErrIndexNotFound, sErr.Cause)
+		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
 
 	t.Run("ScopedSuccess", func(t *testing.T) {
@@ -618,13 +618,13 @@ func TestQueryControl(t *testing.T) {
 		})
 		var sErr cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
-		require.ErrorIs(t, cbsearchx.ErrIndexNotFound, sErr.Cause)
+		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 
 		err = search.AllowQuerying(ctx, &cbsearchx.AllowQueryingOptions{
 			IndexName: "notAnIndex",
 		})
 		require.ErrorAs(t, err, &sErr)
-		require.ErrorIs(t, cbsearchx.ErrIndexNotFound, sErr.Cause)
+		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
 
 	t.Run("ScopedSuccess", func(t *testing.T) {
