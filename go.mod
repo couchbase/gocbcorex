@@ -3,7 +3,7 @@ module github.com/couchbase/gocbcorex
 go 1.18
 
 require (
-	github.com/couchbase/gocbcore/v10 v10.2.0
+	github.com/couchbaselabs/gocbconnstr/v2 v2.0.0-20230515165046-68b522a21131
 	github.com/golang/snappy v0.0.4
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.3

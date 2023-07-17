@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/couchbase/gocbcore/v10/connstr"
+	"github.com/couchbaselabs/gocbconnstr/v2"
+
 	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
@@ -133,12 +134,12 @@ func SetupTests(m *testing.M) {
 
 // This is a bit of a halfway house whilst we evolve the API.
 func parseConnStr(connStr string) error {
-	baseSpec, err := connstr.Parse(connStr)
+	baseSpec, err := gocbconnstr.Parse(connStr)
 	if err != nil {
 		return err
 	}
 
-	spec, err := connstr.Resolve(baseSpec)
+	spec, err := gocbconnstr.Resolve(baseSpec)
 	if err != nil {
 		return err
 	}
@@ -198,10 +199,10 @@ func FudgeConnStringToTLS(t *testing.T, connStr string) ([]string, []string) {
 	}
 	baseConnStr = "couchbases://" + baseConnStr
 
-	baseSpec, err := connstr.Parse(baseConnStr)
+	baseSpec, err := gocbconnstr.Parse(baseConnStr)
 	require.NoError(t, err)
 
-	spec, err := connstr.Resolve(baseSpec)
+	spec, err := gocbconnstr.Resolve(baseSpec)
 	require.NoError(t, err)
 
 	var httpHosts []string
