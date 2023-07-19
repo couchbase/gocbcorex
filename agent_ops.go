@@ -152,6 +152,46 @@ func (agent *Agent) DeleteSearchIndex(ctx context.Context, opts *cbsearchx.Delet
 	return agent.search.DeleteIndex(ctx, opts)
 }
 
+func (agent *Agent) GetSearchIndex(ctx context.Context, opts *cbsearchx.GetIndexOptions) (*cbsearchx.Index, error) {
+	return agent.search.GetIndex(ctx, opts)
+}
+
+func (agent *Agent) GetAllSearchIndexes(ctx context.Context, opts *cbsearchx.GetAllIndexesOptions) ([]cbsearchx.Index, error) {
+	return agent.search.GetAllIndexes(ctx, opts)
+}
+
+func (agent *Agent) AnalyzeDocument(ctx context.Context, opts *cbsearchx.AnalyzeDocumentOptions) (*cbsearchx.DocumentAnalysis, error) {
+	return agent.search.AnalyzeDocument(ctx, opts)
+}
+
+func (agent *Agent) GetSearchIndexedDocumentsCount(ctx context.Context, opts *cbsearchx.GetIndexedDocumentsCountOptions) (uint64, error) {
+	return agent.search.GetIndexedDocumentsCount(ctx, opts)
+}
+
+func (agent *Agent) PauseSearchIndexIngest(ctx context.Context, opts *cbsearchx.PauseIngestOptions) error {
+	return agent.search.PauseIngest(ctx, opts)
+}
+
+func (agent *Agent) ResumeSearchIndexIngest(ctx context.Context, opts *cbsearchx.ResumeIngestOptions) error {
+	return agent.search.ResumeIngest(ctx, opts)
+}
+
+func (agent *Agent) AllowSearchIndexQuerying(ctx context.Context, opts *cbsearchx.AllowQueryingOptions) error {
+	return agent.search.AllowQuerying(ctx, opts)
+}
+
+func (agent *Agent) DisallowSearchIndexQuerying(ctx context.Context, opts *cbsearchx.DisallowQueryingOptions) error {
+	return agent.search.DisallowQuerying(ctx, opts)
+}
+
+func (agent *Agent) FreezeSearchIndexPlan(ctx context.Context, opts *cbsearchx.FreezePlanOptions) error {
+	return agent.search.FreezePlan(ctx, opts)
+}
+
+func (agent *Agent) UnfreezeSearchIndexPlan(ctx context.Context, opts *cbsearchx.UnfreezePlanOptions) error {
+	return agent.search.UnfreezePlan(ctx, opts)
+}
+
 func (agent *Agent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
 	return agent.crud.RangeScanCreate(ctx, opts)
 }

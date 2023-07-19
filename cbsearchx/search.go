@@ -197,6 +197,378 @@ func (h Search) DeleteIndex(
 	return nil
 }
 
+type GetIndexOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) GetIndex(
+	ctx context.Context,
+	opts *GetIndexOptions,
+) (*Index, error) {
+	if opts.IndexName == "" {
+		return nil, errors.New("must specify index name when getting an index")
+	}
+
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s", opts.IndexName)
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return nil, errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.IndexName)
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		reqURI,
+		"application/json",
+		opts.OnBehalfOf,
+		nil,
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	indexData, err := cbhttpx.ReadAsJsonAndClose[searchIndexRespJson](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	idx, err := h.decodeIndex(indexData.IndexDef)
+	if err != nil {
+		return nil, err
+	}
+
+	return idx, nil
+}
+
+type GetAllIndexesOptions struct {
+	BucketName string
+	ScopeName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) GetAllIndexes(
+	ctx context.Context,
+	opts *GetAllIndexesOptions,
+) ([]Index, error) {
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = "/api/index/"
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return nil, errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index", opts.BucketName, opts.ScopeName)
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		reqURI,
+		"application/json",
+		opts.OnBehalfOf,
+		nil,
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	indexData, err := cbhttpx.ReadAsJsonAndClose[searchIndexesRespJson](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var indexes []Index
+	for _, i := range indexData.IndexDefs.IndexDefs {
+		idx, err := h.decodeIndex(&i)
+		if err != nil {
+			return nil, err
+		}
+
+		indexes = append(indexes, *idx)
+	}
+
+	return indexes, nil
+}
+
+type AnalyzeDocumentOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	DocContent []byte
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+type DocumentAnalysis struct {
+	Status   string
+	Analyzed json.RawMessage
+}
+
+func (h Search) AnalyzeDocument(
+	ctx context.Context,
+	opts *AnalyzeDocumentOptions,
+) (*DocumentAnalysis, error) {
+	if opts.IndexName == "" {
+		return nil, errors.New("must specify index name when analyzing a document")
+	}
+
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s/analyzeDoc", opts.IndexName)
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return nil, errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/analyzeDoc", opts.BucketName, opts.ScopeName, opts.IndexName)
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		reqURI,
+		"application/json",
+		opts.OnBehalfOf,
+		nil,
+		bytes.NewReader(opts.DocContent))
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	analysis, err := cbhttpx.ReadAsJsonAndClose[analyzeDocumentJson](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DocumentAnalysis{
+		Status:   analysis.Status,
+		Analyzed: analysis.Analyzed,
+	}, nil
+}
+
+type GetIndexedDocumentsCountOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) GetIndexedDocumentsCount(
+	ctx context.Context,
+	opts *GetIndexedDocumentsCountOptions,
+) (uint64, error) {
+	if opts.IndexName == "" {
+		return 0, errors.New("must specify index name when analyzing a document")
+	}
+
+	var reqURI string
+	if opts.ScopeName == "" && opts.BucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s/count", opts.IndexName)
+	} else {
+		if opts.ScopeName == "" || opts.BucketName == "" {
+			return 0, errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/count", opts.BucketName, opts.ScopeName, opts.IndexName)
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		reqURI,
+		"application/json",
+		opts.OnBehalfOf,
+		nil,
+		nil)
+	if err != nil {
+		return 0, err
+	}
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		return 0, h.DecodeCommonError(resp)
+	}
+
+	count, err := cbhttpx.ReadAsJsonAndClose[indexedDocumentsJson](resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	return count.Count, nil
+}
+
+type PauseIngestOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) PauseIngest(
+	ctx context.Context,
+	opts *PauseIngestOptions,
+) error {
+	return h.controlRequest(ctx, opts.IndexName, opts.BucketName, opts.ScopeName, "ingestControl/pause", opts.OnBehalfOf)
+}
+
+type ResumeIngestOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) ResumeIngest(
+	ctx context.Context,
+	opts *ResumeIngestOptions,
+) error {
+	return h.controlRequest(ctx, opts.IndexName, opts.BucketName, opts.ScopeName, "ingestControl/resume", opts.OnBehalfOf)
+}
+
+type AllowQueryingOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) AllowQuerying(
+	ctx context.Context,
+	opts *AllowQueryingOptions,
+) error {
+	return h.controlRequest(ctx, opts.IndexName, opts.BucketName, opts.ScopeName, "queryControl/allow", opts.OnBehalfOf)
+}
+
+type DisallowQueryingOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) DisallowQuerying(
+	ctx context.Context,
+	opts *DisallowQueryingOptions,
+) error {
+	return h.controlRequest(ctx, opts.IndexName, opts.BucketName, opts.ScopeName, "queryControl/disallow", opts.OnBehalfOf)
+}
+
+type FreezePlanOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) FreezePlan(
+	ctx context.Context,
+	opts *FreezePlanOptions,
+) error {
+	return h.controlRequest(ctx, opts.IndexName, opts.BucketName, opts.ScopeName, "planFreezeControl/freeze", opts.OnBehalfOf)
+}
+
+type UnfreezePlanOptions struct {
+	BucketName string
+	ScopeName  string
+	IndexName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) UnfreezePlan(
+	ctx context.Context,
+	opts *UnfreezePlanOptions,
+) error {
+	return h.controlRequest(ctx, opts.IndexName, opts.BucketName, opts.ScopeName, "planFreezeControl/unfreeze", opts.OnBehalfOf)
+}
+
+func (h Search) controlRequest(
+	ctx context.Context,
+	indexName, bucketName, scopeName, control string,
+	onBehalfOf *cbhttpx.OnBehalfOfInfo,
+) error {
+	if indexName == "" {
+		return errors.New("must specify index name")
+	}
+
+	var reqURI string
+	if scopeName == "" && bucketName == "" {
+		reqURI = fmt.Sprintf("/api/index/%s/%s", indexName, control)
+	} else {
+		if scopeName == "" || bucketName == "" {
+			return errors.New("must specify both or neither of scope and bucket names")
+		}
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/%s", bucketName, scopeName, indexName, control)
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		reqURI,
+		"application/json",
+		onBehalfOf,
+		nil,
+		nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
+func (h Search) DecodeCommonError(resp *http.Response) error {
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return contextualError{
+			Description: "failed to read error body for non-success response",
+			Cause:       readErr,
+		}
+	}
+
+	var err error
+	errText := strings.ToLower(string(bodyBytes))
+
+	if strings.Contains(errText, "index not found") {
+		err = ErrIndexNotFound
+	} else if strings.Contains(errText, "index with the same name already exists") {
+		err = ErrIndexExists
+	}
+
+	if err == nil {
+		err = errors.New("unexpected error response")
+	}
+
+	return SearchError{
+		Cause:      err,
+		StatusCode: resp.StatusCode,
+		Body:       bodyBytes,
+		Endpoint:   h.Endpoint,
+	}
+}
+
 func (h Search) encodeIndex(i *Index) (json.RawMessage, error) {
 	encoder := &jsonRawMessageEncoder{}
 	m := map[string]json.RawMessage{
@@ -235,32 +607,18 @@ func (h Search) encodeIndex(i *Index) (json.RawMessage, error) {
 	return json.Marshal(m)
 }
 
-func (h Search) DecodeCommonError(resp *http.Response) error {
-	bodyBytes, readErr := io.ReadAll(resp.Body)
-	if readErr != nil {
-		return contextualError{
-			Description: "failed to read error body for non-success response",
-			Cause:       readErr,
-		}
+func (h Search) decodeIndex(i *searchIndexJson) (*Index, error) {
+	index := Index{
+		Name:         i.Name,
+		Params:       i.Params,
+		PlanParams:   i.PlanParams,
+		SourceName:   i.SourceName,
+		SourceParams: i.SourceParams,
+		SourceType:   i.SourceType,
+		SourceUUID:   i.SourceUUID,
+		Type:         i.Type,
+		UUID:         i.UUID,
 	}
 
-	var err error
-	errText := strings.ToLower(string(bodyBytes))
-
-	if strings.Contains(errText, "index not found") {
-		err = ErrIndexNotFound
-	} else if strings.Contains(errText, "index with the same name already exists") {
-		err = ErrIndexExists
-	}
-
-	if err == nil {
-		err = errors.New("unexpected error response")
-	}
-
-	return SearchError{
-		Cause:      err,
-		StatusCode: resp.StatusCode,
-		Body:       bodyBytes,
-		Endpoint:   h.Endpoint,
-	}
+	return &index, nil
 }
