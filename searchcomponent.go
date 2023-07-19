@@ -46,23 +46,45 @@ func OrchestrateSearchEndpoint[RespT any](
 	return fn(roundTripper, endpoint, username, password)
 }
 
-func OrchestrateNoResSearchCall[OptsT any](
+func OrchestrateNoResSearchMgmtCall[OptsT any](
 	ctx context.Context,
 	w *SearchComponent,
 	execFn func(o cbsearchx.Search, ctx context.Context, req OptsT) error,
 	opts OptsT,
 ) error {
-	_, err := OrchestrateSearchEndpoint(ctx, w,
-		func(roundTripper http.RoundTripper, endpoint, username, password string) (interface{}, error) {
-			return nil, execFn(cbsearchx.Search{
-				UserAgent: w.userAgent,
-				Transport: roundTripper,
-				Endpoint:  endpoint,
-				Username:  username,
-				Password:  password,
-			}, ctx, opts)
-		})
-	return err
+	return OrchestrateNoResponseRetries(ctx, w.retries, func() error {
+		_, err := OrchestrateSearchEndpoint(ctx, w,
+			func(roundTripper http.RoundTripper, endpoint, username, password string) (interface{}, error) {
+				return nil, execFn(cbsearchx.Search{
+					UserAgent: w.userAgent,
+					Transport: roundTripper,
+					Endpoint:  endpoint,
+					Username:  username,
+					Password:  password,
+				}, ctx, opts)
+			})
+		return err
+	})
+}
+
+func OrchestrateSearchMgmtCall[OptsT any, RespT any](
+	ctx context.Context,
+	w *SearchComponent,
+	execFn func(o cbsearchx.Search, ctx context.Context, req OptsT) (RespT, error),
+	opts OptsT,
+) (RespT, error) {
+	return OrchestrateSearchRetries(ctx, w.retries, func() (RespT, error) {
+		return OrchestrateSearchEndpoint(ctx, w,
+			func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error) {
+				return execFn(cbsearchx.Search{
+					UserAgent: w.userAgent,
+					Transport: roundTripper,
+					Endpoint:  endpoint,
+					Username:  username,
+					Password:  password,
+				}, ctx, opts)
+			})
+	})
 }
 
 func NewSearchComponent(retries RetryManager, config *SearchComponentConfig, opts *SearchComponentOptions) *SearchComponent {
@@ -109,9 +131,49 @@ func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOption
 }
 
 func (w *SearchComponent) UpsertIndex(ctx context.Context, opts *cbsearchx.UpsertIndexOptions) error {
-	return OrchestrateNoResSearchCall(ctx, w, cbsearchx.Search.UpsertIndex, opts)
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.UpsertIndex, opts)
 }
 
 func (w *SearchComponent) DeleteIndex(ctx context.Context, opts *cbsearchx.DeleteIndexOptions) error {
-	return OrchestrateNoResSearchCall(ctx, w, cbsearchx.Search.DeleteIndex, opts)
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.DeleteIndex, opts)
+}
+
+func (w *SearchComponent) GetIndex(ctx context.Context, opts *cbsearchx.GetIndexOptions) (*cbsearchx.Index, error) {
+	return OrchestrateSearchMgmtCall(ctx, w, cbsearchx.Search.GetIndex, opts)
+}
+
+func (w *SearchComponent) GetAllIndexes(ctx context.Context, opts *cbsearchx.GetAllIndexesOptions) ([]cbsearchx.Index, error) {
+	return OrchestrateSearchMgmtCall(ctx, w, cbsearchx.Search.GetAllIndexes, opts)
+}
+
+func (w *SearchComponent) AnalyzeDocument(ctx context.Context, opts *cbsearchx.AnalyzeDocumentOptions) (*cbsearchx.DocumentAnalysis, error) {
+	return OrchestrateSearchMgmtCall(ctx, w, cbsearchx.Search.AnalyzeDocument, opts)
+}
+
+func (w *SearchComponent) GetIndexedDocumentsCount(ctx context.Context, opts *cbsearchx.GetIndexedDocumentsCountOptions) (uint64, error) {
+	return OrchestrateSearchMgmtCall(ctx, w, cbsearchx.Search.GetIndexedDocumentsCount, opts)
+}
+
+func (w *SearchComponent) PauseIngest(ctx context.Context, opts *cbsearchx.PauseIngestOptions) error {
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.PauseIngest, opts)
+}
+
+func (w *SearchComponent) ResumeIngest(ctx context.Context, opts *cbsearchx.ResumeIngestOptions) error {
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.ResumeIngest, opts)
+}
+
+func (w *SearchComponent) AllowQuerying(ctx context.Context, opts *cbsearchx.AllowQueryingOptions) error {
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.AllowQuerying, opts)
+}
+
+func (w *SearchComponent) DisallowQuerying(ctx context.Context, opts *cbsearchx.DisallowQueryingOptions) error {
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.DisallowQuerying, opts)
+}
+
+func (w *SearchComponent) FreezePlan(ctx context.Context, opts *cbsearchx.FreezePlanOptions) error {
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.FreezePlan, opts)
+}
+
+func (w *SearchComponent) UnfreezePlan(ctx context.Context, opts *cbsearchx.UnfreezePlanOptions) error {
+	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.UnfreezePlan, opts)
 }
