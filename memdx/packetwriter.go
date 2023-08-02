@@ -17,7 +17,7 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 	payloadLen := extFramesLen + extrasLen + keyLen + valueLen
 	totalLen := 24 + payloadLen
 
-	// we intentionally guarentee that headerBuf never escapes this function
+	// we intentionally guarantee that headerBuf never escapes this function
 	// so this will end up not needing to actually allocate (will go on stack)
 	headerBuf := make([]byte, 24)
 
@@ -89,11 +89,11 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 	writeBuf = append(writeBuf, pak.Key...)
 	writeBuf = append(writeBuf, pak.Value...)
 
-	// Write guarentees that err is returned if n<len, so we can just ignore
+	// Write guarantees that err is returned if n<len, so we can just ignore
 	// n and only inspect the error to determine if something went wrong...
 	_, err := w.Write(writeBuf)
 	if err != nil {
-		return err
+		return dispatchError{cause: err}
 	}
 
 	return nil

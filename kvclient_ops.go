@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -106,8 +107,12 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		span.RecordError(err)
 		span.End()
 
+		if errors.Is(err, memdx.ErrDispatch) {
+			err = KvClientDispatchError{err}
+		}
+
 		var emptyResp RespT
-		return emptyResp, KvClientDispatchError{err}
+		return emptyResp, err
 	}
 
 	span.AddEvent("SENT")
