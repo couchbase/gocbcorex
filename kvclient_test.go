@@ -344,6 +344,72 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 	assert.Equal(t, err, closeErr)
 }
 
+func TestKvClientWrapsDispatchError(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	memdxCli := &MemdxDispatcherCloserMock{
+		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+			return nil, memdx.ErrDispatch
+		},
+		RemoteAddrFunc: func() string { return "remote:1" },
+		LocalAddrFunc:  func() string { return "local:2" },
+	}
+
+	cli, err := NewKvClient(context.Background(), &KvClientConfig{
+		Address: "endpoint1",
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = cli.Get(context.Background(), &memdx.GetRequest{})
+	require.ErrorIs(t, err, memdx.ErrDispatch)
+
+	var dispatchError KvClientDispatchError
+	require.ErrorAs(t, err, &dispatchError)
+}
+
+func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	memdxCli := &MemdxDispatcherCloserMock{
+		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+			return nil, memdx.ErrProtocol
+		},
+		RemoteAddrFunc: func() string { return "remote:1" },
+		LocalAddrFunc:  func() string { return "local:2" },
+	}
+
+	cli, err := NewKvClient(context.Background(), &KvClientConfig{
+		Address: "endpoint1",
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
+	}, &KvClientOptions{
+		Logger: logger,
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+			return memdxCli
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = cli.Get(context.Background(), &memdx.GetRequest{})
+	require.ErrorIs(t, err, memdx.ErrProtocol)
+
+	var dispatchError KvClientDispatchError
+	require.False(t, errors.As(err, &dispatchError), "error should not have dispatch error")
+}
+
 // ======== Integration tests ========
 
 func TestKvClientCloseAfterReconfigure(t *testing.T) {
