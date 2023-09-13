@@ -520,7 +520,9 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 			posts.Add("replicaIndex", "1")
 		}
 	} else {
-		return errors.New("cannot specify ReplicaIndexDisabled for Ephemeral buckets")
+		if opts.ReplicaIndexDisabled {
+			return errors.New("cannot specify ReplicaIndexDisabled for Ephemeral buckets")
+		}
 	}
 	if opts.RAMQuotaMB > 0 {
 		posts.Add("ramQuotaMB", fmt.Sprintf("%d", opts.RAMQuotaMB))
