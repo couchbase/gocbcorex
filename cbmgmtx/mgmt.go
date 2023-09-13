@@ -525,9 +525,11 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 	if opts.RAMQuotaMB > 0 {
 		posts.Add("ramQuotaMB", fmt.Sprintf("%d", opts.RAMQuotaMB))
 	}
-	// we always write the replicaNumber since 0 means "default"
-	if true {
+	if opts.BucketType != BucketTypeMemcached {
+		// we always write the replicaNumber since 0 means "default"
 		posts.Add("replicaNumber", fmt.Sprintf("%d", opts.ReplicaNumber))
+	} else if opts.ReplicaNumber > 0 {
+		return errors.New("cannot specify ReplicaNumber for Memcached buckets")
 	}
 	if opts.BucketType != BucketTypeUnset {
 		posts.Add("bucketType", string(opts.BucketType))
