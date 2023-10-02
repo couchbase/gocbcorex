@@ -50,16 +50,7 @@ type Agent struct {
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
-	var srcHTTPAddrs []string
-	for _, hostPort := range opts.SeedConfig.HTTPAddrs {
-		if opts.TLSConfig == nil {
-			ep := fmt.Sprintf("http://%s", hostPort)
-			srcHTTPAddrs = append(srcHTTPAddrs, ep)
-		} else {
-			ep := fmt.Sprintf("https://%s", hostPort)
-			srcHTTPAddrs = append(srcHTTPAddrs, ep)
-		}
-	}
+	srcHTTPAddrs := makeSrcHTTPAddrs(opts.SeedConfig.HTTPAddrs, opts.TLSConfig)
 
 	// Default values.
 	compressionMinSize := 32
@@ -391,25 +382,8 @@ func (agent *Agent) applyConfig(config *ParsedConfig) {
 	agent.lock.Lock()
 	defer agent.lock.Unlock()
 
-	// Check that the new config data is newer than the current one, in the case where we've done a select bucket
-	// against an existing connection then the revisions could be the same. In that case the configuration still
-	// needs to be applied.
-	// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
-	// than the old one then we ignore it, if it's newer then we apply the new config.
-	oldConfig := agent.state.latestConfig
-	if config.BucketType != oldConfig.BucketType {
-		agent.logger.Debug("switching config due to changed bucket type")
-	} else if !oldConfig.IsVersioned() {
-		agent.logger.Debug("switching config due to unversioned old config")
-	} else {
-		delta := oldConfig.Compare(config)
-		if delta > 0 {
-			agent.logger.Debug("skipping config due to new config being an older revision")
-			return
-		} else if delta == 0 {
-			agent.logger.Debug("skipping config due to matching revisions")
-			return
-		}
+	if !canUpdateConfig(config, agent.state.latestConfig, agent.logger) {
+		return
 	}
 
 	agent.state.latestConfig = config
@@ -537,4 +511,43 @@ func makeHTTPTransport(tlsConfig *tls.Config) *http.Transport {
 		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
 		// IdleConnTimeout:     idleTimeout,
 	}
+}
+
+func makeSrcHTTPAddrs(seedAddrs []string, tlsConfig *tls.Config) []string {
+	var srcHTTPAddrs []string
+	for _, hostPort := range seedAddrs {
+		if tlsConfig == nil {
+			ep := fmt.Sprintf("http://%s", hostPort)
+			srcHTTPAddrs = append(srcHTTPAddrs, ep)
+		} else {
+			ep := fmt.Sprintf("https://%s", hostPort)
+			srcHTTPAddrs = append(srcHTTPAddrs, ep)
+		}
+	}
+
+	return srcHTTPAddrs
+}
+
+func canUpdateConfig(newConfig, oldConfig *ParsedConfig, logger *zap.Logger) bool {
+	// Check that the new config data is newer than the current one, in the case where we've done a select bucket
+	// against an existing connection then the revisions could be the same. In that case the configuration still
+	// needs to be applied.
+	// In the case where the rev epochs are the same then we need to compare rev IDs. If the new config epoch is lower
+	// than the old one then we ignore it, if it's newer then we apply the new config.
+	if newConfig.BucketType != oldConfig.BucketType {
+		logger.Debug("switching config due to changed bucket type")
+	} else if !oldConfig.IsVersioned() {
+		logger.Debug("switching config due to unversioned old config")
+	} else {
+		delta := oldConfig.Compare(newConfig)
+		if delta > 0 {
+			logger.Debug("skipping config due to new config being an older revision")
+			return false
+		} else if delta == 0 {
+			logger.Debug("skipping config due to matching revisions")
+			return false
+		}
+	}
+
+	return true
 }

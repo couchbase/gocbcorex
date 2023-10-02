@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -17,6 +19,35 @@ func getHttpMgmt() *Management {
 		Username:  testutils.TestOpts.Username,
 		Password:  testutils.TestOpts.Password,
 	}
+}
+
+func TestHttpMgmtFullClusterConfig(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	resp, err := getHttpMgmt().GetClusterConfig(context.Background(), &GetClusterConfigOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.NotEmpty(t, resp.Name)
+}
+
+func TestHttpMgmtStreamFullClusterConfig(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	resp, err := getHttpMgmt().StreamFullClusterConfig(ctx, &StreamFullClusterConfigOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	res, err := resp.Recv()
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, res.Name)
+
+	cancel()
+	res, err = resp.Recv()
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, res)
 }
 
 func TestHttpMgmtTerseClusterConfig(t *testing.T) {
