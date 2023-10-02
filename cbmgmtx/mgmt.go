@@ -102,7 +102,7 @@ type GetClusterConfigOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
-func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfigOptions) (*cbconfig.FullConfigJson, error) {
+func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfigOptions) (*cbconfig.FullClusterConfigJson, error) {
 	resp, err := h.Execute(ctx, "GET", "/pools/default", "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
@@ -112,10 +112,34 @@ func (h Management) GetClusterConfig(ctx context.Context, opts *GetClusterConfig
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpConfigJsonBlockStreamer[cbconfig.FullConfigJson]{
+	return httpConfigJsonBlockStreamer[cbconfig.FullClusterConfigJson]{
 		Decoder:  json.NewDecoder(resp.Body),
 		Endpoint: h.Endpoint,
 	}.Recv()
+}
+
+type StreamFullClusterConfigOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+type FullClusterConfig_Stream interface {
+	Recv() (*cbconfig.FullClusterConfigJson, error)
+}
+
+func (h Management) StreamFullClusterConfig(ctx context.Context, opts *StreamFullClusterConfigOptions) (FullClusterConfig_Stream, error) {
+	resp, err := h.Execute(ctx, "GET", "/poolsStreaming/default", "", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	return httpConfigJsonBlockStreamer[cbconfig.FullClusterConfigJson]{
+		Decoder:  json.NewDecoder(resp.Body),
+		Endpoint: h.Endpoint,
+	}, nil
 }
 
 type GetTerseClusterConfigOptions struct {
@@ -172,7 +196,7 @@ func Test() {
 	x.OnBehalfOf.Username = ""
 }
 
-func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullConfigJson, error) {
+func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullBucketConfigJson, error) {
 	if opts.BucketName == "" {
 		return nil, errors.New("must specify bucket name when fetching a bucket config")
 	}
@@ -187,7 +211,7 @@ func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOp
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return httpConfigJsonBlockStreamer[cbconfig.FullConfigJson]{
+	return httpConfigJsonBlockStreamer[cbconfig.FullBucketConfigJson]{
 		Decoder:  json.NewDecoder(resp.Body),
 		Endpoint: h.Endpoint,
 	}.Recv()

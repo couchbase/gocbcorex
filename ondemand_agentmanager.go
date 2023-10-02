@@ -9,14 +9,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// AgentManagerReconfigureOptions is the set of options available for reconfiguring an AgentManager.
-type AgentManagerReconfigureOptions struct {
+// OnDemandAgentManagerReconfigureOptions is the set of options available for reconfiguring an AgentManager.
+type OnDemandAgentManagerReconfigureOptions struct {
 	TLSConfig     *tls.Config
 	Authenticator Authenticator
 }
 
-// AgentManagerOptions is the set of options available for creating a new AgentManager.
-type AgentManagerOptions struct {
+// OnDemandAgentManagerOptions is the set of options available for creating a new OnDemandAgentManager.
+type OnDemandAgentManagerOptions struct {
 	Logger *zap.Logger
 
 	TLSConfig          *tls.Config
@@ -27,19 +27,19 @@ type AgentManagerOptions struct {
 	HTTPConfig         HTTPConfig
 }
 
-// AgentManager is responsible for managing a collection of Agent instances.
-type AgentManager struct {
+// OnDemandAgentManager is responsible for managing a collection of Agent instances.
+type OnDemandAgentManager struct {
 	lock         sync.Mutex
-	opts         AgentManagerOptions
+	opts         OnDemandAgentManagerOptions
 	clusterAgent *Agent
 	bucketAgents map[string]*Agent
 
 	closed bool
 }
 
-// CreateAgentManager creates a new AgentManager.
-func CreateAgentManager(ctx context.Context, opts AgentManagerOptions) (*AgentManager, error) {
-	m := &AgentManager{
+// CreateOnDemandAgentManager creates a new OnDemandAgentManager.
+func CreateOnDemandAgentManager(ctx context.Context, opts OnDemandAgentManagerOptions) (*OnDemandAgentManager, error) {
+	m := &OnDemandAgentManager{
 		opts: opts,
 	}
 
@@ -52,7 +52,7 @@ func CreateAgentManager(ctx context.Context, opts AgentManagerOptions) (*AgentMa
 	return m, nil
 }
 
-func (m *AgentManager) makeAgentLocked(ctx context.Context, bucketName string) (*Agent, error) {
+func (m *OnDemandAgentManager) makeAgentLocked(ctx context.Context, bucketName string) (*Agent, error) {
 	return CreateAgent(ctx, AgentOptions{
 		Logger:             m.opts.Logger,
 		TLSConfig:          m.opts.TLSConfig,
@@ -66,12 +66,12 @@ func (m *AgentManager) makeAgentLocked(ctx context.Context, bucketName string) (
 }
 
 // Reconfigure reconfigures the AgentManager, and underling Agent instances.
-func (m *AgentManager) Reconfigure(opts AgentManagerReconfigureOptions) error {
+func (m *OnDemandAgentManager) Reconfigure(opts OnDemandAgentManagerReconfigureOptions) error {
 	return errors.New("not yet supported")
 }
 
 // GetClusterAgent returns the Agent which is not bound to any bucket.
-func (m *AgentManager) GetClusterAgent() (*Agent, error) {
+func (m *OnDemandAgentManager) GetClusterAgent() (*Agent, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -83,7 +83,7 @@ func (m *AgentManager) GetClusterAgent() (*Agent, error) {
 }
 
 // GetBucketAgent returns the Agent bound to a specific bucket, creating a new Agent as required.
-func (m *AgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
+func (m *OnDemandAgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -111,7 +111,7 @@ func (m *AgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*
 }
 
 // Close closes the AgentManager and all underlying Agent instances.
-func (m *AgentManager) Close() error {
+func (m *OnDemandAgentManager) Close() error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 

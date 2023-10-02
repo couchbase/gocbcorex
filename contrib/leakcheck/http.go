@@ -1,6 +1,7 @@
 package leakcheck
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -68,7 +69,7 @@ type leakTrackingReadCloser struct {
 
 func (l *leakTrackingReadCloser) Read(p []byte) (int, error) {
 	n, err := l.parent.Read(p)
-	if errors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 		removeTrackedHttpBodyRecord(l)
 	}
 	return n, err
