@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/couchbase/gocbcorex/cbmgmtx"
+
 	"golang.org/x/exp/slices"
 
 	"go.uber.org/zap"
@@ -38,7 +40,7 @@ type bucketsTrackingAgentManagerState struct {
 
 type BucketsTrackingAgentManager struct {
 	bucketsLock sync.Mutex
-	topoLock    sync.Mutex
+	stateLock   sync.Mutex
 	opts        BucketsTrackingAgentManagerOptions
 	logger      *zap.Logger
 	userAgent   string
@@ -50,9 +52,8 @@ type BucketsTrackingAgentManager struct {
 	bucketAgents map[string]*Agent
 	closed       bool
 
-	bucketsWatcher  *StreamWatcherHttp[[]bucketDescriptor]
-	watchersCancel  func()
-	needsBucketChan chan struct{}
+	bucketsWatcher *StreamWatcherHttp[[]bucketDescriptor]
+	watchersCancel func()
 
 	topologyCfgWatcher *ConfigWatcherHttp
 }
@@ -177,18 +178,7 @@ func (m *BucketsTrackingAgentManager) startWatchers() {
 	}()
 }
 
-func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
-	m.topoLock.Lock()
-	defer m.topoLock.Unlock()
-
-	if !canUpdateConfig(config, m.state.latestConfig, m.opts.Logger) {
-		return
-	}
-
-	m.logger.Debug("Applying new config", zap.Int64("revId", config.RevID), zap.Int64("revEpoch", config.RevEpoch))
-
-	m.state.latestConfig = config
-
+func (m *BucketsTrackingAgentManager) mgmtEndpoints() []string {
 	bootstrapHosts := m.state.latestConfig.AddressesGroupForNetworkType(m.networkType)
 
 	var mgmtEndpoints []string
@@ -202,6 +192,23 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 			mgmtEndpoints = append(mgmtEndpoints, "https://"+host)
 		}
 	}
+
+	return mgmtEndpoints
+}
+
+func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
+	m.stateLock.Lock()
+	defer m.stateLock.Unlock()
+
+	if !canUpdateConfig(config, m.state.latestConfig, m.opts.Logger) {
+		return
+	}
+
+	m.logger.Debug("Applying new config", zap.Int64("revId", config.RevID), zap.Int64("revEpoch", config.RevEpoch))
+
+	m.state.latestConfig = config
+
+	mgmtEndpoints := m.mgmtEndpoints()
 
 	m.topologyCfgWatcher.Reconfigure(&ConfigWatcherHttpConfig{
 		HttpRoundTripper: m.state.httpTransport,
@@ -243,11 +250,6 @@ func (m *BucketsTrackingAgentManager) handleBuckets(buckets []bucketDescriptor) 
 			agent.Close()
 		}
 	}
-
-	if m.needsBucketChan != nil {
-		close(m.needsBucketChan)
-		m.needsBucketChan = nil
-	}
 }
 
 func (m *BucketsTrackingAgentManager) makeAgentLocked(ctx context.Context, bucketName string) (*Agent, error) {
@@ -277,33 +279,37 @@ func (m *BucketsTrackingAgentManager) GetClusterAgent(ctx context.Context) (*Age
 
 func (m *BucketsTrackingAgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
 	m.bucketsLock.Lock()
-
 	if m.closed {
 		m.bucketsLock.Unlock()
 		return nil, errors.New("agent manager closed")
 	}
-	m.bucketsLock.Unlock()
 
-	for {
-		m.bucketsLock.Lock()
-		agent, ok := m.bucketAgents[bucketName]
-		if !ok {
-			if m.needsBucketChan == nil {
-				m.needsBucketChan = make(chan struct{})
-			}
-			m.bucketsLock.Unlock()
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-m.needsBucketChan:
-				continue
-			}
-		}
+	agent, ok := m.bucketAgents[bucketName]
+	if ok {
 		m.bucketsLock.Unlock()
-
 		return agent, nil
 	}
+	m.bucketsLock.Unlock()
+
+	m.logger.Debug("Bucket unknown, attempting manual update", zap.String("name", bucketName))
+
+	// This will update buckets and close the needsBucketChan if successful
+	buckets, err := m.manuallyFetchBuckets(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	m.handleBuckets(buckets)
+
+	// We still don't know the bucket at this point then we can say it doesn't exist.
+	m.bucketsLock.Lock()
+	agent, ok = m.bucketAgents[bucketName]
+	m.bucketsLock.Unlock()
+	if !ok {
+		return nil, cbmgmtx.ErrBucketNotFound
+	}
+
+	return agent, nil
 }
 
 // Close closes the AgentManager and all underlying Agent instances.
@@ -328,4 +334,94 @@ func (m *BucketsTrackingAgentManager) Close() error {
 	m.closed = true
 
 	return firstErr
+}
+
+func (m *BucketsTrackingAgentManager) manuallyFetchBuckets(ctx context.Context) ([]bucketDescriptor, error) {
+	var recentEndpoints []string
+	var latestErr error
+
+	for {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		m.stateLock.Lock()
+		state := m.state
+		m.stateLock.Unlock()
+
+		mgmtEndpoints := m.mgmtEndpoints()
+
+		// if there are no endpoints to poll, this is unexpected
+		if len(mgmtEndpoints) == 0 {
+			return nil, errors.New("manager has no endpoints to question for bucket existence")
+		}
+
+		// remove the endpoints that we've already used
+		remainingEndpoints := filterStringsOut(mgmtEndpoints, recentEndpoints)
+
+		// if there are no endpoints left, we must have an error so return it
+		if len(remainingEndpoints) == 0 {
+			return nil, latestErr
+		}
+
+		endpoint := remainingEndpoints[0]
+		recentEndpoints = append(recentEndpoints, endpoint)
+
+		buckets, err := bucketsTracker_fetchOneBuckets(
+			ctx,
+			m.logger,
+			state.httpTransport,
+			endpoint,
+			m.userAgent,
+			state.authenticator)
+		if err != nil {
+			latestErr = err
+			m.logger.Debug("failed to fetch config via http",
+				zap.Error(err),
+				zap.String("endpoint", endpoint))
+			continue
+		}
+
+		return buckets, nil
+	}
+}
+
+func bucketsTracker_fetchOneBuckets(
+	ctx context.Context,
+	logger *zap.Logger,
+	httpRoundTripper http.RoundTripper,
+	endpoint string,
+	userAgent string,
+	authenticator Authenticator,
+) ([]bucketDescriptor, error) {
+	host, err := getHostFromUri(endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, host)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := cbmgmtx.Management{
+		Transport: httpRoundTripper,
+		UserAgent: userAgent,
+		Endpoint:  endpoint,
+		Username:  username,
+		Password:  password,
+	}.GetClusterConfig(ctx, &cbmgmtx.GetClusterConfigOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	buckets := make([]bucketDescriptor, len(resp.BucketNames))
+	for i, b := range resp.BucketNames {
+		buckets[i] = bucketDescriptor{
+			Name: b.BucketName,
+			UUID: b.UUID,
+		}
+	}
+
+	return buckets, nil
 }
