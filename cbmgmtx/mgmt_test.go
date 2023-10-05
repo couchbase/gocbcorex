@@ -164,6 +164,7 @@ func TestHttpMgmtBuckets(t *testing.T) {
 		ConflictResolutionType: ConflictResolutionTypeSequenceNumber,
 		BucketType:             BucketTypeCouchbase,
 		StorageBackend:         StorageBackendCouchstore,
+		ReplicaIndex:           true,
 	}
 
 	err := getHttpMgmt().CreateBucket(ctx, &CreateBucketOptions{

@@ -570,7 +570,7 @@ func (h Management) decodeMutableBucketSettings(data *bucketSettingsJson) (*Muta
 type BucketSettings struct {
 	MutableBucketSettings
 	ConflictResolutionType ConflictResolutionType
-	ReplicaIndexDisabled   bool
+	ReplicaIndex           bool
 	BucketType             BucketType
 	StorageBackend         StorageBackend
 }
@@ -587,16 +587,13 @@ func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings
 	if opts.BucketType != BucketTypeUnset {
 		posts.Add("bucketType", string(opts.BucketType))
 	}
-	if opts.BucketType != BucketTypeEphemeral {
-		if opts.ReplicaIndexDisabled {
-			posts.Add("replicaIndex", "0")
-		} else {
-			posts.Add("replicaIndex", "1")
+	if opts.ReplicaIndex {
+		if opts.BucketType == BucketTypeEphemeral {
+			return errors.New("cannot specify ReplicaIndex for Ephemeral buckets")
 		}
-	} else {
-		if opts.ReplicaIndexDisabled {
-			return errors.New("cannot specify ReplicaIndexDisabled for Ephemeral buckets")
-		}
+		posts.Add("replicaIndex", "1")
+	} else if opts.BucketType != BucketTypeEphemeral {
+		posts.Add("replicaIndex", "0")
 	}
 	if opts.BucketType != BucketTypeMemcached {
 		// we always write the replicaNumber since 0 means "default"
@@ -621,7 +618,7 @@ func (h Management) decodeBucketSettings(data *bucketSettingsJson) (*BucketSetti
 
 	settings.MutableBucketSettings = *mutSettings
 	settings.ConflictResolutionType = ConflictResolutionType(data.ConflictResolutionType)
-	settings.ReplicaIndexDisabled = !data.ReplicaIndex
+	settings.ReplicaIndex = data.ReplicaIndex
 	settings.BucketType = BucketType(data.BucketType)
 	settings.StorageBackend = StorageBackend(data.StorageBackend)
 
