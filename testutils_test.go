@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -66,4 +67,42 @@ func WaitForManifest(ctx context.Context, t *testing.T, agent *Agent, manifestID
 
 		return true
 	}, time.Until(deadline), 100*time.Millisecond)
+}
+
+type ForwardingHttpRoundTripper struct {
+	reqs        []*http.Request
+	baseTripper *http.Transport
+	interceptor func(req *http.Response)
+}
+
+func NewForwardingHttpRoundTripper(interceptor func(req *http.Response)) *ForwardingHttpRoundTripper {
+	return &ForwardingHttpRoundTripper{
+		baseTripper: makeHTTPTransport(nil),
+		interceptor: interceptor,
+	}
+}
+
+func (rt *ForwardingHttpRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.reqs = append(rt.reqs, req)
+	resp, err := rt.baseTripper.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	if rt.interceptor != nil {
+		rt.interceptor(resp)
+	}
+
+	return resp, nil
+}
+
+func (rt *ForwardingHttpRoundTripper) NumReqs() int {
+	return len(rt.reqs)
+}
+
+func (rt *ForwardingHttpRoundTripper) Reqs() []*http.Request {
+	return rt.reqs
+}
+
+func (rt *ForwardingHttpRoundTripper) Close() {
+	rt.baseTripper.CloseIdleConnections()
 }

@@ -20,6 +20,12 @@ type StreamWatcherHttpConfig struct {
 	Authenticator    Authenticator
 }
 
+type StreamWatcherHttpReconfigureConfig struct {
+	HttpRoundTripper http.RoundTripper
+	Endpoints        []string
+	Authenticator    Authenticator
+}
+
 type StreamWatcherHttpOptions struct {
 	Logger               *zap.Logger
 	AutoDisconnectPeriod time.Duration
@@ -46,7 +52,7 @@ func NewStreamWatcherHttp[StreamT any](Buckets *StreamWatcherHttpConfig, opts *S
 		autoDisconnect = 25 * time.Second
 	}
 	return &StreamWatcherHttp[StreamT]{
-		logger:               opts.Logger,
+		logger:               loggerOrNop(opts.Logger),
 		autoDisconnectPeriod: autoDisconnect,
 		state: &streamWatcherHttpState{
 			httpRoundTripper: Buckets.HttpRoundTripper,
@@ -139,13 +145,12 @@ func (w *StreamWatcherHttp[StreamT]) watch(
 	close(outCh)
 }
 
-func (w *StreamWatcherHttp[StreamT]) Reconfigure(Buckets *StreamWatcherHttpConfig) error {
+func (w *StreamWatcherHttp[StreamT]) Reconfigure(cfg *StreamWatcherHttpReconfigureConfig) error {
 	w.lock.Lock()
 	w.state = &streamWatcherHttpState{
-		httpRoundTripper: Buckets.HttpRoundTripper,
-		endpoints:        Buckets.Endpoints,
-		userAgent:        Buckets.UserAgent,
-		authenticator:    Buckets.Authenticator,
+		httpRoundTripper: cfg.HttpRoundTripper,
+		endpoints:        cfg.Endpoints,
+		authenticator:    cfg.Authenticator,
 	}
 	w.lock.Unlock()
 	return nil
