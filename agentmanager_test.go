@@ -3,6 +3,9 @@ package gocbcorex
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 
 	"github.com/stretchr/testify/assert"
 
@@ -13,6 +16,26 @@ import (
 	"github.com/couchbase/gocbcorex/testutils"
 	"go.uber.org/zap"
 )
+
+func CreateDefaultBucketsTrackingManagerOptions() BucketsTrackingAgentManagerOptions {
+	logger, _ := zap.NewDevelopment()
+
+	return BucketsTrackingAgentManagerOptions{
+		Logger:    logger,
+		TLSConfig: nil,
+		Authenticator: &PasswordAuthenticator{
+			Username: testutils.TestOpts.Username,
+			Password: testutils.TestOpts.Password,
+		},
+		SeedConfig: SeedConfig{
+			HTTPAddrs: testutils.TestOpts.HTTPAddrs,
+			MemdAddrs: testutils.TestOpts.MemdAddrs,
+		},
+		CompressionConfig: CompressionConfig{
+			EnableCompression: true,
+		},
+	}
+}
 
 func TestOnDemandAgentManagerClose(t *testing.T) {
 	testutils.SkipIfShortTest(t)
@@ -65,26 +88,10 @@ func TestOnDemandAgentManagerClose(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestInternalServiceAgentManagerClose(t *testing.T) {
+func TestBucketsTrackingAgentManagerClose(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
-	logger, _ := zap.NewDevelopment()
-
-	opts := BucketsTrackingAgentManagerOptions{
-		Logger:    logger,
-		TLSConfig: nil,
-		Authenticator: &PasswordAuthenticator{
-			Username: testutils.TestOpts.Username,
-			Password: testutils.TestOpts.Password,
-		},
-		SeedConfig: SeedConfig{
-			HTTPAddrs: testutils.TestOpts.HTTPAddrs,
-			MemdAddrs: testutils.TestOpts.MemdAddrs,
-		},
-		CompressionConfig: CompressionConfig{
-			EnableCompression: true,
-		},
-	}
+	opts := CreateDefaultBucketsTrackingManagerOptions()
 
 	mgr, err := CreateBucketsTrackingAgentManager(context.Background(), opts)
 	require.NoError(t, err)
@@ -114,4 +121,27 @@ func TestInternalServiceAgentManagerClose(t *testing.T) {
 
 	_, err = mgr.GetBucketAgent(context.Background(), testutils.TestOpts.BucketName)
 	assert.Error(t, err)
+}
+
+func TestBucketsTrackingAgentManagerBucketNotExist(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	opts := CreateDefaultBucketsTrackingManagerOptions()
+
+	mgr, err := CreateBucketsTrackingAgentManager(context.Background(), opts)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
+	defer cancel()
+
+	agent, err := mgr.GetBucketAgent(ctx, uuid.NewString()[:6])
+	assert.ErrorIs(t, err, cbmgmtx.ErrBucketNotFound)
+
+	if agent != nil {
+		err = agent.Close()
+		require.NoError(t, err)
+	}
+
+	err = mgr.Close()
+	require.NoError(t, err)
 }
