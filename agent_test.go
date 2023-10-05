@@ -454,6 +454,21 @@ func TestAgentWatchConfig(t *testing.T) {
 	require.NotNil(t, config)
 }
 
+func TestAgentBucketNotExist(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	opts := CreateDefaultAgentOptions()
+	opts.BucketName = uuid.NewString()[:6]
+
+	agent, err := CreateAgent(context.Background(), opts)
+	assert.ErrorIs(t, err, cbmgmtx.ErrBucketNotFound)
+
+	if agent != nil {
+		err = agent.Close()
+		require.NoError(t, err)
+	}
+}
+
 func TestAgentConnectAfterCreateBucket(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
