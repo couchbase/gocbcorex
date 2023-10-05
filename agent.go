@@ -97,6 +97,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	httpUserAgent := "gocbcorex/0.0.1-dev"
 
 	httpTransport := makeHTTPTransport(opts.TLSConfig)
+	handleAgentCreateErr := func(err error) error {
+		httpTransport.CloseIdleConnections()
+
+		return err
+	}
 
 	bootstrapper, err := NewConfigBootstrapHttp(ConfigBoostrapHttpOptions{
 		Logger:           logger.Named("http-bootstrap"),
@@ -107,12 +112,12 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		BucketName:       opts.BucketName,
 	})
 	if err != nil {
-		return nil, err
+		return nil, handleAgentCreateErr(err)
 	}
 
 	bootstrapConfig, networkType, err := bootstrapper.Bootstrap(ctx)
 	if err != nil {
-		return nil, err
+		return nil, handleAgentCreateErr(err)
 	}
 
 	logger.Debug("agent bootstrapped",
@@ -147,7 +152,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		Logger: agent.logger.Named("client manager"),
 	})
 	if err != nil {
-		return nil, err
+		return nil, handleAgentCreateErr(err)
 	}
 	agent.connMgr = connMgr
 
@@ -156,7 +161,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		ConnMgr: agent.connMgr,
 	})
 	if err != nil {
-		return nil, err
+		return nil, handleAgentCreateErr(err)
 	}
 	collections, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
 		Logger:         agent.logger,
@@ -164,7 +169,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		ResolveTimeout: 10 * time.Second,
 	})
 	if err != nil {
-		return nil, err
+		return nil, handleAgentCreateErr(err)
 	}
 	agent.collections = collections
 
@@ -180,7 +185,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 				Logger: logger.Named("http-config-watcher"),
 			})
 		if err != nil {
-			return nil, err
+			return nil, handleAgentCreateErr(err)
 		}
 
 		agent.httpCfgWatcher = configWatcher
@@ -195,7 +200,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			},
 		)
 		if err != nil {
-			return nil, err
+			return nil, handleAgentCreateErr(err)
 		}
 
 		agent.memdCfgWatcher = configWatcher
