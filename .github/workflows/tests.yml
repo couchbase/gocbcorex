@@ -54,4 +54,4 @@ jobs:
         timeout-minutes: 40
         env:
           GCBCONNSTR: 127.0.0.1
-        run: go test ./... -v
+        run: go test ./... -v -race
