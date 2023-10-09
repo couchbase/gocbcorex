@@ -610,6 +610,9 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -942,6 +945,9 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 		if resp.Status == StatusKeyExists {
 			cb(nil, ErrDocExists)
 			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1046,6 +1052,9 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1138,6 +1147,9 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1229,6 +1241,9 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
+			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
 			return false
 		}
 
@@ -1622,6 +1637,9 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 
 		if resp.Status == StatusKeyExists {
 			cb(nil, ErrCasMismatch)
+			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
 			return false
 		}
 

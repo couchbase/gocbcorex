@@ -15,6 +15,7 @@ var (
 	ErrCollectionsNotEnabled               = errors.New("collections not enabled")
 	ErrDocNotFound                         = errors.New("document not found")
 	ErrDocExists                           = errors.New("document already exists")
+	ErrValueTooLarge                       = errors.New("value too large")
 	ErrAuthError                           = errors.New("auth error")
 	ErrNotMyVbucket                        = errors.New("not my vbucket")
 	ErrCasMismatch                         = errors.New("cas mismatch")

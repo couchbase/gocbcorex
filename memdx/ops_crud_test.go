@@ -2734,6 +2734,137 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 	}
 }
 
+func TestOpsCrudValueTooLarge(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op             func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error)
+		Name           string
+		CreateDocFirst bool
+	}
+
+	var val []byte
+	for i := 0; i < 21000000; i++ {
+		val = append(val, byte(i))
+	}
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Set(cli, &SetRequest{
+					Key:       key,
+					Value:     val,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Add",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Add(cli, &AddRequest{
+					Key:       key,
+					Value:     val,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:       key,
+					Value:     val,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			CreateDocFirst: true,
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:       key,
+					Value:     val,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			CreateDocFirst: true,
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:       key,
+					Value:     val,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			CreateDocFirst: true,
+		},
+		{
+			Name: "SetMeta",
+			Op: func(opsCrud OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.SetMeta(cli, &SetMetaRequest{
+					Key:       key,
+					Value:     val,
+					Cas:       cas, // For some reason Cas is required here.
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *SetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			waiterr := make(chan error, 1)
+			waitres := make(chan interface{}, 1)
+
+			key := []byte(uuid.NewString())
+
+			var cas uint64
+			if test.CreateDocFirst {
+				setRes, err := syncUnaryCall(OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, OpsCrud.Set, cli, &SetRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					Value:     []byte(""),
+					Datatype:  uint8(0x00),
+				})
+				require.NoError(t, err)
+				cas = setRes.Cas
+			}
+
+			_, err := test.Op(OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, key, cas, func(i interface{}, err error) {
+				waiterr <- err
+				waitres <- i
+			})
+			require.NoError(tt, err)
+
+			require.ErrorIs(tt, <-waiterr, ErrValueTooLarge)
+		})
+	}
+}
+
 type testCrudDispatcher struct {
 	Pak *Packet
 }
