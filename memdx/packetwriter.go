@@ -26,31 +26,31 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 
 	if pak.Magic == MagicReq || pak.Magic == MagicRes {
 		if extFramesLen > 0 {
-			return protocolError{"cannot use framing extras with non-ext packets"}
+			return invalidArgError{"cannot use framing extras with non-ext packets"}
 		}
 
 		if keyLen > math.MaxUint16 {
-			return protocolError{"key too long to encode"}
+			return invalidArgError{"key too long to encode"}
 		}
 
 		binary.BigEndian.PutUint16(headerBuf[2:], uint16(keyLen))
 	} else if pak.Magic == MagicReqExt || pak.Magic == MagicResExt {
 		if extFramesLen > math.MaxUint8 {
-			return protocolError{"framing extras too long to encode"}
+			return invalidArgError{"framing extras too long to encode"}
 		}
 
 		if keyLen > math.MaxUint8 {
-			return protocolError{"key too long to encode"}
+			return invalidArgError{"key too long to encode"}
 		}
 
 		headerBuf[2] = uint8(extFramesLen)
 		headerBuf[3] = uint8(keyLen)
 	} else {
-		return protocolError{"invalid magic for key length encoding"}
+		return invalidArgError{"invalid magic for key length encoding"}
 	}
 
 	if extrasLen > math.MaxUint8 {
-		return protocolError{"extras too long to encode"}
+		return invalidArgError{"extras too long to encode"}
 	}
 	headerBuf[4] = uint8(extrasLen)
 
@@ -58,22 +58,22 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 
 	if pak.Magic == MagicReq || pak.Magic == MagicReqExt {
 		if pak.Status != 0 {
-			return protocolError{"cannot specify status in a request packet"}
+			return invalidArgError{"cannot specify status in a request packet"}
 		}
 
 		binary.BigEndian.PutUint16(headerBuf[6:], pak.VbucketID)
 	} else if pak.Magic == MagicRes || pak.Magic == MagicResExt {
 		if pak.VbucketID != 0 {
-			return protocolError{"cannot specify vbucket in a response packet"}
+			return invalidArgError{"cannot specify vbucket in a response packet"}
 		}
 
 		binary.BigEndian.PutUint16(headerBuf[6:], uint16(pak.Status))
 	} else {
-		return protocolError{"invalid magic for status/vbucket encoding"}
+		return invalidArgError{"invalid magic for status/vbucket encoding"}
 	}
 
 	if payloadLen > math.MaxUint32 {
-		return protocolError{"packet too long to encode"}
+		return invalidArgError{"packet too long to encode"}
 	}
 	binary.BigEndian.PutUint32(headerBuf[8:], uint32(payloadLen))
 
