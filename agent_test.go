@@ -486,8 +486,8 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 		BucketSettings: cbmgmtx.BucketSettings{
 			MutableBucketSettings: cbmgmtx.MutableBucketSettings{
 				RAMQuotaMB: 100,
-				BucketType: cbmgmtx.BucketTypeCouchbase,
 			},
+			BucketType: cbmgmtx.BucketTypeCouchbase,
 		},
 	})
 	require.NoError(t, err)
