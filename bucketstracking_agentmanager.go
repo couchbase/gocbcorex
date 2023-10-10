@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -24,6 +25,7 @@ type BucketsTrackingAgentManagerOptions struct {
 	CompressionConfig  CompressionConfig
 	ConfigPollerConfig ConfigPollerConfig
 	HTTPConfig         HTTPConfig
+	CreateAgentTimeout time.Duration
 }
 
 type bucketsTrackingAgentManagerState struct {
@@ -43,6 +45,7 @@ type BucketsTrackingAgentManager struct {
 	compressionConfig  CompressionConfig
 	configPollerConfig ConfigPollerConfig
 	httpConfig         HTTPConfig
+	createAgentTimeout time.Duration
 
 	state *bucketsTrackingAgentManagerState
 
@@ -88,6 +91,11 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 		zap.Any("bootstrapConfig", bootstrapConfig),
 		zap.String("networkType", networkType))
 
+	createAgentTimeout := opts.CreateAgentTimeout
+	if createAgentTimeout == 0 {
+		createAgentTimeout = 7 * time.Second
+	}
+
 	m := &BucketsTrackingAgentManager{
 		logger:      logger,
 		userAgent:   httpUserAgent,
@@ -96,6 +104,7 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 		compressionConfig:  opts.CompressionConfig,
 		configPollerConfig: opts.ConfigPollerConfig,
 		httpConfig:         opts.HTTPConfig,
+		createAgentTimeout: createAgentTimeout,
 
 		state: &bucketsTrackingAgentManagerState{
 			tlsConfig:     opts.TLSConfig,
@@ -103,11 +112,6 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 			httpTransport: httpTransport,
 			latestConfig:  bootstrapConfig,
 		},
-		clusterAgent:       nil,
-		closed:             false,
-		bucketsWatcher:     nil,
-		watchersCancel:     nil,
-		topologyCfgWatcher: nil,
 	}
 
 	bucketsWatcher, err := NewBucketsWatcherHttp(BucketsWatcherHttpConfig{
@@ -240,6 +244,9 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		kvDataHosts = bootstrapHosts.SSL.KvData
 		mgmtEndpoints = bootstrapHosts.SSL.Mgmt
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, m.createAgentTimeout)
+	defer cancel()
 
 	return CreateAgent(ctx, AgentOptions{
 		Logger:        m.logger,
