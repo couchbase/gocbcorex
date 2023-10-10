@@ -47,13 +47,15 @@ type BucketsWatcherHttp struct {
 	userAgent string
 	closed    bool
 
-	agents    map[string]*Agent
-	lock      sync.Mutex
+	fastMap   AtomicPointer[map[string]*Agent]
+	slowMap   map[string]*Agent
+	slowLock  sync.Mutex
 	makeAgent func(ctx context.Context, bucketName string) (*Agent, error)
 
 	watcher   *StreamWatcherHttp[[]bucketDescriptor]
 	closedSig chan struct{}
 
+	needsBucketLock       sync.Mutex
 	needsBucketChan       chan struct{}
 	lastUpdateTriggeredAt time.Time
 	updateSig             chan struct{}
@@ -85,7 +87,7 @@ func NewBucketsWatcherHttp(cfg BucketsWatcherHttpConfig, opts BucketsWatcherHttp
 		makeAgent: cfg.MakeAgent,
 		userAgent: cfg.UserAgent,
 		logger:    logger,
-		agents:    make(map[string]*Agent),
+		slowMap:   make(map[string]*Agent),
 		watcher:   watcher,
 		closedSig: make(chan struct{}),
 		updateSig: make(chan struct{}, 1),
@@ -137,12 +139,12 @@ func (bw *BucketsWatcherHttp) manualUpdateThread() {
 
 		bw.handleBuckets(ctx, buckets)
 
-		bw.lock.Lock()
+		bw.needsBucketLock.Lock()
 		if bw.needsBucketChan != nil {
 			close(bw.needsBucketChan)
 			bw.needsBucketChan = nil
 		}
-		bw.lock.Unlock()
+		bw.needsBucketLock.Unlock()
 	}
 }
 
@@ -150,18 +152,22 @@ func (bw *BucketsWatcherHttp) GetAgent(ctx context.Context, bucketName string) (
 	getAgentMadeAt := time.Now()
 
 	for {
-		bw.lock.Lock()
+		bw.stateLock.Lock()
 		if bw.closed {
-			bw.lock.Unlock()
+			bw.stateLock.Unlock()
 			return nil, errors.New("buckets watcher closed")
 		}
+		bw.stateLock.Unlock()
 
-		agent, ok := bw.agents[bucketName]
-		if ok {
-			bw.lock.Unlock()
-			return agent, nil
+		fastMap := bw.fastMap.Load()
+		if fastMap != nil {
+			agent, ok := (*fastMap)[bucketName]
+			if ok {
+				return agent, nil
+			}
 		}
 
+		bw.needsBucketLock.Lock()
 		var lastUpdateTriggeredAt time.Time
 		if bw.needsBucketChan == nil {
 			bw.needsBucketChan = make(chan struct{})
@@ -177,27 +183,29 @@ func (bw *BucketsWatcherHttp) GetAgent(ctx context.Context, bucketName string) (
 
 		needsBucketChan := bw.needsBucketChan
 		lastUpdateTriggeredAt = bw.lastUpdateTriggeredAt
-		bw.lock.Unlock()
+		bw.needsBucketLock.Unlock()
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-needsBucketChan:
 		}
 
-		// We still don't know the bucket at this point then we can say it doesn't exist.
-		bw.lock.Lock()
-		agent, ok = bw.agents[bucketName]
-		bw.lock.Unlock()
-		if !ok {
-			if lastUpdateTriggeredAt.Before(getAgentMadeAt) {
-				bw.logger.Debug("Bucket still unknown, but update after request was made - retrying", zap.String("name", bucketName))
-				continue
+		// If the fastMap is nil then just loop around and handle above.
+		fastMap = bw.fastMap.Load()
+		if fastMap != nil {
+			// We still don't know the bucket at this point then we can say it doesn't exist.
+			agent, ok := (*fastMap)[bucketName]
+			if !ok {
+				if lastUpdateTriggeredAt.Before(getAgentMadeAt) {
+					bw.logger.Debug("Bucket still unknown, but update after request was made - retrying", zap.String("name", bucketName))
+					continue
+				}
+				bw.logger.Debug("Bucket still unknown, erroring", zap.String("name", bucketName))
+				return nil, cbmgmtx.ErrBucketNotFound
 			}
-			bw.logger.Debug("Bucket still unknown, erroring", zap.String("name", bucketName))
-			return nil, cbmgmtx.ErrBucketNotFound
-		}
 
-		return agent, nil
+			return agent, nil
+		}
 	}
 }
 
@@ -225,11 +233,11 @@ func (bw *BucketsWatcherHttp) Close() error {
 	bw.logger.Debug("Closing")
 
 	bw.closed = true
-
 	close(bw.closedSig)
+	bw.fastMap.Store(nil)
 
 	var firstErr error
-	for _, agent := range bw.agents {
+	for _, agent := range bw.slowMap {
 		err := agent.Close()
 		if err != nil && firstErr == nil {
 			firstErr = err
@@ -238,17 +246,15 @@ func (bw *BucketsWatcherHttp) Close() error {
 
 	bw.logger.Debug("Closed")
 
-	bw.agents = nil
-
 	return firstErr
 }
 
 func (bw *BucketsWatcherHttp) handleBuckets(ctx context.Context, buckets []bucketDescriptor) {
-	bw.lock.Lock()
-	defer bw.lock.Unlock()
+	bw.slowLock.Lock()
+	defer bw.slowLock.Unlock()
 
 	for _, bucket := range buckets {
-		if _, ok := bw.agents[bucket.Name]; !ok {
+		if _, ok := bw.slowMap[bucket.Name]; !ok {
 			bw.logger.Debug("New bucket on cluster, creating agent", zap.String("name", bucket.Name))
 			agent, err := bw.makeAgent(ctx, bucket.Name)
 			if err != nil {
@@ -256,22 +262,29 @@ func (bw *BucketsWatcherHttp) handleBuckets(ctx context.Context, buckets []bucke
 				continue
 			}
 
-			bw.agents[bucket.Name] = agent
+			bw.slowMap[bucket.Name] = agent
 		}
 	}
 
-	for bucket, agent := range bw.agents {
+	for bucket, agent := range bw.slowMap {
 		if !slices.ContainsFunc(buckets, func(descriptor bucketDescriptor) bool {
 			return descriptor.Name == bucket
 		}) {
 			bw.logger.Debug("Bucket no longer on cluster, shutting down agent", zap.String("name", bucket))
-			delete(bw.agents, bucket)
+			delete(bw.slowMap, bucket)
 			err := agent.Close()
 			if err != nil {
 				bw.logger.Debug("Failed to close agent", zap.String("name", bucket))
 			}
 		}
 	}
+
+	fastMap := make(map[string]*Agent, len(bw.slowMap))
+	for name, agent := range bw.slowMap {
+		fastMap[name] = agent
+	}
+
+	bw.fastMap.Store(&fastMap)
 }
 
 func (bw *BucketsWatcherHttp) manuallyFetchBuckets(ctx context.Context) ([]bucketDescriptor, error) {

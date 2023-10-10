@@ -53,10 +53,10 @@ func TestBucketsWatcherHttp(t *testing.T) {
 		watcher.Watch()
 
 		if assert.Eventuallyf(tt, func() bool {
-			watcher.lock.Lock()
-			defer watcher.lock.Unlock()
+			watcher.slowLock.Lock()
+			defer watcher.slowLock.Unlock()
 
-			return len(watcher.agents) > 0
+			return len(watcher.slowMap) > 0
 		}, 5*time.Second, 100*time.Millisecond, "Watcher failed to create any agents in time specified") {
 
 			_, err = watcher.GetAgent(context.Background(), testutils.TestOpts.BucketName)
