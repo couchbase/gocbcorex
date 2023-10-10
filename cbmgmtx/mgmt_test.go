@@ -157,13 +157,13 @@ func TestHttpMgmtBuckets(t *testing.T) {
 	bucketSettings := BucketSettings{
 		MutableBucketSettings: MutableBucketSettings{
 			RAMQuotaMB:         128,
-			BucketType:         BucketTypeCouchbase,
 			EvictionPolicy:     EvictionPolicyTypeValueOnly,
 			CompressionMode:    CompressionModePassive,
 			DurabilityMinLevel: DurabilityLevelNone,
-			StorageBackend:     StorageBackendCouchstore,
 		},
 		ConflictResolutionType: ConflictResolutionTypeSequenceNumber,
+		BucketType:             BucketTypeCouchbase,
+		StorageBackend:         StorageBackendCouchstore,
 	}
 
 	err := getHttpMgmt().CreateBucket(ctx, &CreateBucketOptions{

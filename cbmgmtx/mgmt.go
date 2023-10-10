@@ -519,16 +519,13 @@ func (h Management) DeleteCollection(
 }
 
 type MutableBucketSettings struct {
-	FlushEnabled         bool
-	ReplicaIndexDisabled bool
-	RAMQuotaMB           uint64
-	ReplicaNumber        uint32
-	BucketType           BucketType
-	EvictionPolicy       EvictionPolicyType
-	MaxTTL               time.Duration
-	CompressionMode      CompressionMode
-	DurabilityMinLevel   DurabilityLevel
-	StorageBackend       StorageBackend
+	FlushEnabled       bool
+	RAMQuotaMB         uint64
+	ReplicaNumber      uint32
+	EvictionPolicy     EvictionPolicyType
+	MaxTTL             time.Duration
+	CompressionMode    CompressionMode
+	DurabilityMinLevel DurabilityLevel
 }
 
 func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *MutableBucketSettings) error {
@@ -537,28 +534,8 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 	} else {
 		posts.Add("flushEnabled", "0")
 	}
-	if opts.BucketType != BucketTypeEphemeral {
-		if opts.ReplicaIndexDisabled {
-			posts.Add("replicaIndex", "0")
-		} else {
-			posts.Add("replicaIndex", "1")
-		}
-	} else {
-		if opts.ReplicaIndexDisabled {
-			return errors.New("cannot specify ReplicaIndexDisabled for Ephemeral buckets")
-		}
-	}
 	if opts.RAMQuotaMB > 0 {
 		posts.Add("ramQuotaMB", fmt.Sprintf("%d", opts.RAMQuotaMB))
-	}
-	if opts.BucketType != BucketTypeMemcached {
-		// we always write the replicaNumber since 0 means "default"
-		posts.Add("replicaNumber", fmt.Sprintf("%d", opts.ReplicaNumber))
-	} else if opts.ReplicaNumber > 0 {
-		return errors.New("cannot specify ReplicaNumber for Memcached buckets")
-	}
-	if opts.BucketType != BucketTypeUnset {
-		posts.Add("bucketType", string(opts.BucketType))
 	}
 	if opts.EvictionPolicy != "" {
 		posts.Add("evictionPolicy", string(opts.EvictionPolicy))
@@ -572,9 +549,6 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 	if opts.DurabilityMinLevel != DurabilityLevelUnset {
 		posts.Add("durabilityMinLevel", string(opts.DurabilityMinLevel))
 	}
-	if opts.StorageBackend != "" {
-		posts.Add("storageBackend", string(opts.StorageBackend))
-	}
 
 	return nil
 }
@@ -583,15 +557,12 @@ func (h Management) decodeMutableBucketSettings(data *bucketSettingsJson) (*Muta
 	settings := MutableBucketSettings{}
 
 	settings.FlushEnabled = data.Controllers.Flush != ""
-	settings.ReplicaIndexDisabled = !data.ReplicaIndex
 	settings.RAMQuotaMB = data.Quota.RawRAM / 1024 / 1024
 	settings.ReplicaNumber = data.ReplicaNumber
-	settings.BucketType = BucketType(data.BucketType)
 	settings.EvictionPolicy = EvictionPolicyType(data.EvictionPolicy)
 	settings.MaxTTL = time.Duration(data.MaxTTL) * time.Second
 	settings.CompressionMode = CompressionMode(data.CompressionMode)
 	settings.DurabilityMinLevel = DurabilityLevel(data.MinimumDurabilityLevel)
-	settings.StorageBackend = StorageBackend(data.StorageBackend)
 
 	return &settings, nil
 }
@@ -599,6 +570,9 @@ func (h Management) decodeMutableBucketSettings(data *bucketSettingsJson) (*Muta
 type BucketSettings struct {
 	MutableBucketSettings
 	ConflictResolutionType ConflictResolutionType
+	ReplicaIndexDisabled   bool
+	BucketType             BucketType
+	StorageBackend         StorageBackend
 }
 
 func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings) error {
@@ -609,6 +583,29 @@ func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings
 
 	if opts.ConflictResolutionType != "" {
 		posts.Add("conflictResolutionType", string(opts.ConflictResolutionType))
+	}
+	if opts.BucketType != BucketTypeUnset {
+		posts.Add("bucketType", string(opts.BucketType))
+	}
+	if opts.BucketType != BucketTypeEphemeral {
+		if opts.ReplicaIndexDisabled {
+			posts.Add("replicaIndex", "0")
+		} else {
+			posts.Add("replicaIndex", "1")
+		}
+	} else {
+		if opts.ReplicaIndexDisabled {
+			return errors.New("cannot specify ReplicaIndexDisabled for Ephemeral buckets")
+		}
+	}
+	if opts.BucketType != BucketTypeMemcached {
+		// we always write the replicaNumber since 0 means "default"
+		posts.Add("replicaNumber", fmt.Sprintf("%d", opts.ReplicaNumber))
+	} else if opts.ReplicaNumber > 0 {
+		return errors.New("cannot specify ReplicaNumber for Memcached buckets")
+	}
+	if opts.StorageBackend != "" {
+		posts.Add("storageBackend", string(opts.StorageBackend))
 	}
 
 	return nil
@@ -624,6 +621,9 @@ func (h Management) decodeBucketSettings(data *bucketSettingsJson) (*BucketSetti
 
 	settings.MutableBucketSettings = *mutSettings
 	settings.ConflictResolutionType = ConflictResolutionType(data.ConflictResolutionType)
+	settings.ReplicaIndexDisabled = !data.ReplicaIndex
+	settings.BucketType = BucketType(data.BucketType)
+	settings.StorageBackend = StorageBackend(data.StorageBackend)
 
 	return settings, nil
 }
@@ -771,6 +771,7 @@ type UpdateBucketOptions struct {
 	BucketName string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 	MutableBucketSettings
+	StorageBackend StorageBackend
 }
 
 func (h Management) UpdateBucket(
