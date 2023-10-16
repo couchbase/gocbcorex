@@ -126,6 +126,14 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *QueryServerError 
 		err = ErrIndexFailure
 	}
 
+	if errCode == 4300 {
+		err = ErrIndexExists
+	}
+
+	if errCode == 12016 {
+		err = ErrIndexNotFound
+	}
+
 	if errCode == 4040 || errCode == 4050 || errCode == 4060 || errCode == 4070 || errCode == 4080 || errCode == 4090 {
 		err = ErrPreparedStatementFailure
 	}

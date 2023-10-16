@@ -17,6 +17,8 @@ var (
 	ErrPreparedStatementFailure = errors.New("prepared statement failure")
 	ErrDmlFailure               = errors.New("data service returned an error during execution of DML statement")
 	ErrTimeout                  = errors.New("timeout")
+	ErrIndexExists              = errors.New("index exists")
+	ErrIndexNotFound            = errors.New("index not found")
 )
 
 type QueryError struct {

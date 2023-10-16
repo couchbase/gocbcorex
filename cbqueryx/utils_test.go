@@ -51,10 +51,12 @@ type testQueryResult struct {
 		ResultCount   uint64 `json:"resultCount"`
 		ResultSize    uint64 `json:"resultSize"`
 		ServiceLoad   int    `json:"serviceLoad"`
+		ErrorCount    int    `json:"errorCount"`
 	} `json:"metrics"`
-	Prepared string          `json:"prepared,omitempty"`
-	Results  json.RawMessage `json:"results"`
-	Status   string          `json:"status"`
+	Prepared string           `json:"prepared,omitempty"`
+	Results  json.RawMessage  `json:"results"`
+	Errors   []queryErrorJson `json:"errors,omitempty"`
+	Status   string           `json:"status"`
 }
 
 func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *testQueryResult, res QueryResultStream) {
@@ -113,6 +115,7 @@ func makeSuccessQueryResult(rows []string, prepared string) testQueryResult {
 			ResultCount   uint64 `json:"resultCount"`
 			ResultSize    uint64 `json:"resultSize"`
 			ServiceLoad   int    `json:"serviceLoad"`
+			ErrorCount    int    `json:"errorCount"`
 		}{
 			ElapsedTime:   "129.569043ms",
 			ExecutionTime: "129.521515ms",
@@ -123,6 +126,33 @@ func makeSuccessQueryResult(rows []string, prepared string) testQueryResult {
 	}
 	if prepared != "" {
 		qr.Prepared = prepared
+	}
+
+	return qr
+}
+
+func makeErrorQueryResult(errors []queryErrorJson) testQueryResult {
+	qr := testQueryResult{
+		Results:         json.RawMessage("[]"),
+		RequestID:       "941e33f4-15d8-44d0-a5a8-422e3e84039f",
+		ClientContextID: "12345",
+		Status:          "errors",
+		Metrics: struct {
+			ElapsedTime   string `json:"elapsedTime"`
+			ExecutionTime string `json:"executionTime"`
+			ResultCount   uint64 `json:"resultCount"`
+			ResultSize    uint64 `json:"resultSize"`
+			ServiceLoad   int    `json:"serviceLoad"`
+			ErrorCount    int    `json:"errorCount"`
+		}{
+			ElapsedTime:   "129.569043ms",
+			ExecutionTime: "129.521515ms",
+			ResultCount:   0,
+			ResultSize:    0,
+			ServiceLoad:   2,
+			ErrorCount:    1,
+		},
+		Errors: errors,
 	}
 
 	return qr
