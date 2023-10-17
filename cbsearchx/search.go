@@ -555,6 +555,8 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 		err = ErrIndexNotFound
 	} else if strings.Contains(errText, "index with the same name already exists") {
 		err = ErrIndexExists
+	} else if strings.Contains(errText, "current index uuid") && strings.Contains(errText, "did not match input uuid") {
+		err = ErrIndexExists
 	}
 
 	if err == nil {

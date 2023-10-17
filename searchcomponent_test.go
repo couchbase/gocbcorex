@@ -171,3 +171,39 @@ func TestSearchIndexesPartitionControl(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestSearchUUIDMismatch(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	defer agent.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	indexName := newSearchIndexName()
+
+	err := agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
+		Index: cbsearchx.Index{
+			Name:       indexName,
+			Type:       "fulltext-index",
+			SourceType: "couchbase",
+			SourceName: testutils.TestOpts.BucketName,
+		},
+	})
+	require.NoError(t, err)
+	defer agent.DeleteSearchIndex(ctx, &cbsearchx.DeleteIndexOptions{
+		IndexName: indexName,
+	})
+
+	err = agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
+		Index: cbsearchx.Index{
+			Name:       indexName,
+			Type:       "fulltext-index",
+			SourceType: "couchbase",
+			SourceName: testutils.TestOpts.BucketName,
+			UUID:       "123545",
+		},
+	})
+	assert.ErrorIs(t, err, cbsearchx.ErrIndexExists)
+}
