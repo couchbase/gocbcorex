@@ -216,6 +216,7 @@ func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 	var numGetPools int
 	clientPools := make(map[string]KvClient)
 	reconfiguredPools := make(map[string]struct{})
+	var closed int
 	mgr, err := NewKvClientManager(&KvClientManagerConfig{
 		NumPoolConnections: expectedNumConns,
 		Clients:            startClientConfigs,
@@ -235,6 +236,10 @@ func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 					reconfiguredPools[config.ClientConfig.Address] = struct{}{}
 
 					cb(nil)
+					return nil
+				},
+				CloseFunc: func() error {
+					closed++
 					return nil
 				},
 			}
@@ -257,6 +262,7 @@ func TestKvClientManagerReconfigureRemovesOldEndpoints(t *testing.T) {
 	assert.Len(t, reconfiguredPools, 2)
 	assert.Contains(t, reconfiguredPools, "10.112.234.101")
 	assert.Contains(t, reconfiguredPools, "10.112.234.102")
+	assert.Equal(t, 1, closed)
 
 	verifyManagerEndpoint(t, mgr, clientPools, "endpoint1", "10.112.234.101")
 	verifyManagerEndpoint(t, mgr, clientPools, "endpoint2", "10.112.234.102")
