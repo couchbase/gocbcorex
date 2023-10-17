@@ -159,6 +159,12 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(err
 		}
 	}
 
+	for _, pool := range oldPools {
+		if err := pool.Pool.Close(); err != nil {
+			m.logger.Debug("failed to close pool", zap.Error(err))
+		}
+	}
+
 	m.state.Store(newState)
 
 	return nil
