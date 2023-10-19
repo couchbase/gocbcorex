@@ -2044,6 +2044,9 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
+		} else if resp.Status == StatusTooBig {
+			cb(nil, ErrValueTooLarge)
+			return false
 		} else if resp.Status == StatusSubDocInvalidCombo {
 			cb(nil, ErrSubDocInvalidCombo)
 			return false
