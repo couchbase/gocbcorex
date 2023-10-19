@@ -178,7 +178,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	})
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
-	if false {
+	if opts.BucketName == "" {
 		configWatcher, err := NewConfigWatcherHttp(
 			&agentComponentConfigs.ConfigWatcherHttpConfig,
 			&ConfigWatcherHttpOptions{
