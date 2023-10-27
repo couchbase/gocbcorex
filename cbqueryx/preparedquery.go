@@ -4,16 +4,16 @@ import (
 	"context"
 )
 
-type QueryExecutor interface {
-	Query(ctx context.Context, opts *QueryOptions) (QueryResultStream, error)
+type Executor interface {
+	Query(ctx context.Context, opts *Options) (ResultStream, error)
 }
 
 type PreparedQuery struct {
-	Executor QueryExecutor
+	Executor Executor
 	Cache    *PreparedStatementCache
 }
 
-func (p PreparedQuery) PreparedQuery(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
+func (p PreparedQuery) PreparedQuery(ctx context.Context, opts *Options) (ResultStream, error) {
 	newOpts := *opts
 
 	// if this is already marked as auto-execute, we just pass it through

@@ -50,14 +50,14 @@ func (h Query) Execute(
 	}.Do(req)
 }
 
-type QueryResultStream interface {
-	EarlyMetaData() *QueryEarlyMetaData
+type ResultStream interface {
+	EarlyMetaData() *EarlyMetaData
 	HasMoreRows() bool
 	ReadRow() (json.RawMessage, error)
-	MetaData() (*QueryMetaData, error)
+	MetaData() (*MetaData, error)
 }
 
-func (h Query) Query(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
+func (h Query) Query(ctx context.Context, opts *Options) (ResultStream, error) {
 	reqBytes, err := opts.encodeToJson()
 	if err != nil {
 		return nil, err

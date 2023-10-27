@@ -34,7 +34,7 @@ func TestQuery(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 	cache := NewPreparedStatementCache()
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: "SELECT 1",
 	}
 	res, err := Query{

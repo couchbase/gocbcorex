@@ -59,7 +59,7 @@ type testQueryResult struct {
 	Status   string           `json:"status"`
 }
 
-func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *testQueryResult, res QueryResultStream) {
+func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *testQueryResult, res ResultStream) {
 	var rows [][]byte
 	for {
 		row, err := res.ReadRow()
@@ -80,7 +80,7 @@ func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *test
 	meta, err := res.MetaData()
 	require.NoError(t, err)
 
-	assert.Equal(t, QueryStatus(expectedResult.Status), meta.Status)
+	assert.Equal(t, Status(expectedResult.Status), meta.Status)
 	assert.Equal(t, expectedResult.ClientContextID, meta.ClientContextID)
 	assert.Equal(t, expectedResult.RequestID, meta.RequestID)
 

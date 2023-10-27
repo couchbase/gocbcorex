@@ -2,19 +2,19 @@ package cbqueryx
 
 import "encoding/json"
 
-type QueryStatus string
+type Status string
 
 const (
-	QueryStatusRunning   QueryStatus = "running"
-	QueryStatusSuccess   QueryStatus = "success"
-	QueryStatusErrors    QueryStatus = "errors"
-	QueryStatusCompleted QueryStatus = "completed"
-	QueryStatusStopped   QueryStatus = "stopped"
-	QueryStatusTimeout   QueryStatus = "timeout"
-	QueryStatusClosed    QueryStatus = "closed"
-	QueryStatusFatal     QueryStatus = "fatal"
-	QueryStatusAborted   QueryStatus = "aborted"
-	QueryStatusUnknown   QueryStatus = "unknown"
+	QueryStatusRunning   Status = "running"
+	QueryStatusSuccess   Status = "success"
+	QueryStatusErrors    Status = "errors"
+	QueryStatusCompleted Status = "completed"
+	QueryStatusStopped   Status = "stopped"
+	QueryStatusTimeout   Status = "timeout"
+	QueryStatusClosed    Status = "closed"
+	QueryStatusFatal     Status = "fatal"
+	QueryStatusAborted   Status = "aborted"
+	QueryStatusUnknown   Status = "unknown"
 )
 
 type queryErrorResponseJson struct {
@@ -29,7 +29,7 @@ type queryMetaDataJson struct {
 	queryEarlyMetaDataJson
 	RequestID       string              `json:"requestID,omitempty"`
 	ClientContextID string              `json:"clientContextID,omitempty"`
-	Status          QueryStatus         `json:"status,omitempty"`
+	Status          Status              `json:"status,omitempty"`
 	Errors          []*queryErrorJson   `json:"errors,omitempty"`
 	Warnings        []*queryWarningJson `json:"warnings,omitempty"`
 	Metrics         *queryMetricsJson   `json:"metrics,omitempty"`

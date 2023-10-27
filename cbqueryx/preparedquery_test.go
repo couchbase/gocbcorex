@@ -31,7 +31,7 @@ func TestPreparedQuery(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 	cache := NewPreparedStatementCache()
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: "SELECT 1",
 	}
 	rt := makeSingleTestRoundTripper(resp, nil)
@@ -81,7 +81,7 @@ func TestPreparedQueryAlreadyCached(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: "SELECT 1",
 	}
 	cache := NewPreparedStatementCache()
@@ -133,7 +133,7 @@ func TestPreparedQueryAlreadyCachedVersionFails(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: "SELECT 1",
 	}
 	cache := NewPreparedStatementCache()
@@ -185,7 +185,7 @@ func TestPreparedQueryPreparedNameMissing(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 	cache := NewPreparedStatementCache()
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: "SELECT 1",
 	}
 	rt := makeSingleTestRoundTripper(resp, nil)

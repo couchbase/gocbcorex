@@ -7,98 +7,98 @@ import (
 	"github.com/couchbase/gocbcorex/cbhttpx"
 )
 
-type QueryScanConsistency string
+type ScanConsistency string
 
 const (
-	QueryScanConsistencyUnset       QueryScanConsistency = ""
-	QueryScanConsistencyNotBounded  QueryScanConsistency = "not_bounded"
-	QueryScanConsistencyRequestPlus QueryScanConsistency = "request_plus"
+	QueryScanConsistencyUnset       ScanConsistency = ""
+	QueryScanConsistencyNotBounded  ScanConsistency = "not_bounded"
+	QueryScanConsistencyRequestPlus ScanConsistency = "request_plus"
 )
 
-type QueryProfileMode string
+type ProfileMode string
 
 const (
-	QueryProfileModeUnset   QueryProfileMode = ""
-	QueryProfileModeOff     QueryProfileMode = "off"
-	QueryProfileModePhases  QueryProfileMode = "phases"
-	QueryProfileModeTimings QueryProfileMode = "timings"
+	QueryProfileModeUnset   ProfileMode = ""
+	QueryProfileModeOff     ProfileMode = "off"
+	QueryProfileModePhases  ProfileMode = "phases"
+	QueryProfileModeTimings ProfileMode = "timings"
 )
 
-type QueryCompression string
+type Compression string
 
 const (
-	QueryCompressionUnset QueryCompression = ""
-	QueryCompressionZip   QueryCompression = "ZIP"
-	QueryCompressionRle   QueryCompression = "RLE"
-	QueryCompressionLzma  QueryCompression = "LZMA"
-	QueryCompressionLzo   QueryCompression = "LZO"
-	QueryCompressionNone  QueryCompression = "NONE"
+	QueryCompressionUnset Compression = ""
+	QueryCompressionZip   Compression = "ZIP"
+	QueryCompressionRle   Compression = "RLE"
+	QueryCompressionLzma  Compression = "LZMA"
+	QueryCompressionLzo   Compression = "LZO"
+	QueryCompressionNone  Compression = "NONE"
 )
 
-type QueryDurabilityLevel string
+type DurabilityLevel string
 
 const (
-	QueryDurabilityLevelUnset                    QueryDurabilityLevel = ""
-	QueryDurabilityLevelNone                     QueryDurabilityLevel = "none"
-	QueryDurabilityLevelMajority                 QueryDurabilityLevel = "majority"
-	QueryDurabilityLevelMajorityAndPersistActive QueryDurabilityLevel = "majorityAndPersistActive"
-	QueryDurabilityLevelPersistToMajority        QueryDurabilityLevel = "persistToMajority"
+	QueryDurabilityLevelUnset                    DurabilityLevel = ""
+	QueryDurabilityLevelNone                     DurabilityLevel = "none"
+	QueryDurabilityLevelMajority                 DurabilityLevel = "majority"
+	QueryDurabilityLevelMajorityAndPersistActive DurabilityLevel = "majorityAndPersistActive"
+	QueryDurabilityLevelPersistToMajority        DurabilityLevel = "persistToMajority"
 )
 
-type QueryEncoding string
+type Encoding string
 
 const (
-	QueryEncodingUnset QueryEncoding = ""
-	QueryEncodingUtf8  QueryEncoding = "UTF-8"
+	QueryEncodingUnset Encoding = ""
+	QueryEncodingUtf8  Encoding = "UTF-8"
 )
 
-type QueryFormat string
+type Format string
 
 const (
-	QueryFormatUnset QueryFormat = ""
-	QueryFormatJson  QueryFormat = "JSON"
-	QueryFormatXml   QueryFormat = "XML"
-	QueryFormatCsv   QueryFormat = "CSV"
-	QueryFormatTsv   QueryFormat = "TSV"
+	QueryFormatUnset Format = ""
+	QueryFormatJson  Format = "JSON"
+	QueryFormatXml   Format = "XML"
+	QueryFormatCsv   Format = "CSV"
+	QueryFormatTsv   Format = "TSV"
 )
 
-type QueryCredsJson struct {
+type CredsJson struct {
 	User string `json:"user,omitempty"`
 	Pass string `json:"pass,omitempty"`
 }
 
-type QueryScanVectorEntry struct {
+type ScanVectorEntry struct {
 	SeqNo  uint64
 	VbUuid string
 }
 
-func (e QueryScanVectorEntry) MarshalJSON() ([]byte, error) {
+func (e ScanVectorEntry) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]interface{}{e.SeqNo, e.VbUuid})
 }
 
-func (e QueryScanVectorEntry) UnmarshalJSON(data []byte) error {
+func (e ScanVectorEntry) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-var _ json.Marshaler = (*QueryScanVectorEntry)(nil)
-var _ json.Unmarshaler = (*QueryScanVectorEntry)(nil)
+var _ json.Marshaler = (*ScanVectorEntry)(nil)
+var _ json.Unmarshaler = (*ScanVectorEntry)(nil)
 
-type QueryFullScanVectors []QueryScanVectorEntry
+type FullScanVectors []ScanVectorEntry
 
-type QuerySparseScanVectors map[uint32]QueryScanVectorEntry
+type SparseScanVectors map[uint32]ScanVectorEntry
 
-type QueryOptions struct {
+type Options struct {
 	Args            []json.RawMessage
 	AtrCollection   string
 	AutoExecute     bool
 	ClientContextId string
-	Compression     QueryCompression
+	Compression     Compression
 	Controls        bool
-	Creds           []QueryCredsJson
-	DurabilityLevel QueryDurabilityLevel
+	Creds           []CredsJson
+	DurabilityLevel DurabilityLevel
 	EncodedPlan     string
-	Encoding        QueryEncoding
-	Format          QueryFormat
+	Encoding        Encoding
+	Format          Format
 	KvTimeout       time.Duration
 	MaxParallelism  uint32
 	MemoryQuota     uint32
@@ -110,11 +110,11 @@ type QueryOptions struct {
 	Prepared        string
 	PreserveExpiry  bool
 	Pretty          bool
-	Profile         QueryProfileMode
+	Profile         ProfileMode
 	QueryContext    string
 	ReadOnly        bool
 	ScanCap         uint32
-	ScanConsistency QueryScanConsistency
+	ScanConsistency ScanConsistency
 	ScanVector      json.RawMessage
 	ScanVectors     map[string]json.RawMessage
 	ScanWait        time.Duration
@@ -135,7 +135,7 @@ type QueryOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
-func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
+func (o *Options) encodeToJson() (json.RawMessage, error) {
 	var anyErr error
 
 	m := make(map[string]json.RawMessage)
