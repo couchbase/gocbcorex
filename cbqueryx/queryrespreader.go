@@ -28,8 +28,8 @@ type queryRespReader struct {
 
 	stream        io.ReadCloser
 	streamer      cbhttpx.RawJsonRowStreamer
-	earlyMetaData *QueryEarlyMetaData
-	metaData      *QueryMetaData
+	earlyMetaData *EarlyMetaData
+	metaData      *MetaData
 	metaDataErr   error
 }
 
@@ -44,7 +44,7 @@ func newQueryRespReader(resp *http.Response, opts *queryRespReaderOptions) (*que
 
 	err := r.init(resp)
 	if err != nil {
-		return nil, &QueryError{
+		return nil, &Error{
 			Cause:           err,
 			StatusCode:      resp.StatusCode,
 			Endpoint:        r.endpoint,
@@ -99,18 +99,18 @@ func (r *queryRespReader) init(resp *http.Response) error {
 	return nil
 }
 
-func (r *queryRespReader) parseErrors(errsJson []*queryErrorJson) *QueryServerErrors {
-	var queryErrs []*QueryServerError
+func (r *queryRespReader) parseErrors(errsJson []*queryErrorJson) *ServerErrors {
+	var queryErrs []*ServerError
 	for _, errJson := range errsJson {
 		queryErrs = append(queryErrs, r.parseError(errJson))
 	}
 
-	return &QueryServerErrors{
+	return &ServerErrors{
 		Errors: queryErrs,
 	}
 }
 
-func (r *queryRespReader) parseError(errJson *queryErrorJson) *QueryServerError {
+func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	var err error
 
 	errCode := errJson.Code
@@ -174,17 +174,17 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *QueryServerError 
 		err = errors.New("unexpected query error")
 	}
 
-	return &QueryServerError{
+	return &ServerError{
 		InnerError: err,
 		Code:       errJson.Code,
 		Msg:        errJson.Msg,
 	}
 }
 
-func (r *queryRespReader) parseWarnings(warnsJson []*queryWarningJson) []QueryWarning {
-	var warns []QueryWarning
+func (r *queryRespReader) parseWarnings(warnsJson []*queryWarningJson) []Warning {
+	var warns []Warning
 	for _, warnJson := range warnsJson {
-		warns = append(warns, QueryWarning{
+		warns = append(warns, Warning{
 			Code:    warnJson.Code,
 			Message: warnJson.Message,
 		})
@@ -192,7 +192,7 @@ func (r *queryRespReader) parseWarnings(warnsJson []*queryWarningJson) []QueryWa
 	return warns
 }
 
-func (r *queryRespReader) parseMetrics(metricsJson *queryMetricsJson) *QueryMetrics {
+func (r *queryRespReader) parseMetrics(metricsJson *queryMetricsJson) *Metrics {
 	elapsedTime, err := time.ParseDuration(metricsJson.ElapsedTime)
 	if err != nil {
 		r.logger.Debug("failed to parse query metrics elapsed time",
@@ -205,7 +205,7 @@ func (r *queryRespReader) parseMetrics(metricsJson *queryMetricsJson) *QueryMetr
 			zap.Error(err))
 	}
 
-	return &QueryMetrics{
+	return &Metrics{
 		ElapsedTime:   elapsedTime,
 		ExecutionTime: executionTime,
 		ResultCount:   metricsJson.ResultCount,
@@ -217,13 +217,13 @@ func (r *queryRespReader) parseMetrics(metricsJson *queryMetricsJson) *QueryMetr
 	}
 }
 
-func (r *queryRespReader) parseEarlyMetaData(metaDataJson *queryEarlyMetaDataJson) *QueryEarlyMetaData {
-	return &QueryEarlyMetaData{
+func (r *queryRespReader) parseEarlyMetaData(metaDataJson *queryEarlyMetaDataJson) *EarlyMetaData {
+	return &EarlyMetaData{
 		Prepared: metaDataJson.Prepared,
 	}
 }
 
-func (r *queryRespReader) parseMetaData(metaDataJson *queryMetaDataJson) (*QueryMetaData, error) {
+func (r *queryRespReader) parseMetaData(metaDataJson *queryMetaDataJson) (*MetaData, error) {
 	if len(metaDataJson.Errors) > 0 {
 		return nil, r.parseErrors(metaDataJson.Errors)
 	}
@@ -231,15 +231,15 @@ func (r *queryRespReader) parseMetaData(metaDataJson *queryMetaDataJson) (*Query
 	metrics := r.parseMetrics(metaDataJson.Metrics)
 	warnings := r.parseWarnings(metaDataJson.Warnings)
 
-	return &QueryMetaData{
-		QueryEarlyMetaData: *r.parseEarlyMetaData(&metaDataJson.queryEarlyMetaDataJson),
-		RequestID:          metaDataJson.RequestID,
-		ClientContextID:    metaDataJson.ClientContextID,
-		Status:             metaDataJson.Status,
-		Metrics:            *metrics,
-		Signature:          metaDataJson.Signature,
-		Warnings:           warnings,
-		Profile:            metaDataJson.Profile,
+	return &MetaData{
+		EarlyMetaData:   *r.parseEarlyMetaData(&metaDataJson.queryEarlyMetaDataJson),
+		RequestID:       metaDataJson.RequestID,
+		ClientContextID: metaDataJson.ClientContextID,
+		Status:          metaDataJson.Status,
+		Metrics:         *metrics,
+		Signature:       metaDataJson.Signature,
+		Warnings:        warnings,
+		Profile:         metaDataJson.Profile,
 	}, nil
 }
 
@@ -291,7 +291,7 @@ func (r *queryRespReader) HasMoreRows() bool {
 func (r *queryRespReader) ReadRow() (json.RawMessage, error) {
 	rowData, err := r.streamer.ReadRow()
 	if err != nil {
-		return nil, &QueryError{
+		return nil, &Error{
 			Cause:           err,
 			StatusCode:      r.statusCode,
 			Endpoint:        r.endpoint,
@@ -309,17 +309,17 @@ func (r *queryRespReader) ReadRow() (json.RawMessage, error) {
 	return rowData, nil
 }
 
-func (r *queryRespReader) EarlyMetaData() *QueryEarlyMetaData {
+func (r *queryRespReader) EarlyMetaData() *EarlyMetaData {
 	return r.earlyMetaData
 }
 
-func (r *queryRespReader) MetaData() (*QueryMetaData, error) {
+func (r *queryRespReader) MetaData() (*MetaData, error) {
 	if r.metaData == nil && r.metaDataErr == nil {
 		return nil, errors.New("cannot read meta-data until after all rows are read")
 	}
 
 	if r.metaDataErr != nil {
-		return nil, &QueryError{
+		return nil, &Error{
 			Cause:           r.metaDataErr,
 			StatusCode:      r.statusCode,
 			Endpoint:        r.endpoint,

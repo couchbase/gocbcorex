@@ -8,8 +8,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type QueryOptions = cbqueryx.QueryOptions
-type QueryResultStream = cbqueryx.QueryResultStream
+type QueryOptions = cbqueryx.Options
+type QueryResultStream = cbqueryx.ResultStream
 type PreparedStatementCache = cbqueryx.PreparedStatementCache
 
 type QueryComponent struct {

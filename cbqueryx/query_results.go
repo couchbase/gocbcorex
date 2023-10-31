@@ -2,28 +2,28 @@ package cbqueryx
 
 import "time"
 
-type QueryEarlyMetaData struct {
+type EarlyMetaData struct {
 	Prepared string
 }
 
-type QueryMetaData struct {
-	QueryEarlyMetaData
+type MetaData struct {
+	EarlyMetaData
 
 	RequestID       string
 	ClientContextID string
-	Status          QueryStatus
-	Metrics         QueryMetrics
+	Status          Status
+	Metrics         Metrics
 	Signature       interface{}
-	Warnings        []QueryWarning
+	Warnings        []Warning
 	Profile         interface{}
 }
 
-type QueryWarning struct {
+type Warning struct {
 	Code    uint32
 	Message string
 }
 
-type QueryMetrics struct {
+type Metrics struct {
 	ElapsedTime   time.Duration
 	ExecutionTime time.Duration
 	ResultCount   uint64

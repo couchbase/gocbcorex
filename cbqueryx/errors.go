@@ -21,26 +21,26 @@ var (
 	ErrIndexNotFound            = errors.New("index not found")
 )
 
-type QueryError struct {
+type Error struct {
 	Cause error
 
 	StatusCode      int
 	Endpoint        string
 	Statement       string
 	ClientContextId string
-	ErrorDescs      []QueryErrorDesc
+	ErrorDescs      []ErrorDesc
 }
 
-func (e QueryError) Error() string {
+func (e Error) Error() string {
 	return fmt.Sprintf("query server error: %s", e.Cause.Error())
 }
 
-func (e QueryError) Unwrap() error {
+func (e Error) Unwrap() error {
 	return e.Cause
 }
 
-// QueryErrorDesc represents specific n1ql error data.
-type QueryErrorDesc struct {
+// ErrorDesc represents specific n1ql error data.
+type ErrorDesc struct {
 	// Error is populated if the SDK understand what this error desc is.
 	Error   error
 	Code    uint32
@@ -62,30 +62,30 @@ func (e contextualError) Unwrap() error {
 	return e.Cause
 }
 
-type QueryServerError struct {
+type ServerError struct {
 	InnerError error
 	Code       uint32
 	Msg        string
 }
 
-func (e QueryServerError) Error() string {
+func (e ServerError) Error() string {
 	return fmt.Sprintf("query error: %s (code: %d, msg: %s)",
 		e.InnerError.Error(),
 		e.Code, e.Msg)
 }
 
-func (e QueryServerError) Unwrap() error {
+func (e ServerError) Unwrap() error {
 	return e.InnerError
 }
 
-type QueryServerErrors struct {
-	Errors []*QueryServerError
+type ServerErrors struct {
+	Errors []*ServerError
 }
 
-func (e QueryServerErrors) Error() string {
+func (e ServerErrors) Error() string {
 	return fmt.Sprintf("%s (+ %d other errors)", e.Errors[0].Error(), len(e.Errors)-1)
 }
 
-func (e QueryServerErrors) Unwrap() error {
+func (e ServerErrors) Unwrap() error {
 	return e.Errors[0]
 }

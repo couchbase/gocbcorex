@@ -7,7 +7,7 @@ import (
 )
 
 func TestEncodeQueryOptions(t *testing.T) {
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: "SELECT *",
 	}
 
