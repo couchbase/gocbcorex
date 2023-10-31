@@ -5,16 +5,16 @@ import "encoding/json"
 type Status string
 
 const (
-	QueryStatusRunning   Status = "running"
-	QueryStatusSuccess   Status = "success"
-	QueryStatusErrors    Status = "errors"
-	QueryStatusCompleted Status = "completed"
-	QueryStatusStopped   Status = "stopped"
-	QueryStatusTimeout   Status = "timeout"
-	QueryStatusClosed    Status = "closed"
-	QueryStatusFatal     Status = "fatal"
-	QueryStatusAborted   Status = "aborted"
-	QueryStatusUnknown   Status = "unknown"
+	StatusRunning   Status = "running"
+	StatusSuccess   Status = "success"
+	StatusErrors    Status = "errors"
+	StatusCompleted Status = "completed"
+	StatusStopped   Status = "stopped"
+	StatusTimeout   Status = "timeout"
+	StatusClosed    Status = "closed"
+	StatusFatal     Status = "fatal"
+	StatusAborted   Status = "aborted"
+	StatusUnknown   Status = "unknown"
 )
 
 type queryErrorResponseJson struct {

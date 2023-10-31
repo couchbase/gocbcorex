@@ -10,56 +10,56 @@ import (
 type ScanConsistency string
 
 const (
-	QueryScanConsistencyUnset       ScanConsistency = ""
-	QueryScanConsistencyNotBounded  ScanConsistency = "not_bounded"
-	QueryScanConsistencyRequestPlus ScanConsistency = "request_plus"
+	ScanConsistencyUnset       ScanConsistency = ""
+	ScanConsistencyNotBounded  ScanConsistency = "not_bounded"
+	ScanConsistencyRequestPlus ScanConsistency = "request_plus"
 )
 
 type ProfileMode string
 
 const (
-	QueryProfileModeUnset   ProfileMode = ""
-	QueryProfileModeOff     ProfileMode = "off"
-	QueryProfileModePhases  ProfileMode = "phases"
-	QueryProfileModeTimings ProfileMode = "timings"
+	ProfileModeUnset   ProfileMode = ""
+	ProfileModeOff     ProfileMode = "off"
+	ProfileModePhases  ProfileMode = "phases"
+	ProfileModeTimings ProfileMode = "timings"
 )
 
 type Compression string
 
 const (
-	QueryCompressionUnset Compression = ""
-	QueryCompressionZip   Compression = "ZIP"
-	QueryCompressionRle   Compression = "RLE"
-	QueryCompressionLzma  Compression = "LZMA"
-	QueryCompressionLzo   Compression = "LZO"
-	QueryCompressionNone  Compression = "NONE"
+	CompressionUnset Compression = ""
+	CompressionZip   Compression = "ZIP"
+	CompressionRle   Compression = "RLE"
+	CompressionLzma  Compression = "LZMA"
+	CompressionLzo   Compression = "LZO"
+	CompressionNone  Compression = "NONE"
 )
 
 type DurabilityLevel string
 
 const (
-	QueryDurabilityLevelUnset                    DurabilityLevel = ""
-	QueryDurabilityLevelNone                     DurabilityLevel = "none"
-	QueryDurabilityLevelMajority                 DurabilityLevel = "majority"
-	QueryDurabilityLevelMajorityAndPersistActive DurabilityLevel = "majorityAndPersistActive"
-	QueryDurabilityLevelPersistToMajority        DurabilityLevel = "persistToMajority"
+	DurabilityLevelUnset                    DurabilityLevel = ""
+	DurabilityLevelNone                     DurabilityLevel = "none"
+	DurabilityLevelMajority                 DurabilityLevel = "majority"
+	DurabilityLevelMajorityAndPersistActive DurabilityLevel = "majorityAndPersistActive"
+	DurabilityLevelPersistToMajority        DurabilityLevel = "persistToMajority"
 )
 
 type Encoding string
 
 const (
-	QueryEncodingUnset Encoding = ""
-	QueryEncodingUtf8  Encoding = "UTF-8"
+	EncodingUnset Encoding = ""
+	EncodingUtf8  Encoding = "UTF-8"
 )
 
 type Format string
 
 const (
-	QueryFormatUnset Format = ""
-	QueryFormatJson  Format = "JSON"
-	QueryFormatXml   Format = "XML"
-	QueryFormatCsv   Format = "CSV"
-	QueryFormatTsv   Format = "TSV"
+	FormatUnset Format = ""
+	FormatJson  Format = "JSON"
+	FormatXml   Format = "XML"
+	FormatCsv   Format = "CSV"
+	FormatTsv   Format = "TSV"
 )
 
 type CredsJson struct {
@@ -168,7 +168,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 	if o.ClientContextId != "" {
 		m["client_context_id"] = encodeField(o.ClientContextId)
 	}
-	if o.Compression != QueryCompressionUnset {
+	if o.Compression != CompressionUnset {
 		m["compression"] = encodeField(o.Compression)
 	}
 	if o.Controls {
@@ -177,16 +177,16 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 	if len(o.Creds) > 0 {
 		m["creds"] = encodeField(o.Creds)
 	}
-	if o.DurabilityLevel != QueryDurabilityLevelUnset {
+	if o.DurabilityLevel != DurabilityLevelUnset {
 		m["durability_level"] = encodeField(o.DurabilityLevel)
 	}
 	if o.EncodedPlan != "" {
 		m["encoded_plan"] = encodeField(o.EncodedPlan)
 	}
-	if o.Encoding != QueryEncodingUnset {
+	if o.Encoding != EncodingUnset {
 		m["encoding"] = encodeField(o.Encoding)
 	}
-	if o.Format != QueryFormatUnset {
+	if o.Format != FormatUnset {
 		m["format"] = encodeField(o.Format)
 	}
 	if o.KvTimeout > 0 {
@@ -222,7 +222,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 	if o.Pretty {
 		m["pretty"] = encodeField(true)
 	}
-	if o.Profile != QueryProfileModeUnset {
+	if o.Profile != ProfileModeUnset {
 		m["profile"] = encodeField(o.Profile)
 	}
 	if o.QueryContext != "" {
@@ -234,7 +234,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 	if o.ScanCap > 0 {
 		m["scan_cap"] = encodeField(o.ScanCap)
 	}
-	if o.ScanConsistency != QueryScanConsistencyUnset {
+	if o.ScanConsistency != ScanConsistencyUnset {
 		m["scan_consistency"] = encodeField(o.ScanConsistency)
 	}
 	if len(o.ScanVector) > 0 {
