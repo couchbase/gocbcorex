@@ -73,7 +73,7 @@ func TestQueryIndexExists(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: fmt.Sprintf("CREATE INDEX %s", index),
 	}
 	_, err = Query{
@@ -108,7 +108,7 @@ func TestQueryIndexNotFound(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 
-	opts := &QueryOptions{
+	opts := &Options{
 		Statement: fmt.Sprintf("CREATE INDEX %s", index),
 	}
 	_, err = Query{
