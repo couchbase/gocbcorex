@@ -190,7 +190,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 		m["format"] = encodeField(o.Format)
 	}
 	if o.KvTimeout > 0 {
-		m["kv_timeout"] = encodeField(o.KvTimeout)
+		m["kv_timeout"] = encodeField(o.KvTimeout.String())
 	}
 	if o.MaxParallelism > 0 {
 		m["max_parallelism"] = encodeField(o.MaxParallelism)
@@ -244,7 +244,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 		m["scan_vectors"] = encodeField(o.ScanVectors)
 	}
 	if o.ScanWait > 0 {
-		m["scan_wait"] = encodeField(o.ScanWait)
+		m["scan_wait"] = encodeField(o.ScanWait.String())
 	}
 	if o.Signature {
 		m["signature"] = encodeField(true)
@@ -253,7 +253,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 		m["statement"] = encodeField(o.Statement)
 	}
 	if o.Timeout > 0 {
-		m["timeout"] = encodeField(o.Timeout)
+		m["timeout"] = encodeField(o.Timeout.String())
 	}
 	if len(o.TxData) > 0 {
 		m["txdata"] = encodeField(o.TxData)
@@ -268,7 +268,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 		m["txstmtnum"] = encodeField(o.TxStmtNum)
 	}
 	if o.TxTimeout > 0 {
-		m["txtimeout"] = encodeField(o.TxTimeout)
+		m["txtimeout"] = encodeField(o.TxTimeout.String())
 	}
 	if o.UseCbo {
 		m["use_cbo"] = encodeField(true)
