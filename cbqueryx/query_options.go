@@ -146,6 +146,11 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 			return nil
 		}
 
+		if duration, isDuration := val.(time.Duration); isDuration {
+			// Query expects duration in Go duration string format.
+			val = duration.String()
+		}
+
 		// attempt to encode the field
 		bytes, err := json.Marshal(val)
 		if err != nil {
@@ -190,7 +195,7 @@ func (o *Options) encodeToJson() (json.RawMessage, error) {
 		m["format"] = encodeField(o.Format)
 	}
 	if o.KvTimeout > 0 {
-		m["kv_timeout"] = encodeField(o.KvTimeout)
+		m["kvtimeout"] = encodeField(o.KvTimeout)
 	}
 	if o.MaxParallelism > 0 {
 		m["max_parallelism"] = encodeField(o.MaxParallelism)
