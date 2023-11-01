@@ -62,6 +62,11 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		}
 	}
 
+	fieldNameMap := map[string]string{
+		`durability_min_level`: "DurabilityMinLevel",
+		`replicaNumber`:        "ReplicaNumber",
+	}
+
 	var err error
 	errText := strings.ToLower(string(bodyBytes))
 
@@ -81,6 +86,12 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		// if we get this specific error, and its none of the above errors, then this indicates
 		// that it was the top level resource which could not be found, which is the bucket.
 		err = ErrBucketNotFound
+	} else if resp.StatusCode == 400 {
+		sErr := parseForInvalidArg(errText)
+		var ok bool
+		if sErr.Argument, ok = fieldNameMap[sErr.Argument]; ok {
+			err = sErr
+		}
 	} else if resp.StatusCode == 404 {
 		err = ErrUnsupportedFeature
 	} else if resp.StatusCode == 401 {
@@ -96,6 +107,25 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		StatusCode: resp.StatusCode,
 		Body:       bodyBytes,
 	}
+}
+
+func parseForInvalidArg(body string) *ServerInvalidArgError {
+	sErr := ServerInvalidArgError{}
+	invArg := struct {
+		Errors map[string]string `json:"errors"`
+	}{}
+	err := json.Unmarshal([]byte(body), &invArg)
+	if err != nil {
+		return &sErr
+	}
+
+	for k, v := range invArg.Errors {
+		sErr.Argument = k
+		sErr.Reason = v
+		break
+	}
+
+	return &sErr
 }
 
 type GetClusterConfigOptions struct {
