@@ -99,6 +99,8 @@ func NewBucketsWatcherHttp(cfg BucketsWatcherHttpConfig, opts BucketsWatcherHttp
 }
 
 func (w *BucketsWatcherHttp) Reconfigure(cfg *BucketsWatcherHttpReconfigureConfig) error {
+	w.logger.Debug("Reconfiguring", zap.Any("config", cfg))
+
 	w.stateLock.Lock()
 	w.state = &bucketsWatcherHttpState{
 		httpRoundTripper: cfg.HttpRoundTripper,
@@ -261,7 +263,7 @@ func (bw *BucketsWatcherHttp) handleBuckets(ctx context.Context, buckets []bucke
 			bw.logger.Debug("New bucket on cluster, creating agent", zap.String("name", bucket.Name))
 			agent, err := bw.makeAgent(ctx, bucket.Name)
 			if err != nil {
-				bw.logger.Debug("Failed to create agent", zap.String("name", bucket.Name))
+				bw.logger.Debug("Failed to create agent", zap.String("name", bucket.Name), zap.Error(err))
 				continue
 			}
 

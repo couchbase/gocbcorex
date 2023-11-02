@@ -33,7 +33,7 @@ type bucketsTrackingAgentManagerState struct {
 	authenticator Authenticator
 	httpTransport *http.Transport
 
-	latestConfig *ParsedConfig
+	latestConfig AtomicPointer[ParsedConfig]
 }
 
 type BucketsTrackingAgentManager struct {
@@ -50,12 +50,11 @@ type BucketsTrackingAgentManager struct {
 	state *bucketsTrackingAgentManagerState
 
 	clusterAgent *Agent
-	closed       bool
 
 	bucketsWatcher *BucketsWatcherHttp
 	watchersCancel func()
 
-	topologyCfgWatcher *ConfigWatcherHttp
+	topologyCfgWatcher *TopologyWatcherHttp
 }
 
 type bucketDescriptor struct {
@@ -110,13 +109,15 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 			tlsConfig:     opts.TLSConfig,
 			authenticator: opts.Authenticator,
 			httpTransport: httpTransport,
-			latestConfig:  bootstrapConfig,
 		},
 	}
+	m.state.latestConfig.Store(bootstrapConfig)
+
+	mgmtEndpoints := m.mgmtEndpointsLocked(bootstrapConfig)
 
 	bucketsWatcher, err := NewBucketsWatcherHttp(BucketsWatcherHttpConfig{
 		HttpRoundTripper: httpTransport,
-		Endpoints:        srcHTTPAddrs,
+		Endpoints:        mgmtEndpoints,
 		UserAgent:        httpUserAgent,
 		Authenticator:    opts.Authenticator,
 		MakeAgent:        m.makeAgent,
@@ -129,14 +130,21 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 
 	m.bucketsWatcher = bucketsWatcher
 
-	topoWatcher, err := NewConfigWatcherHttp(
-		&ConfigWatcherHttpConfig{
-			HttpRoundTripper: httpTransport,
-			Endpoints:        srcHTTPAddrs,
-			UserAgent:        httpUserAgent,
-			Authenticator:    opts.Authenticator,
-		},
-		&ConfigWatcherHttpOptions{
+	configWatcher, err := NewConfigWatcherHttp(&ConfigWatcherHttpConfig{
+		HttpRoundTripper: httpTransport,
+		Endpoints:        mgmtEndpoints,
+		UserAgent:        httpUserAgent,
+		Authenticator:    opts.Authenticator,
+	}, &ConfigWatcherHttpOptions{
+		Logger: opts.Logger,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	topoWatcher, err := NewTopologyWatcherHttp(
+		configWatcher,
+		&TopologyWatcherHttpOptions{
 			Logger: logger.Named("topology-watcher"),
 		})
 	if err != nil {
@@ -181,8 +189,8 @@ func (m *BucketsTrackingAgentManager) startWatchers() {
 	}()
 }
 
-func (m *BucketsTrackingAgentManager) mgmtEndpointsLocked() []string {
-	bootstrapHosts := m.state.latestConfig.AddressesGroupForNetworkType(m.networkType)
+func (m *BucketsTrackingAgentManager) mgmtEndpointsLocked(cfg *ParsedConfig) []string {
+	bootstrapHosts := cfg.AddressesGroupForNetworkType(m.networkType)
 
 	var mgmtEndpoints []string
 	tlsConfig := m.state.tlsConfig
@@ -203,17 +211,16 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
 
-	if !canUpdateConfig(config, m.state.latestConfig, m.logger) {
-		return
-	}
+	m.logger.Debug("Applying new config",
+		zap.Int64("revId", config.RevID),
+		zap.Int64("revEpoch", config.RevEpoch),
+		zap.Any("config", config))
 
-	m.logger.Debug("Applying new config", zap.Int64("revId", config.RevID), zap.Int64("revEpoch", config.RevEpoch))
+	m.state.latestConfig.Store(config)
 
-	m.state.latestConfig = config
+	mgmtEndpoints := m.mgmtEndpointsLocked(config)
 
-	mgmtEndpoints := m.mgmtEndpointsLocked()
-
-	err := m.topologyCfgWatcher.Reconfigure(&ConfigWatcherHttpConfig{
+	err := m.topologyCfgWatcher.ConfigWatcher.Reconfigure(&ConfigWatcherHttpConfig{
 		HttpRoundTripper: m.state.httpTransport,
 		Endpoints:        mgmtEndpoints,
 		UserAgent:        m.userAgent,
@@ -231,14 +238,14 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 	if err != nil {
 		m.logger.Error("failed to reconfigure bucket watcher", zap.Error(err))
 	}
-
 }
 
 func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName string) (*Agent, error) {
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
 
-	bootstrapHosts := m.state.latestConfig.AddressesGroupForNetworkType(m.networkType)
+	cfg := m.state.latestConfig.Load()
+	bootstrapHosts := cfg.AddressesGroupForNetworkType(m.networkType)
 
 	var kvDataHosts []string
 	var mgmtEndpoints []string
@@ -270,12 +277,16 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 	})
 }
 
+func (m *BucketsTrackingAgentManager) WatchConfig(ctx context.Context) <-chan *ParsedConfig {
+	return m.topologyCfgWatcher.Watch(ctx)
+}
+
 func (m *BucketsTrackingAgentManager) Reconfigure(opts BucketsTrackingAgentManagerReconfigureOptions) error {
 	return errors.New("not yet supported")
 }
 
 func (m *BucketsTrackingAgentManager) GetClusterAgent(ctx context.Context) (*Agent, error) {
-	if m.closed {
+	if m.state.latestConfig.Load() == nil {
 		return nil, errors.New("agent manager closed")
 	}
 
@@ -283,12 +294,9 @@ func (m *BucketsTrackingAgentManager) GetClusterAgent(ctx context.Context) (*Age
 }
 
 func (m *BucketsTrackingAgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
-	m.stateLock.Lock()
-	if m.closed {
-		m.stateLock.Unlock()
+	if m.state.latestConfig.Load() == nil {
 		return nil, errors.New("agent manager closed")
 	}
-	m.stateLock.Unlock()
 
 	return m.bucketsWatcher.GetAgent(ctx, bucketName)
 }
@@ -296,6 +304,8 @@ func (m *BucketsTrackingAgentManager) GetBucketAgent(ctx context.Context, bucket
 // Close closes the AgentManager and all underlying Agent instances.
 func (m *BucketsTrackingAgentManager) Close() error {
 	m.logger.Debug("Closing")
+
+	m.state.latestConfig.Store(nil)
 
 	firstErr := m.clusterAgent.Close()
 
@@ -306,7 +316,6 @@ func (m *BucketsTrackingAgentManager) Close() error {
 
 	m.stateLock.Lock()
 	m.clusterAgent = nil
-	m.closed = true
 	m.state.httpTransport.CloseIdleConnections()
 	m.stateLock.Unlock()
 
