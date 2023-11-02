@@ -33,7 +33,7 @@ type bucketsTrackingAgentManagerState struct {
 	authenticator Authenticator
 	httpTransport *http.Transport
 
-	latestConfig *ParsedConfig
+	latestConfig AtomicPointer[ParsedConfig]
 }
 
 type BucketsTrackingAgentManager struct {
@@ -50,12 +50,14 @@ type BucketsTrackingAgentManager struct {
 	state *bucketsTrackingAgentManagerState
 
 	clusterAgent *Agent
-	closed       bool
 
 	bucketsWatcher *BucketsWatcherHttp
 	watchersCancel func()
 
 	topologyCfgWatcher *ConfigWatcherHttp
+
+	newCfgSig     chan struct{}
+	newCfgSigLock sync.Mutex
 }
 
 type bucketDescriptor struct {
@@ -106,13 +108,15 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 		httpConfig:         opts.HTTPConfig,
 		createAgentTimeout: createAgentTimeout,
 
+		newCfgSig: make(chan struct{}),
+
 		state: &bucketsTrackingAgentManagerState{
 			tlsConfig:     opts.TLSConfig,
 			authenticator: opts.Authenticator,
 			httpTransport: httpTransport,
-			latestConfig:  bootstrapConfig,
 		},
 	}
+	m.state.latestConfig.Store(bootstrapConfig)
 
 	bucketsWatcher, err := NewBucketsWatcherHttp(BucketsWatcherHttpConfig{
 		HttpRoundTripper: httpTransport,
@@ -181,8 +185,8 @@ func (m *BucketsTrackingAgentManager) startWatchers() {
 	}()
 }
 
-func (m *BucketsTrackingAgentManager) mgmtEndpointsLocked() []string {
-	bootstrapHosts := m.state.latestConfig.AddressesGroupForNetworkType(m.networkType)
+func (m *BucketsTrackingAgentManager) mgmtEndpoints(cfg *ParsedConfig) []string {
+	bootstrapHosts := cfg.AddressesGroupForNetworkType(m.networkType)
 
 	var mgmtEndpoints []string
 	tlsConfig := m.state.tlsConfig
@@ -203,15 +207,21 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
 
-	if !canUpdateConfig(config, m.state.latestConfig, m.logger) {
+	currentCfg := m.state.latestConfig.Load()
+	if currentCfg == nil {
+		// We're shutting down so do nothing.
+		return
+	}
+
+	if !canUpdateConfig(config, currentCfg, m.logger) {
 		return
 	}
 
 	m.logger.Debug("Applying new config", zap.Int64("revId", config.RevID), zap.Int64("revEpoch", config.RevEpoch))
 
-	m.state.latestConfig = config
+	m.state.latestConfig.Store(config)
 
-	mgmtEndpoints := m.mgmtEndpointsLocked()
+	mgmtEndpoints := m.mgmtEndpoints(config)
 
 	m.topologyCfgWatcher.Reconfigure(&ConfigWatcherHttpConfig{
 		HttpRoundTripper: m.state.httpTransport,
@@ -225,13 +235,19 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 		Endpoints:        mgmtEndpoints,
 		Authenticator:    m.state.authenticator,
 	})
+
+	m.newCfgSigLock.Lock()
+	close(m.newCfgSig)
+	m.newCfgSig = make(chan struct{})
+	m.newCfgSigLock.Unlock()
 }
 
 func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName string) (*Agent, error) {
 	m.stateLock.Lock()
 	defer m.stateLock.Unlock()
 
-	bootstrapHosts := m.state.latestConfig.AddressesGroupForNetworkType(m.networkType)
+	cfg := m.state.latestConfig.Load()
+	bootstrapHosts := cfg.AddressesGroupForNetworkType(m.networkType)
 
 	var kvDataHosts []string
 	var mgmtEndpoints []string
@@ -263,12 +279,42 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 	})
 }
 
+func (m *BucketsTrackingAgentManager) Watch(ctx context.Context) <-chan *ParsedConfig {
+	outCh := make(chan *ParsedConfig, 1)
+	go func() {
+		for {
+			m.newCfgSigLock.Lock()
+			newCfgSig := m.newCfgSig
+			m.newCfgSigLock.Unlock()
+
+			if newCfgSig == nil {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-newCfgSig:
+			}
+
+			cfg := m.state.latestConfig.Load()
+			if cfg == nil {
+				return
+			}
+
+			outCh <- cfg
+		}
+
+	}()
+	return outCh
+}
+
 func (m *BucketsTrackingAgentManager) Reconfigure(opts BucketsTrackingAgentManagerReconfigureOptions) error {
 	return errors.New("not yet supported")
 }
 
 func (m *BucketsTrackingAgentManager) GetClusterAgent(ctx context.Context) (*Agent, error) {
-	if m.closed {
+	if m.state.latestConfig.Load() == nil {
 		return nil, errors.New("agent manager closed")
 	}
 
@@ -276,12 +322,9 @@ func (m *BucketsTrackingAgentManager) GetClusterAgent(ctx context.Context) (*Age
 }
 
 func (m *BucketsTrackingAgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
-	m.stateLock.Lock()
-	if m.closed {
-		m.stateLock.Unlock()
+	if m.state.latestConfig.Load() == nil {
 		return nil, errors.New("agent manager closed")
 	}
-	m.stateLock.Unlock()
 
 	return m.bucketsWatcher.GetAgent(ctx, bucketName)
 }
@@ -289,6 +332,13 @@ func (m *BucketsTrackingAgentManager) GetBucketAgent(ctx context.Context, bucket
 // Close closes the AgentManager and all underlying Agent instances.
 func (m *BucketsTrackingAgentManager) Close() error {
 	m.logger.Debug("Closing")
+
+	m.state.latestConfig.Store(nil)
+	m.newCfgSigLock.Lock()
+	// Make sure that any Watch requests that come in don't end up hanging.
+	close(m.newCfgSig)
+	m.newCfgSig = nil
+	m.newCfgSigLock.Unlock()
 
 	firstErr := m.clusterAgent.Close()
 
@@ -299,7 +349,6 @@ func (m *BucketsTrackingAgentManager) Close() error {
 
 	m.stateLock.Lock()
 	m.clusterAgent = nil
-	m.closed = true
 	m.state.httpTransport.CloseIdleConnections()
 	m.stateLock.Unlock()
 
