@@ -149,7 +149,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            agentComponentConfigs.KvClientManagerClients,
 	}, &KvClientManagerOptions{
-		Logger: agent.logger.Named("client manager"),
+		Logger: agent.logger.Named("client-manager"),
 	})
 	if err != nil {
 		return nil, handleAgentCreateErr(err)
