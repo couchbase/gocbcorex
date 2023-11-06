@@ -2865,6 +2865,262 @@ func TestOpsCrudValueTooLarge(t *testing.T) {
 	}
 }
 
+func TestOpsCrudOnBehalfOf(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op   func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error)
+		Name string
+	}
+
+	/*
+		Since it isn't possible to inspect what particular user an operation was executed
+		under, we test on-behalf-of execution by setting the user to something invalid and
+		then validating that the operation is rejected with access denied.
+	*/
+
+	tests := []test{
+		{
+			Name: "Get",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Get(cli, &GetRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *GetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "GetAndLock",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.GetAndLock(cli, &GetAndLockRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *GetAndLockResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "GetAndTouch",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.GetAndTouch(cli, &GetAndTouchRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *GetAndTouchResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Unlock",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Unlock(cli, &UnlockRequest{
+					Key:       key,
+					Cas:       1,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *UnlockResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Touch",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Touch(cli, &TouchRequest{
+					Key:       key,
+					Expiry:    60,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *TouchResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Delete",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Delete(cli, &DeleteRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Replace",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Replace(cli, &ReplaceRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Append",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Append(cli, &AppendRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Prepend",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Prepend(cli, &PrependRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Increment",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Increment(cli, &IncrementRequest{
+					Key:       key,
+					Initial:   uint64(0xFFFFFFFFFFFFFFFF),
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *IncrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Decrement",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.Decrement(cli, &DecrementRequest{
+					Key:       key,
+					Initial:   uint64(0xFFFFFFFFFFFFFFFF),
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *DecrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "GetMeta",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.GetMeta(cli, &GetMetaRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *GetMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "LookupIn",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.LookupIn(cli, &LookupInRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					Ops: []LookupInOp{
+						{
+							Op:   LookupInOpTypeGet,
+							Path: []byte("key"),
+						},
+					},
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *LookupInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "MutateIn",
+			Op: func(key []byte, opsCrud OpsCrud, cb func(interface{}, error)) (PendingOp, error) {
+				return opsCrud.MutateIn(cli, &MutateInRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					Ops: []MutateInOp{
+						{
+							Op:    MutateInOpTypeDictSet,
+							Path:  []byte("key"),
+							Value: []byte("value"),
+						},
+					},
+					CrudRequestMeta: CrudRequestMeta{
+						OnBehalfOf: "invalid-user",
+					},
+				}, func(resp *MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			wait := make(chan error, 1)
+
+			key := []byte(uuid.NewString()[:6])
+
+			_, err := test.Op(key, OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, func(i interface{}, err error) {
+				wait <- err
+			})
+			if !assert.NoError(tt, err) {
+				return
+			}
+
+			assert.ErrorIs(tt, <-wait, ErrAccessError)
+		})
+	}
+}
+
 type testCrudDispatcher struct {
 	Pak *Packet
 }
