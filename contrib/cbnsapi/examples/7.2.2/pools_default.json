@@ -1,0 +1,304 @@
+{
+  "name": "default",
+  "nodes": [
+    {
+      "clusterMembership": "active",
+      "recoveryType": "none",
+      "status": "healthy",
+      "otpNode": "ns_1@192.168.106.128",
+      "thisNode": true,
+      "hostname": "192.168.106.128:8091",
+      "nodeUUID": "5f887f8cd162034a8f9b327d1bb59142",
+      "clusterCompatibility": 458754,
+      "version": "7.2.2-6401-enterprise",
+      "os": "aarch64-unknown-linux-gnu",
+      "cpuCount": 4,
+      "ports": {
+        "direct": 11210,
+        "httpsCAPI": 18092,
+        "httpsMgmt": 18091,
+        "distTCP": 21100,
+        "distTLS": 21150
+      },
+      "services": ["fts", "index", "kv", "n1ql"],
+      "nodeEncryption": false,
+      "addressFamilyOnly": false,
+      "configuredHostname": "192.168.106.128:8091",
+      "addressFamily": "inet",
+      "externalListeners": [{ "afamily": "inet", "nodeEncryption": false }],
+      "serverGroup": "Group 1",
+      "couchApiBase": "http://192.168.106.128:8092/",
+      "couchApiBaseHTTPS": "https://192.168.106.128:18092/",
+      "nodeHash": 48410473,
+      "systemStats": {
+        "cpu_utilization_rate": 1.017912745286174,
+        "cpu_stolen_rate": 0,
+        "swap_total": 0,
+        "swap_used": 0,
+        "mem_total": 6206578688,
+        "mem_free": 2309103616,
+        "mem_limit": 6206578688,
+        "cpu_cores_available": 4,
+        "allocstall": 214
+      },
+      "interestingStats": {
+        "cmd_get": 0,
+        "couch_docs_actual_disk_size": 7384581,
+        "couch_docs_data_size": 335269,
+        "couch_spatial_data_size": 0,
+        "couch_spatial_disk_size": 0,
+        "couch_views_actual_disk_size": 0,
+        "couch_views_data_size": 0,
+        "curr_items": 115,
+        "curr_items_tot": 228,
+        "ep_bg_fetched": 0,
+        "get_hits": 0,
+        "index_data_size": 195814,
+        "index_disk_size": 708608,
+        "mem_used": 23200160,
+        "ops": 0,
+        "vb_active_num_non_resident": 0,
+        "vb_replica_curr_items": 113
+      },
+      "uptime": "81737",
+      "memoryTotal": 6206578688,
+      "memoryFree": 2309103616,
+      "mcdMemoryReserved": 4735,
+      "mcdMemoryAllocated": 4735
+    },
+    {
+      "clusterMembership": "active",
+      "recoveryType": "none",
+      "status": "healthy",
+      "otpNode": "ns_1@192.168.106.129",
+      "hostname": "192.168.106.129:8091",
+      "nodeUUID": "76a7045c2c01f3751291a5aa1886d2e7",
+      "clusterCompatibility": 458754,
+      "version": "7.2.2-6401-enterprise",
+      "os": "aarch64-unknown-linux-gnu",
+      "cpuCount": 4,
+      "ports": {
+        "direct": 11210,
+        "httpsCAPI": 18092,
+        "httpsMgmt": 18091,
+        "distTCP": 21100,
+        "distTLS": 21150
+      },
+      "services": ["fts", "index", "kv", "n1ql"],
+      "nodeEncryption": false,
+      "addressFamilyOnly": false,
+      "configuredHostname": "192.168.106.129:8091",
+      "addressFamily": "inet",
+      "externalListeners": [{ "afamily": "inet", "nodeEncryption": false }],
+      "serverGroup": "Group 1",
+      "couchApiBase": "http://192.168.106.129:8092/",
+      "couchApiBaseHTTPS": "https://192.168.106.129:18092/",
+      "nodeHash": 55970206,
+      "systemStats": {
+        "cpu_utilization_rate": 0.7757811466272198,
+        "cpu_stolen_rate": 0,
+        "swap_total": 0,
+        "swap_used": 0,
+        "mem_total": 6206578688,
+        "mem_free": 2309726208,
+        "mem_limit": 6206578688,
+        "cpu_cores_available": 4,
+        "allocstall": 214
+      },
+      "interestingStats": {
+        "cmd_get": 0,
+        "couch_docs_actual_disk_size": 7256283,
+        "couch_docs_data_size": 325940,
+        "couch_spatial_data_size": 0,
+        "couch_spatial_disk_size": 0,
+        "couch_views_actual_disk_size": 0,
+        "couch_views_data_size": 0,
+        "curr_items": 98,
+        "curr_items_tot": 190,
+        "ep_bg_fetched": 0,
+        "get_hits": 0,
+        "mem_used": 23209560,
+        "ops": 0,
+        "vb_active_num_non_resident": 0,
+        "vb_replica_curr_items": 92
+      },
+      "uptime": "81737",
+      "memoryTotal": 6206578688,
+      "memoryFree": 2309726208,
+      "mcdMemoryReserved": 4735,
+      "mcdMemoryAllocated": 4735
+    },
+    {
+      "clusterMembership": "active",
+      "recoveryType": "none",
+      "status": "healthy",
+      "otpNode": "ns_1@192.168.106.130",
+      "hostname": "192.168.106.130:8091",
+      "nodeUUID": "944c27375cb058958732249fd1e36f46",
+      "clusterCompatibility": 458754,
+      "version": "7.2.2-6401-enterprise",
+      "os": "aarch64-unknown-linux-gnu",
+      "cpuCount": 4,
+      "ports": {
+        "direct": 11210,
+        "httpsCAPI": 18092,
+        "httpsMgmt": 18091,
+        "distTCP": 21100,
+        "distTLS": 21150
+      },
+      "services": ["fts", "index", "kv", "n1ql"],
+      "nodeEncryption": false,
+      "addressFamilyOnly": false,
+      "configuredHostname": "192.168.106.130:8091",
+      "addressFamily": "inet",
+      "externalListeners": [{ "afamily": "inet", "nodeEncryption": false }],
+      "serverGroup": "Group 1",
+      "couchApiBase": "http://192.168.106.130:8092/",
+      "couchApiBaseHTTPS": "https://192.168.106.130:18092/",
+      "nodeHash": 123836386,
+      "systemStats": {
+        "cpu_utilization_rate": 0.9806258811222556,
+        "cpu_stolen_rate": 0,
+        "swap_total": 0,
+        "swap_used": 0,
+        "mem_total": 6206578688,
+        "mem_free": 2302726144,
+        "mem_limit": 6206578688,
+        "cpu_cores_available": 4,
+        "allocstall": 214
+      },
+      "interestingStats": {
+        "cmd_get": 0,
+        "couch_docs_actual_disk_size": 6813962,
+        "couch_docs_data_size": 325864,
+        "couch_spatial_data_size": 0,
+        "couch_spatial_disk_size": 0,
+        "couch_views_actual_disk_size": 0,
+        "couch_views_data_size": 0,
+        "curr_items": 93,
+        "curr_items_tot": 194,
+        "ep_bg_fetched": 0,
+        "get_hits": 0,
+        "mem_used": 23204728,
+        "ops": 0,
+        "vb_active_num_non_resident": 0,
+        "vb_replica_curr_items": 101
+      },
+      "uptime": "81737",
+      "memoryTotal": 6206578688,
+      "memoryFree": 2302726144,
+      "mcdMemoryReserved": 4735,
+      "mcdMemoryAllocated": 4735
+    }
+  ],
+  "buckets": {
+    "uri": "/pools/default/buckets?v=52554699&uuid=c5904bdfd7421d671b6be70afbed222d",
+    "terseBucketsBase": "/pools/default/b/",
+    "terseStreamingBucketsBase": "/pools/default/bs/"
+  },
+  "bucketNames": [
+    { "bucketName": "default", "uuid": "842fcc9cb325b0b245adfb741fef28cb" }
+  ],
+  "remoteClusters": {
+    "uri": "/pools/default/remoteClusters?uuid=c5904bdfd7421d671b6be70afbed222d",
+    "validateURI": "/pools/default/remoteClusters?just_validate=1"
+  },
+  "alerts": [],
+  "alertsSilenceURL": "/controller/resetAlerts?uuid=c5904bdfd7421d671b6be70afbed222d&token=0",
+  "controllers": {
+    "addNode": {
+      "uri": "/controller/addNodeV2?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "rebalance": {
+      "uri": "/controller/rebalance?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "failOver": {
+      "uri": "/controller/failOver?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "startGracefulFailover": {
+      "uri": "/controller/startGracefulFailover?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "reAddNode": {
+      "uri": "/controller/reAddNode?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "reFailOver": {
+      "uri": "/controller/reFailOver?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "ejectNode": {
+      "uri": "/controller/ejectNode?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "setRecoveryType": {
+      "uri": "/controller/setRecoveryType?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "setAutoCompaction": {
+      "uri": "/controller/setAutoCompaction?uuid=c5904bdfd7421d671b6be70afbed222d",
+      "validateURI": "/controller/setAutoCompaction?just_validate=1"
+    },
+    "clusterLogsCollection": {
+      "startURI": "/controller/startLogsCollection?uuid=c5904bdfd7421d671b6be70afbed222d",
+      "cancelURI": "/controller/cancelLogsCollection?uuid=c5904bdfd7421d671b6be70afbed222d"
+    },
+    "replication": {
+      "createURI": "/controller/createReplication?uuid=c5904bdfd7421d671b6be70afbed222d",
+      "validateURI": "/controller/createReplication?just_validate=1"
+    }
+  },
+  "rebalanceStatus": "none",
+  "rebalanceProgressUri": "/pools/default/rebalanceProgress",
+  "stopRebalanceUri": "/controller/stopRebalance?uuid=c5904bdfd7421d671b6be70afbed222d",
+  "nodeStatusesUri": "/nodeStatuses",
+  "nodeServicesUri": "/pools/default/nodeServices?v=94307868",
+  "maxBucketCount": 30,
+  "maxCollectionCount": 1200,
+  "maxScopeCount": 1200,
+  "autoCompactionSettings": {
+    "parallelDBAndViewCompaction": false,
+    "magmaFragmentationPercentage": 50,
+    "databaseFragmentationThreshold": { "percentage": 30, "size": "undefined" },
+    "viewFragmentationThreshold": { "percentage": 30, "size": "undefined" },
+    "indexCompactionMode": "circular",
+    "indexCircularCompaction": {
+      "daysOfWeek": "Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday",
+      "interval": {
+        "fromHour": 0,
+        "toHour": 0,
+        "fromMinute": 0,
+        "toMinute": 0,
+        "abortOutside": false
+      }
+    },
+    "indexFragmentationThreshold": { "percentage": 30 }
+  },
+  "tasks": { "uri": "/pools/default/tasks?v=55577826" },
+  "counters": { "rebalance_success": 1, "rebalance_start": 1 },
+  "indexStatusURI": "/indexStatus?v=8857555",
+  "trustedCAsURI": "/pools/default/trustedCAs?v=16493734",
+  "clusterName": "test-cluster",
+  "clusterEncryptionLevel": "none",
+  "balanced": true,
+  "checkPermissionsURI": "/pools/default/checkPermissions?v=frWhJuvQbK2NmWoK%2Fd74fEE1ZyY%3D",
+  "memoryQuota": 256,
+  "indexMemoryQuota": 256,
+  "ftsMemoryQuota": 256,
+  "cbasMemoryQuota": 1024,
+  "eventingMemoryQuota": 256,
+  "storageTotals": {
+    "ram": {
+      "total": 18619736064,
+      "quotaTotal": 805306368,
+      "quotaUsed": 314572800,
+      "used": 18070560768,
+      "usedByData": 69614448,
+      "quotaUsedPerNode": 104857600,
+      "quotaTotalPerNode": 268435456
+    },
+    "hdd": {
+      "total": 189268365312,
+      "quotaTotal": 189268365312,
+      "used": 28390254795,
+      "usedByData": 21454826,
+      "free": 160878110517
+    }
+  },
+  "serverGroupsUri": "/pools/default/serverGroups?v=41030396"
+}

@@ -1,0 +1,868 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Simple API
+  description: A simple API to illustrate OpenAPI concepts
+
+paths:
+  /pools:
+    get:
+      operationId: GetPools
+      responses:
+        "200":
+          description: Information about the pools in the cluster.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolsInfo"
+  /pools/default:
+    get:
+      operationId: GetDefaultPool
+      responses:
+        "200":
+          description: Information about the default pool.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolInfo"
+
+  /poolsStreaming/default:
+    get:
+      operationId: StreamDefaultPool
+      responses:
+        "200":
+          description: Streaming information about the default pool.
+          content:
+            application/json:
+              x-ogen-json-streaming: true
+              schema:
+                $ref: "#/components/schemas/PoolInfo"
+
+  /pools/default/nodeServices:
+    get:
+      operationId: GetNodeServices
+      responses:
+        "200":
+          description: Terse information about a bucket.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeServices"
+
+  /pools/default/nodeServicesStreaming:
+    get:
+      operationId: StreamNodeServices
+      responses:
+        "200":
+          description: Terse information about a bucket.
+          content:
+            application/json:
+              x-ogen-json-streaming: true
+              schema:
+                $ref: "#/components/schemas/NodeServices"
+
+  /pools/default/buckets:
+    get:
+      operationId: GetBuckets
+      responses:
+        "200":
+          description: Information about all buckets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BucketsInfo"
+
+  /pools/default/buckets/{bucketName}:
+    get:
+      operationId: GetBucket
+      parameters:
+        - name: bucketName
+          in: path
+          required: true
+          description: The bucket name.
+          schema:
+            type: string
+        - name: bucket_uuid
+          in: query
+          description: The UUID of the bucket.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Information about a bucket.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BucketInfo"
+
+  /pools/default/b/{bucketName}:
+    get:
+      operationId: GetBucketTerse
+      parameters:
+        - name: bucketName
+          in: path
+          required: true
+          description: The bucket name.
+          schema:
+            type: string
+        - name: bucket_uuid
+          in: query
+          description: The UUID of the bucket.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Terse information about a bucket.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TerseBucketInfo"
+
+  /pools/default/bs/{bucketName}:
+    get:
+      operationId: StreamBucketTerse
+      parameters:
+        - name: bucketName
+          in: path
+          required: true
+          description: The bucket name.
+          schema:
+            type: string
+        - name: bucket_uuid
+          in: query
+          description: The UUID of the bucket.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Terse information about a bucket.
+          content:
+            application/json:
+              x-ogen-json-streaming: true
+              schema:
+                $ref: "#/components/schemas/TerseBucketInfo"
+
+
+  #/settings/maxParallelIndexers:
+  #/settings/viewUpdateDaemon:
+
+components:
+  securitySchemes:
+    BasicAuth:
+      type: http
+      scheme: basic
+  schemas:
+    PoolsInfo:
+      type: object
+      properties:
+        isAdminCreds:
+          type: boolean
+        isROAdminCreds:
+          type: boolean
+        allowedServices:
+          type: array
+          items:
+            type: string
+        isDeveloperPreview:
+          type: boolean
+        packageVariant:
+          type: string
+        pools:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              uri:
+                type: string
+              streamingUri:
+                type: string
+        settings:
+          type: object
+          properties:
+            maxParallelIndexers:
+              type: string
+            viewUpdateDaemon:
+              type: string
+        uuid:
+          type: string
+        implementationVersion:
+          type: string
+        componentsVersion:
+          type: object
+          additionalProperties:
+            type: string
+
+    PoolInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeInfo"
+        buckets:
+          type: object
+          properties:
+            uri:
+              type: string
+            terseBucketsBase:
+              type: string
+            terseStreamingBucketsBase:
+              type: string
+        bucketNames:
+          type: array
+          items:
+            type: object
+            properties:
+              bucketName:
+                type: string
+              uuid:
+                type: string
+        remoteClusters:
+          type: object
+          properties:
+            uri:
+              type: string
+            validateURI:
+              type: string
+        alerts:
+          type: array
+        alertsSilenceURL:
+          type: string
+        controllers:
+          type: object
+          properties:
+            addNode:
+              type: object
+              properties:
+                uri:
+                  type: string
+            rebalance:
+              type: object
+              properties:
+                uri:
+                  type: string
+            failOver:
+              type: object
+              properties:
+                uri:
+                  type: string
+            startGracefulFailover:
+              type: object
+              properties:
+                uri:
+                  type: string
+            reAddNode:
+              type: object
+              properties:
+                uri:
+                  type: string
+            reFailOver:
+              type: object
+              properties:
+                uri:
+                  type: string
+            ejectNode:
+              type: object
+              properties:
+                uri:
+                  type: string
+            setRecoveryType:
+              type: object
+              properties:
+                uri:
+                  type: string
+            setAutoCompaction:
+              type: object
+              properties:
+                uri:
+                  type: string
+                validateURI:
+                  type: string
+            clusterLogsCollection:
+              type: object
+              properties:
+                startURI:
+                  type: string
+                cancelURI:
+                  type: string
+            replication:
+              type: object
+              properties:
+                createURI:
+                  type: string
+                validateURI:
+                  type: string
+        rebalanceStatus:
+          type: string
+          enum: [none]
+        rebalanceProgressUri:
+          type: string
+        stopRebalanceUri:
+          type: string
+        nodeStatusesUri:
+          type: string
+        nodeServicesUri:
+          type: string
+        maxBucketCount:
+          type: integer
+        maxCollectionCount:
+          type: integer
+        maxScopeCount:
+          type: integer
+        autoCompactionSettings:
+          type: object
+          properties:
+            parallelDBAndViewCompaction:
+              type: boolean
+            magmaFragmentationPercentage:
+              type: integer
+            databaseFragmentationThreshold:
+              type: object
+              properties:
+                percentage:
+                  type: integer
+                size:
+                  type: string
+                  enum: [undefined]
+            indexCompactionMode:
+              type: string
+              enum: [circular]
+            indexCircularCompaction:
+              type: object
+              properties:
+                daysOfWeek:
+                  type: string
+                interval:
+                  type: object
+                  properties:
+                    fromHour:
+                      type: integer
+                    toHour:
+                      type: integer
+                    fromMinute:
+                      type: integer
+                    toMinute:
+                      type: integer
+                    abortOutside:
+                      type: boolean
+            indexFragmentationThreshold:
+              type: object
+              properties:
+                percentage:
+                  type: integer
+        tasks:
+          type: object
+          properties:
+            uri:
+              type: string
+        counters:
+          type: object
+          properties:
+            rebalance_success:
+              type: integer
+            rebalance_start:
+              type: integer
+        indexStatusURI:
+          type: string
+        trustedCAsURI:
+          type: string
+        clusterName:
+          type: string
+        clusterEncryptionLevel:
+          type: string
+          enum: [none]
+        balanced:
+          type: boolean
+        checkPermissionsURI:
+          type: string
+        memoryQuota:
+          type: integer
+        indexMemoryQuota:
+          type: integer
+        ftsMemoryQuota:
+          type: integer
+        cbasMemoryQuota:
+          type: integer
+        eventingMemoryQuota:
+          type: integer
+        storageTotals:
+          type: object
+          properties:
+            ram:
+              type: object
+              properties:
+                total:
+                  type: integer
+                quotaTotal:
+                  type: integer
+                quotaUsed:
+                  type: integer
+                used:
+                  type: integer
+                usedByData:
+                  type: integer
+                quotaUsedPerNode:
+                  type: integer
+                quotaTotalPerNode:
+                  type: integer
+            hdd:
+              type: object
+              properties:
+                total:
+                  type: integer
+                quotaTotal:
+                  type: integer
+                used:
+                  type: integer
+                usedByData:
+                  type: integer
+                free:
+                  type: integer
+        serverGroupsUri:
+          type: string
+
+    BucketCapability:
+      type: string
+      enum:
+        - collections
+        - durableWrite
+        - tombstonedUserXAttrs
+        - couchapi
+        - subdoc.ReplaceBodyWithXattr
+        - subdoc.DocumentMacroSupport
+        - subdoc.ReviveDocument
+        - dcp.IgnorePurgedTombstones
+        - dcp
+        - cbhello
+        - touch
+        - cccp
+        - xdcrCheckpointing
+        - nodesExt
+        - xattr
+
+    N1qlClusterCapability:
+      type: string
+      enum:
+        - enhancedPreparedStatements
+
+    NodeLocator:
+      type: string
+      enum: [vbucket, ketama]
+
+    BucketType:
+      type: string
+      enum: [membase, memcached]
+
+    StorageBackend:
+      type: string
+      enum: [couchstore, magma]
+
+    AuthType:
+      type: string
+      enum: [sasl]
+
+    AddressFamily:
+      type: string
+      enum: [inet, inet6]
+
+    ClusterCapabilitiesVersion:
+      type: array
+      items:
+        type: integer
+      minItems: 2
+      maxItems: 2
+
+    Service:
+      type: string
+      enum: [fts, index, kv, n1ql]
+
+    ClusterCapabilities:
+      type: object
+      properties:
+        n1ql:
+          type: array
+          items:
+            $ref: "#/components/schemas/N1qlClusterCapability"
+
+    BucketsInfo:
+      type: array
+      items:
+        $ref: "#/components/schemas/BucketInfo"
+
+    BucketInfo:
+      type: object
+      required:
+        - name
+        - nodeLocator
+        - bucketType
+        - storageBackend
+        - uuid
+        - uri
+        - streamingUri
+        - bucketCapabilitiesVer
+        - bucketCapabilities
+        - collectionManifestUid
+        - ddocs
+        # - vBucketServerMap
+        - localRandomKeyUri
+        - controllers
+        - nodes
+        - stats
+        - authType
+        - autoCompactionSettings
+        - replicaIndex
+        - replicaNumber
+        - threadsNumber
+        - quota
+        - basicStats
+        - evictionPolicy
+        # - durabilityMinLevel
+        - pitrEnabled
+        - pitrGranularity
+        - pitrMaxHistoryAge
+        - conflictResolutionType
+        - maxTTL
+        - compressionMode
+      properties:
+        name:
+          type: string
+        nodeLocator:
+          $ref: "#/components/schemas/NodeLocator"
+        bucketType:
+          $ref: "#/components/schemas/BucketType"
+        storageBackend:
+          $ref: "#/components/schemas/StorageBackend"
+        uuid:
+          type: string
+        uri:
+          type: string
+        streamingUri:
+          type: string
+        bucketCapabilitiesVer:
+          type: string
+        bucketCapabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/BucketCapability"
+        collectionManifestUid:
+          type: string
+        ddocs:
+          type: object
+          properties:
+            uri:
+              type: string
+        vBucketServerMap:
+          $ref: "#/components/schemas/VBucketServerMap"
+        localRandomKeyUri:
+          type: string
+        controllers:
+          type: object
+          properties:
+            compactAll:
+              type: string
+            compactDB:
+              type: string
+            purgeDeletes:
+              type: string
+            startRecovery:
+              type: string
+            flush:
+              type: string
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeInfo"
+        stats:
+          type: object
+          properties:
+            uri:
+              type: string
+            directoryURI:
+              type: string
+            nodeStatsListURI:
+              type: string
+        authType:
+          $ref: "#/components/schemas/AuthType"
+        autoCompactionSettings:
+          oneOf:
+            - type: boolean
+            - type: object
+        replicaIndex:
+          type: boolean
+        replicaNumber:
+          type: integer
+        threadsNumber:
+          type: integer
+        quota:
+          type: object
+          properties:
+            ram:
+              type: integer
+            rawRAM:
+              type: integer
+        basicStats:
+          type: object
+          additionalProperties:
+            type: integer
+        evictionPolicy:
+          type: string
+          enum: [valueOnly]
+        durabilityMinLevel:
+          type: string
+          enum: [none]
+        pitrEnabled:
+          type: boolean
+        pitrGranularity:
+          type: integer
+        pitrMaxHistoryAge:
+          type: integer
+        conflictResolutionType:
+          type: string
+          enum: [seqno]
+        maxTTL:
+          type: integer
+        compressionMode:
+          type: string
+          enum: [passive]
+
+    VBucketServerMap:
+      type: object
+      properties:
+        hashAlgorithm:
+          type: string
+        numReplicas:
+          type: integer
+        serverList:
+          type: array
+          items:
+            type: string
+        vBucketMap:
+          type: array
+          items:
+            type: array
+            items:
+              type: integer
+
+    NodeInfo:
+      type: object
+      properties:
+        clusterMembership:
+          type: string
+          enum: [active]
+        recoveryType:
+          type: string
+          enum: [none]
+        status:
+          type: string
+          enum: [healthy]
+        otpNode:
+          type: string
+        thisNode:
+          type: boolean
+        hostname:
+          type: string
+        nodeUUID:
+          type: string
+        clusterCompatibility:
+          type: integer
+        version:
+          type: string
+        os:
+          type: string
+        cpuCount:
+          type: integer
+        ports:
+          type: object
+          properties:
+            direct:
+              type: integer
+            httpsCAPI:
+              type: integer
+            httpsMgmt:
+              type: integer
+            distTCP:
+              type: integer
+            distTLS:
+              type: integer
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        nodeEncryption:
+          type: boolean
+        addressFamilyOnly:
+          type: boolean
+        configuredHostname:
+          type: string
+        addressFamily:
+          $ref: "#/components/schemas/AddressFamily"
+        externalListeners:
+          type: array
+          items:
+            type: object
+            properties:
+              afamily:
+                $ref: "#/components/schemas/AddressFamily"
+              nodeEncryption:
+                type: boolean
+        serverGroup:
+          type: string
+        couchApiBase:
+          type: string
+        couchApiBaseHTTPS:
+          type: string
+        nodeHash:
+          type: integer
+        systemStats:
+          type: object
+          additionalProperties:
+            type: integer
+        interestingStats:
+          type: object
+          additionalProperties:
+            type: integer
+        uptime:
+          type: string
+        memoryTotal:
+          type: integer
+        memoryFree:
+          type: integer
+        mcdMemoryReserved:
+          type: integer
+        mcdMemoryAllocated:
+          type: integer
+          
+    NodeServices:
+      type: object
+      properties:
+        rev:
+          type: integer
+        nodesExt:
+          type: array
+          items:
+            $ref: "#/components/schemas/TerseNodeExtInfo"
+        clusterCapabilitiesVer:
+          $ref: "#/components/schemas/ClusterCapabilitiesVersion"
+        clusterCapabilities:
+          $ref: "#/components/schemas/ClusterCapabilities"
+
+
+    TerseNodeInfo:
+      type: object
+      properties:
+        couchApiBase:
+          type: string
+        hostanme:
+          type: string
+        ports:
+          type: object
+          properties:
+            direct:
+              type: integer
+
+    TerseNodeExtInfo:
+      type: object
+      properties:
+        services:
+          type: object
+          properties:
+            capi:
+              type: integer
+            capiSSL:
+              type: integer
+            fts:
+              type: integer
+            ftsGRPC:
+              type: integer
+            ftsGRPCSSL:
+              type: integer
+            ftsSSL:
+              type: integer
+            indexAdmin:
+              type: integer
+            indexHttp:
+              type: integer
+            indexHttps:
+              type: integer
+            indexScan:
+              type: integer
+            indexStreamCatchup:
+              type: integer
+            indexStreamInit:
+              type: integer
+            indexStreamMaint:
+              type: integer
+            kv:
+              type: integer
+            kvSSL:
+              type: integer
+            mgmt:
+              type: integer
+            mgmtSSL:
+              type: integer
+            n1ql:
+              type: integer
+            n1qlSSL:
+              type: integer
+            projector:
+              type: integer
+        thisNode:
+          type: boolean
+        hostname:
+          type: string
+
+    TerseBucketInfo:
+      type: object
+      properties:
+        rev:
+          type: integer
+        revEpoch:
+          type: integer
+        name:
+          type: string
+        nodeLocator:
+          $ref: "#/components/schemas/NodeLocator"
+        bucketType:
+          $ref: "#/components/schemas/BucketType"
+        storageBackend:
+          $ref: "#/components/schemas/StorageBackend"
+        uuid:
+          type: string
+        uri:
+          type: string
+        streamingUri:
+          type: string
+        bucketCapabilitiesVer:
+          type: string
+        bucketCapabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/BucketCapability"
+        collectionManifestUid:
+          type: string
+        ddocs:
+          type: object
+          required: [uri]
+          properties:
+            uri:
+              type: string
+        vBucketServerMap:
+          $ref: "#/components/schemas/VBucketServerMap"
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TerseNodeInfo"
+        nodesExt:
+          type: array
+          items:
+            $ref: "#/components/schemas/TerseNodeExtInfo"
+        clusterCapabilitiesVer:
+          $ref: "#/components/schemas/ClusterCapabilitiesVersion"
+        clusterCapabilities:
+          $ref: "#/components/schemas/ClusterCapabilities"
+security:
+  - BasicAuth: []
