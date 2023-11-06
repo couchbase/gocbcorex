@@ -2074,6 +2074,9 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		} else if resp.Status == StatusSubDocDeletedDocumentCantHaveValue {
 			cb(nil, ErrSubDocDeletedDocumentCantHaveValue)
 			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
 		} else if resp.Status == StatusSubDocMultiPathFailure {
 			if len(resp.Value) != 3 {
 				cb(nil, protocolError{"bad value length"})
