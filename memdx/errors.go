@@ -49,6 +49,7 @@ var (
 	ErrSubDocCanOnlyReviveDeletedDocuments = errors.New("subdoc can only revive deleted documents")
 	ErrSubDocDeletedDocumentCantHaveValue  = errors.New("subdoc deleted document cant have value")
 	ErrSyncWriteInProgress                 = errors.New("sync write in progress")
+	ErrSyncWriteReCommitInProgress         = errors.New("sync write recommit in progress")
 	ErrTmpFail                             = errors.New("temporary failure")
 
 	ErrClosedInFlight = errors.New("connection closed whilst operation in flight")
