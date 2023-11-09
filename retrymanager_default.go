@@ -31,6 +31,8 @@ type retryControllerDefault struct {
 func (rc *retryControllerDefault) isRetriableError(err error) bool {
 	// Implement the default classification of retriable errors...
 	return errors.Is(err, memdx.ErrTmpFail) ||
+		errors.Is(err, memdx.ErrSyncWriteInProgress) ||
+		errors.Is(err, memdx.ErrSyncWriteReCommitInProgress) ||
 		errors.Is(err, ErrVbucketMapOutdated) ||
 		errors.Is(err, ErrCollectionManifestOutdated)
 }
