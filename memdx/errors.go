@@ -53,6 +53,7 @@ var (
 	ErrSyncWriteReCommitInProgress         = errors.New("sync write recommit in progress")
 	ErrTmpFail                             = errors.New("temporary failure")
 
+	ErrConfigNotSet   = errors.New("config not set")
 	ErrClosedInFlight = errors.New("connection closed whilst operation in flight")
 )
 
