@@ -183,7 +183,7 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 			// ns_server has not posted a configuration for the bucket to kv_engine yet. We
 			// transform this into a ErrTmpFail as we make the assumption that the
 			// SelectBucket will have failed if this was anything but a transient issue.
-			cb(nil, ErrTmpFail)
+			cb(nil, ErrConfigNotSet)
 			return false
 		}
 
