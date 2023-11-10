@@ -34,7 +34,10 @@ func TestAgentDelete(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	docKey := uuid.NewString()
 
@@ -84,7 +87,10 @@ func TestAgentDoesNotRetryMemdxInvalidArgs(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()

@@ -32,13 +32,14 @@ func TestOpSaslAuthAuto_Plain(t *testing.T) {
 
 	var pipelineCalled bool
 	waitCh := make(chan error, 1)
-	OpSaslAuthAuto{
+	_, err := OpSaslAuthAuto{
 		Encoder: enc,
 	}.SASLAuthAuto(testBootstrapDispatcher{}, opts, func() {
 		pipelineCalled = true
 	}, func(err error) {
 		waitCh <- err
 	})
+	require.NoError(t, err)
 
 	assert.True(t, pipelineCalled)
 	assert.NoError(t, <-waitCh)
@@ -92,12 +93,13 @@ func TestOpSaslAuthAuto_FirstAuthFails(t *testing.T) {
 	}
 
 	waitCh := make(chan error, 1)
-	OpSaslAuthAuto{
+	_, err := OpSaslAuthAuto{
 		Encoder: enc,
 	}.SASLAuthAuto(testBootstrapDispatcher{}, opts, func() {
 	}, func(err error) {
 		waitCh <- err
 	})
+	require.NoError(t, err)
 	require.NoError(t, <-waitCh)
 
 	reqs := enc.AuthRequests
@@ -139,12 +141,13 @@ func TestOpSaslAuthAuto_FirstAuthFailsNoCompatibleMechs(t *testing.T) {
 	}
 
 	waitCh := make(chan error, 1)
-	OpSaslAuthAuto{
+	_, err := OpSaslAuthAuto{
 		Encoder: enc,
 	}.SASLAuthAuto(testBootstrapDispatcher{}, opts, func() {
 	}, func(err error) {
 		waitCh <- err
 	})
+	require.NoError(t, err)
 	assert.Error(t, <-waitCh)
 
 	reqs := enc.AuthRequests
@@ -181,12 +184,13 @@ func TestOpSaslAuthAuto_FirstAuthFailsListMechsFails(t *testing.T) {
 	}
 
 	waitCh := make(chan error, 1)
-	OpSaslAuthAuto{
+	_, err := OpSaslAuthAuto{
 		Encoder: enc,
 	}.SASLAuthAuto(testBootstrapDispatcher{}, opts, func() {
 	}, func(err error) {
 		waitCh <- err
 	})
+	require.NoError(t, err)
 	assert.Error(t, <-waitCh)
 
 	reqs := enc.AuthRequests

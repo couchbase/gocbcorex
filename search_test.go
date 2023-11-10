@@ -20,7 +20,10 @@ func TestSearchBasic(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	helper := &searchTestHelper{
 		TestName: "testSearchQuery",
@@ -42,7 +45,10 @@ func TestSearchCollections(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureScopedSearch)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	scopeName := "scope" + uuid.NewString()[:6]
 	collectionName := "collection" + uuid.NewString()[:6]
@@ -255,10 +261,11 @@ func (nqh *searchTestHelper) testCleanupSearch(t *testing.T) {
 		bucket = testutils.TestOpts.BucketName
 	}
 	if nqh.IndexName != "" {
-		nqh.Agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+		err := nqh.Agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
 			IndexName:  nqh.IndexName,
 			ScopeName:  nqh.ScopeName,
 			BucketName: bucket,
 		})
+		require.NoError(t, err)
 	}
 }
