@@ -161,7 +161,10 @@ func TestRangeScanSamplingKeysOnly(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	scopeName := "sample" + uuid.NewString()[:6]
 	collectionName := "sample" + uuid.NewString()[:6]
@@ -170,15 +173,22 @@ func TestRangeScanSamplingKeysOnly(t *testing.T) {
 	defer cancel()
 
 	CreateAndEnsureScope(ctx, t, agent, testutils.TestOpts.BucketName, scopeName)
-	CreateAndEnsureCollection(ctx, t, agent, testutils.TestOpts.BucketName, scopeName, collectionName)
-	defer agent.DeleteScope(context.Background(), &cbmgmtx.DeleteScopeOptions{
-		BucketName: testutils.TestOpts.BucketName,
-		ScopeName:  scopeName,
+	t.Cleanup(func() {
+		_, err := agent.DeleteScope(context.Background(), &cbmgmtx.DeleteScopeOptions{
+			BucketName: testutils.TestOpts.BucketName,
+			ScopeName:  scopeName,
+		})
+		require.NoError(t, err)
 	})
-	defer agent.DeleteCollection(context.Background(), &cbmgmtx.DeleteCollectionOptions{
-		BucketName:     testutils.TestOpts.BucketName,
-		ScopeName:      scopeName,
-		CollectionName: collectionName,
+
+	CreateAndEnsureCollection(ctx, t, agent, testutils.TestOpts.BucketName, scopeName, collectionName)
+	t.Cleanup(func() {
+		_, err := agent.DeleteCollection(context.Background(), &cbmgmtx.DeleteCollectionOptions{
+			BucketName:     testutils.TestOpts.BucketName,
+			ScopeName:      scopeName,
+			CollectionName: collectionName,
+		})
+		require.NoError(t, err)
 	})
 
 	value := "value"

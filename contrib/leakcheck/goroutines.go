@@ -39,7 +39,10 @@ func ReportLeakedGoroutines() bool {
 
 	if finalGoroutineCount != expectedGoroutineCount {
 		log.Printf("Detected a goroutine leak (%d goroutines != %d)", finalGoroutineCount, expectedGoroutineCount)
-		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		err := pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		if err != nil {
+			log.Printf("Failed to write goroutine profile to file: %s", err)
+		}
 		return false
 	}
 

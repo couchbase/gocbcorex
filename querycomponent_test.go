@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/couchbase/gocbcorex/testutils"
+	"github.com/stretchr/testify/require"
 )
 
 type n1qlTestHelper struct {
@@ -47,9 +49,12 @@ func hlpRunQuery(t *testing.T, agent *Agent, opts *QueryOptions) ([][]byte, erro
 func hlpEnsurePrimaryIndex(t *testing.T, agent *Agent, bucketName string) {
 	t.Helper()
 
-	hlpRunQuery(t, agent, &QueryOptions{
+	_, err := hlpRunQuery(t, agent, &QueryOptions{
 		Statement: "CREATE PRIMARY INDEX ON " + bucketName,
 	})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		require.NoError(t, err)
+	}
 }
 
 func (nqh *n1qlTestHelper) testSetupN1ql(t *testing.T) {

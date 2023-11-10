@@ -255,10 +255,11 @@ func (nqh *searchTestHelper) testCleanupSearch(t *testing.T) {
 		bucket = testutils.TestOpts.BucketName
 	}
 	if nqh.IndexName != "" {
-		nqh.Agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+		err := nqh.Agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
 			IndexName:  nqh.IndexName,
 			ScopeName:  nqh.ScopeName,
 			BucketName: bucket,
 		})
+		require.NoError(t, err)
 	}
 }

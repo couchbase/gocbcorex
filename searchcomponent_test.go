@@ -71,7 +71,10 @@ func TestSearchIndexesIngestControl(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -87,8 +90,12 @@ func TestSearchIndexesIngestControl(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer agent.DeleteSearchIndex(ctx, &cbsearchx.DeleteIndexOptions{
-		IndexName: indexName,
+
+	t.Cleanup(func() {
+		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+			IndexName: indexName,
+		})
+		require.NoError(t, err)
 	})
 
 	err = agent.PauseSearchIndexIngest(ctx, &cbsearchx.PauseIngestOptions{
@@ -106,7 +113,10 @@ func TestSearchIndexesQueryControl(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -122,8 +132,12 @@ func TestSearchIndexesQueryControl(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer agent.DeleteSearchIndex(ctx, &cbsearchx.DeleteIndexOptions{
-		IndexName: indexName,
+
+	t.Cleanup(func() {
+		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+			IndexName: indexName,
+		})
+		require.NoError(t, err)
 	})
 
 	err = agent.DisallowSearchIndexQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
@@ -141,7 +155,10 @@ func TestSearchIndexesPartitionControl(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -157,8 +174,12 @@ func TestSearchIndexesPartitionControl(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer agent.DeleteSearchIndex(ctx, &cbsearchx.DeleteIndexOptions{
-		IndexName: indexName,
+
+	t.Cleanup(func() {
+		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+			IndexName: indexName,
+		})
+		require.NoError(t, err)
 	})
 
 	err = agent.FreezeSearchIndexPlan(ctx, &cbsearchx.FreezePlanOptions{
@@ -176,7 +197,10 @@ func TestSearchUUIDMismatch(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -192,8 +216,12 @@ func TestSearchUUIDMismatch(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer agent.DeleteSearchIndex(ctx, &cbsearchx.DeleteIndexOptions{
-		IndexName: indexName,
+
+	t.Cleanup(func() {
+		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+			IndexName: indexName,
+		})
+		require.NoError(t, err)
 	})
 
 	err = agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
