@@ -309,9 +309,10 @@ type GetCollectionManifestOptions struct {
 }
 
 type CollectionManifestCollectionJson struct {
-	UID    string `json:"uid"`
-	Name   string `json:"name"`
-	MaxTTL uint32 `json:"maxTTL,omitempty"`
+	UID     string `json:"uid"`
+	Name    string `json:"name"`
+	MaxTTL  uint32 `json:"maxTTL,omitempty"`
+	History bool   `json:"history,omitempty"`
 }
 
 type CollectionManifestScopeJson struct {
