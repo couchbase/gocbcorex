@@ -60,13 +60,11 @@ func NewMgmtComponent(retries RetryManager, config *MgmtComponentConfig, opts *M
 }
 
 func (w *MgmtComponent) Reconfigure(config *MgmtComponentConfig) error {
-	w.lock.Lock()
-	w.state = &baseHttpComponentState{
+	w.updateState(baseHttpComponentState{
 		httpRoundTripper: config.HttpRoundTripper,
 		endpoints:        config.Endpoints,
 		authenticator:    config.Authenticator,
-	}
-	w.lock.Unlock()
+	})
 	return nil
 }
 

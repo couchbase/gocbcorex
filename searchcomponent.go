@@ -104,13 +104,11 @@ func NewSearchComponent(retries RetryManager, config *SearchComponentConfig, opt
 }
 
 func (w *SearchComponent) Reconfigure(config *SearchComponentConfig) error {
-	w.lock.Lock()
-	w.state = &baseHttpComponentState{
+	w.updateState(baseHttpComponentState{
 		httpRoundTripper: config.HttpRoundTripper,
 		endpoints:        config.Endpoints,
 		authenticator:    config.Authenticator,
-	}
-	w.lock.Unlock()
+	})
 	return nil
 }
 
