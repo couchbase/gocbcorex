@@ -835,7 +835,10 @@ func TestClientManagerClose(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	defer mgr.Close()
+	t.Cleanup(func() {
+		err := mgr.Close()
+		require.NoError(t, err)
+	})
 
 	// Check that we've connected at least 1 client
 	_, err = mgr.GetClient(context.Background(), endpointName)
@@ -878,7 +881,10 @@ func TestClientManagerCloseAfterReconfigure(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	defer mgr.Close()
+	t.Cleanup(func() {
+		err := mgr.Close()
+		require.NoError(t, err)
+	})
 
 	// Check that we've connected at least 1 client
 	_, err = mgr.GetClient(context.Background(), endpointName)

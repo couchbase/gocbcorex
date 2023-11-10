@@ -20,7 +20,10 @@ func TestRangeScanRangeLargeValues(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	size := 8192 * 2
 	value := make([]byte, size)
@@ -70,7 +73,10 @@ func TestRangeScanRangeSmallValues(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	value := []byte(`{"barry": "sheen"}`)
 
@@ -117,7 +123,10 @@ func TestRangeScanRangeKeysOnly(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	value := "value"
 	docIDs := []string{"rangekeysonly-1269", "rangekeysonly-2048", "rangekeysonly-4378", "rangekeysonly-7159",
@@ -161,7 +170,10 @@ func TestRangeScanSamplingKeysOnly(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	scopeName := "sample" + uuid.NewString()[:6]
 	collectionName := "sample" + uuid.NewString()[:6]
@@ -170,15 +182,22 @@ func TestRangeScanSamplingKeysOnly(t *testing.T) {
 	defer cancel()
 
 	CreateAndEnsureScope(ctx, t, agent, testutils.TestOpts.BucketName, scopeName)
-	CreateAndEnsureCollection(ctx, t, agent, testutils.TestOpts.BucketName, scopeName, collectionName)
-	defer agent.DeleteScope(context.Background(), &cbmgmtx.DeleteScopeOptions{
-		BucketName: testutils.TestOpts.BucketName,
-		ScopeName:  scopeName,
+	t.Cleanup(func() {
+		_, err := agent.DeleteScope(context.Background(), &cbmgmtx.DeleteScopeOptions{
+			BucketName: testutils.TestOpts.BucketName,
+			ScopeName:  scopeName,
+		})
+		require.NoError(t, err)
 	})
-	defer agent.DeleteCollection(context.Background(), &cbmgmtx.DeleteCollectionOptions{
-		BucketName:     testutils.TestOpts.BucketName,
-		ScopeName:      scopeName,
-		CollectionName: collectionName,
+
+	CreateAndEnsureCollection(ctx, t, agent, testutils.TestOpts.BucketName, scopeName, collectionName)
+	t.Cleanup(func() {
+		_, err := agent.DeleteCollection(context.Background(), &cbmgmtx.DeleteCollectionOptions{
+			BucketName:     testutils.TestOpts.BucketName,
+			ScopeName:      scopeName,
+			CollectionName: collectionName,
+		})
+		require.NoError(t, err)
 	})
 
 	value := "value"
@@ -224,7 +243,10 @@ func TestRangeScanRangeCancellation(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	value := "value"
 	docIDs := []string{"rangescancancel-2746", "rangescancancel-37795", "rangescancancel-63440", "rangescancancel-116036",
@@ -255,7 +277,10 @@ func TestRangeScanRangeContinueClosedClient(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	value := "value"
 	docIDs := []string{"rangescancancel-2746", "rangescancancel-37795", "rangescancancel-63440", "rangescancancel-116036",
@@ -289,7 +314,10 @@ func TestRangeScanRangeCancelClosedClient(t *testing.T) {
 	testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureRangeScan)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	value := "value"
 	docIDs := []string{"rangescancancel-2746", "rangescancancel-37795", "rangescancancel-63440", "rangescancancel-116036",

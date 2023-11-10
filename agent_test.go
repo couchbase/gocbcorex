@@ -225,7 +225,10 @@ func TestAgentCrudCompress(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	type test struct {
 		Op                    func(key, value []byte) error
@@ -361,7 +364,10 @@ func TestAgentCrudDecompress(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	type test struct {
 		Op   func(key []byte) ([]byte, error)
@@ -443,7 +449,10 @@ func TestAgentWatchConfig(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
 	defer cancel()
@@ -477,7 +486,10 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 
 	agent, err := CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
-	defer agent.Close()
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	bucketName := "testBucket-" + uuid.NewString()[:6]
 
@@ -491,8 +503,12 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	defer agent.DeleteBucket(context.Background(), &cbmgmtx.DeleteBucketOptions{
-		BucketName: bucketName,
+
+	t.Cleanup(func() {
+		err := agent.DeleteBucket(context.Background(), &cbmgmtx.DeleteBucketOptions{
+			BucketName: bucketName,
+		})
+		require.NoError(t, err)
 	})
 
 	// we have to run this in an eventually loop as gocbcorex itself does not
@@ -509,7 +525,10 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 			return false
 		}
 		require.NoError(t, err)
-		defer agent2.Close()
+		t.Cleanup(func() {
+			err := agent2.Close()
+			require.NoError(t, err)
+		})
 
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 		defer cancel()
@@ -549,7 +568,12 @@ func BenchmarkBasicGet(b *testing.B) {
 	if err != nil {
 		b.Errorf("failed to create agent: %s", err)
 	}
-	defer agent.Close()
+	b.Cleanup(func() {
+		err := agent.Close()
+		if err != nil {
+			b.Errorf("failed to close agent: %s", err)
+		}
+	})
 
 	_, err = agent.Upsert(context.Background(), &UpsertOptions{
 		Key:            []byte("test"),
@@ -562,11 +586,14 @@ func BenchmarkBasicGet(b *testing.B) {
 	}
 
 	for n := 0; n < b.N; n++ {
-		agent.Get(context.Background(), &GetOptions{
+		_, err := agent.Get(context.Background(), &GetOptions{
 			Key:            []byte("test"),
 			ScopeName:      "",
 			CollectionName: "",
 		})
+		if err != nil {
+			b.Errorf("failed to get test document: %s", err)
+		}
 	}
 	b.ReportAllocs()
 

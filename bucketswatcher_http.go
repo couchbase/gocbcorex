@@ -107,11 +107,14 @@ func (w *BucketsWatcherHttp) Reconfigure(cfg *BucketsWatcherHttpReconfigureConfi
 	}
 	w.stateLock.Unlock()
 
-	w.watcher.Reconfigure(&StreamWatcherHttpReconfigureConfig{
+	err := w.watcher.Reconfigure(&StreamWatcherHttpReconfigureConfig{
 		HttpRoundTripper: cfg.HttpRoundTripper,
 		Endpoints:        cfg.Endpoints,
 		Authenticator:    cfg.Authenticator,
 	})
+	if err != nil {
+		w.logger.Error("failed to reconfigure config watcher", zap.Error(err))
+	}
 
 	return nil
 }

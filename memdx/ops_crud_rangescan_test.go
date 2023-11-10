@@ -20,7 +20,10 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 	datatype := uint8(0x01)
 
 	cli := createTestClient(t)
-	defer cli.Close()
+	t.Cleanup(func() {
+		err := cli.Close()
+		require.NoError(t, err)
+	})
 
 	resp, err := syncUnaryCall(OpsCrud{
 		CollectionsEnabled: true,
@@ -102,7 +105,10 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 	datatype := uint8(0x01)
 
 	cli := createTestClient(t)
-	defer cli.Close()
+	t.Cleanup(func() {
+		err := cli.Close()
+		require.NoError(t, err)
+	})
 
 	var highSeqNo uint64
 	var vbUUID uint64
@@ -194,7 +200,10 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 	datatype := uint8(0x01)
 
 	cli := createTestClient(t)
-	defer cli.Close()
+	t.Cleanup(func() {
+		err := cli.Close()
+		require.NoError(t, err)
+	})
 
 	var highSeqNo uint64
 	var vbUUID uint64

@@ -230,7 +230,10 @@ func TestKvClientPoolClose(t *testing.T) {
 		Logger: logger,
 	})
 	require.NoError(t, err)
-	defer pool.Close()
+	t.Cleanup(func() {
+		err := pool.Close()
+		require.NoError(t, err)
+	})
 
 	// Check that we've connected at least 1 client
 	_, err = pool.GetClient(context.Background())

@@ -213,18 +213,25 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 
 	mgmtEndpoints := m.mgmtEndpointsLocked()
 
-	m.topologyCfgWatcher.Reconfigure(&ConfigWatcherHttpConfig{
+	err := m.topologyCfgWatcher.Reconfigure(&ConfigWatcherHttpConfig{
 		HttpRoundTripper: m.state.httpTransport,
 		Endpoints:        mgmtEndpoints,
 		UserAgent:        m.userAgent,
 		Authenticator:    m.state.authenticator,
 	})
+	if err != nil {
+		m.logger.Error("failed to reconfigure topology watcher", zap.Error(err))
+	}
 
-	m.bucketsWatcher.Reconfigure(&BucketsWatcherHttpReconfigureConfig{
+	err = m.bucketsWatcher.Reconfigure(&BucketsWatcherHttpReconfigureConfig{
 		HttpRoundTripper: m.state.httpTransport,
 		Endpoints:        mgmtEndpoints,
 		Authenticator:    m.state.authenticator,
 	})
+	if err != nil {
+		m.logger.Error("failed to reconfigure bucket watcher", zap.Error(err))
+	}
+
 }
 
 func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName string) (*Agent, error) {

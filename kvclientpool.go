@@ -348,8 +348,8 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 			// once we are done reconfiguring all the connections, we need to
 			// wait until the list of defunct connections reaches 0.
 			go func() {
-				p.WaitUntilNoDefunctClients(context.Background())
-				cb(nil)
+				err := p.WaitUntilNoDefunctClients(context.Background())
+				cb(err)
 			}()
 		}
 	}

@@ -124,7 +124,10 @@ func (b *Projector) Set(path []subdocpath.Element, content []byte) error {
 		subData := Projector{
 			data: arrData[myPath.Index],
 		}
-		subData.Set(path[1:], content)
+		err := subData.Set(path[1:], content)
+		if err != nil {
+			return err
+		}
 
 		arrData[myPath.Index] = subData.data
 		b.data = arrData
@@ -148,7 +151,10 @@ func (b *Projector) Set(path []subdocpath.Element, content []byte) error {
 		subData := Projector{
 			data: mapData[myPath.Key],
 		}
-		subData.Set(path[1:], content)
+		err := subData.Set(path[1:], content)
+		if err != nil {
+			return err
+		}
 
 		mapData[myPath.Key] = subData.data
 		b.data = mapData

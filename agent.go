@@ -421,28 +421,51 @@ func (agent *Agent) updateStateLocked() {
 		}
 	}
 
-	agent.connMgr.Reconfigure(&KvClientManagerConfig{
+	err := agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            oldClients,
 	}, func(error) {})
+	if err != nil {
+		agent.logger.Error("failed to reconfigure connection manager (old clients)", zap.Error(err))
+	}
 
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
 	if agent.memdCfgWatcher != nil {
-		agent.memdCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherMemdConfig)
+		err = agent.memdCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherMemdConfig)
+		if err != nil {
+			agent.logger.Error("failed to reconfigure memd config watcher component", zap.Error(err))
+		}
 	}
 
-	agent.connMgr.Reconfigure(&KvClientManagerConfig{
+	err = agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            agentComponentConfigs.KvClientManagerClients,
 	}, func(error) {})
+	if err != nil {
+		agent.logger.Error("failed to reconfigure connection manager (updated clients)", zap.Error(err))
+	}
 
-	agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
-	agent.mgmt.Reconfigure(&agentComponentConfigs.MgmtComponentConfig)
-	agent.search.Reconfigure(&agentComponentConfigs.SearchComponentConfig)
+	err = agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
+	if err != nil {
+		agent.logger.Error("failed to reconfigure query component", zap.Error(err))
+	}
+
+	err = agent.mgmt.Reconfigure(&agentComponentConfigs.MgmtComponentConfig)
+	if err != nil {
+		agent.logger.Error("failed to reconfigure management component", zap.Error(err))
+	}
+
+	err = agent.search.Reconfigure(&agentComponentConfigs.SearchComponentConfig)
+	if err != nil {
+		agent.logger.Error("failed to reconfigure query component", zap.Error(err))
+	}
 
 	if agent.httpCfgWatcher != nil {
-		agent.httpCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
+		err = agent.httpCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherHttpConfig)
+		if err != nil {
+			agent.logger.Error("failed to reconfigure http config watcher component", zap.Error(err))
+		}
 	}
 }
 
