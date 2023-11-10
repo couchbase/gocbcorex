@@ -15,6 +15,8 @@ var (
 	ErrBucketExists       = errors.New("bucket exists")
 	ErrBucketNotFound     = errors.New("bucket not found")
 	ErrServerInvalidArg   = errors.New("invalid argument")
+	ErrBucketUuidMismatch = errors.New("bucket uuid mismatch")
+	ErrManifestOutOfDate  = errors.New("manifest out of date")
 )
 
 type ServerError struct {

@@ -3,7 +3,9 @@ package gocbcorex
 import (
 	"context"
 	"net/http"
+	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
 )
@@ -147,4 +149,114 @@ func (w *MgmtComponent) FlushBucket(ctx context.Context, opts *cbmgmtx.FlushBuck
 
 func (w *MgmtComponent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBucketOptions) error {
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteBucket, opts)
+}
+
+type EnsureBucketOptions struct {
+	BucketName string
+	BucketUUID string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOptions) error {
+	hlpr := cbmgmtx.EnsureBucketHelper{
+		Logger:     w.logger.Named("ensure-bucket"),
+		UserAgent:  w.userAgent,
+		OnBehalfOf: opts.OnBehalfOf,
+		BucketName: opts.BucketName,
+		BucketUUID: opts.BucketUUID,
+	}
+
+	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	ensureTargets := make([]cbmgmtx.NodeTarget, 0)
+	for attemptIdx := 0; ; attemptIdx++ {
+		roundTripper, targets, err := w.GetAllTargets(nil)
+		if err != nil {
+			return err
+		}
+
+		ensureTargets := ensureTargets[:0]
+		for _, target := range targets {
+			ensureTargets = append(ensureTargets, cbmgmtx.NodeTarget{
+				Endpoint: target.Endpoint,
+				Username: target.Username,
+				Password: target.Password,
+			})
+		}
+
+		success, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets,
+		})
+		if err != nil {
+			return err
+		}
+
+		if success {
+			break
+		}
+
+		select {
+		case <-time.After(b(uint32(attemptIdx))):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return nil
+}
+
+type EnsureManifestOptions struct {
+	BucketName    string
+	CollectionUid uint64
+	OnBehalfOf    *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
+	hlpr := cbmgmtx.EnsureManifestHelper{
+		Logger:        w.logger.Named("ensure-manifest"),
+		UserAgent:     w.userAgent,
+		OnBehalfOf:    opts.OnBehalfOf,
+		BucketName:    opts.BucketName,
+		CollectionUid: opts.CollectionUid,
+	}
+
+	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	ensureTargets := make([]cbmgmtx.NodeTarget, 0)
+	for attemptIdx := 0; ; attemptIdx++ {
+		roundTripper, targets, err := w.GetAllTargets(nil)
+		if err != nil {
+			return err
+		}
+
+		ensureTargets := ensureTargets[:0]
+		for _, target := range targets {
+			ensureTargets = append(ensureTargets, cbmgmtx.NodeTarget{
+				Endpoint: target.Endpoint,
+				Username: target.Username,
+				Password: target.Password,
+			})
+		}
+
+		success, err := hlpr.Poll(ctx, &cbmgmtx.EnsureManifestPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets,
+		})
+		if err != nil {
+			return err
+		}
+
+		if success {
+			break
+		}
+
+		select {
+		case <-time.After(b(uint32(attemptIdx))):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return nil
 }

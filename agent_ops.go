@@ -116,6 +116,10 @@ func (agent *Agent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCo
 	return agent.mgmt.DeleteCollection(ctx, opts)
 }
 
+func (agent *Agent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
+	return agent.mgmt.EnsureManifest(ctx, opts)
+}
+
 func (agent *Agent) GetAllBuckets(ctx context.Context, opts *cbmgmtx.GetAllBucketsOptions) ([]*cbmgmtx.BucketDef, error) {
 	return agent.mgmt.GetAllBuckets(ctx, opts)
 }
@@ -138,6 +142,10 @@ func (agent *Agent) FlushBucket(ctx context.Context, opts *cbmgmtx.FlushBucketOp
 
 func (agent *Agent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBucketOptions) error {
 	return agent.mgmt.DeleteBucket(ctx, opts)
+}
+
+func (agent *Agent) EnsureBucket(ctx context.Context, opts *EnsureBucketOptions) error {
+	return agent.mgmt.EnsureBucket(ctx, opts)
 }
 
 func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
