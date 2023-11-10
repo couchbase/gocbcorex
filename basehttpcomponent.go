@@ -20,6 +20,12 @@ type baseHttpComponentState struct {
 	authenticator    Authenticator
 }
 
+func (c *baseHttpComponent) updateState(newState baseHttpComponentState) {
+	c.lock.Lock()
+	c.state = &newState
+	c.lock.Unlock()
+}
+
 func (c *baseHttpComponent) SelectEndpoint(ignoredEndpoints []string) (http.RoundTripper, string, string, string, error) {
 	c.lock.RLock()
 	state := *c.state

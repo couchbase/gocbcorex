@@ -68,13 +68,11 @@ func NewQueryComponent(retries RetryManager, config *QueryComponentConfig, opts 
 }
 
 func (w *QueryComponent) Reconfigure(config *QueryComponentConfig) error {
-	w.lock.Lock()
-	w.state = &baseHttpComponentState{
+	w.updateState(baseHttpComponentState{
 		httpRoundTripper: config.HttpRoundTripper,
 		endpoints:        config.Endpoints,
 		authenticator:    config.Authenticator,
-	}
-	w.lock.Unlock()
+	})
 	return nil
 }
 
