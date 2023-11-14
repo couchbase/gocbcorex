@@ -19,15 +19,33 @@ jobs:
           - 7.0.3
 
     runs-on: ubuntu-20.04
-    services:
-      couchbase:
-        image: couchbase:enterprise-${{ matrix.server }}
-        ports:
-          - 8091-8096:8091-8096
-          - 18091-18096:18091-18096
-          - 11210:11210
-          - 11207:11207
     steps:
+      - name: Install cbdinocluster
+        run: |
+          wget -nv -O ./cbdinocluster https://github.com/couchbaselabs/cbdinocluster/releases/download/v0.0.11/cbdinocluster-linux
+          chmod +x cbdinocluster
+          ./cbdinocluster -v init --auto
+      - name: Write test cluster file
+        uses: DamianReeves/write-file-action@master
+        with:
+          path: cluster.yaml
+          contents: |
+            nodes:
+              - count: 3
+                version: ${{ matrix.server }}
+                services: [kv, n1ql, index, fts]
+            docker:
+              kv-memory: 512
+      - name: Start couchbase cluster
+        run: |
+          CBDC_ID=$(./cbdinocluster -v alloc --def-file=cluster.yaml)
+          CBDC_MGMTADDR=$(./cbdinocluster -v mgmt $CBDC_ID)
+          CBDC_CONNSTR=$(./cbdinocluster -v connstr $CBDC_ID)
+          curl -X POST -u Administrator:password $CBDC_MGMTADDR/pools/default/buckets -d "flushEnabled=1&threadsNumber=3&replicaIndex=0&replicaNumber=1&evictionPolicy=valueOnly&ramQuotaMB=100&bucketType=membase&name=default"
+          curl -X POST -u Administrator:password $CBDC_MGMTADDR/pools/default/buckets/default/scopes/_default/collections -d "name=test"
+          echo "CBDC_MGMTADDR=$CBDC_MGMTADDR" >> "$GITHUB_ENV"
+          echo "CBDC_CONNSTR=$CBDC_CONNSTR" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
@@ -38,20 +56,8 @@ jobs:
         run: |
           go install github.com/matryer/moq@latest
           go generate
-
-      - name: Initialize couchbase
-        #        env:
-        #          CB_TRAVEL_SAMPLE: yes
-        run: ./.github/bin/init-cluster
-      - name: Check couchbase
-        run: ./.github/bin/check-cluster
-
-      - name: Setup cluster env
-        run: |
-          curl -X POST -u Administrator:password http://127.0.0.1:8091/pools/default/buckets/default/scopes/_default/collections -d name=test
-
       - name: Run tests
         timeout-minutes: 40
         env:
-          GCBCONNSTR: 127.0.0.1
+          GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
         run: go test ./... -v -race
