@@ -400,7 +400,6 @@ func (s *WildcardQuery) encodeToJSON() (json.RawMessage, error) {
 type DocIDQuery struct {
 	Boost  float32
 	DocIds []string
-	Field  string
 }
 
 func (s *DocIDQuery) isSearchQuery() {}
@@ -413,9 +412,6 @@ func (s *DocIDQuery) encodeToJSON() (json.RawMessage, error) {
 	}
 	if s.Boost > 0 {
 		m["boost"] = encoder.EncodeField(s.Boost)
-	}
-	if s.Field != "" {
-		m["field"] = encoder.EncodeField(s.Field)
 	}
 
 	if err := encoder.Err(); err != nil {
