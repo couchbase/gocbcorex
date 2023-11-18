@@ -19,6 +19,7 @@ var (
 	ErrTimeout                  = errors.New("timeout")
 	ErrIndexExists              = errors.New("index exists")
 	ErrIndexNotFound            = errors.New("index not found")
+	ErrWriteInReadOnlyQuery     = errors.New("write statement used in a read-only query")
 )
 
 type Error struct {
