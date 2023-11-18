@@ -100,6 +100,9 @@ func (r *queryRespReader) init(resp *http.Response) error {
 }
 
 func (r *queryRespReader) parseErrors(errsJson []*queryErrorJson) *ServerErrors {
+	r.logger.Debug("parsing errors from query response",
+		zap.Any("errors", errsJson))
+
 	var queryErrs []*ServerError
 	for _, errJson := range errsJson {
 		queryErrs = append(queryErrs, r.parseError(errJson))
@@ -122,26 +125,24 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	if errCodeGroup == 5 {
 		err = ErrInternalServerError
 	}
-	if errCodeGroup == 12 || errCodeGroup == 14 && errCode != 12004 && errCode != 12016 {
+	if errCodeGroup == 12 || errCodeGroup == 14 {
 		err = ErrIndexFailure
 	}
-
-	if errCode == 4300 {
-		err = ErrIndexExists
+	if errCodeGroup == 10 {
+		err = ErrAuthenticationFailure
 	}
 
-	if errCode == 12016 {
-		err = ErrIndexNotFound
-	}
-
-	if errCode == 4040 || errCode == 4050 || errCode == 4060 || errCode == 4070 || errCode == 4080 || errCode == 4090 {
-		err = ErrPreparedStatementFailure
-	}
 	if errCode == 1080 {
 		err = ErrTimeout
 	}
 	if errCode == 3000 {
 		err = ErrParsingFailure
+	}
+	if errCode == 4040 || errCode == 4050 || errCode == 4060 || errCode == 4070 || errCode == 4080 || errCode == 4090 {
+		err = ErrPreparedStatementFailure
+	}
+	if errCode == 4300 {
+		err = ErrIndexExists
 	}
 	if errCode == 12009 {
 		err = ErrDmlFailure
@@ -163,10 +164,10 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 			err = ErrCasMismatch
 		}
 	}
-	if errCode == 13014 {
-		err = ErrAuthenticationFailure
+	if errCode == 12016 {
+		err = ErrIndexNotFound
 	}
-	if errCodeGroup == 10 {
+	if errCode == 13014 {
 		err = ErrAuthenticationFailure
 	}
 
