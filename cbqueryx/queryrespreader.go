@@ -132,6 +132,9 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		err = ErrAuthenticationFailure
 	}
 
+	if errCode == 1000 {
+		err = ErrWriteInReadOnlyQuery
+	}
 	if errCode == 1080 {
 		err = ErrTimeout
 	}
