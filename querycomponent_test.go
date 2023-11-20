@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -199,4 +201,60 @@ func TestQueryPrepared(t *testing.T) {
 	t.Run("Basic", helper.testN1QLBasic)
 
 	t.Run("cleanup", helper.testCleanupN1ql)
+}
+
+func TestEnsureQueryIndex(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	idxName := uuid.NewString()[:6]
+	res, err := agent.Query(ctx, &QueryOptions{
+		Statement: fmt.Sprintf(
+			"CREATE INDEX `%s` On `%s`._default._default(test)",
+			idxName,
+			testutils.TestOpts.BucketName,
+		),
+	})
+	require.NoError(t, err)
+
+	for res.HasMoreRows() {
+	}
+
+	err = agent.EnsureQueryIndexCreated(ctx, &EnsureQueryIndexCreatedOptions{
+		BucketName:     testutils.TestOpts.BucketName,
+		ScopeName:      "_default",
+		CollectionName: "_default",
+		IndexName:      idxName,
+		OnBehalfOf:     nil,
+	})
+	require.NoError(t, err)
+
+	res, err = agent.Query(ctx, &QueryOptions{
+		Statement: fmt.Sprintf(
+			"DROP INDEX `%s` ON `%s`.`_default`.`_default`",
+			idxName,
+			testutils.TestOpts.BucketName,
+		),
+	})
+	require.NoError(t, err)
+
+	for res.HasMoreRows() {
+	}
+
+	err = agent.EnsureQueryIndexDropped(ctx, &EnsureQueryIndexDroppedOptions{
+		BucketName:     testutils.TestOpts.BucketName,
+		ScopeName:      "_default",
+		CollectionName: "_default",
+		IndexName:      idxName,
+		OnBehalfOf:     nil,
+	})
+	require.NoError(t, err)
 }

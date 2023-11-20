@@ -96,6 +96,14 @@ func (agent *Agent) PreparedQuery(ctx context.Context, opts *QueryOptions) (Quer
 	return agent.query.PreparedQuery(ctx, opts)
 }
 
+func (agent *Agent) EnsureQueryIndexCreated(ctx context.Context, opts *EnsureQueryIndexCreatedOptions) error {
+	return agent.query.EnsureIndexCreated(ctx, opts)
+}
+
+func (agent *Agent) EnsureQueryIndexDropped(ctx context.Context, opts *EnsureQueryIndexDroppedOptions) error {
+	return agent.query.EnsureIndexDropped(ctx, opts)
+}
+
 func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
 	return agent.mgmt.GetCollectionManifest(ctx, opts)
 }

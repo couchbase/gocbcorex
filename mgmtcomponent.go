@@ -168,42 +168,13 @@ func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOpti
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
 
-	ensureTargets := make([]cbmgmtx.NodeTarget, 0)
-	for attemptIdx := 0; ; attemptIdx++ {
-		roundTripper, targets, err := w.GetAllTargets(nil)
-		if err != nil {
-			return err
-		}
-
-		ensureTargets := ensureTargets[:0]
-		for _, target := range targets {
-			ensureTargets = append(ensureTargets, cbmgmtx.NodeTarget{
-				Endpoint: target.Endpoint,
-				Username: target.Username,
-				Password: target.Password,
-			})
-		}
-
-		success, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
+	return w.ensureResource(ctx, b, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: roundTripper,
-			Targets:   ensureTargets,
+			Targets:   ensureTargets.ToMgmtx(),
 		})
-		if err != nil {
-			return err
-		}
-
-		if success {
-			break
-		}
-
-		select {
-		case <-time.After(b(uint32(attemptIdx))):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	return nil
+	})
 }
 
 type EnsureManifestOptions struct {
@@ -223,40 +194,11 @@ func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifest
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
 
-	ensureTargets := make([]cbmgmtx.NodeTarget, 0)
-	for attemptIdx := 0; ; attemptIdx++ {
-		roundTripper, targets, err := w.GetAllTargets(nil)
-		if err != nil {
-			return err
-		}
-
-		ensureTargets := ensureTargets[:0]
-		for _, target := range targets {
-			ensureTargets = append(ensureTargets, cbmgmtx.NodeTarget{
-				Endpoint: target.Endpoint,
-				Username: target.Username,
-				Password: target.Password,
-			})
-		}
-
-		success, err := hlpr.Poll(ctx, &cbmgmtx.EnsureManifestPollOptions{
+	return w.ensureResource(ctx, b, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.Poll(ctx, &cbmgmtx.EnsureManifestPollOptions{
 			Transport: roundTripper,
-			Targets:   ensureTargets,
+			Targets:   ensureTargets.ToMgmtx(),
 		})
-		if err != nil {
-			return err
-		}
-
-		if success {
-			break
-		}
-
-		select {
-		case <-time.After(b(uint32(attemptIdx))):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	return nil
+	})
 }

@@ -1,9 +1,14 @@
 package gocbcorex
 
 import (
+	"context"
 	"math/rand"
 	"net/http"
 	"sync"
+	"time"
+
+	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/cbqueryx"
 )
 
 type baseHttpComponent struct {
@@ -94,4 +99,60 @@ func (c *baseHttpComponent) SelectEndpoint(ignoredEndpoints []string) (http.Roun
 	}
 
 	return state.httpRoundTripper, endpoint, username, password, nil
+}
+
+type baseHttpTargets []baseHttpTarget
+
+func (nt baseHttpTargets) ToMgmtx() []cbmgmtx.NodeTarget {
+	targets := make([]cbmgmtx.NodeTarget, len(nt))
+	for i, target := range nt {
+		targets[i] = cbmgmtx.NodeTarget{
+			Endpoint: target.Endpoint,
+			Username: target.Username,
+			Password: target.Password,
+		}
+	}
+
+	return targets
+}
+
+func (nt baseHttpTargets) ToQueryx() []cbqueryx.NodeTarget {
+	targets := make([]cbqueryx.NodeTarget, len(nt))
+	for i, target := range nt {
+		targets[i] = cbqueryx.NodeTarget{
+			Endpoint: target.Endpoint,
+			Username: target.Username,
+			Password: target.Password,
+		}
+	}
+
+	return targets
+}
+
+func (c *baseHttpComponent) ensureResource(ctx context.Context, backoff BackoffCalculator,
+	pollFn func(context.Context, http.RoundTripper, baseHttpTargets) (bool, error)) error {
+
+	for attemptIdx := 0; ; attemptIdx++ {
+		roundTripper, targets, err := c.GetAllTargets(nil)
+		if err != nil {
+			return err
+		}
+
+		success, err := pollFn(ctx, roundTripper, targets)
+		if err != nil {
+			return err
+		}
+
+		if success {
+			break
+		}
+
+		select {
+		case <-time.After(backoff(uint32(attemptIdx))):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return nil
 }
