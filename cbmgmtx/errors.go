@@ -14,6 +14,7 @@ var (
 	ErrCollectionNotFound = errors.New("collection not found")
 	ErrBucketExists       = errors.New("bucket exists")
 	ErrBucketNotFound     = errors.New("bucket not found")
+	ErrServerInvalidArg   = errors.New("invalid argument")
 )
 
 type ServerError struct {
@@ -41,4 +42,17 @@ func (e contextualError) Error() string {
 
 func (e contextualError) Unwrap() error {
 	return e.Cause
+}
+
+type ServerInvalidArgError struct {
+	Argument string
+	Reason   string
+}
+
+func (e ServerInvalidArgError) Unwrap() error {
+	return ErrServerInvalidArg
+}
+
+func (e ServerInvalidArgError) Error() string {
+	return fmt.Sprintf("%s: %s - %s", e.Unwrap().Error(), e.Argument, e.Reason)
 }
