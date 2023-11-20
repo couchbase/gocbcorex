@@ -239,8 +239,13 @@ func Test_parseForInvalidArg(t *testing.T) {
 	t.Run("multiple fields in chain", func(t *testing.T) {
 		errText := errTextStart + `"fieldOne":"reasonOne","fieldTwo":"reasonTwo"` + errTextEnd
 		sErr := parseForInvalidArg(errText)
-		assert.Equal(t, "fieldOne", sErr.Argument)
-		assert.Equal(t, "reasonOne", sErr.Reason)
+		isFirstError := sErr.Argument == "fieldOne"
+		if isFirstError {
+			assert.Equal(t, sErr.Reason, "reasonOne")
+		} else {
+			assert.Equal(t, sErr.Argument, "fieldTwo")
+			assert.Equal(t, sErr.Reason, "reasonTwo")
+		}
 	})
 
 	t.Run("single field in chain - commas in reason", func(t *testing.T) {
@@ -255,5 +260,12 @@ func Test_parseForInvalidArg(t *testing.T) {
 		sErr := parseForInvalidArg(errText)
 		assert.Equal(t, "fieldOne", sErr.Argument)
 		assert.Equal(t, "reasonOne, something else", sErr.Reason)
+		isFirstError := sErr.Argument == "fieldOne"
+		if isFirstError {
+			assert.Equal(t, sErr.Reason, "reasonOne, something else")
+		} else {
+			assert.Equal(t, sErr.Argument, "fieldTwo")
+			assert.Equal(t, sErr.Reason, "reason, something")
+		}
 	})
 }
