@@ -3,6 +3,9 @@ package gocbcorex
 import (
 	"context"
 	"net/http"
+	"time"
+
+	"github.com/couchbase/gocbcorex/cbhttpx"
 
 	"github.com/couchbase/gocbcorex/cbqueryx"
 	"go.uber.org/zap"
@@ -108,5 +111,65 @@ func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) 
 					Cache: w.preparedCache,
 				}.PreparedQuery(ctx, opts)
 			})
+	})
+}
+
+type EnsureQueryIndexCreatedOptions struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	IndexName      string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *QueryComponent) EnsureIndexCreated(ctx context.Context, opts *EnsureQueryIndexCreatedOptions) error {
+	hlpr := cbqueryx.EnsureIndexHelper{
+		Logger:         w.logger.Named("ensure-index"),
+		UserAgent:      w.userAgent,
+		OnBehalfOf:     opts.OnBehalfOf,
+		BucketName:     opts.BucketName,
+		ScopeName:      opts.ScopeName,
+		CollectionName: opts.CollectionName,
+		IndexName:      opts.IndexName,
+	}
+
+	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.PollCreated(ctx, &cbqueryx.EnsureIndexPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets.ToQueryx(),
+		})
+	})
+}
+
+type EnsureQueryIndexDroppedOptions struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	IndexName      string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *QueryComponent) EnsureIndexDropped(ctx context.Context, opts *EnsureQueryIndexDroppedOptions) error {
+	hlpr := cbqueryx.EnsureIndexHelper{
+		Logger:         w.logger.Named("ensure-index"),
+		UserAgent:      w.userAgent,
+		OnBehalfOf:     opts.OnBehalfOf,
+		BucketName:     opts.BucketName,
+		ScopeName:      opts.ScopeName,
+		CollectionName: opts.CollectionName,
+		IndexName:      opts.IndexName,
+	}
+
+	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.PollDropped(ctx, &cbqueryx.EnsureIndexPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets.ToQueryx(),
+		})
 	})
 }
