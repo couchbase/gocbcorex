@@ -258,8 +258,6 @@ func Test_parseForInvalidArg(t *testing.T) {
 	t.Run("multiple fields in chain - commas in reasons", func(t *testing.T) {
 		errText := errTextStart + `"fieldOne":"reasonOne, something else","fieldTwo":"reason, something"` + errTextEnd
 		sErr := parseForInvalidArg(errText)
-		assert.Equal(t, "fieldOne", sErr.Argument)
-		assert.Equal(t, "reasonOne, something else", sErr.Reason)
 		isFirstError := sErr.Argument == "fieldOne"
 		if isFirstError {
 			assert.Equal(t, sErr.Reason, "reasonOne, something else")
