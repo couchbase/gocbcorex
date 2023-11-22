@@ -207,8 +207,6 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		agent.cfgWatcher = configWatcher
 	}
 
-	agent.startConfigWatcher()
-
 	agent.crud = &CrudComponent{
 		logger:      agent.logger,
 		collections: agent.collections,
@@ -247,6 +245,8 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			UserAgent: httpUserAgent,
 		},
 	)
+
+	agent.startConfigWatcher()
 
 	return agent, nil
 }
