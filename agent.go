@@ -50,6 +50,13 @@ type Agent struct {
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
+	logger := loggerOrNop(opts.Logger)
+	httpUserAgent := "gocbcorex/0.0.1-dev"
+
+	logger.Debug("Creating new agent",
+		zap.Object("config", opts),
+		zap.String("user-agent", httpUserAgent))
+
 	srcHTTPAddrs := makeSrcHTTPAddrs(opts.SeedConfig.HTTPAddrs, opts.TLSConfig)
 
 	// Default values.
@@ -92,9 +99,6 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 				confHTTPMaxWait = opts.ConfigPollerConfig.HTTPMaxWait
 			}
 	*/
-
-	logger := loggerOrNop(opts.Logger)
-	httpUserAgent := "gocbcorex/0.0.1-dev"
 
 	httpTransport := makeHTTPTransport(opts.TLSConfig)
 	handleAgentCreateErr := func(err error) error {
