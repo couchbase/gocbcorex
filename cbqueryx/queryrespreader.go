@@ -124,6 +124,13 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	}
 	if errCodeGroup == 5 {
 		err = ErrInternalServerError
+		if strings.Contains(strings.ToLower(errJson.Msg), "not enough") &&
+			strings.Contains(strings.ToLower(errJson.Msg), "replica") {
+			err = ServerInvalidArgError{
+				Argument: "NumReplicas",
+				Reason:   "not enough indexer nodes to create index with replica count",
+			}
+		}
 	}
 	if errCodeGroup == 12 || errCodeGroup == 14 {
 		err = ErrIndexFailure
@@ -146,6 +153,9 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	}
 	if errCode == 4300 {
 		err = ErrIndexExists
+	}
+	if errCode == 12003 {
+		err = ErrCollectionNotFound
 	}
 	if errCode == 12009 {
 		err = ErrDmlFailure
@@ -170,6 +180,11 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	if errCode == 12016 {
 		err = ErrIndexNotFound
 	}
+
+	if errCode == 12021 {
+		err = ErrScopeNotFound
+	}
+
 	if errCode == 13014 {
 		err = ErrAuthenticationFailure
 	}

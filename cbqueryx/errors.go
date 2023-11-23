@@ -20,6 +20,9 @@ var (
 	ErrIndexExists              = errors.New("index exists")
 	ErrIndexNotFound            = errors.New("index not found")
 	ErrWriteInReadOnlyQuery     = errors.New("write statement used in a read-only query")
+	ErrScopeNotFound            = errors.New("scope not found")
+	ErrCollectionNotFound       = errors.New("collection not found")
+	ErrServerInvalidArg         = errors.New("invalid argument")
 )
 
 type Error struct {
@@ -89,4 +92,17 @@ func (e ServerErrors) Error() string {
 
 func (e ServerErrors) Unwrap() error {
 	return e.Errors[0]
+}
+
+type ServerInvalidArgError struct {
+	Argument string
+	Reason   string
+}
+
+func (e ServerInvalidArgError) Unwrap() error {
+	return ErrServerInvalidArg
+}
+
+func (e ServerInvalidArgError) Error() string {
+	return fmt.Sprintf("%s: %s - %s", e.Unwrap().Error(), e.Argument, e.Reason)
 }
