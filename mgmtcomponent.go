@@ -40,7 +40,7 @@ func OrchestrateMgmtEndpoint[RespT any](
 
 	if endpoint == "" {
 		var emptyResp RespT
-		return emptyResp, ErrServiceNotAvailable
+		return emptyResp, serviceNotAvailableError{Service: ServiceTypeMgmt}
 	}
 
 	return fn(roundTripper, endpoint, username, password)

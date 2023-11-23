@@ -40,7 +40,7 @@ func OrchestrateSearchEndpoint[RespT any](
 
 	if endpoint == "" {
 		var emptyResp RespT
-		return emptyResp, ErrServiceNotAvailable
+		return emptyResp, serviceNotAvailableError{Service: ServiceTypeSearch}
 	}
 
 	return fn(roundTripper, endpoint, username, password)
