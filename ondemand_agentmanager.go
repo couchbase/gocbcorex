@@ -29,21 +29,26 @@ type OnDemandAgentManagerOptions struct {
 
 // OnDemandAgentManager is responsible for managing a collection of Agent instances.
 type OnDemandAgentManager struct {
-	lock         sync.Mutex
 	opts         OnDemandAgentManagerOptions
 	clusterAgent *Agent
-	bucketAgents map[string]*Agent
 
-	closed bool
+	fastMap  AtomicPointer[map[string]*Agent]
+	slowMap  map[string]*Agent
+	slowLock sync.Mutex
+
+	stateLock sync.Mutex
+	closed    bool
 }
 
 // CreateOnDemandAgentManager creates a new OnDemandAgentManager.
 func CreateOnDemandAgentManager(ctx context.Context, opts OnDemandAgentManagerOptions) (*OnDemandAgentManager, error) {
 	m := &OnDemandAgentManager{
 		opts: opts,
+
+		slowMap: make(map[string]*Agent),
 	}
 
-	clusterAgent, err := m.makeAgentLocked(ctx, "")
+	clusterAgent, err := m.makeAgent(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +57,7 @@ func CreateOnDemandAgentManager(ctx context.Context, opts OnDemandAgentManagerOp
 	return m, nil
 }
 
-func (m *OnDemandAgentManager) makeAgentLocked(ctx context.Context, bucketName string) (*Agent, error) {
+func (m *OnDemandAgentManager) makeAgent(ctx context.Context, bucketName string) (*Agent, error) {
 	return CreateAgent(ctx, AgentOptions{
 		Logger:             m.opts.Logger,
 		TLSConfig:          m.opts.TLSConfig,
@@ -72,60 +77,91 @@ func (m *OnDemandAgentManager) Reconfigure(opts OnDemandAgentManagerReconfigureO
 
 // GetClusterAgent returns the Agent which is not bound to any bucket.
 func (m *OnDemandAgentManager) GetClusterAgent() (*Agent, error) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
+	m.stateLock.Lock()
 	if m.closed {
+		m.stateLock.Unlock()
 		return nil, errors.New("agent manager closed")
 	}
+	m.stateLock.Unlock()
 
 	return m.clusterAgent, nil
 }
 
 // GetBucketAgent returns the Agent bound to a specific bucket, creating a new Agent as required.
 func (m *OnDemandAgentManager) GetBucketAgent(ctx context.Context, bucketName string) (*Agent, error) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
+	m.stateLock.Lock()
 	if m.closed {
+		m.stateLock.Unlock()
 		return nil, errors.New("agent manager closed")
 	}
+	m.stateLock.Unlock()
 
-	if m.bucketAgents == nil {
-		m.bucketAgents = make(map[string]*Agent)
-	} else {
-		bucketAgent, ok := m.bucketAgents[bucketName]
+	fastMap := m.fastMap.Load()
+	if fastMap != nil {
+		agent, ok := (*fastMap)[bucketName]
 		if ok {
-			return bucketAgent, nil
+			return agent, nil
 		}
 	}
 
-	bucketAgent, err := m.makeAgentLocked(ctx, bucketName)
+	agent, err := m.getBucketAgentSlow(ctx, bucketName)
 	if err != nil {
 		return nil, err
 	}
 
-	m.bucketAgents[bucketName] = bucketAgent
+	return agent, nil
+}
 
-	return bucketAgent, nil
+func (m *OnDemandAgentManager) getBucketAgentSlow(ctx context.Context, bucketName string) (*Agent, error) {
+	m.slowLock.Lock()
+	defer m.slowLock.Unlock()
+	if agent, ok := m.slowMap[bucketName]; ok {
+		return agent, nil
+	}
+
+	agent, err := m.makeAgent(ctx, bucketName)
+	if err != nil {
+		return nil, err
+	}
+	m.slowMap[bucketName] = agent
+
+	fastMap := make(map[string]*Agent, len(m.slowMap))
+	for name, agent := range m.slowMap {
+		fastMap[name] = agent
+	}
+
+	m.fastMap.Store(&fastMap)
+
+	return agent, nil
 }
 
 // Close closes the AgentManager and all underlying Agent instances.
 func (m *OnDemandAgentManager) Close() error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+	m.stateLock.Lock()
+
+	m.opts.Logger.Debug("Closing")
+
+	m.closed = true
+	m.fastMap.Store(nil)
 
 	firstErr := m.clusterAgent.Close()
-	for _, agent := range m.bucketAgents {
+
+	m.slowLock.Lock()
+	agents := m.slowMap
+	m.slowMap = make(map[string]*Agent)
+	m.slowLock.Unlock()
+
+	m.clusterAgent = nil
+	m.stateLock.Unlock()
+
+	for _, agent := range agents {
 		err := agent.Close()
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
 
-	m.clusterAgent = nil
-	m.bucketAgents = nil
-	m.closed = true
+	m.opts.Logger.Debug("Closed")
 
 	return firstErr
 }
