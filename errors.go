@@ -12,7 +12,7 @@ var (
 	ErrInternalServerError        = errors.New("internal server error")
 	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
-	ErrServiceNotAvailable        = errors.New("specified service is not available")
+	ErrServiceNotAvailable        = errors.New("service is not available")
 )
 
 type placeholderError struct {
@@ -179,4 +179,16 @@ func (e contextualError) Error() string {
 
 func (e contextualError) Unwrap() error {
 	return e.Cause
+}
+
+type serviceNotAvailableError struct {
+	Service ServiceType
+}
+
+func (e serviceNotAvailableError) Error() string {
+	return strings.ToLower(e.Service.String()) + " service not available"
+}
+
+func (e serviceNotAvailableError) Unwrap() error {
+	return ErrServiceNotAvailable
 }

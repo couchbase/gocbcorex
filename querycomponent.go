@@ -44,7 +44,7 @@ func OrchestrateQueryEndpoint[RespT any](
 
 	if endpoint == "" {
 		var emptyResp RespT
-		return emptyResp, ErrServiceNotAvailable
+		return emptyResp, serviceNotAvailableError{Service: ServiceTypeQuery}
 	}
 
 	return fn(roundTripper, endpoint, username, password)
