@@ -66,20 +66,14 @@ func TestEnsureBucket(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		err = mgmt.DeleteBucket(ctx, &DeleteBucketOptions{
-			BucketName: testBucketName,
-		})
-		require.NoError(t, err)
-	})
-
 	hlpr := EnsureBucketHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
 
-		BucketName: "default",
-		BucketUUID: "",
+		BucketName:  testBucketName,
+		BucketUUID:  "",
+		WantMissing: false,
 	}
 
 	require.Eventually(t, func() bool {
@@ -91,4 +85,29 @@ func TestEnsureBucket(t *testing.T) {
 
 		return res
 	}, 30*time.Second, 1*time.Second)
+
+	err = mgmt.DeleteBucket(ctx, &DeleteBucketOptions{
+		BucketName: testBucketName,
+	})
+	require.NoError(t, err)
+
+	hlprDel := EnsureBucketHelper{
+		Logger:     testutils.MakeTestLogger(t),
+		UserAgent:  "useragent",
+		OnBehalfOf: nil,
+
+		BucketName:  testBucketName,
+		BucketUUID:  "",
+		WantMissing: true,
+	}
+
+	require.Eventually(t, func() bool {
+		res, err := hlprDel.Poll(ctx, &EnsureBucketPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		require.NoError(t, err)
+
+		return res
+	}, 30*time.Second, 500*time.Millisecond)
 }
