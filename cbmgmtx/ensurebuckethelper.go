@@ -15,8 +15,9 @@ type EnsureBucketHelper struct {
 	UserAgent  string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 
-	BucketName string
-	BucketUUID string
+	BucketName  string
+	BucketUUID  string
+	WantMissing bool
 
 	confirmedEndpoints []string
 }
@@ -29,11 +30,15 @@ type NodeTarget struct {
 
 func (e *EnsureBucketHelper) pollOne(
 	ctx context.Context,
-	httpRoundTripper http.RoundTripper, target NodeTarget,
+	httpRoundTripper http.RoundTripper,
+	target NodeTarget,
 ) (bool, error) {
 	e.Logger.Debug("polling a single target",
 		zap.String("endpoint", target.Endpoint),
-		zap.String("username", target.Username))
+		zap.String("username", target.Username),
+		zap.String("bucketName", e.BucketName),
+		zap.String("bucketUuid", e.BucketUUID),
+		zap.Bool("wantMissing", e.WantMissing))
 
 	resp, err := Management{
 		Transport: httpRoundTripper,
@@ -49,7 +54,11 @@ func (e *EnsureBucketHelper) pollOne(
 	if err != nil {
 		if errors.Is(err, ErrBucketNotFound) {
 			e.Logger.Debug("target responded with bucket not found")
-			return false, nil
+			if !e.WantMissing {
+				return false, nil
+			} else {
+				return true, nil
+			}
 		}
 
 		e.Logger.Debug("target responded with an unexpected error", zap.Error(err))
@@ -58,12 +67,20 @@ func (e *EnsureBucketHelper) pollOne(
 
 	if e.BucketUUID != "" && resp.UUID != e.BucketUUID {
 		e.Logger.Debug("target responded with success, but the bucket uuid did not match")
-		return false, ErrBucketUuidMismatch
+		if !e.WantMissing {
+			return false, ErrBucketUuidMismatch
+		} else {
+			return true, nil
+		}
 	}
 
-	e.Logger.Debug("target successfully checked")
+	e.Logger.Debug("target responded successfully")
 
-	return true, nil
+	if !e.WantMissing {
+		return true, nil
+	} else {
+		return false, nil
+	}
 }
 
 type EnsureBucketPollOptions struct {

@@ -89,5 +89,5 @@ func TestEnsureManifest(t *testing.T) {
 		require.NoError(t, err)
 
 		return res
-	}, 30*time.Second, 1*time.Second)
+	}, 30*time.Second, 500*time.Millisecond)
 }
