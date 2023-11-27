@@ -398,6 +398,13 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 func (p *kvClientPool) WaitUntilNoDefunctClients(ctx context.Context) error {
 	p.lock.Lock()
 
+	// we need to check if the client is closed here, otherwise we can create
+	// a new signal channel that is never actioned.
+	if p.closed {
+		p.lock.Unlock()
+		return errors.New("client pool closed with pending reconfigure")
+	}
+
 	if p.needNoDefunctSigCh == nil {
 		p.needNoDefunctSigCh = make(chan struct{})
 	}
