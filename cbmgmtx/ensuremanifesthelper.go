@@ -15,8 +15,8 @@ type EnsureManifestHelper struct {
 	UserAgent  string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 
-	BucketName    string
-	CollectionUid uint64
+	BucketName  string
+	ManifestUid uint64
 
 	confirmedEndpoints []string
 }
@@ -45,17 +45,17 @@ func (e *EnsureManifestHelper) pollOne(
 		return false, err
 	}
 
-	collectionUid, _ := strconv.ParseUint(resp.UID, 16, 64)
-	if collectionUid < e.CollectionUid {
+	manifestUid, _ := strconv.ParseUint(resp.UID, 16, 64)
+	if manifestUid < e.ManifestUid {
 		e.Logger.Debug("target responded with success, but the manifest is not up to date",
-			zap.Uint64("identified", collectionUid),
-			zap.Uint64("wanted", e.CollectionUid))
+			zap.Uint64("identified", manifestUid),
+			zap.Uint64("wanted", e.ManifestUid))
 		return false, nil
 	}
 
 	e.Logger.Debug("target successfully checked",
-		zap.Uint64("identified", collectionUid),
-		zap.Uint64("wanted", e.CollectionUid))
+		zap.Uint64("identified", manifestUid),
+		zap.Uint64("wanted", e.ManifestUid))
 
 	return true, nil
 }
