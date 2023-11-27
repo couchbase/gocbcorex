@@ -206,7 +206,11 @@ func (bw *BucketsWatcherHttp) GetAgent(ctx context.Context, bucketName string) (
 					continue
 				}
 				bw.logger.Debug("Bucket still unknown, erroring", zap.String("name", bucketName))
-				return nil, cbmgmtx.ErrBucketNotFound
+
+				return nil, cbmgmtx.ResourceError{
+					Cause:      cbmgmtx.ErrBucketNotFound,
+					BucketName: bucketName,
+				}
 			}
 
 			return agent, nil

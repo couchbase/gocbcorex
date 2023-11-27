@@ -58,3 +58,24 @@ func (e ServerInvalidArgError) Unwrap() error {
 func (e ServerInvalidArgError) Error() string {
 	return fmt.Sprintf("%s: %s - %s", e.Unwrap().Error(), e.Argument, e.Reason)
 }
+
+type ResourceError struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	Cause          error
+}
+
+func (e ResourceError) Unwrap() error {
+	return e.Cause
+}
+
+func (e ResourceError) Error() string {
+	if e.CollectionName == "" && e.ScopeName == "" {
+		return fmt.Sprintf("%s - '%s'", e.Unwrap().Error(), e.BucketName)
+	}
+	if e.CollectionName == "" {
+		return fmt.Sprintf("%s - '%s/%s'", e.Unwrap().Error(), e.BucketName, e.ScopeName)
+	}
+	return fmt.Sprintf("%s - '%s/%s/%s'", e.Unwrap().Error(), e.BucketName, e.ScopeName, e.CollectionName)
+}
