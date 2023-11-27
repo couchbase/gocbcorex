@@ -77,8 +77,8 @@ func TestEnsureManifest(t *testing.T) {
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
 
-		BucketName:    "default",
-		CollectionUid: manifestUid,
+		BucketName:  "default",
+		ManifestUid: manifestUid,
 	}
 
 	require.Eventually(t, func() bool {

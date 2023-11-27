@@ -178,18 +178,18 @@ func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOpti
 }
 
 type EnsureManifestOptions struct {
-	BucketName    string
-	CollectionUid uint64
-	OnBehalfOf    *cbhttpx.OnBehalfOfInfo
+	BucketName  string
+	ManifestUid uint64
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
 }
 
 func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
 	hlpr := cbmgmtx.EnsureManifestHelper{
-		Logger:        w.logger.Named("ensure-manifest"),
-		UserAgent:     w.userAgent,
-		OnBehalfOf:    opts.OnBehalfOf,
-		BucketName:    opts.BucketName,
-		CollectionUid: opts.CollectionUid,
+		Logger:      w.logger.Named("ensure-manifest"),
+		UserAgent:   w.userAgent,
+		OnBehalfOf:  opts.OnBehalfOf,
+		BucketName:  opts.BucketName,
+		ManifestUid: opts.ManifestUid,
 	}
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
