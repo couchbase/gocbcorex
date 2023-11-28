@@ -155,7 +155,7 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		err = ErrIndexExists
 	}
 	if errCode == 12003 {
-		err = ErrCollectionNotFound
+		err = createResourceError(errJson.Msg, ErrCollectionNotFound)
 	}
 	if errCode == 12009 {
 		err = ErrDmlFailure
@@ -182,7 +182,7 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	}
 
 	if errCode == 12021 {
-		err = ErrScopeNotFound
+		err = createResourceError(errJson.Msg, ErrScopeNotFound)
 	}
 
 	if errCode == 13014 {
@@ -198,6 +198,41 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		Code:       errJson.Code,
 		Msg:        errJson.Msg,
 	}
+}
+
+func createResourceError(msg string, cause error) ResourceError {
+	var path string
+	fields := strings.Fields(msg)
+	for _, f := range fields {
+		// Resource path is of the form bucket:bucket.scope.collection
+		if strings.Contains(f, ".") && strings.Contains(f, ":") {
+			path = f
+			break
+		}
+	}
+
+	err := ResourceError{
+		Cause: cause,
+	}
+	_, trimmedPath, found := strings.Cut(path, ":")
+	if !found {
+		return err
+	}
+
+	fields = strings.Split(trimmedPath, ".")
+	if cause == ErrScopeNotFound {
+		// Bucket names are the only one that can contain `.`, which is why we need to reconstruct the name if split
+		err.BucketName = strings.Join(fields[:len(fields)-1], ".")
+		err.ScopeName = fields[len(fields)-1]
+	}
+
+	if cause == ErrCollectionNotFound {
+		err.BucketName = strings.Join(fields[:len(fields)-2], ".")
+		err.ScopeName = fields[len(fields)-2]
+		err.CollectionName = fields[len(fields)-1]
+	}
+
+	return err
 }
 
 func (r *queryRespReader) parseWarnings(warnsJson []*queryWarningJson) []Warning {
