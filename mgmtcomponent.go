@@ -152,18 +152,20 @@ func (w *MgmtComponent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBu
 }
 
 type EnsureBucketOptions struct {
-	BucketName string
-	BucketUUID string
-	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+	BucketName  string
+	BucketUUID  string
+	WantMissing bool
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
 }
 
 func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOptions) error {
 	hlpr := cbmgmtx.EnsureBucketHelper{
-		Logger:     w.logger.Named("ensure-bucket"),
-		UserAgent:  w.userAgent,
-		OnBehalfOf: opts.OnBehalfOf,
-		BucketName: opts.BucketName,
-		BucketUUID: opts.BucketUUID,
+		Logger:      w.logger.Named("ensure-bucket"),
+		UserAgent:   w.userAgent,
+		OnBehalfOf:  opts.OnBehalfOf,
+		BucketName:  opts.BucketName,
+		BucketUUID:  opts.BucketUUID,
+		WantMissing: opts.WantMissing,
 	}
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
