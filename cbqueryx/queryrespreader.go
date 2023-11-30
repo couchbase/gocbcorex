@@ -157,6 +157,9 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	if errCode == 12003 {
 		err = createResourceError(errJson.Msg, ErrCollectionNotFound)
 	}
+	if errCode == 12004 {
+		err = ErrIndexNotFound
+	}
 	if errCode == 12009 {
 		err = ErrDmlFailure
 
