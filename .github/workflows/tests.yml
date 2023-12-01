@@ -24,7 +24,7 @@ jobs:
       - name: Install cbdinocluster
         run: |
           mkdir -p "$HOME/bin"
-          wget -nv -O $HOME/bin/cbdinocluster https://github.com/couchbaselabs/cbdinocluster/releases/download/v0.0.22/cbdinocluster-linux
+          wget -nv -O $HOME/bin/cbdinocluster https://github.com/couchbaselabs/cbdinocluster/releases/download/v0.0.41/cbdinocluster-linux-amd64
           chmod +x $HOME/bin/cbdinocluster
           echo "$HOME/bin" >> $GITHUB_PATH
       - name: Initialize cbdinocluster
@@ -41,7 +41,7 @@ jobs:
               kv-memory: 512
         run: |
           CBDC_ID=$(cbdinocluster -v alloc --def="${CLUSTERCONFIG}")
-          cbdinocluster -v buckets add ${CBDC_ID} default --ram-quota-mb=100 --flush-enabled=true
+          cbdinocluster -v buckets add ${CBDC_ID} default --ram-quota-mb=100 --flush-enabled=true --num-replicas=2
           cbdinocluster -v collections add ${CBDC_ID} default _default test
           CBDC_CONNSTR=$(cbdinocluster -v connstr $CBDC_ID)
           echo "CBDC_ID=$CBDC_ID" >> "$GITHUB_ENV"

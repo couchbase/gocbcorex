@@ -2,9 +2,14 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"time"
 
 	"github.com/couchbase/gocbcorex/memdx"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 type CrudComponent struct {
@@ -150,6 +155,230 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 					})
 				})
 		})
+}
+
+type GetAllReplicasOptions struct {
+	Key            []byte
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	OnBehalfOf     string
+}
+
+type GetAllReplicasResult struct {
+	Value     []byte
+	Flags     uint32
+	Datatype  memdx.DatatypeFlag
+	Cas       uint64
+	IsReplica bool
+}
+
+type ReplicaStreamEntry struct {
+	Err error
+	Res *GetAllReplicasResult
+}
+
+type ReplicaStream struct {
+	OutCh chan *ReplicaStreamEntry
+}
+
+func (s ReplicaStream) Next() (*GetAllReplicasResult, error) {
+	res := <-s.OutCh
+	if res == nil {
+		return nil, nil
+	}
+	return res.Res, res.Err
+}
+
+type GetAllReplicaStream interface {
+	Next() (*GetAllReplicasResult, error)
+}
+
+func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplicasOptions) (GetAllReplicaStream, error) {
+	maxReplicas := 3
+	result := ReplicaStream{
+		OutCh: make(chan *ReplicaStreamEntry, maxReplicas+1),
+	}
+
+	getFn := func(collectionID uint32, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
+		resp, err := client.Get(ctx, &memdx.GetRequest{
+			CollectionID: collectionID,
+			Key:          opts.Key,
+			VbucketID:    vbID,
+			CrudRequestMeta: memdx.CrudRequestMeta{
+				OnBehalfOf: opts.OnBehalfOf,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		return &GetAllReplicasResult{
+			Value:     value,
+			Flags:     resp.Flags,
+			Datatype:  datatype,
+			Cas:       resp.Cas,
+			IsReplica: false,
+		}, nil
+	}
+
+	getReplicaFn := func(collectionID uint32, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
+		resp, err := client.GetReplica(ctx, &memdx.GetReplicaRequest{
+			CollectionID: collectionID,
+			Key:          opts.Key,
+			VbucketID:    vbID,
+			CrudRequestMeta: memdx.CrudRequestMeta{
+				OnBehalfOf: opts.OnBehalfOf,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		return &GetAllReplicasResult{
+			Value:     value,
+			Flags:     resp.Flags,
+			Datatype:  datatype,
+			Cas:       resp.Cas,
+			IsReplica: true,
+		}, nil
+	}
+
+	var endpoints []string
+	var mu sync.Mutex
+	var sendLock sync.Mutex
+	var returnedResults uint32
+	var numReplicas atomic.Uint32
+
+	initialReplicas, err := cc.vbs.NumReplicas()
+	if err != nil {
+		return nil, err
+	}
+	numReplicas.Store(uint32(initialReplicas))
+
+	// This retry orchestrator handles request level retryable errors, errors which impact every replica request,
+	// e.g the collection ID not yet being consistent
+	_, err = OrchestrateMemdRetries(ctx, cc.retries, func() (any, error) {
+		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName,
+			func(collectionID uint32, manifestID uint64) (any, error) {
+
+				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
+				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
+				for i := uint32(0); i <= numReplicas.Load(); i++ {
+					go func(replicaID uint32) {
+						for {
+							res, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connManager, opts.Key, replicaID,
+								func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
+									mu.Lock()
+									if uint32(len(endpoints)) == numReplicas.Load()+1 {
+										mu.Unlock()
+										return nil, nil
+									}
+
+									// The replicaID is being routed to a node from which we have already received a result
+									// the appropriate error returned and the retry manager will retry
+									if slices.Contains(endpoints, ep) {
+										mu.Unlock()
+										return nil, ErrRepeatedReplicaRead
+									}
+									mu.Unlock()
+
+									var res *GetAllReplicasResult
+									var err error
+
+									if replicaID == 0 {
+										res, err = getFn(collectionID, vbID, client)
+									} else {
+										res, err = getReplicaFn(collectionID, vbID, client)
+									}
+
+									mu.Lock()
+									// If a rebalance occured while we were executing the function to get the doc
+									// a thread with a different replicaID may have been routed to the same endpoint,
+									// fetched the replica and added to the endpoints slice, so we repeat the check
+									if err == nil && !slices.Contains(endpoints, ep) {
+										endpoints = append(endpoints, ep)
+										mu.Unlock()
+										return res, err
+									}
+									mu.Unlock()
+									return nil, err
+								})
+
+							// If we get invalid replica then the number of replicas has been reduced since we started
+							// got numReplicas. Therefore we decrease numReplicas and kill this thread
+							if errors.Is(err, ErrInvalidReplica) {
+								numReplicas.Dec()
+								break
+							}
+
+							sendLock.Lock()
+							// Check another thread hasn't sent a final result so we don't try and send on a closed channel
+							if returnedResults == numReplicas.Load()+1 {
+								sendLock.Unlock()
+								break
+							}
+
+							returnedResults++
+							result.OutCh <- &ReplicaStreamEntry{
+								Err: err,
+								Res: res,
+							}
+
+							if returnedResults == numReplicas.Load()+1 {
+								close(result.OutCh)
+								sendLock.Unlock()
+								break
+							}
+							sendLock.Unlock()
+
+							// Although we have returned a result from this thread we wait then continue running in case
+							// there is a rebalance which causes the replicaID of this thread to be routed to a different node.
+							time.Sleep(10 * time.Millisecond)
+						}
+					}(i)
+				}
+				// Always return nil, nil here because any errors encountered from OrchestrateMemdRetries are regarded
+				// as Replica specific, to be streamed back to the user, not propogated back to OrchestrateMemdCollectionID
+				return nil, nil
+			})
+	})
+
+	// A terminal request error so can close the channel since no replicas are being fetched
+	if err != nil {
+		close(result.OutCh)
+	}
+
+	return result, err
+}
+
+func OrchestrateReplicaRead(
+	ctx context.Context,
+	vb VbucketRouter,
+	ch NotMyVbucketConfigHandler,
+	nkcp KvClientManager,
+	key []byte,
+	replica uint32,
+	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
+) (*GetAllReplicasResult, error) {
+	rs := NewRetryManagerGetAllReplicas()
+	return OrchestrateMemdRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
+		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
+			return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (*GetAllReplicasResult, error) {
+				return fn(endpoint, vbID, client)
+			})
+		})
+	})
 }
 
 type UpsertOptions struct {
