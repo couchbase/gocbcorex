@@ -13,6 +13,7 @@ var (
 	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
 	ErrServiceNotAvailable        = errors.New("service is not available")
+	ErrRepeatedReplicaRead        = errors.New("a replica has already been returned from this node")
 )
 
 type placeholderError struct {

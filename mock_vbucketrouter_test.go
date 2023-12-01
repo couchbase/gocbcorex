@@ -103,6 +103,10 @@ func (mock *VbucketRouterMock) DispatchByKeyCalls() []struct {
 	return calls
 }
 
+func (mock *VbucketRouterMock) NumReplicas() (int, error) {
+	return 0, nil
+}
+
 // DispatchToVbucket calls DispatchToVbucketFunc.
 func (mock *VbucketRouterMock) DispatchToVbucket(vbID uint16) (string, error) {
 	if mock.DispatchToVbucketFunc == nil {
