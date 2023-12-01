@@ -2,9 +2,12 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
+	"sync"
 
 	"github.com/couchbase/gocbcorex/memdx"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 type CrudComponent struct {
@@ -150,6 +153,189 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 					})
 				})
 		})
+}
+
+type GetAllReplicasOptions struct {
+	Key            []byte
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	OnBehalfOf     string
+}
+
+type GetAllReplicasResult struct {
+	Value     []byte
+	Flags     uint32
+	Datatype  memdx.DatatypeFlag
+	Cas       uint64
+	IsReplica bool
+}
+
+type ReplicaStreamEntry struct {
+	Err error
+	Res *GetAllReplicasResult
+}
+
+type ReplicaStream struct {
+	OutCh chan *ReplicaStreamEntry
+}
+
+func (s ReplicaStream) Next() (*GetAllReplicasResult, error) {
+	res := <-s.OutCh
+	if res == nil {
+		return nil, nil
+	}
+	return res.Res, res.Err
+}
+
+type GetAllReplicaStream interface {
+	Next() (*GetAllReplicasResult, error)
+}
+
+func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplicasOptions) (GetAllReplicaStream, error) {
+	maxReplicas := 3
+	result := ReplicaStream{
+		OutCh: make(chan *ReplicaStreamEntry, maxReplicas+1),
+	}
+
+	getFn := func(collectionID uint32, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
+		resp, err := client.Get(ctx, &memdx.GetRequest{
+			CollectionID: collectionID,
+			Key:          opts.Key,
+			VbucketID:    vbID,
+			CrudRequestMeta: memdx.CrudRequestMeta{
+				OnBehalfOf: opts.OnBehalfOf,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		return &GetAllReplicasResult{
+			Value:     value,
+			Flags:     resp.Flags,
+			Datatype:  datatype,
+			Cas:       resp.Cas,
+			IsReplica: false,
+		}, nil
+	}
+
+	getReplicaFn := func(collectionID uint32, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
+		resp, err := client.GetReplica(ctx, &memdx.GetReplicaRequest{
+			CollectionID: collectionID,
+			Key:          opts.Key,
+			VbucketID:    vbID,
+			CrudRequestMeta: memdx.CrudRequestMeta{
+				OnBehalfOf: opts.OnBehalfOf,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		return &GetAllReplicasResult{
+			Value:     value,
+			Flags:     resp.Flags,
+			Datatype:  datatype,
+			Cas:       resp.Cas,
+			IsReplica: true,
+		}, nil
+	}
+
+	var endpoints []string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// First retry mananger handles "Request level" retries, e.g. id a collection ID is becoming eventually consistent
+	_, err := OrchestrateMemdRetries(ctx, cc.retries, func() (any, error) {
+		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName,
+			func(collectionID uint32, manifestID uint64) (any, error) {
+				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
+				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
+
+				// The second retryer is for retrying individual replica reads, hence the different retry manager
+				// being used, since the set of errors for which are different
+				replicaRetryManager := NewRetryManagerGetAllReplicas()
+				wg.Add(maxReplicas + 1)
+				go func() {
+					for i := 0; i <= maxReplicas; i++ {
+						go func(i int) {
+							defer wg.Done()
+							res, err := OrchestrateMemdRetries(
+								ctx, replicaRetryManager, func() (*GetAllReplicasResult, error) {
+									res, err := OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, uint32(i),
+										func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
+											return OrchestrateMemdClient(ctx, cc.connManager, endpoint,
+												func(client KvClient) (*GetAllReplicasResult, error) {
+
+													// If we have already fetched a replica from this node the thread is
+													// complete.
+													mu.Lock()
+													if slices.Contains(endpoints, endpoint) {
+														mu.Unlock()
+														return nil, nil
+													}
+													mu.Unlock()
+
+													var res *GetAllReplicasResult
+													var err error
+
+													if i == 0 {
+														res, err = getFn(collectionID, vbID, client)
+													} else {
+														res, err = getReplicaFn(collectionID, vbID, client)
+													}
+
+													// If we get no error we have a result and track the nodes we have recieved
+													// a replica from
+													if err == nil {
+														mu.Lock()
+														endpoints = append(endpoints, endpoint)
+														mu.Unlock()
+													}
+
+													return res, err
+												})
+										})
+									return res, err
+								})
+
+							// ErrInvalidReplica is considered a fatal error for a replica fetch, but it is expected
+							// since we naievely try to get all possible replicas, so we ignore.
+							if res != nil || err != nil && !errors.Is(err, ErrInvalidReplica) {
+								result.OutCh <- &ReplicaStreamEntry{
+									Err: err,
+									Res: res,
+								}
+							}
+						}(i)
+					}
+					wg.Wait()
+					close(result.OutCh)
+				}()
+
+				// Always return nil, nil here because any errors encounted from OrchestrateMemdRetries are regarded
+				// as Replica specific, to be streamed back to the user, not propogated back to OrchestrateCollection....
+				return nil, nil
+			})
+	})
+
+	// A terminal request error so can close the channel seonce no replicas are being fetched
+	if err != nil {
+		close(result.OutCh)
+	}
+
+	return result, err
 }
 
 type UpsertOptions struct {
