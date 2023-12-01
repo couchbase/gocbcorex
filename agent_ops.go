@@ -22,6 +22,10 @@ func (agent *Agent) GetReplica(ctx context.Context, opts *GetReplicaOptions) (*G
 	return agent.crud.GetReplica(ctx, opts)
 }
 
+func (agent *Agent) GetAllReplicas(ctx context.Context, opts *GetAllReplicasOptions) (GetAllReplicaStream, error) {
+	return agent.crud.GetAllReplicas(ctx, opts)
+}
+
 func (agent *Agent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteResult, error) {
 	return agent.crud.Delete(ctx, opts)
 }
