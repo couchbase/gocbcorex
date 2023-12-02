@@ -17,6 +17,7 @@ var (
 	ErrServerInvalidArg   = errors.New("invalid argument")
 	ErrBucketUuidMismatch = errors.New("bucket uuid mismatch")
 	ErrManifestOutOfDate  = errors.New("manifest out of date")
+	ErrOperationDelayed   = errors.New("operation was delayed, but will continue")
 )
 
 type ServerError struct {

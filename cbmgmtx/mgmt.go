@@ -86,6 +86,8 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		// if we get this specific error, and its none of the above errors, then this indicates
 		// that it was the top level resource which could not be found, which is the bucket.
 		err = ErrBucketNotFound
+	} else if strings.Contains(errText, "not yet complete, but will continue") {
+		err = ErrOperationDelayed
 	} else if resp.StatusCode == 400 {
 		sErr := parseForInvalidArg(errText)
 		var ok bool
@@ -883,7 +885,15 @@ func (h Management) DeleteBucket(
 	}
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		err := h.DecodeCommonError(resp)
+
+		// A delayed operation is considered a success for deletion, since
+		// bucket management is already eventually consistent anyways.
+		if errors.Is(err, ErrOperationDelayed) {
+			return nil
+		}
+
+		return err
 	}
 
 	_ = resp.Body.Close()
