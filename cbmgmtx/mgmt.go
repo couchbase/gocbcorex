@@ -303,6 +303,32 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 	}, nil
 }
 
+type GetTerseClusterInfoOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+type TerseClusterInfoResponse struct {
+	ClusterUUID          string `json:"clusterUUID"`
+	Orchestrator         string `json:"orchestrator"`
+	IsBalanced           bool   `json:"isBalanced"`
+	ClusterCompatVersion string `json:"clusterCompatVersion"`
+}
+
+func (h Management) GetTerseClusterInfo(ctx context.Context, opts *GetTerseClusterConfigOptions) (*TerseClusterInfoResponse, error) {
+	resp, err := h.Execute(ctx, "GET", "/pools/default/terseClusterInfo", "", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	return cbhttpx.JsonBlockStreamer[TerseClusterInfoResponse]{
+		Decoder: json.NewDecoder(resp.Body),
+	}.Recv()
+}
+
 type GetCollectionManifestOptions struct {
 	BucketName string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
