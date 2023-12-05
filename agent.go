@@ -11,9 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/contrib/buildversion"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"go.uber.org/zap"
 )
+
+var buildVersion string = buildversion.GetVersion("github.com/couchbase/gocbcorex")
 
 type agentState struct {
 	bucket             string
@@ -51,12 +54,12 @@ type Agent struct {
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	logger := loggerOrNop(opts.Logger)
-	httpUserAgent := "gocbcorex/0.0.1-dev"
 
 	logger.Debug("Creating new agent",
 		zap.Object("config", opts),
-		zap.String("user-agent", httpUserAgent))
+		zap.String("build-version", buildVersion))
 
+	clientName := fmt.Sprintf("gocbcorex/%s", buildVersion)
 	srcHTTPAddrs := makeSrcHTTPAddrs(opts.SeedConfig.HTTPAddrs, opts.TLSConfig)
 
 	// Default values.
@@ -111,7 +114,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		Logger:           logger.Named("http-bootstrap"),
 		HttpRoundTripper: httpTransport,
 		Endpoints:        srcHTTPAddrs,
-		UserAgent:        httpUserAgent,
+		UserAgent:        clientName,
 		Authenticator:    opts.Authenticator,
 		BucketName:       opts.BucketName,
 	})
@@ -230,7 +233,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		&agentComponentConfigs.QueryComponentConfig,
 		&QueryComponentOptions{
 			Logger:    logger,
-			UserAgent: httpUserAgent,
+			UserAgent: clientName,
 		},
 	)
 	agent.mgmt = NewMgmtComponent(
@@ -238,7 +241,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		&agentComponentConfigs.MgmtComponentConfig,
 		&MgmtComponentOptions{
 			Logger:    logger,
-			UserAgent: httpUserAgent,
+			UserAgent: clientName,
 		},
 	)
 	agent.search = NewSearchComponent(
@@ -246,7 +249,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		&agentComponentConfigs.SearchComponentConfig,
 		&SearchComponentOptions{
 			Logger:    logger,
-			UserAgent: httpUserAgent,
+			UserAgent: clientName,
 		},
 	)
 
@@ -266,7 +269,7 @@ type agentComponentConfigs struct {
 }
 
 func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
-	httpUserAgent := "gocbcorex/0.0.1-dev"
+	clientName := fmt.Sprintf("gocbcorex/%s", buildVersion)
 
 	bootstrapHosts := agent.state.latestConfig.AddressesGroupForNetworkType(agent.networkType)
 
@@ -310,6 +313,7 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		clients[nodeId] = &KvClientConfig{
 			Address:        addr,
 			TlsConfig:      tlsConfig,
+			ClientName:     clientName,
 			SelectedBucket: agent.state.bucket,
 			Authenticator:  agent.state.authenticator,
 		}
@@ -319,7 +323,7 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		ConfigWatcherHttpConfig: ConfigWatcherHttpConfig{
 			HttpRoundTripper: agent.state.httpTransport,
 			Endpoints:        mgmtEndpoints,
-			UserAgent:        httpUserAgent,
+			UserAgent:        clientName,
 			Authenticator:    agent.state.authenticator,
 			BucketName:       agent.state.bucket,
 		},
