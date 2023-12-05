@@ -126,10 +126,10 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		err = ErrInternalServerError
 		if strings.Contains(strings.ToLower(errJson.Msg), "not enough") &&
 			strings.Contains(strings.ToLower(errJson.Msg), "replica") {
-			err = createResourceError(errJson.Msg, ServerInvalidArgError{
+			err = ServerInvalidArgError{
 				Argument: "NumReplicas",
 				Reason:   "not enough indexer nodes to create index with replica count",
-			})
+			}
 		}
 	}
 	if errCodeGroup == 12 || errCodeGroup == 14 {
@@ -214,10 +214,6 @@ func createResourceError(msg string, cause error) ResourceError {
 
 	if errors.Is(err, ErrAuthenticationFailure) {
 		parseAuthFailureMsg(&err, msg)
-	}
-
-	if errors.Is(err, ErrServerInvalidArg) {
-		parseInvalidArgMsg(&err, msg)
 	}
 
 	if errors.Is(err, ErrIndexNotFound) || errors.Is(err, ErrIndexExists) {
@@ -313,25 +309,6 @@ func parseAuthFailureMsg(err *ResourceError, msg string) {
 		}
 		err.ScopeName = fields[1]
 		err.CollectionName = fields[2]
-	}
-}
-
-func parseInvalidArgMsg(err *ResourceError, msg string) {
-	// Currently only used to handle NumReplica being too high error, this msg has the form: "Index creation for index
-	// NewIndex, bucket default, scope _default, collection _default ...
-	fields := strings.Fields(msg)
-	for i, f := range fields {
-		switch f {
-		case "index":
-			err.IndexName = strings.Trim(fields[i+1], ",")
-		case "bucket":
-			err.BucketName = strings.Trim(fields[i+1], ",")
-		case "scope":
-			err.ScopeName = strings.Trim(fields[i+1], ",")
-		case "collection":
-			err.CollectionName = strings.Trim(fields[i+1], ",")
-			return
-		}
 	}
 }
 
