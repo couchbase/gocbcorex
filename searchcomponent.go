@@ -3,7 +3,9 @@ package gocbcorex
 import (
 	"context"
 	"net/http"
+	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
 
 	"go.uber.org/zap"
@@ -174,4 +176,62 @@ func (w *SearchComponent) FreezePlan(ctx context.Context, opts *cbsearchx.Freeze
 
 func (w *SearchComponent) UnfreezePlan(ctx context.Context, opts *cbsearchx.UnfreezePlanOptions) error {
 	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.UnfreezePlan, opts)
+}
+
+type EnsureSearchIndexCreatedOptions struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	IndexName      string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *SearchComponent) EnsureIndexCreated(ctx context.Context, opts *EnsureSearchIndexCreatedOptions) error {
+	hlpr := cbsearchx.EnsureIndexHelper{
+		Logger:     w.logger.Named("ensure-index"),
+		UserAgent:  w.userAgent,
+		OnBehalfOf: opts.OnBehalfOf,
+		BucketName: opts.BucketName,
+		ScopeName:  opts.ScopeName,
+		IndexName:  opts.IndexName,
+	}
+
+	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.PollCreated(ctx, &cbsearchx.EnsureIndexPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets.ToSearchx(),
+		})
+	})
+}
+
+type EnsureSearchIndexDroppedOptions struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	IndexName      string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *SearchComponent) EnsureIndexDropped(ctx context.Context, opts *EnsureSearchIndexDroppedOptions) error {
+	hlpr := cbsearchx.EnsureIndexHelper{
+		Logger:     w.logger.Named("ensure-index"),
+		UserAgent:  w.userAgent,
+		OnBehalfOf: opts.OnBehalfOf,
+		BucketName: opts.BucketName,
+		ScopeName:  opts.ScopeName,
+		IndexName:  opts.IndexName,
+	}
+
+	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets.ToSearchx(),
+		})
+	})
 }

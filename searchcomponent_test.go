@@ -44,6 +44,11 @@ func TestUpsertGetDeleteSearchIndex(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+		IndexName: indexName,
+	})
+	require.NoError(t, err)
+
 	index, err := agent.GetSearchIndex(ctx, &cbsearchx.GetIndexOptions{
 		IndexName: indexName,
 	})
@@ -101,6 +106,11 @@ func TestSearchIndexesIngestControl(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+		IndexName: indexName,
+	})
+	require.NoError(t, err)
+
 	err = agent.PauseSearchIndexIngest(ctx, &cbsearchx.PauseIngestOptions{
 		IndexName: indexName,
 	})
@@ -142,6 +152,11 @@ func TestSearchIndexesQueryControl(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+		IndexName: indexName,
+	})
+	require.NoError(t, err)
 
 	err = agent.DisallowSearchIndexQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
 		IndexName: indexName,
@@ -185,6 +200,11 @@ func TestSearchIndexesPartitionControl(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+		IndexName: indexName,
+	})
+	require.NoError(t, err)
+
 	err = agent.FreezeSearchIndexPlan(ctx, &cbsearchx.FreezePlanOptions{
 		IndexName: indexName,
 	})
@@ -226,6 +246,11 @@ func TestSearchUUIDMismatch(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+		IndexName: indexName,
+	})
+	require.NoError(t, err)
 
 	err = agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
 		Index: cbsearchx.Index{
