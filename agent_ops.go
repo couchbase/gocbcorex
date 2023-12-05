@@ -208,6 +208,14 @@ func (agent *Agent) UnfreezeSearchIndexPlan(ctx context.Context, opts *cbsearchx
 	return agent.search.UnfreezePlan(ctx, opts)
 }
 
+func (agent *Agent) EnsureSearchIndexCreated(ctx context.Context, opts *EnsureSearchIndexCreatedOptions) error {
+	return agent.search.EnsureIndexCreated(ctx, opts)
+}
+
+func (agent *Agent) EnsureSearchIndexDropped(ctx context.Context, opts *EnsureSearchIndexDroppedOptions) error {
+	return agent.search.EnsureIndexDropped(ctx, opts)
+}
+
 func (agent *Agent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
 	return agent.crud.RangeScanCreate(ctx, opts)
 }

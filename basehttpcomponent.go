@@ -9,6 +9,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/cbqueryx"
+	"github.com/couchbase/gocbcorex/cbsearchx"
 )
 
 type baseHttpComponent struct {
@@ -120,6 +121,19 @@ func (nt baseHttpTargets) ToQueryx() []cbqueryx.NodeTarget {
 	targets := make([]cbqueryx.NodeTarget, len(nt))
 	for i, target := range nt {
 		targets[i] = cbqueryx.NodeTarget{
+			Endpoint: target.Endpoint,
+			Username: target.Username,
+			Password: target.Password,
+		}
+	}
+
+	return targets
+}
+
+func (nt baseHttpTargets) ToSearchx() []cbsearchx.NodeTarget {
+	targets := make([]cbsearchx.NodeTarget, len(nt))
+	for i, target := range nt {
+		targets[i] = cbsearchx.NodeTarget{
 			Endpoint: target.Endpoint,
 			Username: target.Username,
 			Password: target.Password,
