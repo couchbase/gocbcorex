@@ -111,6 +111,7 @@ type ResourceError struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
+	IndexName      string
 	Cause          error
 }
 
