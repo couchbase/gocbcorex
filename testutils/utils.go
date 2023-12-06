@@ -30,6 +30,7 @@ type TestOptions struct {
 	BucketName        string
 	SupportedFeatures []TestFeature
 	OriginalConnStr   string
+	DinoClusterID     string
 }
 
 func addSupportedFeature(feat TestFeature) {
@@ -62,6 +63,8 @@ var bucketName = envFlagString("GOCBBUCKET", "bucket", "default",
 	"The bucket to use to test against")
 var featsStr = envFlagString("GOCBFEAT", "features", "",
 	"A comma-delimited list of features to test")
+var dinoId = envFlagString("GCBDINOID", "dinoid", "",
+	"Dinocluster cluster id")
 
 func SetupTests(m *testing.M) {
 	flag.Parse()
@@ -82,6 +85,8 @@ func SetupTests(m *testing.M) {
 		if TestOpts.Password == "" {
 			TestOpts.Password = "password"
 		}
+
+		TestOpts.DinoClusterID = *dinoId
 
 		if TestOpts.BucketName == "" {
 			TestOpts.BucketName = *bucketName
