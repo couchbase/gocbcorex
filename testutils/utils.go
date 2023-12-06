@@ -16,7 +16,6 @@ import (
 	"github.com/couchbaselabs/gocbconnstr/v2"
 
 	"github.com/couchbase/gocbcorex/contrib/leakcheck"
-	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 )
 
@@ -30,7 +29,6 @@ type TestOptions struct {
 	Password          string
 	BucketName        string
 	SupportedFeatures []TestFeature
-	RunName           string
 	OriginalConnStr   string
 }
 
@@ -114,8 +112,6 @@ func SetupTests(m *testing.M) {
 			}
 		}
 	}
-
-	TestOpts.RunName = strings.ReplaceAll(uuid.NewString(), "-", "")[0:8]
 
 	leakcheck.EnableAll()
 

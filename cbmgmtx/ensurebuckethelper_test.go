@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/testutils"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +17,7 @@ func TestEnsureBucket(t *testing.T) {
 
 	ctx := context.Background()
 	transport := http.DefaultTransport
-	testBucketName := "testbucket-" + testutils.TestOpts.RunName
+	testBucketName := "testbucket-" + uuid.NewString()[:6]
 
 	config, err := Management{
 		Transport: transport,

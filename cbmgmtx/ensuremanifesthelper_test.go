@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/testutils"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +19,7 @@ func TestEnsureManifest(t *testing.T) {
 	ctx := context.Background()
 	bucketName := testutils.TestOpts.BucketName
 	scopeName := "_default"
-	testCollectionName := "testscope-" + testutils.TestOpts.RunName
+	testCollectionName := "testscope-" + uuid.NewString()[:6]
 	transport := http.DefaultTransport
 
 	config, err := Management{
