@@ -44,6 +44,7 @@ jobs:
           cbdinocluster -v buckets add ${CBDC_ID} default --ram-quota-mb=100 --flush-enabled=true
           cbdinocluster -v collections add ${CBDC_ID} default _default test
           CBDC_CONNSTR=$(cbdinocluster -v connstr $CBDC_ID)
+          echo "CBDC_ID=$CBDC_ID" >> "$GITHUB_ENV"
           echo "CBDC_CONNSTR=$CBDC_CONNSTR" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v2
@@ -59,7 +60,9 @@ jobs:
       - name: Run tests
         timeout-minutes: 40
         env:
+          CBDC_ID: # from above
           CBDC_CONNSTR: # from above
+          GCBDINOID: ${{ env.CBDC_ID }}
           GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
         run: go test ./... -v -race
 
