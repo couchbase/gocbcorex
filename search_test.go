@@ -167,9 +167,12 @@ func (nqh *searchTestHelper) testSearchBasic(t *testing.T) {
 	assert.NotZero(t, metadata.Metrics.TotalHits)
 	assert.NotZero(t, metadata.Metrics.Took)
 	assert.NotZero(t, metadata.Metrics.MaxScore)
-	assert.Zero(t, metadata.Metrics.FailedPartitionCount)
-	assert.NotZero(t, metadata.Metrics.SuccessfulPartitionCount)
 	assert.NotZero(t, metadata.Metrics.TotalPartitionCount)
+	// Not checked due to ING-687
+	/*
+		assert.Zero(t, metadata.Metrics.FailedPartitionCount)
+		assert.NotZero(t, metadata.Metrics.SuccessfulPartitionCount)
+	*/
 
 	facets, err := result.Facets()
 	require.NoError(t, err)
