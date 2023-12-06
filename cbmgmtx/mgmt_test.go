@@ -173,13 +173,22 @@ func TestHttpMgmtBuckets(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	def, err := getHttpMgmt().GetBucket(ctx, &GetBucketOptions{
-		BucketName: testBucketName,
-	})
-	require.NoError(t, err)
-	require.Equal(t, bucketSettings, def.BucketSettings)
+	// BUG(ING-685): We have to wait for the bucket to appear.
+	var returendDef *BucketDef
+	require.Eventually(t, func() bool {
+		def, err := getHttpMgmt().GetBucket(ctx, &GetBucketOptions{
+			BucketName: testBucketName,
+		})
+		if err != nil {
+			return false
+		}
 
-	updatedSettings := def.MutableBucketSettings
+		returendDef = def
+		return true
+	}, 30*time.Second, 100*time.Millisecond)
+	require.Equal(t, bucketSettings, returendDef.BucketSettings)
+
+	updatedSettings := bucketSettings.MutableBucketSettings
 	updatedSettings.FlushEnabled = true
 	err = getHttpMgmt().UpdateBucket(ctx, &UpdateBucketOptions{
 		BucketName:            testBucketName,
