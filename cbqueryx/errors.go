@@ -23,6 +23,7 @@ var (
 	ErrScopeNotFound            = errors.New("scope not found")
 	ErrCollectionNotFound       = errors.New("collection not found")
 	ErrServerInvalidArg         = errors.New("invalid argument")
+	ErrBuildAlreadyInProgress   = errors.New("build already in progress")
 )
 
 type Error struct {

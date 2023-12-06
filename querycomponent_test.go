@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/couchbase/gocbcorex/cbqueryx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -223,9 +225,13 @@ func TestEnsureQueryIndex(t *testing.T) {
 			testutils.TestOpts.BucketName,
 		),
 	})
-	require.NoError(t, err)
+	if errors.Is(err, cbqueryx.ErrBuildAlreadyInProgress) {
+		// the build is delayed, we need to wait
+	} else {
+		require.NoError(t, err)
 
-	for res.HasMoreRows() {
+		for res.HasMoreRows() {
+		}
 	}
 
 	err = agent.EnsureQueryIndexCreated(ctx, &EnsureQueryIndexCreatedOptions{
