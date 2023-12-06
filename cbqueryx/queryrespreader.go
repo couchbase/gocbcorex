@@ -131,6 +131,9 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 				Reason:   "not enough indexer nodes to create index with replica count",
 			}
 		}
+		if strings.Contains(strings.ToLower(errJson.Msg), "build already in progress") {
+			err = ErrBuildAlreadyInProgress
+		}
 	}
 	if errCodeGroup == 12 || errCodeGroup == 14 {
 		err = ErrIndexFailure

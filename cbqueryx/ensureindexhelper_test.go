@@ -64,13 +64,13 @@ func TestEnsureQuery(t *testing.T) {
 			testutils.TestOpts.BucketName,
 		),
 	})
-	if err != nil {
-		if !errors.Is(err, ErrIndexExists) {
-			t.Fatalf("Failed to create index: %v", err)
-		}
-	}
+	if errors.Is(err, ErrBuildAlreadyInProgress) {
+		// the build is delayed, we need to wait
+	} else {
+		require.NoError(t, err)
 
-	for res.HasMoreRows() {
+		for res.HasMoreRows() {
+		}
 	}
 
 	hlpr := EnsureIndexHelper{
