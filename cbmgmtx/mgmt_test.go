@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/couchbase/gocbcorex/testutils"
@@ -64,8 +65,8 @@ func TestHttpMgmtCollections(t *testing.T) {
 
 	ctx := context.Background()
 	bucketName := testutils.TestOpts.BucketName
-	testScopeName := "testscope-" + testutils.TestOpts.RunName
-	testCollectionName := "testscope-" + testutils.TestOpts.RunName
+	testScopeName := "testscope-" + uuid.NewString()[:6]
+	testCollectionName := "testscope-" + uuid.NewString()[:6]
 
 	_, err := getHttpMgmt().CreateScope(ctx, &CreateScopeOptions{
 		BucketName: bucketName,
@@ -152,7 +153,7 @@ func TestHttpMgmtBuckets(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	ctx := context.Background()
-	testBucketName := "testbucket-" + testutils.TestOpts.RunName
+	testBucketName := "testbucket-" + uuid.NewString()[:6]
 
 	bucketSettings := BucketSettings{
 		MutableBucketSettings: MutableBucketSettings{
