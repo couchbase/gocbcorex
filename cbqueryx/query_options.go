@@ -13,6 +13,7 @@ const (
 	ScanConsistencyUnset       ScanConsistency = ""
 	ScanConsistencyNotBounded  ScanConsistency = "not_bounded"
 	ScanConsistencyRequestPlus ScanConsistency = "request_plus"
+	ScanConsistencyAtPlus      ScanConsistency = "at_plus"
 )
 
 type ProfileMode string
