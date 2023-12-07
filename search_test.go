@@ -251,6 +251,13 @@ func (nqh *searchTestHelper) testSetupSearch(t *testing.T) {
 		BucketName: bucket,
 	})
 	require.NoError(t, err)
+
+	err = nqh.Agent.EnsureSearchIndexCreated(context.Background(), &EnsureSearchIndexCreatedOptions{
+		ScopeName:  nqh.ScopeName,
+		BucketName: bucket,
+		IndexName:  nqh.IndexName,
+	})
+	require.NoError(t, err)
 }
 
 func (nqh *searchTestHelper) testCleanupSearch(t *testing.T) {
