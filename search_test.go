@@ -251,6 +251,15 @@ func (nqh *searchTestHelper) testSetupSearch(t *testing.T) {
 		BucketName: bucket,
 	})
 	require.NoError(t, err)
+
+	// Due to ING-690, even though we poll the indexes as part of the test, we
+	// need to make sure the index is fully visible before we start.
+	err = nqh.Agent.EnsureSearchIndexCreated(context.Background(), &EnsureSearchIndexCreatedOptions{
+		ScopeName:  nqh.ScopeName,
+		BucketName: bucket,
+		IndexName:  nqh.IndexName,
+	})
+	require.NoError(t, err)
 }
 
 func (nqh *searchTestHelper) testCleanupSearch(t *testing.T) {
