@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"go.uber.org/zap"
@@ -20,6 +21,9 @@ type EnsureIndexHelper struct {
 	IndexName  string
 
 	confirmedEndpoints []string
+
+	firstRefreshPoll   time.Time
+	refreshedEndpoints []string
 }
 
 type NodeTarget struct {
@@ -34,7 +38,13 @@ type EnsureIndexPollOptions struct {
 }
 
 func (e *EnsureIndexHelper) PollCreated(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
-	return e.pollAll(ctx, opts, func(exists bool) bool {
+	return e.pollAll(ctx, opts, func(exists bool, target NodeTarget) bool {
+		if !exists {
+			// Due to ING-691, when we receive a not-found error, we need to consider
+			// refreshing the configuration before the index will appear.
+			e.maybeRefreshOne(ctx, opts.Transport, target)
+		}
+
 		if !exists {
 			e.Logger.Debug("target still didn't have the index")
 			return false
@@ -45,10 +55,10 @@ func (e *EnsureIndexHelper) PollCreated(ctx context.Context, opts *EnsureIndexPo
 }
 
 func (e *EnsureIndexHelper) PollDropped(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
-	return e.pollAll(ctx, opts, func(exists bool) bool {
+	return e.pollAll(ctx, opts, func(exists bool, target NodeTarget) bool {
 		// If there are rows then the endpoint knows the index.
 		if exists {
-			e.Logger.Debug(" target still had the index")
+			e.Logger.Debug("target still had the index")
 			return false
 		}
 
@@ -88,8 +98,45 @@ func (e *EnsureIndexHelper) pollOne(
 	return true, nil
 }
 
+func (e *EnsureIndexHelper) maybeRefreshOne(
+	ctx context.Context,
+	httpRoundTripper http.RoundTripper, target NodeTarget,
+) {
+	if e.firstRefreshPoll.IsZero() {
+		e.firstRefreshPoll = time.Now()
+		return
+	}
+
+	if e.firstRefreshPoll.Add(5 * time.Second).After(time.Now()) {
+		return
+	}
+
+	if slices.Contains(e.refreshedEndpoints, target.Endpoint) {
+		// this endpoint is already refreshed
+		return
+	}
+
+	e.Logger.Debug("attempting to refresh configuration for fts node",
+		zap.String("endpoint", target.Endpoint))
+
+	err := Search{
+		Transport: httpRoundTripper,
+		UserAgent: e.UserAgent,
+		Endpoint:  target.Endpoint,
+		Username:  target.Username,
+		Password:  target.Password,
+	}.RefreshConfig(ctx, &RefreshConfigOptions{
+		OnBehalfOf: e.OnBehalfOf,
+	})
+	if err != nil {
+		e.Logger.Debug("target responded with an unexpected refresh error", zap.Error(err))
+	}
+
+	e.refreshedEndpoints = append(e.refreshedEndpoints, target.Endpoint)
+}
+
 func (e *EnsureIndexHelper) pollAll(ctx context.Context,
-	opts *EnsureIndexPollOptions, cb func(bool) bool) (bool, error) {
+	opts *EnsureIndexPollOptions, cb func(bool, NodeTarget) bool) (bool, error) {
 	filteredTargets := make([]NodeTarget, 0, len(opts.Targets))
 	for _, target := range opts.Targets {
 		if !slices.Contains(e.confirmedEndpoints, target.Endpoint) {
@@ -104,7 +151,7 @@ func (e *EnsureIndexHelper) pollAll(ctx context.Context,
 			return false, err
 		}
 
-		if resp {
+		if cb(resp, target) {
 			e.Logger.Debug("target successfully checked")
 
 			successEndpoints = append(successEndpoints, target.Endpoint)
