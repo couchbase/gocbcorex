@@ -539,6 +539,35 @@ func (h Search) controlRequest(
 	return nil
 }
 
+type RefreshConfigOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Search) RefreshConfig(
+	ctx context.Context,
+	opts *RefreshConfigOptions,
+) error {
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/api/cfgRefresh",
+		"application/json",
+		opts.OnBehalfOf,
+		nil,
+		nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
 func (h Search) DecodeCommonError(resp *http.Response) error {
 	bodyBytes, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
