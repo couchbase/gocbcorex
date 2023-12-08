@@ -41,17 +41,17 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 	require.NoError(t, err)
 
 	// Select a bucket on a gcccp level request
-	reconfigureCh := make(chan struct{})
+	reconfigureCh := make(chan error)
 	err = cli.Reconfigure(&KvClientConfig{
 		Address:        testutils.TestOpts.MemdAddrs[0],
 		Authenticator:  auth,
 		SelectedBucket: testutils.TestOpts.BucketName,
 	}, func(err error) {
-		require.NoError(t, err)
-		reconfigureCh <- struct{}{}
+		reconfigureCh <- err
 	})
 	require.NoError(t, err)
-	<-reconfigureCh
+	err = <-reconfigureCh
+	require.NoError(t, err)
 
 	// Check that an op works
 	setRes, err := cli.Set(context.Background(), &memdx.SetRequest{
