@@ -62,3 +62,17 @@ jobs:
           CBDC_CONNSTR: # from above
           GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
         run: go test ./... -v -race
+
+      - name: Collect couchbase logs
+        timeout-minutes: 10
+        if: failure()
+        run: |
+          mkdir -p ./logs
+          cbdinocluster -v collect-logs $CBDC_ID ./logs
+      - name: Upload couchbase logs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: cbcollect-logs
+          path: ./logs/*
+          retention-days: 5
