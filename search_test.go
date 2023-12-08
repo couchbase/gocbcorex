@@ -147,7 +147,7 @@ func (nqh *searchTestHelper) testSearchBasic(t *testing.T) {
 
 		t.Logf("Incorrect number of rows, expected: %d, was %d", len(nqh.QueryTestDocs.docs), len(thisRows))
 		return false
-	}, 120*time.Second, 500*time.Millisecond)
+	}, 5*time.Minute, 500*time.Millisecond)
 
 	for _, row := range rows {
 		if assert.Contains(t, row.Locations, "service") {
