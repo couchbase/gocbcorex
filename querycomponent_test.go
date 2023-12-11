@@ -3,9 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -25,40 +23,14 @@ type n1qlTestHelper struct {
 	T             *testing.T
 }
 
-func hlpRunQuery(t *testing.T, agent *Agent, opts *QueryOptions) ([][]byte, error) {
-	t.Helper()
-
-	rows, err := agent.Query(context.Background(), opts)
-	if err != nil {
-		return nil, err
-	}
-
-	var rowBytes [][]byte
-	for {
-		row, err := rows.ReadRow()
-		if err != nil {
-			return nil, err
-		}
-
-		if row == nil {
-			break
-		}
-
-		rowBytes = append(rowBytes, row)
-	}
-
-	return rowBytes, nil
-}
-
 func hlpEnsurePrimaryIndex(t *testing.T, agent *Agent, bucketName string) {
 	t.Helper()
 
-	_, err := hlpRunQuery(t, agent, &QueryOptions{
-		Statement: "CREATE PRIMARY INDEX ON " + bucketName,
+	err := agent.CreatePrimaryIndex(context.Background(), &cbqueryx.CreatePrimaryIndexOptions{
+		BucketName:     bucketName,
+		IgnoreIfExists: true,
 	})
-	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		require.NoError(t, err)
-	}
+	require.NoError(t, err)
 }
 
 func (nqh *n1qlTestHelper) testSetupN1ql(t *testing.T) {
@@ -218,21 +190,18 @@ func TestEnsureQueryIndex(t *testing.T) {
 	defer cancel()
 
 	idxName := uuid.NewString()[:6]
-	res, err := agent.Query(ctx, &QueryOptions{
-		Statement: fmt.Sprintf(
-			"CREATE INDEX `%s` On `%s`._default._default(test)",
-			idxName,
-			testutils.TestOpts.BucketName,
-		),
+	err := agent.CreateIndex(ctx, &cbqueryx.CreateIndexOptions{
+		BucketName:     testutils.TestOpts.BucketName,
+		ScopeName:      "_default",
+		CollectionName: "_default",
+		IndexName:      idxName,
+		Fields:         []string{"test"},
+		NumReplicas:    nil,
+		Deferred:       nil,
+		IgnoreIfExists: false,
+		OnBehalfOf:     nil,
 	})
-	if errors.Is(err, cbqueryx.ErrBuildAlreadyInProgress) {
-		// the build is delayed, we need to wait
-	} else {
-		require.NoError(t, err)
-
-		for res.HasMoreRows() {
-		}
-	}
+	require.NoError(t, err)
 
 	err = agent.EnsureQueryIndexCreated(ctx, &EnsureQueryIndexCreatedOptions{
 		BucketName:     testutils.TestOpts.BucketName,
@@ -243,17 +212,15 @@ func TestEnsureQueryIndex(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	res, err = agent.Query(ctx, &QueryOptions{
-		Statement: fmt.Sprintf(
-			"DROP INDEX `%s` ON `%s`.`_default`.`_default`",
-			idxName,
-			testutils.TestOpts.BucketName,
-		),
+	err = agent.DropIndex(ctx, &cbqueryx.DropIndexOptions{
+		BucketName:        testutils.TestOpts.BucketName,
+		ScopeName:         "_default",
+		CollectionName:    "_default",
+		IndexName:         idxName,
+		IgnoreIfNotExists: false,
+		OnBehalfOf:        nil,
 	})
 	require.NoError(t, err)
-
-	for res.HasMoreRows() {
-	}
 
 	err = agent.EnsureQueryIndexDropped(ctx, &EnsureQueryIndexDroppedOptions{
 		BucketName:     testutils.TestOpts.BucketName,
@@ -263,4 +230,286 @@ func TestEnsureQueryIndex(t *testing.T) {
 		OnBehalfOf:     nil,
 	})
 	require.NoError(t, err)
+}
+
+func TestQueryMgmtPrimaryIndex(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	bucketName := testutils.TestOpts.BucketName
+	idxName := uuid.NewString()[:6]
+
+	t.Run("Create", func(t *testing.T) {
+		err := agent.CreatePrimaryIndex(ctx, &cbqueryx.CreatePrimaryIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      "",
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: true,
+			OnBehalfOf:     nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("CreateNamed", func(t *testing.T) {
+		err := agent.CreatePrimaryIndex(ctx, &cbqueryx.CreatePrimaryIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      idxName,
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: true,
+			OnBehalfOf:     nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("CreateExists", func(t *testing.T) {
+		err := agent.CreatePrimaryIndex(ctx, &cbqueryx.CreatePrimaryIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      idxName,
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: false,
+			OnBehalfOf:     nil,
+		})
+		require.ErrorIs(t, err, cbqueryx.ErrIndexExists)
+	})
+
+	t.Run("CreateIgnoreExists", func(t *testing.T) {
+		err := agent.CreatePrimaryIndex(ctx, &cbqueryx.CreatePrimaryIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      idxName,
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: true,
+			OnBehalfOf:     nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Drop", func(t *testing.T) {
+		err := agent.DropPrimaryIndex(ctx, &cbqueryx.DropPrimaryIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         "",
+			IgnoreIfNotExists: false,
+			OnBehalfOf:        nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("DropNamed", func(t *testing.T) {
+		err := agent.DropPrimaryIndex(ctx, &cbqueryx.DropPrimaryIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         idxName,
+			IgnoreIfNotExists: false,
+			OnBehalfOf:        nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("DropDoesntExist", func(t *testing.T) {
+		err := agent.DropPrimaryIndex(ctx, &cbqueryx.DropPrimaryIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         uuid.NewString()[:6],
+			IgnoreIfNotExists: false,
+			OnBehalfOf:        nil,
+		})
+		require.ErrorIs(t, err, cbqueryx.ErrIndexNotFound)
+	})
+
+	t.Run("DropIgnoreDoesntExist", func(t *testing.T) {
+		err := agent.DropPrimaryIndex(ctx, &cbqueryx.DropPrimaryIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         uuid.NewString()[:6],
+			IgnoreIfNotExists: true,
+			OnBehalfOf:        nil,
+		})
+		require.NoError(t, err)
+	})
+}
+
+func TestQueryMgmtIndex(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	bucketName := testutils.TestOpts.BucketName
+	idxName := uuid.NewString()[:6]
+
+	t.Run("Create", func(t *testing.T) {
+		err := agent.CreateIndex(ctx, &cbqueryx.CreateIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      idxName,
+			Fields:         []string{"test"},
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: true,
+			OnBehalfOf:     nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("CreateExists", func(t *testing.T) {
+		err := agent.CreateIndex(ctx, &cbqueryx.CreateIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      idxName,
+			Fields:         []string{"test"},
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: false,
+			OnBehalfOf:     nil,
+		})
+		require.ErrorIs(t, err, cbqueryx.ErrIndexExists)
+	})
+
+	t.Run("CreateIgnoreExists", func(t *testing.T) {
+		err := agent.CreateIndex(ctx, &cbqueryx.CreateIndexOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			IndexName:      idxName,
+			Fields:         []string{"test"},
+			NumReplicas:    nil,
+			Deferred:       nil,
+			IgnoreIfExists: true,
+			OnBehalfOf:     nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Drop", func(t *testing.T) {
+		err := agent.DropIndex(ctx, &cbqueryx.DropIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         idxName,
+			IgnoreIfNotExists: false,
+			OnBehalfOf:        nil,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("DropDoesntExist", func(t *testing.T) {
+		err := agent.DropIndex(ctx, &cbqueryx.DropIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         uuid.NewString()[:6],
+			IgnoreIfNotExists: false,
+			OnBehalfOf:        nil,
+		})
+		require.ErrorIs(t, err, cbqueryx.ErrIndexNotFound)
+	})
+
+	t.Run("DropIgnoreDoesntExist", func(t *testing.T) {
+		err := agent.DropIndex(ctx, &cbqueryx.DropIndexOptions{
+			BucketName:        bucketName,
+			ScopeName:         "",
+			CollectionName:    "",
+			IndexName:         uuid.NewString()[:6],
+			IgnoreIfNotExists: true,
+			OnBehalfOf:        nil,
+		})
+		require.NoError(t, err)
+	})
+}
+
+func TestQueryMgmtDeferredIndex(t *testing.T) {
+	testutils.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	bucketName := testutils.TestOpts.BucketName
+	idxName := uuid.NewString()[:6]
+
+	trueBool := true
+	err := agent.CreateIndex(ctx, &cbqueryx.CreateIndexOptions{
+		BucketName:     bucketName,
+		ScopeName:      "",
+		CollectionName: "",
+		IndexName:      idxName,
+		Fields:         []string{"test"},
+		NumReplicas:    nil,
+		Deferred:       &trueBool,
+		IgnoreIfExists: false,
+		OnBehalfOf:     nil,
+	})
+	require.NoError(t, err)
+
+	indexes, err := agent.BuildDeferredIndexes(ctx, &cbqueryx.BuildDeferredIndexesOptions{
+		BucketName:     bucketName,
+		ScopeName:      "",
+		CollectionName: "",
+		OnBehalfOf:     nil,
+	})
+	require.NoError(t, err)
+
+	for _, idx := range indexes {
+		if idx.IndexName == idxName && idx.BucketName == bucketName && idx.ScopeName == "_default" &&
+			idx.CollectionName == "_default" {
+			return
+		}
+	}
+
+	require.Failf(t, "index was not found in list of deferred indexes", "indexes: %v", indexes)
+
+	require.Eventually(t, func() bool {
+		indexes, err := agent.GetAllIndexes(ctx, &cbqueryx.GetAllIndexesOptions{
+			BucketName:     bucketName,
+			ScopeName:      "",
+			CollectionName: "",
+			OnBehalfOf:     nil,
+		})
+		require.NoError(t, err)
+
+		for _, idx := range indexes {
+			if idx.Name == idxName && idx.KeyspaceId == bucketName {
+				return idx.State == cbqueryx.IndexStateOnline
+			}
+		}
+
+		return false
+	}, 30*time.Second, 500*time.Millisecond)
 }
