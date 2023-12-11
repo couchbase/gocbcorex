@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -124,15 +125,19 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	}
 	if errCodeGroup == 5 {
 		err = ErrInternalServerError
-		if strings.Contains(strings.ToLower(errJson.Msg), "not enough") &&
-			strings.Contains(strings.ToLower(errJson.Msg), "replica") {
+		lowerMsg := strings.ToLower(errJson.Msg)
+		if strings.Contains(lowerMsg, "not enough") &&
+			strings.Contains(lowerMsg, "replica") {
 			err = ServerInvalidArgError{
 				Argument: "NumReplicas",
 				Reason:   "not enough indexer nodes to create index with replica count",
 			}
 		}
-		if strings.Contains(strings.ToLower(errJson.Msg), "build already in progress") {
+		if strings.Contains(lowerMsg, "build already in progress") {
 			err = ErrBuildAlreadyInProgress
+		}
+		if match, matchErr := regexp.MatchString(".*?ndex .*? already exist.*", lowerMsg); matchErr == nil && match {
+			err = ErrIndexExists
 		}
 	}
 	if errCodeGroup == 12 || errCodeGroup == 14 {

@@ -3,6 +3,8 @@ package gocbcorex
 import (
 	"context"
 
+	"github.com/couchbase/gocbcorex/cbqueryx"
+
 	"github.com/couchbase/gocbcorex/cbsearchx"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
@@ -94,6 +96,30 @@ func (agent *Agent) Query(ctx context.Context, opts *QueryOptions) (QueryResultS
 
 func (agent *Agent) PreparedQuery(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
 	return agent.query.PreparedQuery(ctx, opts)
+}
+
+func (agent *Agent) GetAllIndexes(ctx context.Context, opts *cbqueryx.GetAllIndexesOptions) ([]cbqueryx.Index, error) {
+	return agent.query.GetAllIndexes(ctx, opts)
+}
+
+func (agent *Agent) CreatePrimaryIndex(ctx context.Context, opts *cbqueryx.CreatePrimaryIndexOptions) error {
+	return agent.query.CreatePrimaryIndex(ctx, opts)
+}
+
+func (agent *Agent) CreateIndex(ctx context.Context, opts *cbqueryx.CreateIndexOptions) error {
+	return agent.query.CreateIndex(ctx, opts)
+}
+
+func (agent *Agent) DropPrimaryIndex(ctx context.Context, opts *cbqueryx.DropPrimaryIndexOptions) error {
+	return agent.query.DropPrimaryIndex(ctx, opts)
+}
+
+func (agent *Agent) DropIndex(ctx context.Context, opts *cbqueryx.DropIndexOptions) error {
+	return agent.query.DropIndex(ctx, opts)
+}
+
+func (agent *Agent) BuildDeferredIndexes(ctx context.Context, opts *cbqueryx.BuildDeferredIndexesOptions) ([]cbqueryx.DeferredIndexName, error) {
+	return agent.query.BuildDeferredIndexes(ctx, opts)
 }
 
 func (agent *Agent) EnsureQueryIndexCreated(ctx context.Context, opts *EnsureQueryIndexCreatedOptions) error {
