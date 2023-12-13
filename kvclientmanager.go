@@ -140,8 +140,8 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(err
 				m.logger.Debug("failed to reconfigure pool", zap.Error(err))
 			} else {
 				pool = oldPool.Pool
+				delete(oldPools, endpoint)
 			}
-			delete(oldPools, endpoint)
 		}
 
 		if pool == nil {
