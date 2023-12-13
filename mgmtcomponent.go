@@ -127,6 +127,10 @@ func (w *MgmtComponent) DeleteCollection(ctx context.Context, opts *cbmgmtx.Dele
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.DeleteCollection, opts)
 }
 
+func (w *MgmtComponent) UpdateCollection(ctx context.Context, opts *cbmgmtx.UpdateCollectionOptions) (*cbmgmtx.UpdateCollectionResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.UpdateCollection, opts)
+}
+
 func (w *MgmtComponent) GetAllBuckets(ctx context.Context, opts *cbmgmtx.GetAllBucketsOptions) ([]*cbmgmtx.BucketDef, error) {
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetAllBuckets, opts)
 }

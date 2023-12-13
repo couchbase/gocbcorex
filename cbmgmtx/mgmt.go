@@ -66,6 +66,8 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		`durability_min_level`: "DurabilityMinLevel",
 		`ramquota`:             "RamQuotaMB",
 		`replicaNumber`:        "ReplicaNumber",
+		`maxttl`:               "MaxTTL",
+		`history`:              "HistoryEnabled",
 	}
 
 	var err error
@@ -94,6 +96,11 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		var ok bool
 		if sErr.Argument, ok = fieldNameMap[sErr.Argument]; ok {
 			err = sErr
+		} else if strings.Contains(errText, "not allowed on this type of bucket") {
+			err = &ServerInvalidArgError{
+				Argument: "HistoryEnabled",
+				Reason:   errText,
+			}
 		}
 	} else if resp.StatusCode == 404 {
 		err = ErrUnsupportedFeature
@@ -575,6 +582,66 @@ func (h Management) DeleteCollection(
 
 	return &DeleteCollectionResponse{
 		ManifestUid: deleteResp.ManifestUid,
+	}, nil
+}
+
+type UpdateCollectionOptions struct {
+	BucketName     string
+	ScopeName      string
+	CollectionName string
+	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
+	HistoryEnabled *bool
+	MaxTTL         *uint32
+}
+
+type UpdateCollectionResponse struct {
+	ManifestUid string
+}
+
+func (h Management) UpdateCollection(
+	ctx context.Context,
+	opts *UpdateCollectionOptions,
+) (*UpdateCollectionResponse, error) {
+	if opts.BucketName == "" {
+		return nil, errors.New("must specify bucket name when updating a collection")
+	}
+	if opts.ScopeName == "" {
+		return nil, errors.New("must specify scope name when updating a collection")
+	}
+	if opts.CollectionName == "" {
+		return nil, errors.New("must specify collection name when updating a collection")
+	}
+
+	posts := url.Values{}
+	if opts.MaxTTL != nil && *opts.MaxTTL > 0 {
+		posts.Add("maxTTL", fmt.Sprintf("%d", *opts.MaxTTL))
+	}
+
+	if opts.HistoryEnabled != nil {
+		posts.Add("history", fmt.Sprintf("%t", *opts.HistoryEnabled))
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"PATCH",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	updateResp, err := cbhttpx.ReadAsJsonAndClose[manifestUidJSON](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &UpdateCollectionResponse{
+		ManifestUid: updateResp.ManifestUid,
 	}, nil
 }
 

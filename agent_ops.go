@@ -150,6 +150,10 @@ func (agent *Agent) DeleteCollection(ctx context.Context, opts *cbmgmtx.DeleteCo
 	return agent.mgmt.DeleteCollection(ctx, opts)
 }
 
+func (agent *Agent) UpdateCollection(ctx context.Context, opts *cbmgmtx.UpdateCollectionOptions) (*cbmgmtx.UpdateCollectionResponse, error) {
+	return agent.mgmt.UpdateCollection(ctx, opts)
+}
+
 func (agent *Agent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
 	return agent.mgmt.EnsureManifest(ctx, opts)
 }
