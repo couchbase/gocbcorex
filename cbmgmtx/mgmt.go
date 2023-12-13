@@ -579,13 +579,16 @@ func (h Management) DeleteCollection(
 }
 
 type MutableBucketSettings struct {
-	FlushEnabled       bool
-	RAMQuotaMB         uint64
-	ReplicaNumber      uint32
-	EvictionPolicy     EvictionPolicyType
-	MaxTTL             time.Duration
-	CompressionMode    CompressionMode
-	DurabilityMinLevel DurabilityLevel
+	FlushEnabled                      bool
+	RAMQuotaMB                        uint64
+	ReplicaNumber                     uint32
+	EvictionPolicy                    EvictionPolicyType
+	MaxTTL                            time.Duration
+	CompressionMode                   CompressionMode
+	DurabilityMinLevel                DurabilityLevel
+	HistoryRetentionCollectionDefault *bool
+	HistoryRetentionBytes             uint64
+	HistoryRetentionSeconds           uint32
 }
 
 func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *MutableBucketSettings) error {
@@ -609,6 +612,19 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 	if opts.DurabilityMinLevel != DurabilityLevelUnset {
 		posts.Add("durabilityMinLevel", string(opts.DurabilityMinLevel))
 	}
+	if opts.HistoryRetentionBytes > 0 {
+		posts.Add("historyRetentionBytes", fmt.Sprintf("%d", opts.HistoryRetentionBytes))
+	}
+	if opts.HistoryRetentionSeconds > 0 {
+		posts.Add("historyRetentionSeconds", fmt.Sprintf("%d", opts.HistoryRetentionSeconds))
+	}
+	if opts.HistoryRetentionCollectionDefault != nil {
+		if *opts.HistoryRetentionCollectionDefault {
+			posts.Add("historyRetentionCollectionDefault", "true")
+		} else {
+			posts.Add("historyRetentionCollectionDefault", "false")
+		}
+	}
 
 	return nil
 }
@@ -623,6 +639,9 @@ func (h Management) decodeMutableBucketSettings(data *bucketSettingsJson) (*Muta
 	settings.MaxTTL = time.Duration(data.MaxTTL) * time.Second
 	settings.CompressionMode = CompressionMode(data.CompressionMode)
 	settings.DurabilityMinLevel = DurabilityLevel(data.MinimumDurabilityLevel)
+	settings.HistoryRetentionCollectionDefault = data.HistoryRetentionCollectionDefault
+	settings.HistoryRetentionBytes = data.HistoryRetentionBytes
+	settings.HistoryRetentionSeconds = data.HistoryRetentionSeconds
 
 	return &settings, nil
 }
