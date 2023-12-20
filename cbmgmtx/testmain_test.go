@@ -1,4 +1,4 @@
-package cbmgmtx
+package cbmgmtx_test
 
 import (
 	"testing"

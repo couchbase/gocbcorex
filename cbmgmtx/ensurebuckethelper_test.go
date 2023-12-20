@@ -1,4 +1,4 @@
-package cbmgmtx
+package cbmgmtx_test
 
 import (
 	"context"
@@ -8,74 +8,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbmgmtx"
+
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
-func getOrchestratorNsAddr(t *testing.T) string {
-	mgmt := Management{
-		Transport: http.DefaultTransport,
-		UserAgent: "useragent",
-		Endpoint:  "http://" + testutils.TestOpts.HTTPAddrs[0],
-		Username:  testutils.TestOpts.Username,
-		Password:  testutils.TestOpts.Password,
-	}
-
-	clusterInfo, err := mgmt.GetTerseClusterInfo(context.Background(), &GetTerseClusterConfigOptions{})
-	require.NoError(t, err)
-
-	config, err := mgmt.GetClusterConfig(context.Background(), &GetClusterConfigOptions{})
-	require.NoError(t, err)
-
-	for _, node := range config.Nodes {
-		if node.OTPNode == clusterInfo.Orchestrator {
-			return node.Hostname
-		}
-	}
-
-	require.Fail(t, "failed to find orchestrator nsaddr")
-	return ""
-}
-
-type testNodeTarget struct {
-	Hostname       string
-	NsPort         uint16
-	IsOrchestrator bool
-}
-
-func getTestNodes(t *testing.T) []testNodeTarget {
-	mgmt := Management{
-		Transport: http.DefaultTransport,
-		UserAgent: "useragent",
-		Endpoint:  "http://" + testutils.TestOpts.HTTPAddrs[0],
-		Username:  testutils.TestOpts.Username,
-		Password:  testutils.TestOpts.Password,
-	}
-
-	config, err := mgmt.GetTerseClusterConfig(context.Background(), &GetTerseClusterConfigOptions{})
-	require.NoError(t, err)
-
-	orchestratorNsAddr := getOrchestratorNsAddr(t)
-
-	var nodes []testNodeTarget
-	for _, nodeExt := range config.NodesExt {
-		nsAddress := fmt.Sprintf("%s:%d", nodeExt.Hostname, nodeExt.Services.Mgmt)
-
-		nodes = append(nodes, testNodeTarget{
-			Hostname:       nodeExt.Hostname,
-			NsPort:         nodeExt.Services.Mgmt,
-			IsOrchestrator: nsAddress == orchestratorNsAddr,
-		})
-	}
-
-	return nodes
-}
-
-func testNodesToNodeTargets(t *testing.T, nodes []testNodeTarget) []NodeTarget {
-	var targets []NodeTarget
+func testNodesToNodeTargets(t *testing.T, nodes []testutils.TestNodeTarget) []cbmgmtx.NodeTarget {
+	var targets []cbmgmtx.NodeTarget
 	for _, node := range nodes {
-		targets = append(targets, NodeTarget{
+		targets = append(targets, cbmgmtx.NodeTarget{
 			Endpoint: fmt.Sprintf("http://%s:%d", node.Hostname, node.NsPort),
 			Username: testutils.TestOpts.Username,
 			Password: testutils.TestOpts.Password,
@@ -91,34 +34,12 @@ func TestEnsureBucketDino(t *testing.T) {
 	transport := http.DefaultTransport
 	testBucketName := "testbucket-" + uuid.NewString()[:6]
 
-	nodes := getTestNodes(t)
-	targets := testNodesToNodeTargets(t, nodes)
+	blockHost, execEndpoint, baseTargets := testutils.SelectNodeToBlock(t, testutils.TestServiceNs)
+	targets := testNodesToNodeTargets(t, baseTargets)
 
-	// we intentionally use the last target that will be polled as the node
-	// to create the bucket with so we don't unintentionally give additional
-	// time for nodes to sync their configuration, additionally we ensure that
-	// we do not select the orchestrator as the node to block since that incurs
-	// a huge time penalty to the test waiting for orchestrator election.
-	var execEndpoint string
-	var blockHost string
-	for _, node := range nodes {
-		// select the first non-orchestrator node to block
-		if blockHost == "" && !node.IsOrchestrator {
-			blockHost = node.Hostname
-		}
+	testutils.DisableAutoFailover(t)
 
-		// we always want to execute on the last node of the cluster
-		execEndpoint = fmt.Sprintf("http://%s:%d", node.Hostname, node.NsPort)
-	}
-
-	log.Printf("nodes:")
-	for _, node := range nodes {
-		log.Printf("  %s:%d (orchestrator: %t)", node.Hostname, node.NsPort, node.IsOrchestrator)
-	}
-	log.Printf("execution endpoint: %s", execEndpoint)
-	log.Printf("blocked host: %s", blockHost)
-
-	mgmt := Management{
+	mgmt := cbmgmtx.Management{
 		Transport: transport,
 		UserAgent: "useragent",
 		Endpoint:  execEndpoint,
@@ -129,18 +50,18 @@ func TestEnsureBucketDino(t *testing.T) {
 	createTestBucket := func() {
 		require.Eventually(t, func() bool {
 			log.Printf("attempting to create the bucket")
-			err := mgmt.CreateBucket(ctx, &CreateBucketOptions{
+			err := mgmt.CreateBucket(ctx, &cbmgmtx.CreateBucketOptions{
 				BucketName: testBucketName,
-				BucketSettings: BucketSettings{
-					MutableBucketSettings: MutableBucketSettings{
+				BucketSettings: cbmgmtx.BucketSettings{
+					MutableBucketSettings: cbmgmtx.MutableBucketSettings{
 						RAMQuotaMB:         100,
-						EvictionPolicy:     EvictionPolicyTypeValueOnly,
-						CompressionMode:    CompressionModePassive,
-						DurabilityMinLevel: DurabilityLevelNone,
+						EvictionPolicy:     cbmgmtx.EvictionPolicyTypeValueOnly,
+						CompressionMode:    cbmgmtx.CompressionModePassive,
+						DurabilityMinLevel: cbmgmtx.DurabilityLevelNone,
 					},
-					ConflictResolutionType: ConflictResolutionTypeSequenceNumber,
-					BucketType:             BucketTypeCouchbase,
-					StorageBackend:         StorageBackendCouchstore,
+					ConflictResolutionType: cbmgmtx.ConflictResolutionTypeSequenceNumber,
+					BucketType:             cbmgmtx.BucketTypeCouchbase,
+					StorageBackend:         cbmgmtx.StorageBackendCouchstore,
 					ReplicaIndex:           true,
 				},
 			})
@@ -156,7 +77,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	deleteTestBucket := func() {
 		require.Eventually(t, func() bool {
 			log.Printf("attempting to delete the bucket")
-			err := mgmt.DeleteBucket(ctx, &DeleteBucketOptions{
+			err := mgmt.DeleteBucket(ctx, &cbmgmtx.DeleteBucketOptions{
 				BucketName: testBucketName,
 			})
 			if err != nil {
@@ -181,7 +102,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	// create the test bucket
 	createTestBucket()
 
-	hlpr := EnsureBucketHelper{
+	hlpr := cbmgmtx.EnsureBucketHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
@@ -193,7 +114,7 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// the first couple of polls should fail, since a node is unavailable
 	require.Never(t, func() bool {
-		res, err := hlpr.Poll(ctx, &EnsureBucketPollOptions{
+		res, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
@@ -207,7 +128,7 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// we should see that the polls eventually succeed
 	require.Eventually(t, func() bool {
-		res, err := hlpr.Poll(ctx, &EnsureBucketPollOptions{
+		res, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
@@ -222,7 +143,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	// delete the bucket
 	deleteTestBucket()
 
-	hlprDel := EnsureBucketHelper{
+	hlprDel := cbmgmtx.EnsureBucketHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
@@ -234,7 +155,7 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// the first couple of polls should fail, since a node is unavailable
 	require.Never(t, func() bool {
-		res, err := hlprDel.Poll(ctx, &EnsureBucketPollOptions{
+		res, err := hlprDel.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
@@ -248,7 +169,7 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// we should see that the polls eventually succeed
 	require.Eventually(t, func() bool {
-		res, err := hlprDel.Poll(ctx, &EnsureBucketPollOptions{
+		res, err := hlprDel.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})

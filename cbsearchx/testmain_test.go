@@ -1,4 +1,4 @@
-package cbsearchx
+package cbsearchx_test
 
 import (
 	"testing"

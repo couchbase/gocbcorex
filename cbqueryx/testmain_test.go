@@ -1,4 +1,4 @@
-package cbqueryx
+package cbqueryx_test
 
 import (
 	"testing"

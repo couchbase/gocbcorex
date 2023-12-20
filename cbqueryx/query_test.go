@@ -1,4 +1,4 @@
-package cbqueryx
+package cbqueryx_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"testing"
+
+	"github.com/couchbase/gocbcorex/cbqueryx"
 
 	"github.com/stretchr/testify/assert"
 
@@ -33,11 +35,11 @@ func TestQuery(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	cache := NewPreparedStatementCache()
-	opts := &Options{
+	cache := cbqueryx.NewPreparedStatementCache()
+	opts := &cbqueryx.Options{
 		Statement: "SELECT 1",
 	}
-	res, err := Query{
+	res, err := cbqueryx.Query{
 		Transport: makeSingleTestRoundTripper(resp, nil),
 		Logger:    testutils.MakeTestLogger(t),
 		UserAgent: "useragent",
@@ -48,7 +50,9 @@ func TestQuery(t *testing.T) {
 
 	assertQueryResult(t, expectedRows, &expectedResult, res)
 
-	require.Empty(t, cache.queryCache)
+	stmt, ok := cache.Get("SELECT 1=1")
+	require.False(t, ok)
+	require.Empty(t, stmt)
 }
 
 func TestQueryIndexExists(t *testing.T) {
@@ -73,17 +77,17 @@ func TestQueryIndexExists(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 
-	opts := &Options{
+	opts := &cbqueryx.Options{
 		Statement: fmt.Sprintf("CREATE INDEX %s", index),
 	}
-	_, err = Query{
+	_, err = cbqueryx.Query{
 		Transport: makeSingleTestRoundTripper(resp, nil),
 		Logger:    testutils.MakeTestLogger(t),
 		UserAgent: "useragent",
 		Username:  "username",
 		Password:  "password",
 	}.Query(context.Background(), opts)
-	assert.ErrorIs(t, err, ErrIndexExists)
+	assert.ErrorIs(t, err, cbqueryx.ErrIndexExists)
 }
 
 func TestQueryIndexNotFound(t *testing.T) {
@@ -108,15 +112,15 @@ func TestQueryIndexNotFound(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 
-	opts := &Options{
+	opts := &cbqueryx.Options{
 		Statement: fmt.Sprintf("CREATE INDEX %s", index),
 	}
-	_, err = Query{
+	_, err = cbqueryx.Query{
 		Transport: makeSingleTestRoundTripper(resp, nil),
 		Logger:    testutils.MakeTestLogger(t),
 		UserAgent: "useragent",
 		Username:  "username",
 		Password:  "password",
 	}.Query(context.Background(), opts)
-	assert.ErrorIs(t, err, ErrIndexNotFound)
+	assert.ErrorIs(t, err, cbqueryx.ErrIndexNotFound)
 }

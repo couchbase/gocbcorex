@@ -339,6 +339,56 @@ func (h Management) GetTerseClusterInfo(ctx context.Context, opts *GetTerseClust
 	}.Recv()
 }
 
+type DisableAutoFailoverOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) DisableAutoFailover(ctx context.Context, opts *DisableAutoFailoverOptions) error {
+	posts := url.Values{}
+	posts.Add("enabled", "false")
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/settings/autoFailover",
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+
+	return nil
+}
+
+type EnableAutoFailoverOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) EnableAutoFailover(ctx context.Context, opts *EnableAutoFailoverOptions) error {
+	posts := url.Values{}
+	posts.Add("enabled", "true")
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/settings/autoFailover",
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
+}
+
 type GetCollectionManifestOptions struct {
 	BucketName string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo

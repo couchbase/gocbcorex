@@ -1,4 +1,4 @@
-package cbqueryx
+package cbqueryx_test
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/couchbase/gocbcorex/cbqueryx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,13 @@ func makeSingleTestRoundTripper(resp *http.Response, err error) *testRoundTrippe
 	}
 }
 
+type queryErrorJson struct {
+	Code   uint32                 `json:"code,omitempty"`
+	Msg    string                 `json:"msg,omitempty"`
+	Reason map[string]interface{} `json:"reason,omitempty"`
+	Retry  bool                   `json:"retry,omitempty"`
+}
+
 // Note that the ordering of this struct matters, it needs to match the query JSON ordering.
 type testQueryResult struct {
 	RequestID       string `json:"requestID"`
@@ -59,7 +68,7 @@ type testQueryResult struct {
 	Status   string           `json:"status"`
 }
 
-func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *testQueryResult, res ResultStream) {
+func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *testQueryResult, res cbqueryx.ResultStream) {
 	var rows [][]byte
 	for {
 		row, err := res.ReadRow()
@@ -80,7 +89,7 @@ func assertQueryResult(t *testing.T, expectedRows []string, expectedResult *test
 	meta, err := res.MetaData()
 	require.NoError(t, err)
 
-	assert.Equal(t, Status(expectedResult.Status), meta.Status)
+	assert.Equal(t, cbqueryx.Status(expectedResult.Status), meta.Status)
 	assert.Equal(t, expectedResult.ClientContextID, meta.ClientContextID)
 	assert.Equal(t, expectedResult.RequestID, meta.RequestID)
 

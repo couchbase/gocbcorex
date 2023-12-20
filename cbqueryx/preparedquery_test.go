@@ -1,4 +1,4 @@
-package cbqueryx
+package cbqueryx_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"testing"
+
+	"github.com/couchbase/gocbcorex/cbqueryx"
 
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/assert"
@@ -30,13 +32,13 @@ func TestPreparedQuery(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	cache := NewPreparedStatementCache()
-	opts := &Options{
+	cache := cbqueryx.NewPreparedStatementCache()
+	opts := &cbqueryx.Options{
 		Statement: "SELECT 1",
 	}
 	rt := makeSingleTestRoundTripper(resp, nil)
-	res, err := PreparedQuery{
-		Executor: &Query{
+	res, err := cbqueryx.PreparedQuery{
+		Executor: &cbqueryx.Query{
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
@@ -81,14 +83,14 @@ func TestPreparedQueryAlreadyCached(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	opts := &Options{
+	opts := &cbqueryx.Options{
 		Statement: "SELECT 1",
 	}
-	cache := NewPreparedStatementCache()
+	cache := cbqueryx.NewPreparedStatementCache()
 	cache.Put(opts.Statement, "apreparedstatement")
 	rt := makeSingleTestRoundTripper(resp, nil)
-	res, err := PreparedQuery{
-		Executor: &Query{
+	res, err := cbqueryx.PreparedQuery{
+		Executor: &cbqueryx.Query{
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
@@ -133,10 +135,10 @@ func TestPreparedQueryAlreadyCachedVersionFails(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	opts := &Options{
+	opts := &cbqueryx.Options{
 		Statement: "SELECT 1",
 	}
-	cache := NewPreparedStatementCache()
+	cache := cbqueryx.NewPreparedStatementCache()
 	cache.Put(opts.Statement, "apreparedstatement")
 	rt := &testRoundTripper{
 		Responses: []unifiedResponseError{
@@ -148,8 +150,8 @@ func TestPreparedQueryAlreadyCachedVersionFails(t *testing.T) {
 			},
 		},
 	}
-	res, err := PreparedQuery{
-		Executor: &Query{
+	res, err := cbqueryx.PreparedQuery{
+		Executor: &cbqueryx.Query{
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
@@ -184,13 +186,13 @@ func TestPreparedQueryPreparedNameMissing(t *testing.T) {
 		Body:          io.NopCloser(bytes.NewReader(body)),
 		ContentLength: int64(len(body)),
 	}
-	cache := NewPreparedStatementCache()
-	opts := &Options{
+	cache := cbqueryx.NewPreparedStatementCache()
+	opts := &cbqueryx.Options{
 		Statement: "SELECT 1",
 	}
 	rt := makeSingleTestRoundTripper(resp, nil)
-	res, err := PreparedQuery{
-		Executor: &Query{
+	res, err := cbqueryx.PreparedQuery{
+		Executor: &cbqueryx.Query{
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
@@ -203,5 +205,7 @@ func TestPreparedQueryPreparedNameMissing(t *testing.T) {
 
 	assertQueryResult(t, expectedRows, &expectedResult, res)
 
-	require.Empty(t, cache.queryCache)
+	stmt, ok := cache.Get("SELECT 1=1")
+	require.False(t, ok)
+	require.Empty(t, stmt)
 }
