@@ -64,7 +64,7 @@ jobs:
           CBDC_CONNSTR: # from above
           GCBDINOID: ${{ env.CBDC_ID }}
           GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
-        run: go test ./... -v -race
+        run: go test ./... -v -race -p 1
 
       - name: Collect couchbase logs
         timeout-minutes: 10
