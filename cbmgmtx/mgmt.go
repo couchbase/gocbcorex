@@ -65,7 +65,7 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 	fieldNameMap := map[string]string{
 		`durability_min_level`: "DurabilityMinLevel",
 		`ramquota`:             "RamQuotaMB",
-		`replicaNumber`:        "ReplicaNumber",
+		`replicanumber`:        "ReplicaNumber",
 		`maxttl`:               "MaxTTL",
 		`history`:              "HistoryEnabled",
 	}
