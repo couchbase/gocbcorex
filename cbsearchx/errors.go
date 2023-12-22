@@ -6,10 +6,15 @@ import (
 )
 
 var (
-	ErrInternalServerError   = errors.New("internal server error")
-	ErrAuthenticationFailure = errors.New("auth error")
-	ErrIndexNotFound         = errors.New("index not found")
-	ErrIndexExists           = errors.New("index exists")
+	ErrInternalServerError      = errors.New("internal server error")
+	ErrAuthenticationFailure    = errors.New("auth error")
+	ErrIndexNotFound            = errors.New("index not found")
+	ErrIndexExists              = errors.New("index exists")
+	ErrUnknownIndexType         = errors.New("unknown index type")
+	ErrSourceTypeIncorrect      = errors.New("source type incorrect")
+	ErrSourceNotFound           = errors.New("source not found")
+	ErrNoIndexPartitionsPlanned = errors.New("no index partitions planned")
+	ErrNoIndexPartitionsFound   = errors.New("no index partitions found")
 )
 
 type contextualError struct {
