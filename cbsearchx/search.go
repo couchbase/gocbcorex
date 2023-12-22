@@ -596,7 +596,7 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 		err = ErrSourceNotFound
 	} else if strings.Contains(errText, " failed to connect to or retrieve information from source, sourcetype") {
 		err = ErrSourceTypeIncorrect
-	} else if strings.Contains(errText, "no planpindexes for indexName") {
+	} else if strings.Contains(errText, "no planpindexes for indexname") {
 		err = ErrNoIndexPartitionsPlanned
 	} else if strings.Contains(errText, "no local pindexes found") {
 		err = ErrNoIndexPartitionsFound
