@@ -116,6 +116,9 @@ func (h Search) UpsertIndex(
 	if opts.Type == "" {
 		return errors.New("must specify index type when creating an index")
 	}
+	if opts.SourceType == "" {
+		return errors.New("must specify source type when creating an index")
+	}
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
@@ -586,6 +589,17 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 		err = ErrIndexExists
 	} else if strings.Contains(errText, "current index uuid") && strings.Contains(errText, "did not match input uuid") {
 		err = ErrIndexExists
+	} else if strings.Contains(errText, "unknown indextype") {
+		err = ErrUnknownIndexType
+	} else if strings.Contains(errText, "error obtaining vbucket count for bucket") ||
+		strings.Contains(errText, "requested resource not found") {
+		err = ErrSourceNotFound
+	} else if strings.Contains(errText, " failed to connect to or retrieve information from source, sourcetype") {
+		err = ErrSourceTypeIncorrect
+	} else if strings.Contains(errText, "no planpindexes for indexName") {
+		err = ErrNoIndexPartitionsPlanned
+	} else if strings.Contains(errText, "no local pindexes found") {
+		err = ErrNoIndexPartitionsFound
 	}
 
 	if err == nil {
