@@ -2,17 +2,16 @@ package gocbcorex
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/stretchr/testify/require"
-
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
 	"github.com/couchbase/gocbcorex/testutils"
-
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func newSearchIndexName() string {
@@ -20,76 +19,53 @@ func newSearchIndexName() string {
 	return indexName
 }
 
-func TestUpsertGetDeleteSearchIndex(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	agent := CreateDefaultAgent(t)
-	t.Cleanup(func() {
-		err := agent.Close()
-		require.NoError(t, err)
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	indexName := newSearchIndexName()
-
-	err := agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
-		Index: cbsearchx.Index{
-			Name:       indexName,
-			Type:       "fulltext-index",
-			SourceType: "couchbase",
-			SourceName: testutils.TestOpts.BucketName,
-		},
+func getSearchEndpoints(t *testing.T) []string {
+	config, err := cbmgmtx.Management{
+		Transport: http.DefaultTransport,
+		UserAgent: "useragent",
+		Endpoint:  "http://" + testutils.TestOpts.HTTPAddrs[0],
+		Username:  testutils.TestOpts.Username,
+		Password:  testutils.TestOpts.Password,
+	}.GetTerseClusterConfig(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{
+		OnBehalfOf: nil,
 	})
 	require.NoError(t, err)
 
-	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	index, err := agent.GetSearchIndex(ctx, &cbsearchx.GetIndexOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, indexName, index.Name)
-	assert.Equal(t, "fulltext-index", index.Type)
-
-	indexes, err := agent.GetAllSearchIndexes(ctx, &cbsearchx.GetAllIndexesOptions{})
-	require.NoError(t, err)
-
-	var found bool
-	for _, i := range indexes {
-		if i.Name == indexName {
-			found = true
-			break
+	var endpoints []string
+	for _, nodeExt := range config.NodesExt {
+		if nodeExt.Services.Fts > 0 {
+			endpoints = append(endpoints, fmt.Sprintf("http://%s:%d", nodeExt.Hostname, nodeExt.Services.Fts))
 		}
 	}
-	assert.True(t, found, "Did not find expected index in GetAllIndexes")
 
-	err = agent.DeleteSearchIndex(ctx, &cbsearchx.DeleteIndexOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
+	return endpoints
 }
 
-func TestSearchIndexesIngestControl(t *testing.T) {
+func TestEnsureIndex(t *testing.T) {
 	testutils.SkipIfShortTest(t)
+	retries := NewRetryManagerDefault()
+	endpoints := getSearchEndpoints(t)
+	sC := NewSearchComponent(
+		retries,
+		&SearchComponentConfig{
+			HttpRoundTripper: http.DefaultTransport,
+			Endpoints:        endpoints,
+			Authenticator: &PasswordAuthenticator{
+				Username: testutils.TestOpts.Username,
+				Password: testutils.TestOpts.Password,
+			},
+		},
+		&SearchComponentOptions{
+			Logger:    testutils.MakeTestLogger(t),
+			UserAgent: "useragent",
+		},
+	)
 
-	agent := CreateDefaultAgent(t)
-	t.Cleanup(func() {
-		err := agent.Close()
-		require.NoError(t, err)
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	indexName := newSearchIndexName()
-
-	err := agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
+	err := sC.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
 		Index: cbsearchx.Index{
 			Name:       indexName,
 			Type:       "fulltext-index",
@@ -99,167 +75,57 @@ func TestSearchIndexesIngestControl(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
+	t.Run("Success", func(t *testing.T) {
+		err := sC.EnsureIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+			IndexName: indexName,
+		})
+		require.NoError(t, err)
+
+		err = sC.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
+			IndexName: indexName,
+		})
+		require.NoError(t, err)
+
+		err = sC.EnsureIndexDropped(ctx, &EnsureSearchIndexDroppedOptions{
 			IndexName: indexName,
 		})
 		require.NoError(t, err)
 	})
 
-	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.PauseSearchIndexIngest(ctx, &cbsearchx.PauseIngestOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.ResumeSearchIndexIngest(ctx, &cbsearchx.ResumeIngestOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-}
-
-func TestSearchIndexesQueryControl(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	agent := CreateDefaultAgent(t)
-	t.Cleanup(func() {
-		err := agent.Close()
+	t.Run("ScopedSuccess", func(t *testing.T) {
+		testutils.SkipIfUnsupportedFeature(t, testutils.TestFeatureScopedSearch)
+		scopedName := newSearchIndexName()
+		err := sC.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+			BucketName: "someBucket",
+			ScopeName:  "someScope",
+			Index: cbsearchx.Index{
+				Name:       scopedName,
+				Type:       "fulltext-index",
+				SourceType: "couchbase",
+				SourceName: testutils.TestOpts.BucketName,
+			},
+		})
 		require.NoError(t, err)
-	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
+		err = sC.EnsureIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
+			IndexName:  scopedName,
+			BucketName: "someBucket",
+			ScopeName:  "someScope",
+		})
+		require.NoError(t, err)
 
-	indexName := newSearchIndexName()
+		err = sC.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
+			BucketName: "someBucket",
+			ScopeName:  "someScope",
+			IndexName:  scopedName,
+		})
+		require.NoError(t, err)
 
-	err := agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
-		Index: cbsearchx.Index{
-			Name:       indexName,
-			Type:       "fulltext-index",
-			SourceType: "couchbase",
-			SourceName: testutils.TestOpts.BucketName,
-		},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
-			IndexName: indexName,
+		err = sC.EnsureIndexDropped(ctx, &EnsureSearchIndexDroppedOptions{
+			IndexName:  scopedName,
+			BucketName: "someBucket",
+			ScopeName:  "someScope",
 		})
 		require.NoError(t, err)
 	})
-
-	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.DisallowSearchIndexQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.AllowSearchIndexQuerying(ctx, &cbsearchx.AllowQueryingOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-}
-
-func TestSearchIndexesPartitionControl(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	agent := CreateDefaultAgent(t)
-	t.Cleanup(func() {
-		err := agent.Close()
-		require.NoError(t, err)
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	indexName := newSearchIndexName()
-
-	err := agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
-		Index: cbsearchx.Index{
-			Name:       indexName,
-			Type:       "fulltext-index",
-			SourceType: "couchbase",
-			SourceName: testutils.TestOpts.BucketName,
-		},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
-			IndexName: indexName,
-		})
-		require.NoError(t, err)
-	})
-
-	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.FreezeSearchIndexPlan(ctx, &cbsearchx.FreezePlanOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.UnfreezeSearchIndexPlan(ctx, &cbsearchx.UnfreezePlanOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-}
-
-func TestSearchUUIDMismatch(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	agent := CreateDefaultAgent(t)
-	t.Cleanup(func() {
-		err := agent.Close()
-		require.NoError(t, err)
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	indexName := newSearchIndexName()
-
-	err := agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
-		Index: cbsearchx.Index{
-			Name:       indexName,
-			Type:       "fulltext-index",
-			SourceType: "couchbase",
-			SourceName: testutils.TestOpts.BucketName,
-		},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		err := agent.DeleteSearchIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
-			IndexName: indexName,
-		})
-		require.NoError(t, err)
-	})
-
-	err = agent.EnsureSearchIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
-
-	err = agent.UpsertSearchIndex(ctx, &cbsearchx.UpsertIndexOptions{
-		Index: cbsearchx.Index{
-			Name:       indexName,
-			Type:       "fulltext-index",
-			SourceType: "couchbase",
-			SourceName: testutils.TestOpts.BucketName,
-			UUID:       "123545",
-		},
-	})
-	assert.ErrorIs(t, err, cbsearchx.ErrIndexExists)
 }

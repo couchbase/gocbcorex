@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnsureIndex(t *testing.T) {
+func TestIndexPolling(t *testing.T) {
 	testutils.SkipIfShortTest(t)
 
 	ctx := context.Background()
