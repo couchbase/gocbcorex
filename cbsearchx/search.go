@@ -335,7 +335,7 @@ func (h Search) AnalyzeDocument(
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return nil, errors.New("must specify both or neither of scope and bucket names")
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/analyzeDoc", opts.BucketName, opts.ScopeName, opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s.%s.%s/analyzeDoc", opts.BucketName, opts.ScopeName, opts.IndexName)
 	}
 
 	resp, err := h.Execute(
