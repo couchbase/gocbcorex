@@ -36,13 +36,15 @@ func createTestClient(t *testing.T) *Client {
 	address := config.VBucketServerMap.ServerList[vbIdx]
 
 	if testAddress != address {
-		cli.Close()
+		err := cli.Close()
+		require.NoError(t, err)
 
 		cli, _ = dialAndBootstrapClient(t, address, testUsername, testPassword, testBucket)
 	}
 
 	t.Cleanup(func() {
-		cli.Close()
+		err := cli.Close()
+		require.NoError(t, err)
 	})
 
 	return cli
