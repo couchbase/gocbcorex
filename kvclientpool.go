@@ -49,7 +49,7 @@ type kvClientPool struct {
 	newKvClient NewKvClientFunc
 
 	clientIdx uint64
-	fastMap   AtomicPointer[kvClientPoolFastMap]
+	fastMap   atomic.Pointer[kvClientPoolFastMap]
 
 	lock       sync.Mutex
 	config     KvClientPoolConfig

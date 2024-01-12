@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -50,7 +51,7 @@ type CollectionResolverCached struct {
 	resolver       CollectionResolver
 	resolveTimeout time.Duration
 
-	fastCache AtomicPointer[collectionsFastManifest]
+	fastCache atomic.Pointer[collectionsFastManifest]
 
 	slowLock   sync.Mutex
 	slowMap    map[string]*collectionCacheEntry

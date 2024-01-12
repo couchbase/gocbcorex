@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync/atomic"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/couchbase/gocbcorex/memdx"
@@ -32,7 +33,7 @@ type VbucketRouterOptions struct {
 
 type vbucketRouter struct {
 	logger      *zap.Logger
-	routingInfo AtomicPointer[VbucketRoutingInfo]
+	routingInfo atomic.Pointer[VbucketRoutingInfo]
 }
 
 var _ VbucketRouter = (*vbucketRouter)(nil)

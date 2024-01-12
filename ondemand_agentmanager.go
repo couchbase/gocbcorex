@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 )
@@ -32,7 +33,7 @@ type OnDemandAgentManager struct {
 	opts         OnDemandAgentManagerOptions
 	clusterAgent *Agent
 
-	fastMap  AtomicPointer[map[string]*Agent]
+	fastMap  atomic.Pointer[map[string]*Agent]
 	slowMap  map[string]*Agent
 	slowLock sync.Mutex
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
@@ -47,7 +48,7 @@ type BucketsWatcherHttp struct {
 	userAgent string
 	closed    bool
 
-	fastMap   AtomicPointer[map[string]*Agent]
+	fastMap   atomic.Pointer[map[string]*Agent]
 	slowMap   map[string]*Agent
 	slowLock  sync.Mutex
 	makeAgent func(ctx context.Context, bucketName string) (*Agent, error)
