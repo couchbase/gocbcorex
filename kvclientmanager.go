@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 
@@ -51,7 +52,7 @@ type kvClientManager struct {
 
 	lock          sync.Mutex
 	currentConfig KvClientManagerConfig
-	state         AtomicPointer[kvClientManagerState]
+	state         atomic.Pointer[kvClientManagerState]
 }
 
 var _ (KvClientManager) = (*kvClientManager)(nil)

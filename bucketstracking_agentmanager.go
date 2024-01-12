@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -33,7 +34,7 @@ type bucketsTrackingAgentManagerState struct {
 	authenticator Authenticator
 	httpTransport *http.Transport
 
-	latestConfig AtomicPointer[ParsedConfig]
+	latestConfig atomic.Pointer[ParsedConfig]
 }
 
 type BucketsTrackingAgentManager struct {
