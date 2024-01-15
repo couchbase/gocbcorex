@@ -1,8 +1,11 @@
 package testutils
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -17,6 +20,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"golang.org/x/exp/slices"
+	"golang.org/x/mod/semver"
 )
 
 var TestOpts TestOptions
@@ -30,6 +34,7 @@ type TestOptions struct {
 	BucketName        string
 	SupportedFeatures []TestFeature
 	OriginalConnStr   string
+	ClusterVersion    string
 	DinoClusterID     string
 }
 
@@ -95,6 +100,36 @@ func SetupTests(m *testing.M) {
 			TestOpts.BucketName = "default"
 		}
 		TestOpts.OriginalConnStr = *connStr
+
+		if len(TestOpts.HTTPAddrs) == 0 {
+			panic("could not identify http hosts for version lookup")
+		}
+
+		firstHost := TestOpts.HTTPAddrs[0]
+
+		req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/pools", firstHost), nil)
+		req.SetBasicAuth(TestOpts.Username, TestOpts.Password)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Printf("failed to get cluster version: %s", err)
+		} else {
+			respBytes, err := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if err != nil {
+				log.Printf("failed to get cluster version: %s", err)
+			} else {
+				var respSt struct {
+					ImplementationVersion string `json:"implementationVersion"`
+				}
+				err = json.Unmarshal(respBytes, &respSt)
+				if err != nil {
+					log.Printf("failed to get cluster version: %s", err)
+				} else {
+					TestOpts.ClusterVersion = strings.Split(respSt.ImplementationVersion, "-")[0]
+				}
+			}
+		}
+		log.Printf("identified cluster version is: %s", TestOpts.ClusterVersion)
 	}
 
 	// default supported features
@@ -168,6 +203,13 @@ func parseConnStr(connStr string) error {
 func SkipIfShortTest(t *testing.T) {
 	if !TestOpts.LongTest {
 		t.Skipf("skipping long test")
+	}
+}
+
+func SkipIfOlderServerVersion(t *testing.T, version string) {
+	if semver.Compare("v"+TestOpts.ClusterVersion, "v"+version) < 0 {
+		t.Skipf("skipping test for mismatched server version, %s < %s",
+			TestOpts.ClusterVersion, version)
 	}
 }
 

@@ -11,6 +11,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.16.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20230131160201-f062dba9d201
+	golang.org/x/mod v0.14.0
 )
 
 require (
