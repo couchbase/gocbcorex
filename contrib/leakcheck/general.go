@@ -2,6 +2,7 @@ package leakcheck
 
 func EnableAll() {
 	EnableHttpResponseTracking()
+	PrecheckGoroutines()
 }
 
 func ReportAll() bool {
