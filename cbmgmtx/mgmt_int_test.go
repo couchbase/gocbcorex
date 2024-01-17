@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 func getHttpMgmt() *cbmgmtx.Management {
@@ -260,4 +261,39 @@ func TestHttpMgmtAutoFailover(t *testing.T) {
 		Timeout: ptr.To(settings.Timeout),
 	})
 	require.NoError(t, err)
+}
+
+func TestHttpMgmtUsers(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+	testUsername := "testuser-" + uuid.NewString()[:6]
+
+	err := getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		Username:    testUsername,
+		DisplayName: testUsername,
+		Password:    "password",
+		Roles:       []string{"ro_admin"},
+	})
+	require.NoError(t, err)
+
+	users, err := getHttpMgmt().GetAllUsers(ctx, &cbmgmtx.GetAllUsersOptions{})
+	require.NoError(t, err)
+
+	userIdx := slices.IndexFunc(users, func(user *cbmgmtx.UserJson) bool {
+		return user.Name == testUsername
+	})
+	require.GreaterOrEqual(t, userIdx, 0)
+	assert.Equal(t, users[userIdx].Name, testUsername)
+	assert.Equal(t, users[userIdx].Domain, cbmgmtx.AuthDomainLocal)
+
+	err = getHttpMgmt().DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
+		Username: testUsername,
+	})
+	require.NoError(t, err)
+
+	err = getHttpMgmt().DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
+		Username: "missing-user-name",
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrUserNotFound)
 }

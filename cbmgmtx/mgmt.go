@@ -80,6 +80,8 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		err = ErrScopeNotFound
 	} else if strings.Contains(errText, "not found") && strings.Contains(errText, "bucket") {
 		err = ErrBucketNotFound
+	} else if strings.Contains(errText, "not found") && strings.Contains(errText, "user") {
+		err = ErrUserNotFound
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "collection") {
 		err = ErrCollectionExists
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "scope") {
@@ -1099,3 +1101,165 @@ func (h Management) ConfigureAutoFailover(ctx context.Context, req *ConfigureAut
 
 	return nil
 }
+
+// AuthDomain specifies the user domain of a specific user
+type AuthDomain string
+
+const (
+	// AuthDomainAdmin specifies users that are locally stored as Administrators.
+	AuthDomainAdmin AuthDomain = "admin"
+
+	// AuthDomainLocal specifies users that are locally stored in Couchbase.
+	AuthDomainLocal AuthDomain = "local"
+
+	// AuthDomainExternal specifies users that are externally stored
+	// (in LDAP for instance).
+	AuthDomainExternal AuthDomain = "external"
+)
+
+type OriginJson struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
+type RoleJson struct {
+	RoleName       string `json:"role"`
+	BucketName     string `json:"bucket_name"`
+	ScopeName      string `json:"scope_name"`
+	CollectionName string `json:"collection_name"`
+}
+
+type RoleWithOriginsJson struct {
+	RoleJson
+
+	Origins []OriginJson
+}
+
+type UserJson struct {
+	ID              string                `json:"id"`
+	Name            string                `json:"name"`
+	Roles           []RoleWithOriginsJson `json:"roles"`
+	Groups          []string              `json:"groups"`
+	Domain          AuthDomain            `json:"domain"`
+	ExternalGroups  []string              `json:"external_groups"`
+	PasswordChanged time.Time             `json:"password_change_date"`
+}
+
+type GetAllUsersOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) GetAllUsers(
+	ctx context.Context,
+	opts *GetAllUsersOptions,
+) ([]*UserJson, error) {
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		"/settings/rbac/users",
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	usersData, err := cbhttpx.ReadAsJsonAndClose[[]*UserJson](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return usersData, nil
+}
+
+type UpsertUserOptions struct {
+	Domain      AuthDomain
+	Username    string
+	DisplayName string
+	Password    string
+	Roles       []string
+	Groups      []string
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) UpsertUser(
+	ctx context.Context,
+	opts *UpsertUserOptions,
+) error {
+	if opts.Username == "" {
+		return errors.New("must specify username when upserting a user")
+	}
+
+	if opts.Domain == "" {
+		opts.Domain = "local"
+	}
+
+	posts := url.Values{}
+
+	if opts.DisplayName != "" {
+		posts.Add("name", opts.DisplayName)
+	}
+	if opts.Password != "" {
+		posts.Add("password", opts.Password)
+	}
+	if len(opts.Groups) > 0 {
+		posts.Add("groups", strings.Join(opts.Groups, ","))
+	}
+	if len(opts.Roles) > 0 {
+		posts.Add("roles", strings.Join(opts.Roles, ","))
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"PUT",
+		fmt.Sprintf("/settings/rbac/users/%s/%s", opts.Domain, opts.Username),
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+	return nil
+}
+
+type DeleteUserOptions struct {
+	Domain     AuthDomain
+	Username   string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) DeleteUser(
+	ctx context.Context,
+	opts *DeleteUserOptions,
+) error {
+	if opts.Username == "" {
+		return errors.New("must specify username when deleting a user")
+	}
+
+	if opts.Domain == "" {
+		opts.Domain = "local"
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"DELETE",
+		fmt.Sprintf("/settings/rbac/users/%s/%s", opts.Domain, opts.Username),
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+	return nil
+}
+
