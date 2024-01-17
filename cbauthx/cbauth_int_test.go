@@ -2,10 +2,12 @@ package cbauthx_test
 
 import (
 	"context"
+	"log"
 	"testing"
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbauthx"
+	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,4 +110,118 @@ func TestCbAuthBasicSlow(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to dial")
 
 	auth.Close()
+}
+
+func TestCbauthFailuresDino(t *testing.T) {
+	testutilsint.SkipIfNoDinoCluster(t)
+	testutilsint.SkipIfOlderServerVersion(t, "7.2.0")
+
+	ctx := context.Background()
+	logger := testutils.MakeTestLogger(t)
+	nodes := testutilsint.GetTestNodes(t)
+
+	blockNode := nodes.SelectFirst(t, func(node *testutilsint.NodeTarget) bool {
+		return !node.IsOrchestrator
+	})
+
+	blockHost := blockNode.Hostname
+	blockEndpoint := blockNode.NsEndpoint()
+
+	log.Printf("nodes:")
+	for _, node := range nodes {
+		log.Printf("  %s", node)
+	}
+	log.Printf("test endpoint: %s", blockEndpoint)
+
+	var allEndpoints []string
+	for _, node := range nodes {
+		allEndpoints = append(allEndpoints, node.NsEndpoint())
+	}
+
+	authOne, err := cbauthx.NewCbAuth(context.Background(), &cbauthx.CbAuthConfig{
+		Endpoints: []string{
+			blockEndpoint,
+		},
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	}, &cbauthx.CbAuthOptions{
+		Logger:            logger.Named("single"),
+		ServiceName:       "stgs",
+		UserAgent:         "cng-test",
+		HeartbeatInterval: 3 * time.Second,
+		HeartbeatTimeout:  5 * time.Second,
+		LivenessTimeout:   6 * time.Second,
+		ConnectTimeout:    3 * time.Second,
+	})
+	require.NoError(t, err)
+
+	// We create with a single host, and then reconfigure into multiple to
+	// force it to be connected to the block host initially.
+	authMulti, err := cbauthx.NewCbAuth(context.Background(), &cbauthx.CbAuthConfig{
+		Endpoints: []string{
+			blockEndpoint,
+		},
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	}, &cbauthx.CbAuthOptions{
+		Logger:            logger.Named("multi"),
+		ServiceName:       "stgm",
+		UserAgent:         "cng-test",
+		HeartbeatInterval: 3 * time.Second,
+		HeartbeatTimeout:  5 * time.Second,
+		LivenessTimeout:   6 * time.Second,
+		ConnectTimeout:    3 * time.Second,
+	})
+	require.NoError(t, err)
+
+	err = authMulti.Reconfigure(&cbauthx.CbAuthConfig{
+		Endpoints:   allEndpoints,
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	})
+	require.NoError(t, err)
+
+	// prime the cache
+	_, err = authOne.CheckUserPass(ctx, testutilsint.TestOpts.Username, testutilsint.TestOpts.Password)
+	assert.NoError(t, err)
+
+	_, err = authMulti.CheckUserPass(ctx, testutilsint.TestOpts.Username, testutilsint.TestOpts.Password)
+	assert.NoError(t, err)
+
+	// start dino testing
+	dino := testutilsint.StartDinoTesting(t, true)
+
+	// block access to the test endpoint
+	dino.BlockAllTraffic(blockHost)
+
+	// wait for our liveness timeout to expire
+	// we wait longer than the actual liveness timeout because the iptables rules
+	// that cbdinocluster uses will still allow one last heartbeat to be received
+	// before the connection ends up being dropped due to lack of connectivity.
+	time.Sleep(10 * time.Second)
+
+	// single-host cbauth should be returning liveness errors
+	_, err = authOne.CheckUserPass(ctx, testutilsint.TestOpts.Username, testutilsint.TestOpts.Password)
+	assert.ErrorContains(t, err, "cannot check auth due to cbauth unavailability")
+
+	// single-host cbauth invalid should fail for the same reason
+	_, err = authOne.CheckUserPass(ctx, "invalid", "invalid")
+	assert.ErrorContains(t, err, "cannot check auth due to cbauth unavailability")
+
+	// multi-host cbauth should be still working, thanks to it selecting a new host
+	_, err = authMulti.CheckUserPass(ctx, testutilsint.TestOpts.Username, testutilsint.TestOpts.Password)
+	assert.NoError(t, err)
+
+	// multi-host cbauth invalid should just fail
+	_, err = authMulti.CheckUserPass(ctx, "invalid", "invalid")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	// stop blocking traffic to the node
+	dino.AllowTraffic(blockHost)
+
+	_ = authOne.Close()
+	_ = authMulti.Close()
 }
