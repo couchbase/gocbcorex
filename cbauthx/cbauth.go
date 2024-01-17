@@ -266,7 +266,9 @@ func (a *CbAuth) Reconfigure(config *CbAuthConfig) error {
 	}
 
 	if !a.isCliValidLocked() {
-		a.cli.Close()
+		if a.cli != nil {
+			a.cli.Close()
+		}
 	}
 
 	a.lock.Unlock()
