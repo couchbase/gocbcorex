@@ -16,6 +16,7 @@ var (
 	ErrBucketNotFound     = errors.New("bucket not found")
 	ErrServerInvalidArg   = errors.New("invalid argument")
 	ErrBucketUuidMismatch = errors.New("bucket uuid mismatch")
+	ErrUserNotFound       = errors.New("user not found")
 	ErrManifestOutOfDate  = errors.New("manifest out of date")
 	ErrOperationDelayed   = errors.New("operation was delayed, but will continue")
 )
