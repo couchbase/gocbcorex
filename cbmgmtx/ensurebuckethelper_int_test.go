@@ -103,7 +103,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	dino := testutilsint.StartDinoTesting(t, true)
 
 	// block access to the first endpoint
-	dino.BlockTraffic(blockHost)
+	dino.BlockNodeTraffic(blockHost)
 
 	// create the test bucket
 	createTestBucket()
@@ -144,7 +144,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	}, 30*time.Second, 1*time.Second)
 
 	// now lets block traffic again before we delete
-	dino.BlockTraffic(blockHost)
+	dino.BlockNodeTraffic(blockHost)
 
 	// delete the bucket
 	deleteTestBucket()
