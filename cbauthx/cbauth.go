@@ -291,6 +291,7 @@ func (a *CbAuth) runThread(
 		if initialCli != nil {
 			newCli = initialCli
 			newEndpoint = initialEndpoint
+			newUsername = initialUsername
 			newPassword = initialPassword
 			newClusterUuid = initialClusterUuid
 
@@ -361,6 +362,7 @@ func (a *CbAuth) runThread(
 
 		if !a.isCliValidLocked() {
 			// closed or reconfigured since initial connect
+			a.logger.Debug("disconnecting new cli due to invalidity")
 			runCli.Close()
 		}
 
