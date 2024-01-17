@@ -50,8 +50,12 @@ func runDinoCmd(args []string) error {
 	return err
 }
 
-func runDinoBlockTraffic(node string) error {
+func runDinoBlockNodeTraffic(node string) error {
 	return runDinoCmd([]string{"chaos", "block-traffic", TestOpts.DinoClusterID, node})
+}
+
+func runDinoBlockAllTraffic(node string) error {
+	return runDinoCmd([]string{"chaos", "block-traffic", TestOpts.DinoClusterID, node, "all"})
 }
 
 func runDinoAllowTraffic(node string) error {
@@ -122,9 +126,15 @@ func (c *DinoController) EnableAutoFailover() {
 	c.oldFoSettings = nil
 }
 
-func (c *DinoController) BlockTraffic(node string) {
+func (c *DinoController) BlockNodeTraffic(node string) {
 	c.blockedNodes = append(c.blockedNodes, node)
-	err := runDinoBlockTraffic(node)
+	err := runDinoBlockNodeTraffic(node)
+	require.NoError(c.t, err)
+}
+
+func (c *DinoController) BlockAllTraffic(node string) {
+	c.blockedNodes = append(c.blockedNodes, node)
+	err := runDinoBlockAllTraffic(node)
 	require.NoError(c.t, err)
 }
 
