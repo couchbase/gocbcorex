@@ -99,6 +99,13 @@ func NewBucketsWatcherHttp(cfg BucketsWatcherHttpConfig, opts BucketsWatcherHttp
 	return bw, nil
 }
 
+func (w *BucketsWatcherHttp) NumAgents() int {
+	w.slowLock.Lock()
+	defer w.slowLock.Unlock()
+
+	return len(w.slowMap)
+}
+
 func (w *BucketsWatcherHttp) Reconfigure(cfg *BucketsWatcherHttpReconfigureConfig) error {
 	w.logger.Debug("Reconfiguring", zap.Any("config", cfg))
 

@@ -11,11 +11,11 @@ import (
 
 func TestOpSaslAuthAuto_Plain(t *testing.T) {
 	enc := &testOpSaslAutoEncoder{
-		sASLListMech: unaryResult[*SASLListMechsResponse]{
+		sASLListMech: UnaryResult[*SASLListMechsResponse]{
 			Resp: &SASLListMechsResponse{
 				AvailableMechs: []AuthMechanism{PlainAuthMechanism}},
 		},
-		sASLAuth: []unaryResult[*SASLAuthResponse]{
+		sASLAuth: []UnaryResult[*SASLAuthResponse]{
 			{
 				Resp: &SASLAuthResponse{},
 			},
@@ -65,11 +65,11 @@ func TestOpSaslAuthAuto_FirstAuthFails(t *testing.T) {
 	// the second mech provided. We error the first request, the SDK should detect that it's an unsupported mechanism
 	// and attempt auth again with the second mech.
 	enc := &testOpSaslAutoEncoder{
-		sASLListMech: unaryResult[*SASLListMechsResponse]{
+		sASLListMech: UnaryResult[*SASLListMechsResponse]{
 			Resp: &SASLListMechsResponse{
 				AvailableMechs: []AuthMechanism{PlainAuthMechanism}},
 		},
-		sASLAuth: []unaryResult[*SASLAuthResponse]{
+		sASLAuth: []UnaryResult[*SASLAuthResponse]{
 			{
 				Err: errors.New("failedauth"),
 			},
@@ -77,7 +77,7 @@ func TestOpSaslAuthAuto_FirstAuthFails(t *testing.T) {
 				Resp: &SASLAuthResponse{},
 			},
 		},
-		sASLStep: []unaryResult[*SASLStepResponse]{
+		sASLStep: []UnaryResult[*SASLStepResponse]{
 			{
 				Resp: &SASLStepResponse{},
 			},
@@ -113,11 +113,11 @@ func TestOpSaslAuthAuto_FirstAuthFailsNoCompatibleMechs(t *testing.T) {
 	// match any requested mech. We error the first request, the SDK should detect that it's an unsupported mechanism
 	// and then find that it has no supported mechanisms.
 	enc := &testOpSaslAutoEncoder{
-		sASLListMech: unaryResult[*SASLListMechsResponse]{
+		sASLListMech: UnaryResult[*SASLListMechsResponse]{
 			Resp: &SASLListMechsResponse{
 				AvailableMechs: []AuthMechanism{ScramSha1AuthMechanism}},
 		},
-		sASLAuth: []unaryResult[*SASLAuthResponse]{
+		sASLAuth: []UnaryResult[*SASLAuthResponse]{
 			{
 				Err: errors.New("failedauth"),
 			},
@@ -125,7 +125,7 @@ func TestOpSaslAuthAuto_FirstAuthFailsNoCompatibleMechs(t *testing.T) {
 				Resp: &SASLAuthResponse{},
 			},
 		},
-		sASLStep: []unaryResult[*SASLStepResponse]{
+		sASLStep: []UnaryResult[*SASLStepResponse]{
 			{
 				Resp: &SASLStepResponse{},
 			},
@@ -157,10 +157,10 @@ func TestOpSaslAuthAuto_FirstAuthFailsNoCompatibleMechs(t *testing.T) {
 
 func TestOpSaslAuthAuto_FirstAuthFailsListMechsFails(t *testing.T) {
 	enc := &testOpSaslAutoEncoder{
-		sASLListMech: unaryResult[*SASLListMechsResponse]{
+		sASLListMech: UnaryResult[*SASLListMechsResponse]{
 			Err: errors.New("ohnoes"),
 		},
-		sASLAuth: []unaryResult[*SASLAuthResponse]{
+		sASLAuth: []UnaryResult[*SASLAuthResponse]{
 			{
 				Err: errors.New("failedauth"),
 			},
@@ -168,7 +168,7 @@ func TestOpSaslAuthAuto_FirstAuthFailsListMechsFails(t *testing.T) {
 				Resp: &SASLAuthResponse{},
 			},
 		},
-		sASLStep: []unaryResult[*SASLStepResponse]{
+		sASLStep: []UnaryResult[*SASLStepResponse]{
 			{
 				Resp: &SASLStepResponse{},
 			},
@@ -199,9 +199,9 @@ func TestOpSaslAuthAuto_FirstAuthFailsListMechsFails(t *testing.T) {
 }
 
 type testOpSaslAutoEncoder struct {
-	sASLAuth     []unaryResult[*SASLAuthResponse]
-	sASLStep     []unaryResult[*SASLStepResponse]
-	sASLListMech unaryResult[*SASLListMechsResponse]
+	sASLAuth     []UnaryResult[*SASLAuthResponse]
+	sASLStep     []UnaryResult[*SASLStepResponse]
+	sASLListMech UnaryResult[*SASLListMechsResponse]
 	syncCh       chan struct{}
 
 	AuthRequests []*SASLAuthRequest
@@ -218,7 +218,7 @@ func (t *testOpSaslAutoEncoder) SASLStep(dispatcher Dispatcher, request *SASLSte
 		t.syncCh <- struct{}{}
 	}()
 
-	return pendingOpNoop{}, nil
+	return PendingOpNoop{}, nil
 }
 
 func (t *testOpSaslAutoEncoder) SASLAuth(dispatcher Dispatcher, request *SASLAuthRequest, f func(*SASLAuthResponse, error)) (PendingOp, error) {
@@ -230,7 +230,7 @@ func (t *testOpSaslAutoEncoder) SASLAuth(dispatcher Dispatcher, request *SASLAut
 		t.syncCh <- struct{}{}
 	}()
 
-	return pendingOpNoop{}, nil
+	return PendingOpNoop{}, nil
 }
 
 func (t *testOpSaslAutoEncoder) SASLListMechs(dispatcher Dispatcher, request *SASLListMechsRequest, f func(*SASLListMechsResponse, error)) (PendingOp, error) {
@@ -239,5 +239,5 @@ func (t *testOpSaslAutoEncoder) SASLListMechs(dispatcher Dispatcher, request *SA
 		t.syncCh <- struct{}{}
 	}()
 
-	return pendingOpNoop{}, nil
+	return PendingOpNoop{}, nil
 }

@@ -231,7 +231,7 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 			// We pretend that the write was successful in this case, since the
 			// callback will already have been invoked with errors by someone else.
 			c.opaqueMapLock.Unlock()
-			return pendingOpNoop{}, nil
+			return PendingOpNoop{}, nil
 		}
 
 		delete(c.opaqueMap, opaqueID)

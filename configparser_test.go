@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
+	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/assert"
 )
 
 func LoadTestTerseConfig(t *testing.T, path string) *ParsedConfig {
-	cfgBytes := LoadTestData(t, path)
+	cfgBytes := testutils.LoadTestData(t, path)
 
 	var cfg cbconfig.TerseConfigJson
 	err := json.Unmarshal(cfgBytes, &cfg)
@@ -27,7 +28,7 @@ func LoadTestTerseConfig(t *testing.T, path string) *ParsedConfig {
 }
 
 func TestConfigParserAltAddresses(t *testing.T) {
-	cfg := LoadTestTerseConfig(t, "testdata/bucket_config_with_external_addresses.json")
+	cfg := LoadTestTerseConfig(t, "bucket_config_with_external_addresses.json")
 
 	assert.Equal(t, cfg.RevID, int64(1073))
 	assert.Equal(t, cfg.RevEpoch, int64(0))
