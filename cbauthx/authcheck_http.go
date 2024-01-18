@@ -3,6 +3,7 @@ package cbauthx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,6 +79,17 @@ func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, pass
 			Message: "failed to decode response data",
 			Cause:   err,
 		}
+	}
+
+	// In the interest of mitigating the impact of an incorrect auth check url
+	// being used, we validate some expected state of the response which has the
+	// effect of significantly reducing the chances we accept auth from those
+	// urls which do not actually check auth.
+	if jsonResp.User != username {
+		return UserInfo{}, errors.New("user field in auth response did not match request")
+	}
+	if jsonResp.Domain == "" {
+		return UserInfo{}, errors.New("domain field missing from auth response")
 	}
 
 	return UserInfo{
