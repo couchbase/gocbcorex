@@ -19,7 +19,7 @@ func TestOpBootstrapPlainAuth(t *testing.T) {
 
 	opts := makeDefaultBootstrapOptions()
 
-	res, err := syncUnaryCall(OpBootstrap{
+	res, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	require.NoError(t, err)
@@ -34,13 +34,13 @@ func TestOpBootstrapHelloFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.Hello = unaryResult[*HelloResponse]{
+	enc.Responses.Hello = UnaryResult[*HelloResponse]{
 		Err: errors.New("i failed"),
 	}
 
 	opts := makeDefaultBootstrapOptions()
 
-	res, err := syncUnaryCall(OpBootstrap{
+	res, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	require.NoError(t, err)
@@ -55,13 +55,13 @@ func TestOpBootstrapGetErrMapFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.GetErrorMap = unaryResult[*GetErrorMapResponse]{
+	enc.Responses.GetErrorMap = UnaryResult[*GetErrorMapResponse]{
 		Err: errors.New("i failed"),
 	}
 
 	opts := makeDefaultBootstrapOptions()
 
-	res, err := syncUnaryCall(OpBootstrap{
+	res, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	require.NoError(t, err)
@@ -76,13 +76,13 @@ func TestOpBootstrapListMechFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.SASLListMech = unaryResult[*SASLListMechsResponse]{
+	enc.Responses.SASLListMech = UnaryResult[*SASLListMechsResponse]{
 		Err: errors.New("error"),
 	}
 
 	opts := makeDefaultBootstrapOptions()
 
-	res, err := syncUnaryCall(OpBootstrap{
+	res, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	require.NoError(t, err)
@@ -97,13 +97,13 @@ func TestOpBootstrapAuthFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.SASLAuth = unaryResult[*SASLAuthResponse]{
+	enc.Responses.SASLAuth = UnaryResult[*SASLAuthResponse]{
 		Err: ErrAuthError,
 	}
 
 	opts := makeDefaultBootstrapOptions()
 
-	_, err := syncUnaryCall(OpBootstrap{
+	_, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	assert.ErrorIs(t, err, ErrAuthError)
@@ -114,13 +114,13 @@ func TestOpBootstrapSelectBucketFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.SelectBucket = unaryResult[*SelectBucketResponse]{
+	enc.Responses.SelectBucket = UnaryResult[*SelectBucketResponse]{
 		Err: errors.New("imnobucket"),
 	}
 
 	opts := makeDefaultBootstrapOptions()
 
-	_, err := syncUnaryCall(OpBootstrap{
+	_, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	assert.ErrorIs(t, err, enc.Responses.SelectBucket.Err)
@@ -131,13 +131,13 @@ func TestOpBootstrapGetClusterConfigFails(t *testing.T) {
 	cfg := testutils.LoadTestData(t, "bucket_config_with_external_addresses.json")
 
 	enc := makeDefaultTestBootstrapEncoder(errmap, cfg)
-	enc.Responses.GetClusterConfig = unaryResult[*GetClusterConfigResponse]{
+	enc.Responses.GetClusterConfig = UnaryResult[*GetClusterConfigResponse]{
 		Err: errors.New("i failed"),
 	}
 
 	opts := makeDefaultBootstrapOptions()
 
-	res, err := syncUnaryCall(OpBootstrap{
+	res, err := SyncUnaryCall(OpBootstrap{
 		Encoder: enc,
 	}, OpBootstrap.Bootstrap, testBootstrapDispatcher{}, opts)
 	require.NoError(t, err)
@@ -202,11 +202,11 @@ func TestOpBootstrapCancelled(t *testing.T) {
 			elem := reflect.ValueOf(enc).Elem()
 			elem.FieldByName(test.TargetFieldName).Set(reflect.ValueOf(pair))
 
-			wait := make(chan unaryResult[*BootstrapResult], 1)
+			wait := make(chan UnaryResult[*BootstrapResult], 1)
 			op, err := OpBootstrap{
 				Encoder: enc,
 			}.Bootstrap(testBootstrapDispatcher{}, opts, func(res *BootstrapResult, err error) {
-				wait <- unaryResult[*BootstrapResult]{
+				wait <- UnaryResult[*BootstrapResult]{
 					Resp: res,
 					Err:  err,
 				}
@@ -257,29 +257,29 @@ func makeDefaultBootstrapOptions() *BootstrapOptions {
 func makeDefaultTestBootstrapEncoder(errmap []byte, cfg []byte) *testOpBootstrapEncoder {
 	enc := &testOpBootstrapEncoder{
 		Responses: testOpBootstrapEncoderResponses{
-			Hello: unaryResult[*HelloResponse]{
+			Hello: UnaryResult[*HelloResponse]{
 				Resp: &HelloResponse{
 					EnabledFeatures: []HelloFeature{1, 2, 3, 4, 5},
 				},
 			},
-			GetErrorMap: unaryResult[*GetErrorMapResponse]{
+			GetErrorMap: UnaryResult[*GetErrorMapResponse]{
 				Resp: &GetErrorMapResponse{
 					ErrorMap: errmap,
 				},
 			},
-			SASLAuth: unaryResult[*SASLAuthResponse]{
+			SASLAuth: UnaryResult[*SASLAuthResponse]{
 				Resp: &SASLAuthResponse{
 					NeedsMoreSteps: false,
 				},
 			},
-			SASLStep: unaryResult[*SASLStepResponse]{},
-			SASLListMech: unaryResult[*SASLListMechsResponse]{
+			SASLStep: UnaryResult[*SASLStepResponse]{},
+			SASLListMech: UnaryResult[*SASLListMechsResponse]{
 				Resp: &SASLListMechsResponse{
 					AvailableMechs: []AuthMechanism{PlainAuthMechanism},
 				},
 			},
-			SelectBucket: unaryResult[*SelectBucketResponse]{},
-			GetClusterConfig: unaryResult[*GetClusterConfigResponse]{
+			SelectBucket: UnaryResult[*SelectBucketResponse]{},
+			GetClusterConfig: UnaryResult[*GetClusterConfigResponse]{
 				Resp: &GetClusterConfigResponse{
 					Config: cfg,
 				},
@@ -300,7 +300,7 @@ type testBootstrapDispatcher struct {
 }
 
 func (t testBootstrapDispatcher) Dispatch(packet *Packet, callback DispatchCallback) (PendingOp, error) {
-	return pendingOpNoop{}, nil
+	return PendingOpNoop{}, nil
 }
 
 func (t testBootstrapDispatcher) LocalAddr() string {
@@ -322,13 +322,13 @@ type testOpBootstrapEncoderRequests struct {
 }
 
 type testOpBootstrapEncoderResponses struct {
-	Hello            unaryResult[*HelloResponse]
-	GetErrorMap      unaryResult[*GetErrorMapResponse]
-	SASLAuth         unaryResult[*SASLAuthResponse]
-	SASLStep         unaryResult[*SASLStepResponse]
-	SASLListMech     unaryResult[*SASLListMechsResponse]
-	SelectBucket     unaryResult[*SelectBucketResponse]
-	GetClusterConfig unaryResult[*GetClusterConfigResponse]
+	Hello            UnaryResult[*HelloResponse]
+	GetErrorMap      UnaryResult[*GetErrorMapResponse]
+	SASLAuth         UnaryResult[*SASLAuthResponse]
+	SASLStep         UnaryResult[*SASLStepResponse]
+	SASLListMech     UnaryResult[*SASLListMechsResponse]
+	SelectBucket     UnaryResult[*SelectBucketResponse]
+	GetClusterConfig UnaryResult[*GetClusterConfigResponse]
 }
 
 type testOpBootstrapEncoderDispatchErrors struct {

@@ -1,7 +1,7 @@
 package memdx
 
-type pendingOpNoop struct {
+type PendingOpNoop struct {
 }
 
-func (p pendingOpNoop) Cancel(_ error) {
+func (p PendingOpNoop) Cancel(_ error) {
 }

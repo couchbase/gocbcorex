@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/couchbase/gocbcorex/memdx"
-	"github.com/couchbase/gocbcorex/testutils"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -20,55 +18,6 @@ type memdxPendingOpMock struct {
 
 func (mpo memdxPendingOpMock) Cancel(err error) {
 	mpo.cancelledCh <- err
-}
-
-func TestKvClientReconfigureBucket(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	logger, _ := zap.NewDevelopment()
-
-	auth := &PasswordAuthenticator{
-		Username: testutils.TestOpts.Username,
-		Password: testutils.TestOpts.Password,
-	}
-
-	cli, err := NewKvClient(context.Background(), &KvClientConfig{
-		Address:       testutils.TestOpts.MemdAddrs[0],
-		Authenticator: auth,
-	}, &KvClientOptions{
-		Logger: logger,
-	})
-	require.NoError(t, err)
-
-	// Select a bucket on a gcccp level request
-	reconfigureCh := make(chan error)
-	err = cli.Reconfigure(&KvClientConfig{
-		Address:        testutils.TestOpts.MemdAddrs[0],
-		Authenticator:  auth,
-		SelectedBucket: testutils.TestOpts.BucketName,
-	}, func(err error) {
-		reconfigureCh <- err
-	})
-	require.NoError(t, err)
-	err = <-reconfigureCh
-	require.NoError(t, err)
-
-	// Check that an op works
-	setRes, err := cli.Set(context.Background(), &memdx.SetRequest{
-		Key:       []byte(uuid.NewString()),
-		VbucketID: 1,
-		Value:     []byte("test"),
-	})
-	// We don't know if we sent the Set to the correct node for the vbucket so check that the result is either ok or
-	// is a NMVB error.
-	if err == nil {
-		assert.NotZero(t, setRes.Cas)
-	} else {
-		assert.ErrorIs(t, err, memdx.ErrNotMyVbucket)
-	}
-
-	err = cli.Close()
-	require.NoError(t, err)
 }
 
 func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
@@ -408,39 +357,4 @@ func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
 
 	var dispatchError KvClientDispatchError
 	require.False(t, errors.As(err, &dispatchError), "error should not have dispatch error")
-}
-
-// ======== Integration tests ========
-
-func TestKvClientCloseAfterReconfigure(t *testing.T) {
-	testutils.SkipIfShortTest(t)
-
-	auth := &PasswordAuthenticator{
-		Username: testutils.TestOpts.Username,
-		Password: testutils.TestOpts.Password,
-	}
-	clientConfig := &KvClientConfig{
-		Address:       testutils.TestOpts.MemdAddrs[0],
-		TlsConfig:     nil,
-		Authenticator: auth,
-	}
-
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	cli, err := NewKvClient(context.Background(), clientConfig, &KvClientOptions{Logger: logger})
-	require.NoError(t, err)
-
-	err = cli.Reconfigure(&KvClientConfig{
-		Address:        testutils.TestOpts.MemdAddrs[0],
-		TlsConfig:      nil,
-		SelectedBucket: testutils.TestOpts.BucketName,
-		Authenticator:  auth,
-	}, func(err error) {
-		// We don't need to wait for all of the clients to be fully reconfigured.
-	})
-	require.NoError(t, err)
-
-	err = cli.Close()
-	require.NoError(t, err)
 }

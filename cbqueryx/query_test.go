@@ -9,11 +9,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/google/uuid"
-
 	"github.com/couchbase/gocbcorex/testutils"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 

@@ -83,7 +83,7 @@ func OpPipelineAddSync(
 	OpPipelineAddWithNext(p, func(nextFn func(), opCb func(res struct{}, err error)) (PendingOp, error) {
 		opCb(struct{}{}, nil)
 		nextFn()
-		return pendingOpNoop{}, nil
+		return PendingOpNoop{}, nil
 	}, func(res struct{}, err error) bool {
 		cb()
 		return true
