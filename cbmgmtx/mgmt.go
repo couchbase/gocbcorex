@@ -1262,4 +1262,3 @@ func (h Management) DeleteUser(
 	_ = resp.Body.Close()
 	return nil
 }
-

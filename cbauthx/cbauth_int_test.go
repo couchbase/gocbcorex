@@ -3,12 +3,15 @@ package cbauthx_test
 import (
 	"context"
 	"log"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbauthx"
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -110,6 +113,114 @@ func TestCbAuthBasicSlow(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to dial")
 
 	auth.Close()
+}
+
+func TestCbauthInvalidations(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+	testutilsint.SkipIfOlderServerVersion(t, "7.2.0")
+
+	ctx := context.Background()
+	logger := testutils.MakeTestLogger(t)
+
+	user1 := uuid.NewString()
+	user2 := uuid.NewString()
+
+	auth, err := cbauthx.NewCbAuth(ctx, &cbauthx.CbAuthConfig{
+		Endpoints: []string{
+			"http://" + testutilsint.TestOpts.HTTPAddrs[0],
+		},
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	}, &cbauthx.CbAuthOptions{
+		Logger:            logger,
+		ServiceName:       "stg",
+		UserAgent:         "cng-test",
+		HeartbeatInterval: 3 * time.Second,
+		HeartbeatTimeout:  5 * time.Second,
+		LivenessTimeout:   6 * time.Second,
+		ConnectTimeout:    3 * time.Second,
+	})
+	require.NoError(t, err)
+
+	mgmt := cbmgmtx.Management{
+		Transport: http.DefaultTransport,
+		UserAgent: "stg",
+		Endpoint:  "http://" + testutilsint.TestOpts.HTTPAddrs[0],
+		Username:  testutilsint.TestOpts.Username,
+		Password:  testutilsint.TestOpts.Password,
+	}
+
+	// check that user1 is handled properly before creation
+	_, err = auth.CheckUserPass(ctx, user1, "password")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	_, err = auth.CheckUserPass(ctx, user1, "badpassword")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	// create user1 and user2
+	err = mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		Username:    user1,
+		DisplayName: user1,
+		Password:    "password1",
+		Roles:       []string{"ro_admin"},
+	})
+	require.NoError(t, err)
+
+	err = mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		Username:    user2,
+		DisplayName: user2,
+		Password:    "password2",
+		Roles:       []string{"ro_admin"},
+	})
+	require.NoError(t, err)
+
+	// check that user1 is handled properly after creation
+	_, err = auth.CheckUserPass(ctx, user1, "password1")
+	assert.NoError(t, err)
+
+	_, err = auth.CheckUserPass(ctx, user1, "badpassword1")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	// check that user2 is handled properly after creation
+	_, err = auth.CheckUserPass(ctx, user2, "password2")
+	assert.NoError(t, err)
+
+	_, err = auth.CheckUserPass(ctx, user2, "badpassword2")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	// delete user1 and user2
+	err = mgmt.DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
+		Username: user1,
+	})
+	require.NoError(t, err)
+
+	err = mgmt.DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
+		Username: user2,
+	})
+	require.NoError(t, err)
+
+	// user1 and user2 should both fail with bad passwords before propagation
+	_, err = auth.CheckUserPass(ctx, user1, "badpassword1")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	_, err = auth.CheckUserPass(ctx, user2, "badpassword2")
+	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+	// user1 should propagate and be invalidated pretty quickly
+	assert.Eventually(t, func() bool {
+		_, err = auth.CheckUserPass(ctx, user1, "password1")
+		return err == cbauthx.ErrInvalidAuth
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// user2 should propagate and be invalidated pretty quickly
+	assert.Eventually(t, func() bool {
+		_, err = auth.CheckUserPass(ctx, user2, "password2")
+		return err == cbauthx.ErrInvalidAuth
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// clean up
+	_ = auth.Close()
 }
 
 func TestCbauthFailuresDino(t *testing.T) {
