@@ -3,7 +3,6 @@ package testutilsint
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -77,15 +76,7 @@ func (l NodeTargetList) SelectLast(t *testing.T, fn func(node *NodeTarget) bool)
 }
 
 func getOrchestratorNsAddr(t *testing.T) string {
-	mgmt := cbmgmtx.Management{
-		Transport: http.DefaultTransport,
-		UserAgent: "useragent",
-		Endpoint:  "http://" + TestOpts.HTTPAddrs[0],
-		Username:  TestOpts.Username,
-		Password:  TestOpts.Password,
-	}
-
-	clusterInfo, err := mgmt.GetTerseClusterInfo(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
+	clusterInfo, err := getTestMgmt().GetTerseClusterInfo(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
 	require.NoError(t, err)
 
 	if clusterInfo.Orchestrator == "undefined" {
@@ -95,7 +86,7 @@ func getOrchestratorNsAddr(t *testing.T) string {
 		return getOrchestratorNsAddr(t)
 	}
 
-	config, err := mgmt.GetClusterConfig(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
+	config, err := getTestMgmt().GetClusterConfig(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
 	require.NoError(t, err)
 
 	var otpNodes []string
@@ -111,15 +102,7 @@ func getOrchestratorNsAddr(t *testing.T) string {
 }
 
 func GetTestNodes(t *testing.T) NodeTargetList {
-	mgmt := cbmgmtx.Management{
-		Transport: http.DefaultTransport,
-		UserAgent: "useragent",
-		Endpoint:  "http://" + TestOpts.HTTPAddrs[0],
-		Username:  TestOpts.Username,
-		Password:  TestOpts.Password,
-	}
-
-	config, err := mgmt.GetTerseClusterConfig(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
+	config, err := getTestMgmt().GetTerseClusterConfig(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
 	require.NoError(t, err)
 
 	orchestratorNsAddr := getOrchestratorNsAddr(t)

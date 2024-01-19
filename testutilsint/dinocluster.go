@@ -1,6 +1,7 @@
 package testutilsint
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/contrib/ptr"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 )
@@ -61,17 +64,23 @@ func RunGenericDinoCmd(t *testing.T, args []string) {
 }
 
 type DinoController struct {
-	t            *testing.T
-	blockedNodes []string
+	t             *testing.T
+	oldFoSettings *cbmgmtx.GetAutoFailoverSettingsResponse
+	blockedNodes  []string
 }
 
-func StartDinoTesting(t *testing.T) *DinoController {
+func StartDinoTesting(t *testing.T, disableAutoFailover bool) *DinoController {
 	if TestOpts.DinoClusterID == "" {
 		t.Error("cannot start dino testing without dino configured")
 	}
 
 	c := &DinoController{t: t}
 	t.Cleanup(c.cleanup)
+
+	if disableAutoFailover {
+		c.DisableAutoFailover()
+	}
+
 	return c
 }
 
@@ -85,6 +94,32 @@ func (c *DinoController) cleanup() {
 			c.t.Errorf("failed to reset traffic control for %s", node)
 		}
 	}
+
+	c.EnableAutoFailover()
+}
+
+func (c *DinoController) DisableAutoFailover() {
+	settings, err := getTestMgmt().GetAutoFailoverSettings(context.Background(), &cbmgmtx.GetAutoFailoverSettingsRequest{})
+	require.NoError(c.t, err)
+	c.oldFoSettings = settings
+
+	err = getTestMgmt().ConfigureAutoFailover(context.Background(), &cbmgmtx.ConfigureAutoFailoverRequest{
+		Enabled: ptr.To(false),
+	})
+	require.NoError(c.t, err)
+}
+
+func (c *DinoController) EnableAutoFailover() {
+	if c.oldFoSettings == nil {
+		return
+	}
+
+	err := getTestMgmt().ConfigureAutoFailover(context.Background(), &cbmgmtx.ConfigureAutoFailoverRequest{
+		Enabled: ptr.To(c.oldFoSettings.Enabled),
+		Timeout: ptr.To(c.oldFoSettings.Timeout),
+	})
+	require.NoError(c.t, err)
+	c.oldFoSettings = nil
 }
 
 func (c *DinoController) BlockTraffic(node string) {

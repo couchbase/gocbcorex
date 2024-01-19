@@ -100,7 +100,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	}
 
 	// start dino testing
-	dino := testutilsint.StartDinoTesting(t)
+	dino := testutilsint.StartDinoTesting(t, true)
 
 	// block access to the first endpoint
 	dino.BlockTraffic(blockHost)
