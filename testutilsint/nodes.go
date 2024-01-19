@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 
@@ -86,6 +87,13 @@ func getOrchestratorNsAddr(t *testing.T) string {
 
 	clusterInfo, err := mgmt.GetTerseClusterInfo(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
 	require.NoError(t, err)
+
+	if clusterInfo.Orchestrator == "undefined" {
+		// sometimes ns_server will return an orchestrator otp name of "undefined".
+		// so we loop here to wait until ns_server figures out who the orchestrator is.
+		time.Sleep(1 * time.Second)
+		return getOrchestratorNsAddr(t)
+	}
 
 	config, err := mgmt.GetClusterConfig(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
 	require.NoError(t, err)
