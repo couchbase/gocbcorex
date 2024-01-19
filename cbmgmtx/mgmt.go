@@ -13,6 +13,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
+	"github.com/google/go-querystring/query"
 )
 
 type Management struct {
@@ -1014,5 +1015,87 @@ func (h Management) FlushBucket(
 	}
 
 	_ = resp.Body.Close()
+	return nil
+}
+
+type GetAutoFailoverSettingsResponse_FailoverOnDataDiskIssues struct {
+	Enabled        bool `json:"enabled"`
+	TimePeriodSecs int  `json:"timePeriod"`
+}
+
+type GetAutoFailoverSettingsResponse struct {
+	Enabled                            bool                                                     `json:"enabled"`
+	Timeout                            int                                                      `json:"timeout"`
+	MaxCount                           int                                                      `json:"maxCount"`
+	FailoverOnDataDiskIssues           GetAutoFailoverSettingsResponse_FailoverOnDataDiskIssues `json:"failoverOnDataDiskIssues"`
+	CanAbortRebalance                  bool                                                     `json:"canAbortRebalance"`
+	FailoverPreserveDurabilityMajority bool                                                     `json:"failoverPreserveDurabilityMajority"`
+}
+
+type GetAutoFailoverSettingsRequest struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) GetAutoFailoverSettings(
+	ctx context.Context,
+	opts *GetAutoFailoverSettingsRequest,
+) (*GetAutoFailoverSettingsResponse, error) {
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		"/settings/autoFailover",
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	settings, err := cbhttpx.ReadAsJsonAndClose[*GetAutoFailoverSettingsResponse](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return settings, nil
+}
+
+type ConfigureAutoFailoverRequest_FailoverOnDataDiskIssues struct {
+	Enabled        bool `url:"enabled,omitempty"`
+	TimePeriodSecs int  `url:"timePeriod,omitempty"`
+}
+
+type ConfigureAutoFailoverRequest struct {
+	Enabled                            *bool                                                  `url:"enabled,omitempty"`
+	Timeout                            *int                                                   `url:"timeout,omitempty"`
+	MaxCount                           *int                                                   `url:"maxCount,omitempty"`
+	FailoverOnDataDiskIssues           *ConfigureAutoFailoverRequest_FailoverOnDataDiskIssues `url:"failoverOnDataDiskIssues,omitempty"`
+	CanAbortRebalance                  *bool                                                  `url:"canAbortRebalance,omitempty"`
+	FailoverPreserveDurabilityMajority *bool                                                  `url:"failoverPreserveDurabilityMajority,omitempty"`
+	OnBehalfOf                         *cbhttpx.OnBehalfOfInfo                                `url:"-"`
+}
+
+func (h Management) ConfigureAutoFailover(ctx context.Context, req *ConfigureAutoFailoverRequest) error {
+	form, err := query.Values(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/settings/autoFailover",
+		"application/x-www-form-urlencoded", req.OnBehalfOf, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+
 	return nil
 }

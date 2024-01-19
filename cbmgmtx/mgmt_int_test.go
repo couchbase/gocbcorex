@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/contrib/ptr"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -230,4 +231,33 @@ func TestHttpMgmtBuckets(t *testing.T) {
 		BucketName: "missing-bucket-name",
 	})
 	require.ErrorIs(t, err, cbmgmtx.ErrBucketNotFound)
+}
+
+func TestHttpMgmtAutoFailover(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+
+	err := getHttpMgmt().ConfigureAutoFailover(ctx, &cbmgmtx.ConfigureAutoFailoverRequest{
+		Enabled: ptr.To(false),
+	})
+	require.NoError(t, err)
+
+	// sometimes, even on the same node, setting and then fetching the
+	// auto-failover settings can lead to inconsistent results.
+	require.Eventually(t, func() bool {
+		settings, err := getHttpMgmt().GetAutoFailoverSettings(ctx, &cbmgmtx.GetAutoFailoverSettingsRequest{})
+		require.NoError(t, err)
+
+		return settings.Enabled == false
+	}, 5*time.Second, 100*time.Millisecond)
+
+	settings, err := getHttpMgmt().GetAutoFailoverSettings(ctx, &cbmgmtx.GetAutoFailoverSettingsRequest{})
+	require.NoError(t, err)
+
+	err = getHttpMgmt().ConfigureAutoFailover(ctx, &cbmgmtx.ConfigureAutoFailoverRequest{
+		Enabled: ptr.To(true),
+		Timeout: ptr.To(settings.Timeout),
+	})
+	require.NoError(t, err)
 }

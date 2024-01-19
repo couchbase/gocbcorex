@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/couchbaselabs/gocbconnstr/v2 v2.0.0-20230515165046-68b522a21131
 	github.com/golang/snappy v0.0.4
+	github.com/google/go-querystring v1.1.0
 	github.com/google/uuid v1.3.0
 	github.com/stretchr/testify v1.8.3
 	go.opentelemetry.io/otel v1.16.0
