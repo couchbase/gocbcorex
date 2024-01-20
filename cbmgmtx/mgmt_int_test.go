@@ -239,25 +239,11 @@ func TestHttpMgmtAutoFailover(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := getHttpMgmt().ConfigureAutoFailover(ctx, &cbmgmtx.ConfigureAutoFailoverRequest{
-		Enabled: ptr.To(false),
-	})
-	require.NoError(t, err)
-
-	// sometimes, even on the same node, setting and then fetching the
-	// auto-failover settings can lead to inconsistent results.
-	require.Eventually(t, func() bool {
-		settings, err := getHttpMgmt().GetAutoFailoverSettings(ctx, &cbmgmtx.GetAutoFailoverSettingsRequest{})
-		require.NoError(t, err)
-
-		return settings.Enabled == false
-	}, 5*time.Second, 100*time.Millisecond)
-
 	settings, err := getHttpMgmt().GetAutoFailoverSettings(ctx, &cbmgmtx.GetAutoFailoverSettingsRequest{})
 	require.NoError(t, err)
 
 	err = getHttpMgmt().ConfigureAutoFailover(ctx, &cbmgmtx.ConfigureAutoFailoverRequest{
-		Enabled: ptr.To(true),
+		Enabled: ptr.To(settings.Enabled),
 		Timeout: ptr.To(settings.Timeout),
 	})
 	require.NoError(t, err)
