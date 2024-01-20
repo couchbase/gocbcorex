@@ -12,13 +12,15 @@ type ConfigDDocsJson struct {
 }
 
 type FullNodeJson struct {
-	CouchApiBase string                                  `json:"couchApiBase,omitempty"`
-	Hostname     string                                  `json:"hostname,omitempty"`
-	NodeUUID     string                                  `json:"nodeUUID,omitempty"`
-	OTPNode      string                                  `json:"otpNode,omitempty"`
-	Ports        map[string]int                          `json:"ports,omitempty"`
-	Services     []string                                `json:"services"`
-	AltAddresses map[string]TerseExtNodeAltAddressesJson `json:"alternateAddresses,omitempty"`
+	ClusterMembership string                                  `json:"clusterMembership,omitempty"`
+	ThisNode          bool                                    `json:"thisNode,omitempty"`
+	CouchApiBase      string                                  `json:"couchApiBase,omitempty"`
+	Hostname          string                                  `json:"hostname,omitempty"`
+	NodeUUID          string                                  `json:"nodeUUID,omitempty"`
+	OTPNode           string                                  `json:"otpNode,omitempty"`
+	Ports             map[string]int                          `json:"ports,omitempty"`
+	Services          []string                                `json:"services"`
+	AltAddresses      map[string]TerseExtNodeAltAddressesJson `json:"alternateAddresses,omitempty"`
 }
 
 type FullBucketConfigJson struct {
