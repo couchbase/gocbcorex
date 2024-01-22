@@ -89,8 +89,12 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "bucket") {
 		err = ErrBucketExists
 	} else if strings.Contains(errText, "requested resource not found") {
-		// if we get this specific error, and its none of the above errors, then this indicates
-		// that it was the top level resource which could not be found, which is the bucket.
+		// BUG(MB-60488): if we get this specific error, and its none of the above errors, then this
+		// indicates that it was the top level resource which could not be found, which is the bucket.
+		err = ErrBucketNotFound
+	} else if strings.Contains(errText, "non existent bucket") {
+		// BUG(MB-60487): with some builds of server 7.6.0, rather than the normal kinds of not-found
+		// errors, we receive "Attempt to access non existent bucket" instead.
 		err = ErrBucketNotFound
 	} else if strings.Contains(errText, "not yet complete, but will continue") {
 		err = ErrOperationDelayed
