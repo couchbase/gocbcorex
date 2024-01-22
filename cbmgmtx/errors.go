@@ -14,6 +14,7 @@ var (
 	ErrCollectionNotFound = errors.New("collection not found")
 	ErrBucketExists       = errors.New("bucket exists")
 	ErrBucketNotFound     = errors.New("bucket not found")
+	ErrFlushDisabled      = errors.New("flush is disabled")
 	ErrServerInvalidArg   = errors.New("invalid argument")
 	ErrBucketUuidMismatch = errors.New("bucket uuid mismatch")
 	ErrUserNotFound       = errors.New("user not found")

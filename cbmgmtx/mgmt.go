@@ -88,6 +88,8 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		err = ErrScopeExists
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "bucket") {
 		err = ErrBucketExists
+	} else if strings.Contains(errText, "flush is disabled") {
+		err = ErrFlushDisabled
 	} else if strings.Contains(errText, "requested resource not found") {
 		// BUG(MB-60488): if we get this specific error, and its none of the above errors, then this
 		// indicates that it was the top level resource which could not be found, which is the bucket.
