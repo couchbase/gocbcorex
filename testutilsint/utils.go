@@ -1,11 +1,9 @@
 package testutilsint
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/couchbaselabs/gocbconnstr/v2"
 
+	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
@@ -31,7 +30,6 @@ type TestOptions struct {
 	BucketName        string
 	SupportedFeatures []TestFeature
 	OriginalConnStr   string
-	ClusterVersion    string
 	DinoClusterID     string
 }
 
@@ -97,36 +95,6 @@ func SetupTests(m *testing.M) {
 			TestOpts.BucketName = "default"
 		}
 		TestOpts.OriginalConnStr = *connStr
-
-		if len(TestOpts.HTTPAddrs) == 0 {
-			panic("could not identify http hosts for version lookup")
-		}
-
-		firstHost := TestOpts.HTTPAddrs[0]
-
-		req, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/pools", firstHost), nil)
-		req.SetBasicAuth(TestOpts.Username, TestOpts.Password)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			log.Printf("failed to get cluster version: %s", err)
-		} else {
-			respBytes, err := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			if err != nil {
-				log.Printf("failed to get cluster version: %s", err)
-			} else {
-				var respSt struct {
-					ImplementationVersion string `json:"implementationVersion"`
-				}
-				err = json.Unmarshal(respBytes, &respSt)
-				if err != nil {
-					log.Printf("failed to get cluster version: %s", err)
-				} else {
-					TestOpts.ClusterVersion = strings.Split(respSt.ImplementationVersion, "-")[0]
-				}
-			}
-		}
-		log.Printf("identified cluster version is: %s", TestOpts.ClusterVersion)
 	}
 
 	// default supported features
@@ -203,10 +171,30 @@ func SkipIfShortTest(t *testing.T) {
 	}
 }
 
-func SkipIfOlderServerVersion(t *testing.T, version string) {
-	if semver.Compare("v"+TestOpts.ClusterVersion, "v"+version) < 0 {
+func getServerVersion(t *testing.T) string {
+	if !TestOpts.LongTest {
+		t.Error("cannot get server version during short testing")
+	}
+
+	clusterInfo, err := getTestMgmt().GetClusterInfo(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
+	require.NoError(t, err)
+
+	// strip the meta-info like -enterprise or build numbers
+	serverVersion := strings.Split(clusterInfo.ImplementationVersion, "-")[0]
+
+	return serverVersion
+}
+
+func IsOlderServerVersion(t *testing.T, checkVersion string) bool {
+	serverVersion := getServerVersion(t)
+	return semver.Compare("v"+serverVersion, "v"+checkVersion) < 0
+}
+
+func SkipIfOlderServerVersion(t *testing.T, checkVersion string) {
+	serverVersion := getServerVersion(t)
+	if semver.Compare("v"+serverVersion, "v"+checkVersion) < 0 {
 		t.Skipf("skipping test for mismatched server version, %s < %s",
-			TestOpts.ClusterVersion, version)
+			serverVersion, checkVersion)
 	}
 }
 
