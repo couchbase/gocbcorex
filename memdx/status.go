@@ -37,6 +37,21 @@ const (
 	// StatusLocked occurs when an operation fails due to the document being locked.
 	StatusLocked = Status(0x09)
 
+	// StatusDcpStreamNotFound occurs when the referenced DCP stream is not found.
+	StatusDcpStreamNotFound = Status(0x0A)
+
+	// StatusOpaqueNoMatch occurs when the opaque does not match a known stream.
+	StatusOpaqueNoMatch = Status(0x0B)
+
+	// StatusWouldThrottle indicates that the operation would have been throttled.
+	StatusWouldThrottle = Status(0x0c)
+
+	// StatusConfigOnly occurs when a data operation is performed on a config-only node.
+	StatusConfigOnly = Status(0x0d)
+
+	// StatusNotLocked occurs when Unlock is performed on an unlocked document.
+	StatusNotLocked = Status(0x0e)
+
 	// StatusAuthStale occurs when authentication credentials have become invalidated.
 	StatusAuthStale = Status(0x1f)
 
@@ -253,6 +268,18 @@ func (s Status) String() string {
 		return "NotMyVBucket"
 	case StatusNoBucket:
 		return "NoBucket"
+	case StatusLocked:
+		return "Locked"
+	case StatusDcpStreamNotFound:
+		return "DcpStreamNotFound"
+	case StatusOpaqueNoMatch:
+		return "OpaqueNoMatch"
+	case StatusWouldThrottle:
+		return "WouldThrottle"
+	case StatusConfigOnly:
+		return "ConfigOnly"
+	case StatusNotLocked:
+		return "NotLocked"
 	case StatusAuthStale:
 		return "AuthStale"
 	case StatusAuthError:
