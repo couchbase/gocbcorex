@@ -24,6 +24,24 @@ func getHttpMgmt() *cbmgmtx.Management {
 	}
 }
 
+func TestHttpMgmtTerseClusterInfo(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	resp, err := getHttpMgmt().GetTerseClusterInfo(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.NotEmpty(t, resp.ClusterCompatVersion)
+}
+
+func TestHttpMgmtClusterInfo(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	resp, err := getHttpMgmt().GetClusterInfo(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.NotEmpty(t, resp.ImplementationVersion)
+}
+
 func TestHttpMgmtFullClusterConfig(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 

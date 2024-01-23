@@ -320,6 +320,40 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 	}, nil
 }
 
+type GetClusterInfoOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+type ClusterInfoResponse struct {
+	IsAdminCreds          bool              `json:"isAdminCreds"`
+	IsRoAdminCreds        bool              `json:"isROAdminCreds"`
+	IsEnterprise          bool              `json:"isEnterprise"`
+	ConfigProfile         string            `json:"configProfile"`
+	AllowedServices       []string          `json:"allowedServices"`
+	IsDeveloperPreview    bool              `json:"isDeveloperPreview"`
+	PackageVariant        string            `json:"packageVariant"`
+	Uuid                  string            `json:"uuid"`
+	ImplementationVersion string            `json:"implementationVersion"`
+	ComponentsVersion     map[string]string `json:"componentsVersion"`
+	// Pools
+	// Settings
+}
+
+func (h Management) GetClusterInfo(ctx context.Context, opts *GetClusterConfigOptions) (*ClusterInfoResponse, error) {
+	resp, err := h.Execute(ctx, "GET", "/pools", "", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	return cbhttpx.JsonBlockStreamer[ClusterInfoResponse]{
+		Decoder: json.NewDecoder(resp.Body),
+	}.Recv()
+}
+
 type GetTerseClusterInfoOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
