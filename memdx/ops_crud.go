@@ -691,6 +691,9 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrCasMismatch)
 			return false
+		} else if resp.Status == StatusNotLocked {
+			cb(nil, ErrDocNotLocked)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {

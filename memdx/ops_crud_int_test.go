@@ -955,6 +955,22 @@ func TestOpsCrudGetAndLockUnlock(t *testing.T) {
 		Cas:          res.Cas,
 	})
 	require.NoError(t, err)
+
+	// check what happens if we unlock an unlocked document
+	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Unlock, cli, &memdx.UnlockRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Cas:          res.Cas,
+	})
+	if testutilsint.IsOlderServerVersion(t, "7.6.0") {
+		require.ErrorIs(t, err, memdx.ErrTmpFail)
+	} else {
+		require.ErrorIs(t, err, memdx.ErrDocNotLocked)
+	}
 }
 
 func TestOpsCrudGetAndLockUnlockWrongCas(t *testing.T) {
