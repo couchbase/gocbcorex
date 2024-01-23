@@ -13,7 +13,7 @@ type RetryManagerDefault struct {
 
 func NewRetryManagerDefault() *RetryManagerDefault {
 	return &RetryManagerDefault{
-		calc: ExponentialBackoff(0, 500*time.Millisecond, 1),
+		calc: ExponentialBackoff(10*time.Millisecond, 500*time.Millisecond, 2),
 	}
 }
 
