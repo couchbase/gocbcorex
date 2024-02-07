@@ -192,3 +192,16 @@ func (e serviceNotAvailableError) Error() string {
 func (e serviceNotAvailableError) Unwrap() error {
 	return ErrServiceNotAvailable
 }
+
+type KvBucketError struct {
+	Cause      error
+	BucketName string
+}
+
+func (e KvBucketError) Error() string {
+	return fmt.Sprintf("%s (bucket: %s)", e.Cause, e.BucketName)
+}
+
+func (e KvBucketError) Unwrap() error {
+	return e.Cause
+}
