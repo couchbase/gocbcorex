@@ -1,401 +1,373 @@
-package gocbcore
+package transactionsx
 
 import (
+	"context"
 	"time"
 
-	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
-func (t *transactionAttempt) Rollback(cb TransactionRollbackCallback) error {
-	return t.rollback(func(err *TransactionOperationFailedError) {
-		if err != nil {
-			t.logger.logInfof(t.id, "Rollback failed")
-			t.ensureCleanUpRequest()
-			cb(err)
-			return
-		}
+func (t *transactionAttempt) Rollback(ctx context.Context) error {
+	err := t.rollback(ctx)
+	if err != nil {
+		t.logger.Info("Rollback failed")
 
 		t.ensureCleanUpRequest()
-		cb(nil)
-	})
+		return err
+	}
+
+	t.ensureCleanUpRequest()
+	return nil
 }
 
 func (t *transactionAttempt) rollback(
-	cb func(*TransactionOperationFailedError),
-) error {
-	t.logger.logInfof(t.id, "Rolling back")
-	t.waitForOpsAndLock(func(unlock func()) {
-		unlockAndCb := func(err *TransactionOperationFailedError) {
-			unlock()
-			cb(err)
-		}
+	ctx context.Context,
+) *TransactionOperationFailedError {
+	t.logger.Info("Rolling back")
 
-		err := t.checkCanRollbackLocked()
-		if err != nil {
-			unlockAndCb(err)
-			return
-		}
+	t.lock.Lock()
 
-		t.applyStateBits(transactionStateBitShouldNotCommit|transactionStateBitShouldNotRollback, 0)
+	err := t.waitForOpsLocked(ctx)
+	if err != nil {
+		t.lock.Unlock()
+		return err
+	}
 
-		if t.state == TransactionAttemptStateNothingWritten {
-			unlockAndCb(nil)
-			return
-		}
+	err = t.checkCanRollbackLocked()
+	if err != nil {
+		t.lock.Unlock()
+		return err
+	}
 
-		t.checkExpiredAtomic(hookRollback, []byte{}, true, func(cerr *classifiedError) {
-			if cerr != nil {
-				t.setExpiryOvertimeAtomic()
+	t.applyStateBits(transactionStateBitShouldNotCommit|transactionStateBitShouldNotRollback, 0)
+
+	if t.state == TransactionAttemptStateNothingWritten {
+		t.lock.Unlock()
+		return nil
+	}
+
+	cerr := t.checkExpiredAtomic(ctx, hookRollback, nil, true)
+	if cerr != nil {
+		t.setExpiryOvertimeAtomic()
+	}
+
+	t.lock.Unlock()
+
+	err = t.setATRAbortedExclusive(ctx)
+	if err != nil {
+		return err
+	}
+
+	t.lock.Lock()
+	t.state = TransactionAttemptStateAborted
+	t.lock.Unlock()
+
+	var mutErrs []*TransactionOperationFailedError
+	if !t.enableParallelUnstaging {
+		for _, mutation := range t.stagedMutations {
+			err := t.unstageStagedMutation(ctx, mutation)
+			if err != nil {
+				mutErrs = append(mutErrs, err)
+				break
 			}
+		}
+	} else {
+		numThreads := 32
+		numMutations := len(t.stagedMutations)
+		pendCh := make(chan *transactionStagedMutation, numThreads*2)
+		waitCh := make(chan *TransactionOperationFailedError, numMutations)
 
-			t.setATRAbortedLocked(func(err *TransactionOperationFailedError) {
-				if err != nil {
-					unlockAndCb(err)
-					return
+		// Start all our threads to process mutations
+		for threadIdx := 0; threadIdx < numThreads; threadIdx++ {
+			go func(threadIdx int) {
+				for {
+					mutation, ok := <-pendCh
+					if !ok {
+						break
+					}
+
+					err := t.unstageStagedMutation(ctx, mutation)
+					waitCh <- err
 				}
+			}(threadIdx)
+		}
 
-				t.state = TransactionAttemptStateAborted
+		// Send all the mutations
+		for _, mutation := range t.stagedMutations {
+			pendCh <- mutation
+		}
+		close(pendCh)
 
-				go func() {
-					removeStagedMutation := func(
-						mutation *transactionStagedMutation,
-						unstageCb func(*TransactionOperationFailedError),
-					) {
-						switch mutation.OpType {
-						case TransactionStagedMutationInsert:
-							t.removeStagedInsert(*mutation, unstageCb)
-						case TransactionStagedMutationReplace:
-							fallthrough
-						case TransactionStagedMutationRemove:
-							t.removeStagedRemoveReplace(*mutation, unstageCb)
-						default:
-							unstageCb(t.operationFailed(operationFailedDef{
-								Cerr: classifyError(
-									wrapError(ErrIllegalState, "unexpected staged mutation type")),
-								ShouldNotRetry:    true,
-								ShouldNotRollback: true,
-							}))
-						}
-					}
+		// Wait for all the responses
+		for i := 0; i < numMutations; i++ {
+			err := <-waitCh
+			if err != nil {
+				mutErrs = append(mutErrs, err)
+			}
+		}
+	}
+	err = mergeOperationFailedErrors(mutErrs)
+	if err != nil {
+		return err
+	}
 
-					var mutErrs []*TransactionOperationFailedError
-					if !t.enableParallelUnstaging {
-						for _, mutation := range t.stagedMutations {
-							waitCh := make(chan struct{}, 1)
+	err = t.setATRRolledBackExclusive(ctx)
+	if err != nil {
+		return err
+	}
 
-							removeStagedMutation(mutation, func(err *TransactionOperationFailedError) {
-								if err != nil {
-									mutErrs = append(mutErrs, err)
-									waitCh <- struct{}{}
-									return
-								}
-
-								waitCh <- struct{}{}
-							})
-
-							<-waitCh
-							if len(mutErrs) > 0 {
-								break
-							}
-						}
-					} else {
-						type mutResult struct {
-							Err *TransactionOperationFailedError
-						}
-
-						numMutations := len(t.stagedMutations)
-						waitCh := make(chan mutResult, numMutations)
-
-						// Unlike the RFC we do insert and replace separately. We have a bug in gocbcore where subdocs
-						// will raise doc exists rather than a cas mismatch so we need to do these ops separately to tell
-						// how to handle that error.
-						for _, mutation := range t.stagedMutations {
-							removeStagedMutation(mutation, func(err *TransactionOperationFailedError) {
-								waitCh <- mutResult{
-									Err: err,
-								}
-							})
-						}
-
-						for i := 0; i < numMutations; i++ {
-							res := <-waitCh
-
-							if res.Err != nil {
-								mutErrs = append(mutErrs, res.Err)
-								continue
-							}
-						}
-					}
-					err = mergeOperationFailedErrors(mutErrs)
-					if err != nil {
-						unlockAndCb(err)
-						return
-					}
-
-					t.setATRRolledBackLocked(func(err *TransactionOperationFailedError) {
-						if err != nil {
-							unlockAndCb(err)
-							return
-						}
-
-						t.state = TransactionAttemptStateRolledBack
-
-						unlockAndCb(nil)
-					})
-				}()
-			})
-		})
-	})
+	t.lock.Lock()
+	t.state = TransactionAttemptStateRolledBack
+	t.lock.Unlock()
 
 	return nil
 }
 
-func (t *transactionAttempt) removeStagedInsert(
+func (t *transactionAttempt) unstageStagedMutation(
+	ctx context.Context,
+	mutation *transactionStagedMutation,
+) *TransactionOperationFailedError {
+	switch mutation.OpType {
+	case TransactionStagedMutationInsert:
+		return t.unstageStagedInsert(ctx, *mutation)
+	case TransactionStagedMutationReplace:
+		fallthrough
+	case TransactionStagedMutationRemove:
+		return t.unstageStagedRemoveReplace(ctx, *mutation)
+	default:
+		return t.operationFailed(operationFailedDef{
+			Cerr: classifyError(
+				wrapError(ErrIllegalState, "unexpected staged mutation type")),
+			ShouldNotRetry:    true,
+			ShouldNotRollback: true,
+		})
+	}
+}
+
+func (t *transactionAttempt) unstageStagedInsert(
+	ctx context.Context,
 	mutation transactionStagedMutation,
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
 
-		t.ReportResourceUnitsError(cerr.Source)
-
 		if t.isExpiryOvertimeAtomic() {
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "removing a staged insert failed during overtime")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-			return
+			})
 		}
 
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.removeStagedInsert(mutation, cb)
-			})
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.unstageStagedInsert(ctx, mutation)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailExpiry:
 			t.setExpiryOvertimeAtomic()
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.removeStagedInsert(mutation, cb)
-			})
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.unstageStagedInsert(ctx, mutation)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailDocNotFound:
-			cb(nil)
-			return
+			return nil
 		case TransactionErrorClassFailPathNotFound:
-			cb(nil)
-			return
+			return nil
 		case TransactionErrorClassFailDocAlreadyExists:
 			cerr.Class = TransactionErrorClassFailCasMismatch
 			fallthrough
 		case TransactionErrorClassFailCasMismatch:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr:              cerr,
-				ShouldNotRetry:    true,
-				ShouldNotRollback: true,
-			}))
-		default:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.removeStagedInsert(mutation, cb)
 			})
+		case TransactionErrorClassFailHard:
+			return t.operationFailed(operationFailedDef{
+				Cerr:              cerr,
+				ShouldNotRetry:    true,
+				ShouldNotRollback: true,
+			})
+		default:
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.unstageStagedInsert(ctx, mutation)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		}
 	}
 
-	t.checkExpiredAtomic(hookDeleteInserted, mutation.Key, true, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
-		}
+	cerr := t.checkExpiredAtomic(ctx, hookDeleteInserted, mutation.Key, true)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
 
-		t.hooks.BeforeRollbackDeleteInserted(mutation.Key, func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+	err := t.hooks.BeforeRollbackDeleteInserted(ctx, mutation.Key)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
 
-			_, err = mutation.Agent.MutateIn(MutateInOptions{
-				ScopeName:      mutation.ScopeName,
-				CollectionName: mutation.CollectionName,
-				Key:            mutation.Key,
-				Cas:            mutation.Cas,
-				Flags:          memd.SubdocDocFlagAccessDeleted,
-				Ops: []SubDocOp{
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn",
-						Flags: memd.SubdocFlagXattrPath,
-						Value: []byte{110, 117, 108, 108}, // null
-					},
-					{
-						Op:    memd.SubDocOpDelete,
-						Path:  "txn",
-						Flags: memd.SubdocFlagXattrPath,
-					},
-				},
-				User: mutation.OboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterRollbackDeleteInserted(mutation.Key, func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:      mutation.ScopeName,
+		CollectionName: mutation.CollectionName,
+		Key:            mutation.Key,
+		Cas:            mutation.Cas,
+		Flags:          memdx.SubdocDocFlagAccessDeleted,
+		Ops: []memdx.MutateInOp{
+			{
+				Op:    memdx.MutateInOpType(memdx.LookupInOpTypeGet),
+				Path:  []byte("txn"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+				Value: []byte("null"),
+			},
+			{
+				Op:    memdx.MutateInOpTypeDelete,
+				Path:  []byte("txn"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+		},
+		OnBehalfOf: mutation.OboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterRollbackDeleteInserted(ctx, mutation.Key)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	return nil
 }
 
-func (t *transactionAttempt) removeStagedRemoveReplace(
+func (t *transactionAttempt) unstageStagedRemoveReplace(
+	ctx context.Context,
 	mutation transactionStagedMutation,
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
 
-		t.ReportResourceUnitsError(cerr.Source)
-
 		if t.isExpiryOvertimeAtomic() {
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "removing a staged remove or replace failed during overtime")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-			return
+			})
 		}
 
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.removeStagedRemoveReplace(mutation, cb)
-			})
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.unstageStagedRemoveReplace(ctx, mutation)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailExpiry:
 			t.setExpiryOvertimeAtomic()
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.removeStagedRemoveReplace(mutation, cb)
-			})
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.unstageStagedRemoveReplace(ctx, mutation)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailPathNotFound:
-			cb(nil)
-			return
+			return nil
 		case TransactionErrorClassFailDocNotFound:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
+			})
 		case TransactionErrorClassFailDocAlreadyExists:
 			cerr.Class = TransactionErrorClassFailCasMismatch
 			fallthrough
 		case TransactionErrorClassFailCasMismatch:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr:              cerr,
-				ShouldNotRetry:    true,
-				ShouldNotRollback: true,
-			}))
-		default:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.removeStagedRemoveReplace(mutation, cb)
 			})
+		case TransactionErrorClassFailHard:
+			return t.operationFailed(operationFailedDef{
+				Cerr:              cerr,
+				ShouldNotRetry:    true,
+				ShouldNotRollback: true,
+			})
+		default:
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.unstageStagedRemoveReplace(ctx, mutation)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		}
 	}
 
-	t.checkExpiredAtomic(hookRollbackDoc, mutation.Key, true, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
-		}
+	cerr := t.checkExpiredAtomic(ctx, hookRollbackDoc, mutation.Key, true)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
 
-		t.hooks.BeforeDocRolledBack(mutation.Key, func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+	err := t.hooks.BeforeDocRolledBack(ctx, mutation.Key)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
 
-			_, err = mutation.Agent.MutateIn(MutateInOptions{
-				ScopeName:      mutation.ScopeName,
-				CollectionName: mutation.CollectionName,
-				Key:            mutation.Key,
-				Cas:            mutation.Cas,
-				Ops: []SubDocOp{
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn",
-						Flags: memd.SubdocFlagXattrPath,
-						Value: []byte{110, 117, 108, 108}, // null
-					},
-					{
-						Op:    memd.SubDocOpDelete,
-						Path:  "txn",
-						Flags: memd.SubdocFlagXattrPath,
-					},
-				},
-				User: mutation.OboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterRollbackReplaceOrRemove(mutation.Key, func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:      mutation.ScopeName,
+		CollectionName: mutation.CollectionName,
+		Key:            mutation.Key,
+		Cas:            mutation.Cas,
+		Ops: []memdx.MutateInOp{
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("txn"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+				Value: []byte("null"),
+			},
+			{
+				Op:    memdx.MutateInOpTypeDelete,
+				Path:  []byte("txn"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+		},
+		OnBehalfOf: mutation.OboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterRollbackReplaceOrRemove(ctx, mutation.Key)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	return nil
 }

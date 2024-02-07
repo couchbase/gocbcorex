@@ -1,344 +1,310 @@
-package gocbcore
+package transactionsx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
-	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) Replace(opts TransactionReplaceOptions, cb TransactionStoreCallback) error {
-	return t.replace(opts, func(res *TransactionGetResult, err error) {
-		if err != nil {
-			t.logger.logInfof(t.id, "Replace failed")
-			var e *TransactionOperationFailedError
-			if errors.As(err, &e) {
-				if e.shouldNotRollback {
-					t.ensureCleanUpRequest()
-				}
-			}
+func (t *transactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
+	result, err := t.replace(ctx, opts)
+	if err != nil {
+		t.logger.Info("Replace failed")
 
-			cb(nil, err)
-			return
+		var e *TransactionOperationFailedError
+		if errors.As(err, &e) {
+			if e.shouldNotRollback {
+				t.ensureCleanUpRequest()
+			}
 		}
 
-		cb(res, nil)
-	})
+		return nil, err
+	}
+
+	return result, err
 }
 
 func (t *transactionAttempt) replace(
+	ctx context.Context,
 	opts TransactionReplaceOptions,
-	cb func(*TransactionGetResult, error),
-) error {
-	t.logger.logInfof(t.id, "Performing replace for %s", newLoggableDocKey(
-		opts.Document.agent.BucketName(),
-		opts.Document.scopeName,
-		opts.Document.collectionName,
-		opts.Document.key,
-	))
-	t.beginOpAndLock(func(unlock func(), endOp func()) {
-		endAndCb := func(result *TransactionGetResult, err error) {
-			endOp()
-			cb(result, err)
-		}
+) (*TransactionGetResult, error) {
+	t.logger.Info("Performing replace",
+		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
-		err := t.checkCanPerformOpLocked()
-		if err != nil {
-			unlock()
-			endAndCb(nil, err)
-			return
-		}
+	t.lock.Lock()
+	t.beginOpLocked()
 
-		agent := opts.Document.agent
-		oboUser := opts.Document.oboUser
-		scopeName := opts.Document.scopeName
-		collectionName := opts.Document.collectionName
-		key := opts.Document.key
-		value := opts.Value
-		cas := opts.Document.Cas
-		meta := opts.Document.Meta
+	err := t.checkCanPerformOpLocked()
+	if err != nil {
+		t.lock.Unlock()
+		t.endOp()
+		return nil, err
+	}
 
-		t.checkExpiredAtomic(hookReplace, key, false, func(cerr *classifiedError) {
-			if cerr != nil {
-				unlock()
-				endAndCb(nil, t.operationFailed(operationFailedDef{
-					Cerr:              cerr,
-					ShouldNotRetry:    true,
-					ShouldNotRollback: false,
-					Reason:            TransactionErrorReasonTransactionExpired,
-				}))
-				return
-			}
+	agent := opts.Document.agent
+	oboUser := opts.Document.oboUser
+	scopeName := opts.Document.scopeName
+	collectionName := opts.Document.collectionName
+	key := opts.Document.key
+	value := opts.Value
+	cas := opts.Document.Cas
+	meta := opts.Document.Meta
 
-			_, existingMutation := t.getStagedMutationLocked(agent.BucketName(), scopeName, collectionName, key)
-			unlock()
-
-			if existingMutation != nil {
-				switch existingMutation.OpType {
-				case TransactionStagedMutationInsert:
-					t.logger.logInfof(t.id, "Staged insert exists on doc, performing insert")
-					t.stageInsert(
-						agent, oboUser, scopeName, collectionName, key,
-						value, cas,
-						func(result *TransactionGetResult, err error) {
-							endAndCb(result, err)
-						})
-					return
-
-				case TransactionStagedMutationReplace:
-					t.logger.logInfof(t.id, "Staged replace exists on doc, this is ok")
-					// We can overwrite other replaces without issue, any conflicts between the mutation
-					// the user passed to us and the existing mutation is caught by WriteWriteConflict.
-				case TransactionStagedMutationRemove:
-					endAndCb(nil, t.operationFailed(operationFailedDef{
-						Cerr: classifyError(
-							wrapError(ErrDocumentNotFound, "attempted to replace a document previously removed in this transaction")),
-						ShouldNotRetry:    true,
-						ShouldNotRollback: false,
-						Reason:            TransactionErrorReasonTransactionFailed,
-					}))
-					return
-				default:
-					endAndCb(nil, t.operationFailed(operationFailedDef{
-						Cerr: classifyError(
-							wrapError(ErrIllegalState, "unexpected staged mutation type")),
-						ShouldNotRetry:    true,
-						ShouldNotRollback: false,
-						Reason:            TransactionErrorReasonTransactionFailed,
-					}))
-					return
-				}
-			}
-
-			t.writeWriteConflictPoll(
-				forwardCompatStageWWCReplacing,
-				agent, oboUser, scopeName, collectionName, key, cas,
-				meta,
-				existingMutation,
-				func(err *TransactionOperationFailedError) {
-					if err != nil {
-						endAndCb(nil, err)
-						return
-					}
-
-					t.confirmATRPending(agent, oboUser, scopeName, collectionName, key, func(err *TransactionOperationFailedError) {
-						if err != nil {
-							endAndCb(nil, err)
-							return
-						}
-
-						t.stageReplace(
-							agent, oboUser, scopeName, collectionName, key,
-							value, cas,
-							func(result *TransactionGetResult, err error) {
-								endAndCb(result, err)
-							})
-					})
-				})
+	cerr := t.checkExpiredAtomic(ctx, hookReplace, key, false)
+	if cerr != nil {
+		t.lock.Unlock()
+		t.endOp()
+		return nil, t.operationFailed(operationFailedDef{
+			Cerr:              cerr,
+			ShouldNotRetry:    true,
+			ShouldNotRollback: false,
+			Reason:            TransactionErrorReasonTransactionExpired,
 		})
-	})
+	}
 
-	return nil
+	_, existingMutation := t.getStagedMutationLocked(agent.BucketName(), scopeName, collectionName, key)
+	t.lock.Unlock()
+
+	if existingMutation != nil {
+		switch existingMutation.OpType {
+		case TransactionStagedMutationInsert:
+			t.logger.Info("Staged insert exists on doc, performing insert")
+
+			result, err := t.stageInsert(
+				ctx, agent, oboUser, scopeName, collectionName, key, value, cas)
+			t.endOp()
+			return result, err
+
+		case TransactionStagedMutationReplace:
+			t.logger.Info("Staged replace exists on doc, this is ok")
+
+			// We can overwrite other replaces without issue, any conflicts between the mutation
+			// the user passed to us and the existing mutation is caught by WriteWriteConflict.
+		case TransactionStagedMutationRemove:
+			t.endOp()
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: classifyError(
+					// TODO(brett19): right error?
+					wrapError(memdx.ErrDocNotFound, "attempted to replace a document previously removed in this transaction")),
+				ShouldNotRetry:    true,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonTransactionFailed,
+			})
+		default:
+			t.endOp()
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: classifyError(
+					wrapError(ErrIllegalState, "unexpected staged mutation type")),
+				ShouldNotRetry:    true,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonTransactionFailed,
+			})
+		}
+	}
+
+	err = t.writeWriteConflictPoll(
+		ctx,
+		forwardCompatStageWWCReplacing,
+		agent, oboUser, scopeName, collectionName, key, cas,
+		meta,
+		existingMutation)
+	if err != nil {
+		t.endOp()
+		return nil, err
+	}
+
+	err = t.confirmATRPending(ctx, agent, oboUser, scopeName, collectionName, key)
+	if err != nil {
+		t.endOp()
+		return nil, err
+	}
+
+	result, aerr := t.stageReplace(
+		ctx, agent, oboUser, scopeName, collectionName, key, value, cas)
+	t.endOp()
+	return result, aerr
 }
 
 func (t *transactionAttempt) stageReplace(
-	agent *Agent,
+	ctx context.Context,
+	agent *gocbcorex.Agent,
 	oboUser string,
 	scopeName string,
 	collectionName string,
 	key []byte,
 	value json.RawMessage,
-	cas Cas,
-	cb func(*TransactionGetResult, error),
-) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) {
+	cas uint64,
+) (*TransactionGetResult, error) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, error) {
 		if cerr == nil {
-			cb(result, nil)
-			return
+			return result, nil
 		}
-
-		t.ReportResourceUnitsError(cerr.Source)
 
 		switch cerr.Class {
 		case TransactionErrorClassFailExpiry:
 			t.setExpiryOvertimeAtomic()
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionExpired,
-			}))
+			})
 		case TransactionErrorClassFailDocNotFound:
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
-					wrapError(ErrDocumentNotFound, "document not found during staging")),
+					// TODO(brett19): right error?
+					wrapError(memdx.ErrDocNotFound, "document not found during staging")),
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		case TransactionErrorClassFailDocAlreadyExists:
 			cerr.Class = TransactionErrorClassFailCasMismatch
 			fallthrough
 		case TransactionErrorClassFailCasMismatch:
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		case TransactionErrorClassFailTransient:
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		case TransactionErrorClassFailAmbiguous:
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		default:
-			cb(nil, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		}
 	}
 
-	t.checkExpiredAtomic(hookRemove, key, false, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(nil, cerr)
-			return
-		}
+	cerr := t.checkExpiredAtomic(ctx, hookRemove, key, false)
+	if cerr != nil {
+		return ecCb(nil, cerr)
+	}
 
-		t.hooks.BeforeStagedReplace(key, func(err error) {
-			if err != nil {
-				ecCb(nil, classifyHookError(err))
-				return
-			}
+	err := t.hooks.BeforeStagedReplace(ctx, key)
+	if err != nil {
+		return ecCb(nil, classifyHookError(err))
+	}
 
-			stagedInfo := &transactionStagedMutation{
-				OpType:         TransactionStagedMutationReplace,
-				Agent:          agent,
-				OboUser:        oboUser,
-				ScopeName:      scopeName,
-				CollectionName: collectionName,
-				Key:            key,
-				Staged:         value,
-			}
+	stagedInfo := &transactionStagedMutation{
+		OpType:         TransactionStagedMutationReplace,
+		Agent:          agent,
+		OboUser:        oboUser,
+		ScopeName:      scopeName,
+		CollectionName: collectionName,
+		Key:            key,
+		Staged:         value,
+	}
 
-			var txnMeta jsonTxnXattr
-			txnMeta.ID.Transaction = t.transactionID
-			txnMeta.ID.Attempt = t.id
-			txnMeta.ATR.CollectionName = t.atrCollectionName
-			txnMeta.ATR.ScopeName = t.atrScopeName
-			txnMeta.ATR.BucketName = t.atrAgent.BucketName()
-			txnMeta.ATR.DocID = string(t.atrKey)
-			txnMeta.Operation.Type = jsonMutationReplace
-			txnMeta.Operation.Staged = stagedInfo.Staged
-			txnMeta.Restore = &jsonTxnXattrRestore{
-				OriginalCAS: "",
-				ExpiryTime:  0,
-				RevID:       "",
-			}
+	var txnMeta jsonTxnXattr
+	txnMeta.ID.Transaction = t.transactionID
+	txnMeta.ID.Attempt = t.id
+	txnMeta.ATR.CollectionName = t.atrCollectionName
+	txnMeta.ATR.ScopeName = t.atrScopeName
+	txnMeta.ATR.BucketName = t.atrAgent.BucketName()
+	txnMeta.ATR.DocID = string(t.atrKey)
+	txnMeta.Operation.Type = jsonMutationReplace
+	txnMeta.Operation.Staged = stagedInfo.Staged
+	txnMeta.Restore = &jsonTxnXattrRestore{
+		OriginalCAS: "",
+		ExpiryTime:  0,
+		RevID:       "",
+	}
 
-			txnMetaBytes, err := json.Marshal(txnMeta)
-			if err != nil {
-				ecCb(nil, classifyError(err))
-				return
-			}
+	txnMetaBytes, err := json.Marshal(txnMeta)
+	if err != nil {
+		return ecCb(nil, classifyError(err))
+	}
 
-			deadline, duraTimeout := transactionsMutationTimeouts(t.keyValueTimeout, t.durabilityLevel)
-
-			_, err = stagedInfo.Agent.MutateIn(MutateInOptions{
-				ScopeName:      stagedInfo.ScopeName,
-				CollectionName: stagedInfo.CollectionName,
-				Key:            stagedInfo.Key,
-				Cas:            cas,
-				Ops: []SubDocOp{
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn",
-						Flags: memd.SubdocFlagMkDirP | memd.SubdocFlagXattrPath,
-						Value: txnMetaBytes,
-					},
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn.op.crc32",
-						Flags: memd.SubdocFlagXattrPath | memd.SubdocFlagExpandMacros,
-						Value: crc32cMacro,
-					},
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn.restore.CAS",
-						Flags: memd.SubdocFlagXattrPath | memd.SubdocFlagExpandMacros,
-						Value: casMacro,
-					},
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn.restore.exptime",
-						Flags: memd.SubdocFlagXattrPath | memd.SubdocFlagExpandMacros,
-						Value: exptimeMacro,
-					},
-					{
-						Op:    memd.SubDocOpDictSet,
-						Path:  "txn.restore.revid",
-						Flags: memd.SubdocFlagXattrPath | memd.SubdocFlagExpandMacros,
-						Value: revidMacro,
-					},
-				},
-				Flags:                  memd.SubdocDocFlagAccessDeleted,
-				DurabilityLevel:        transactionsDurabilityLevelToMemd(t.durabilityLevel),
-				DurabilityLevelTimeout: duraTimeout,
-				Deadline:               deadline,
-				User:                   stagedInfo.OboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(nil, classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				stagedInfo.Cas = result.Cas
-
-				t.hooks.AfterStagedReplaceComplete(key, func(err error) {
-					if err != nil {
-						ecCb(nil, classifyHookError(err))
-						return
-					}
-
-					t.recordStagedMutation(stagedInfo, func() {
-
-						ecCb(&TransactionGetResult{
-							agent:          stagedInfo.Agent,
-							oboUser:        stagedInfo.OboUser,
-							scopeName:      stagedInfo.ScopeName,
-							collectionName: stagedInfo.CollectionName,
-							key:            stagedInfo.Key,
-							Value:          stagedInfo.Staged,
-							Cas:            stagedInfo.Cas,
-							Meta:           nil,
-						}, nil)
-					})
-				})
-			})
-			if err != nil {
-				ecCb(nil, classifyError(err))
-				return
-			}
-		})
+	result, err := stagedInfo.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:      stagedInfo.ScopeName,
+		CollectionName: stagedInfo.CollectionName,
+		Key:            stagedInfo.Key,
+		Cas:            cas,
+		Ops: []memdx.MutateInOp{
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("txn"),
+				Flags: memdx.SubdocOpFlagMkDirP | memdx.SubdocOpFlagXattrPath,
+				Value: txnMetaBytes,
+			},
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("txn.op.crc32"),
+				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
+				Value: memdx.SubdocMacroCrc32c,
+			},
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("txn.restore.CAS"),
+				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
+				Value: memdx.SubdocMacroCas,
+			},
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("txn.restore.exptime"),
+				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
+				Value: memdx.SubdocMacroExptime,
+			},
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("txn.restore.revid"),
+				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
+				Value: memdx.SubdocMacroRevID,
+			},
+		},
+		Flags:           memdx.SubdocDocFlagAccessDeleted,
+		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		OnBehalfOf:      stagedInfo.OboUser,
 	})
+	if err != nil {
+		return ecCb(nil, classifyError(err))
+	}
+
+	stagedInfo.Cas = result.Cas
+
+	err = t.hooks.AfterStagedReplaceComplete(ctx, key)
+	if err != nil {
+		return ecCb(nil, classifyHookError(err))
+	}
+
+	t.recordStagedMutation(stagedInfo)
+
+	return &TransactionGetResult{
+		agent:          stagedInfo.Agent,
+		oboUser:        stagedInfo.OboUser,
+		scopeName:      stagedInfo.ScopeName,
+		collectionName: stagedInfo.CollectionName,
+		key:            stagedInfo.Key,
+		Value:          stagedInfo.Staged,
+		Cas:            stagedInfo.Cas,
+		Meta:           nil,
+	}, nil
 }

@@ -1,4 +1,4 @@
-package gocbcore
+package transactionsx
 
 var transactionAtrIDList = []string{
 	"_txn:atr-0-#14",

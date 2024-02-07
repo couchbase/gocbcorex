@@ -1,11 +1,17 @@
-package gocbcore
+package transactionsx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/zaputils"
+	"go.uber.org/zap"
 )
 
 type transactionAttempt struct {
@@ -28,28 +34,40 @@ type transactionAttempt struct {
 	state             TransactionAttemptState
 	stateBits         uint32
 	stagedMutations   []*transactionStagedMutation
-	atrAgent          *Agent
+	atrAgent          *gocbcorex.Agent
 	atrOboUser        string
 	atrScopeName      string
 	atrCollectionName string
 	atrKey            []byte
 
-	lock  asyncMutex
-	opsWg asyncWaitGroup
+	lock sync.Mutex
 
-	hasCleanupRequest      bool
-	addCleanupRequest      addCleanupRequest
-	addLostCleanupLocation addLostCleanupLocation
+	atrWaitCh     chan struct{}
+	numPendingOps uint32
+	opsWaitCh     chan struct{}
 
-	logger *internalTransactionLogWrapper
+	logger *zap.Logger
 
-	recordResourceUnit resourceUnitCallback
+	// TODO(brett19): Readd this
+	/*
+		hasCleanupRequest      bool
+		addCleanupRequest      addCleanupRequest
+		addLostCleanupLocation addLostCleanupLocation
+
+		logger *internalTransactionLogWrapper
+
+		recordResourceUnit resourceUnitCallback
+	*/
 }
 
-func (t *transactionAttempt) State() TransactionAttempt {
-	state := TransactionAttempt{}
+func (t *transactionAttempt) ensureCleanUpRequest() {
+	// TODO(brett19): cleanup
+}
 
-	t.lock.LockSync()
+func (t *transactionAttempt) State() TransactionAttemptResult {
+	state := TransactionAttemptResult{}
+
+	t.lock.Lock()
 
 	stateBits := atomic.LoadUint32(&t.stateBits)
 
@@ -77,7 +95,7 @@ func (t *transactionAttempt) State() TransactionAttempt {
 		state.AtrBucketName = ""
 		state.AtrScopeName = ""
 		state.AtrCollectionName = ""
-		state.AtrID = []byte{}
+		state.AtrID = nil
 	}
 
 	if t.state == TransactionAttemptStateCompleted {
@@ -86,7 +104,7 @@ func (t *transactionAttempt) State() TransactionAttempt {
 		state.UnstagingComplete = false
 	}
 
-	t.lock.UnlockSync()
+	t.lock.Unlock()
 
 	return state
 }
@@ -116,7 +134,8 @@ func (t *transactionAttempt) FinalErrorToRaise() TransactionErrorReason {
 }
 
 func (t *transactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
-	t.logger.logInfof(t.id, "Updating state to %s", opts)
+	t.logger.Info("Updating state", zap.Stringer("opts", opts))
+
 	stateBits := uint32(0)
 	if opts.ShouldNotCommit {
 		stateBits |= transactionStateBitShouldNotCommit
@@ -132,15 +151,15 @@ func (t *transactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
 	}
 	t.applyStateBits(stateBits, uint32(opts.Reason))
 
-	t.lock.LockSync()
+	t.lock.Lock()
 	if opts.State > 0 {
 		t.state = opts.State
 	}
-	t.lock.UnlockSync()
+	t.lock.Unlock()
 }
 
 func (t *transactionAttempt) GetATRLocation() TransactionATRLocation {
-	t.lock.LockSync()
+	t.lock.Lock()
 
 	if t.atrAgent != nil {
 		location := TransactionATRLocation{
@@ -148,38 +167,40 @@ func (t *transactionAttempt) GetATRLocation() TransactionATRLocation {
 			ScopeName:      t.atrScopeName,
 			CollectionName: t.atrCollectionName,
 		}
-		t.lock.UnlockSync()
+		t.lock.Unlock()
 
 		return location
 	}
-	t.lock.UnlockSync()
+	t.lock.Unlock()
 
 	return t.atrLocation
 }
 
 func (t *transactionAttempt) SetATRLocation(location TransactionATRLocation) error {
-	t.logger.logInfof(t.id, "Setting ATR location to %s", newLoggableATRKey(location.Agent.BucketName(), location.ScopeName, location.CollectionName, nil))
-	t.lock.LockSync()
+	t.logger.Info("Setting ATR location",
+		zaputils.FQCollectionName("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName))
+
+	t.lock.Lock()
 	if t.atrAgent != nil {
-		t.lock.UnlockSync()
+		t.lock.Unlock()
 		return errors.New("atr location cannot be set after mutations have occurred")
 	}
 
 	if t.atrLocation.Agent != nil {
-		t.lock.UnlockSync()
+		t.lock.Unlock()
 		return errors.New("atr location can only be set once")
 	}
 
 	t.atrLocation = location
 
-	t.lock.UnlockSync()
+	t.lock.Unlock()
 	return nil
 }
 
 func (t *transactionAttempt) GetMutations() []TransactionStagedMutation {
 	mutations := make([]TransactionStagedMutation, len(t.stagedMutations))
 
-	t.lock.LockSync()
+	t.lock.Lock()
 
 	for mutationIdx, mutation := range t.stagedMutations {
 		mutations[mutationIdx] = TransactionStagedMutation{
@@ -193,7 +214,7 @@ func (t *transactionAttempt) GetMutations() []TransactionStagedMutation {
 		}
 	}
 
-	t.lock.UnlockSync()
+	t.lock.Unlock()
 
 	return mutations
 }
@@ -209,62 +230,66 @@ func (t *transactionAttempt) TimeRemaining() time.Duration {
 	return timeLeft
 }
 
-func (t *transactionAttempt) Serialize(cb func([]byte, error)) error {
+func (t *transactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
 	var res jsonSerializedAttempt
 
-	t.waitForOpsAndLock(func(unlock func()) {
-		if err := t.checkCanCommitLocked(); err != nil {
-			unlock()
-			cb(nil, err)
-			return
-		}
+	t.lock.Lock()
+	defer t.lock.Unlock()
 
-		res.ID.Transaction = t.transactionID
-		res.ID.Attempt = t.id
+	if err := t.checkCanCommitLocked(); err != nil {
+		return res, err
+	}
 
-		if t.atrAgent != nil {
-			res.ATR.Bucket = t.atrAgent.BucketName()
-			res.ATR.Scope = t.atrScopeName
-			res.ATR.Collection = t.atrCollectionName
-			res.ATR.ID = string(t.atrKey)
-		} else if t.atrLocation.Agent != nil {
-			res.ATR.Bucket = t.atrLocation.Agent.BucketName()
-			res.ATR.Scope = t.atrLocation.ScopeName
-			res.ATR.Collection = t.atrLocation.CollectionName
-			res.ATR.ID = ""
-		}
+	res.ID.Transaction = t.transactionID
+	res.ID.Attempt = t.id
 
-		res.Config.KeyValueTimeoutMs = int(t.keyValueTimeout / time.Millisecond)
-		res.Config.DurabilityLevel = transactionDurabilityLevelToString(t.durabilityLevel)
-		res.Config.NumAtrs = 1024
+	if t.atrAgent != nil {
+		res.ATR.Bucket = t.atrAgent.BucketName()
+		res.ATR.Scope = t.atrScopeName
+		res.ATR.Collection = t.atrCollectionName
+		res.ATR.ID = string(t.atrKey)
+	} else if t.atrLocation.Agent != nil {
+		res.ATR.Bucket = t.atrLocation.Agent.BucketName()
+		res.ATR.Scope = t.atrLocation.ScopeName
+		res.ATR.Collection = t.atrLocation.CollectionName
+		res.ATR.ID = ""
+	}
 
-		res.State.TimeLeftMs = int(t.TimeRemaining().Milliseconds())
+	res.Config.KeyValueTimeoutMs = int(t.keyValueTimeout / time.Millisecond)
+	res.Config.DurabilityLevel = transactionDurabilityLevelToString(t.durabilityLevel)
+	res.Config.NumAtrs = 1024
 
-		for _, mutation := range t.stagedMutations {
-			var mutationData jsonSerializedMutation
+	res.State.TimeLeftMs = int(t.TimeRemaining().Milliseconds())
 
-			mutationData.Bucket = mutation.Agent.BucketName()
-			mutationData.Scope = mutation.ScopeName
-			mutationData.Collection = mutation.CollectionName
-			mutationData.ID = string(mutation.Key)
-			mutationData.Cas = fmt.Sprintf("%d", mutation.Cas)
-			mutationData.Type = transactionStagedMutationTypeToString(mutation.OpType)
+	for _, mutation := range t.stagedMutations {
+		var mutationData jsonSerializedMutation
 
-			res.Mutations = append(res.Mutations, mutationData)
-		}
-		if len(res.Mutations) == 0 {
-			res.Mutations = []jsonSerializedMutation{}
-		}
+		mutationData.Bucket = mutation.Agent.BucketName()
+		mutationData.Scope = mutation.ScopeName
+		mutationData.Collection = mutation.CollectionName
+		mutationData.ID = string(mutation.Key)
+		mutationData.Cas = fmt.Sprintf("%d", mutation.Cas)
+		mutationData.Type = transactionStagedMutationTypeToString(mutation.OpType)
 
-		unlock()
+		res.Mutations = append(res.Mutations, mutationData)
+	}
+	if len(res.Mutations) == 0 {
+		res.Mutations = []jsonSerializedMutation{}
+	}
 
-		resBytes, err := json.Marshal(res)
-		if err != nil {
-			cb(nil, err)
-			return
-		}
+	return res, nil
+}
 
-		cb(resBytes, nil)
-	})
-	return nil
+func (t *transactionAttempt) Serialize(ctx context.Context) ([]byte, error) {
+	res, err := t.toJsonObject()
+	if err != nil {
+		return nil, err
+	}
+
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		return nil, err
+	}
+
+	return resBytes, nil
 }

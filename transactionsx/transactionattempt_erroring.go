@@ -1,8 +1,9 @@
-package gocbcore
+package transactionsx
 
 import (
-	"errors"
 	"sync/atomic"
+
+	"go.uber.org/zap"
 )
 
 func mergeOperationFailedErrors(errs []*TransactionOperationFailedError) *TransactionOperationFailedError {
@@ -60,17 +61,37 @@ func (t *transactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) 
 		if errorBits > ((oldStateBits & transactionStateBitsMaskFinalError) >> transactionStateBitsPositionFinalError) {
 			newStateBits = (newStateBits & transactionStateBitsMaskBits) | (errorBits << transactionStateBitsPositionFinalError)
 		}
-		t.logger.logInfof(t.id, "Applying state bits: %08b, error bits: %08b, old: %08b, new: %08b",
-			stateBits, errorBits, oldStateBits, newStateBits)
+
+		t.logger.Info("Applying state bits",
+			zap.Uint32("stateBits", stateBits),
+			zap.Uint32("errorBits", errorBits),
+			zap.Uint32("oldStateBits", oldStateBits),
+			zap.Uint32("newStateBits", newStateBits))
+
 		if atomic.CompareAndSwapUint32(&t.stateBits, oldStateBits, newStateBits) {
 			break
 		}
 	}
 }
 
+// TODO(brett19): This is a hack for now
+func (t *transactionAttempt) contextFailed(err error) *TransactionOperationFailedError {
+	return t.operationFailed(operationFailedDef{
+		Cerr:              classifyError(err),
+		ShouldNotRetry:    true,
+		ShouldNotRollback: false,
+		Reason:            TransactionErrorReasonTransactionFailed,
+	})
+}
+
 func (t *transactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationFailedError {
-	t.logger.logInfof(t.id, "Operation failed: can still commit: %t, should not rollback: %t, should not retry: %t, "+
-		"reason: %s", def.CanStillCommit, def.ShouldNotRollback, def.ShouldNotRetry, def.Reason)
+	t.logger.Info("Operation failed",
+		zap.Bool("shouldNotRetry", def.ShouldNotRetry),
+		zap.Bool("shouldNotRollback", def.ShouldNotRollback),
+		zap.NamedError("cause", def.Cerr.Source),
+		zap.Stringer("class", def.Cerr.Class),
+		zap.Stringer("shouldRaise", def.Reason))
+
 	err := &TransactionOperationFailedError{
 		shouldNotRetry:    def.ShouldNotRetry,
 		shouldNotRollback: def.ShouldNotRollback,
@@ -106,39 +127,43 @@ func classifyHookError(err error) *classifiedError {
 
 func classifyError(err error) *classifiedError {
 	ec := TransactionErrorClassFailOther
-	if errors.Is(err, ErrDocAlreadyInTransaction) || errors.Is(err, ErrWriteWriteConflict) {
-		ec = TransactionErrorClassFailWriteWriteConflict
-	} else if errors.Is(err, ErrHard) {
-		ec = TransactionErrorClassFailHard
-	} else if errors.Is(err, ErrAttemptExpired) {
-		ec = TransactionErrorClassFailExpiry
-	} else if errors.Is(err, ErrTransient) {
-		ec = TransactionErrorClassFailTransient
-	} else if errors.Is(err, ErrDocumentNotFound) {
-		ec = TransactionErrorClassFailDocNotFound
-	} else if errors.Is(err, ErrAmbiguous) {
-		ec = TransactionErrorClassFailAmbiguous
-	} else if errors.Is(err, ErrCasMismatch) {
-		ec = TransactionErrorClassFailCasMismatch
-	} else if errors.Is(err, ErrDocumentNotFound) {
-		ec = TransactionErrorClassFailDocNotFound
-	} else if errors.Is(err, ErrDocumentExists) {
-		ec = TransactionErrorClassFailDocAlreadyExists
-	} else if errors.Is(err, ErrPathExists) {
-		ec = TransactionErrorClassFailPathAlreadyExists
-	} else if errors.Is(err, ErrPathNotFound) {
-		ec = TransactionErrorClassFailPathNotFound
-	} else if errors.Is(err, ErrCasMismatch) {
-		ec = TransactionErrorClassFailCasMismatch
-	} else if errors.Is(err, ErrUnambiguousTimeout) {
-		ec = TransactionErrorClassFailTransient
-	} else if errors.Is(err, ErrDurabilityAmbiguous) ||
-		errors.Is(err, ErrAmbiguousTimeout) ||
-		errors.Is(err, ErrRequestCanceled) {
-		ec = TransactionErrorClassFailAmbiguous
-	} else if errors.Is(err, ErrMemdTooBig) || errors.Is(err, ErrValueTooLarge) {
-		ec = TransactionErrorClassFailOutOfSpace
-	}
+
+	// TODO(brett19): Error classification
+	/*
+		if errors.Is(err, ErrDocAlreadyInTransaction) || errors.Is(err, ErrWriteWriteConflict) {
+			ec = TransactionErrorClassFailWriteWriteConflict
+		} else if errors.Is(err, ErrHard) {
+			ec = TransactionErrorClassFailHard
+		} else if errors.Is(err, ErrAttemptExpired) {
+			ec = TransactionErrorClassFailExpiry
+		} else if errors.Is(err, ErrTransient) {
+			ec = TransactionErrorClassFailTransient
+		} else if errors.Is(err, ErrDocumentNotFound) {
+			ec = TransactionErrorClassFailDocNotFound
+		} else if errors.Is(err, ErrAmbiguous) {
+			ec = TransactionErrorClassFailAmbiguous
+		} else if errors.Is(err, ErrCasMismatch) {
+			ec = TransactionErrorClassFailCasMismatch
+		} else if errors.Is(err, ErrDocumentNotFound) {
+			ec = TransactionErrorClassFailDocNotFound
+		} else if errors.Is(err, ErrDocumentExists) {
+			ec = TransactionErrorClassFailDocAlreadyExists
+		} else if errors.Is(err, ErrPathExists) {
+			ec = TransactionErrorClassFailPathAlreadyExists
+		} else if errors.Is(err, ErrPathNotFound) {
+			ec = TransactionErrorClassFailPathNotFound
+		} else if errors.Is(err, ErrCasMismatch) {
+			ec = TransactionErrorClassFailCasMismatch
+		} else if errors.Is(err, ErrUnambiguousTimeout) {
+			ec = TransactionErrorClassFailTransient
+		} else if errors.Is(err, ErrDurabilityAmbiguous) ||
+			errors.Is(err, ErrAmbiguousTimeout) ||
+			errors.Is(err, ErrRequestCanceled) {
+			ec = TransactionErrorClassFailAmbiguous
+		} else if errors.Is(err, ErrMemdTooBig) || errors.Is(err, ErrValueTooLarge) {
+			ec = TransactionErrorClassFailOutOfSpace
+		}
+	*/
 
 	return &classifiedError{
 		Source: err,

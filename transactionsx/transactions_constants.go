@@ -1,4 +1,4 @@
-package gocbcore
+package transactionsx
 
 import "fmt"
 
@@ -133,6 +133,37 @@ const (
 	// TransactionErrorClassFailOutOfSpace indicates an error occurred because the ATR is full.
 	TransactionErrorClassFailOutOfSpace
 )
+
+func (class TransactionErrorClass) String() string {
+	switch class {
+	case TransactionErrorClassFailOther:
+		return "other"
+	case TransactionErrorClassFailTransient:
+		return "transient"
+	case TransactionErrorClassFailDocNotFound:
+		return "doc_not_found"
+	case TransactionErrorClassFailDocAlreadyExists:
+		return "doc_already_exists"
+	case TransactionErrorClassFailPathNotFound:
+		return "path_not_found"
+	case TransactionErrorClassFailPathAlreadyExists:
+		return "path_already_exists"
+	case TransactionErrorClassFailWriteWriteConflict:
+		return "write_write_conflict"
+	case TransactionErrorClassFailCasMismatch:
+		return "cas_mismatch"
+	case TransactionErrorClassFailHard:
+		return "hard"
+	case TransactionErrorClassFailAmbiguous:
+		return "ambiguous"
+	case TransactionErrorClassFailExpiry:
+		return "expiry"
+	case TransactionErrorClassFailOutOfSpace:
+		return "out_of_space"
+	default:
+		return fmt.Sprintf("unknown:%d", class)
+	}
+}
 
 const (
 	transactionStateBitShouldNotCommit       = 1 << 0
