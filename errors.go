@@ -219,3 +219,16 @@ func (e KvBucketError) Error() string {
 func (e KvBucketError) Unwrap() error {
 	return e.Cause
 }
+
+type RetryOrchestrationError struct {
+	Cause         error
+	OriginalCause error
+}
+
+func (e RetryOrchestrationError) Error() string {
+	return fmt.Sprintf("error occured deciding whether to retry operation: %s (original error: %s)", e.Cause, e.OriginalCause)
+}
+
+func (e RetryOrchestrationError) Unwrap() error {
+	return e.Cause
+}

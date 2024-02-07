@@ -4,6 +4,7 @@
 package gocbcorex
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -77,7 +78,7 @@ var _ RetryController = &RetryControllerMock{}
 //
 //		// make and configure a mocked RetryController
 //		mockedRetryController := &RetryControllerMock{
-//			ShouldRetryFunc: func(err error) (time.Duration, bool) {
+//			ShouldRetryFunc: func(ctx context.Context, err error) (time.Duration, bool, error) {
 //				panic("mock out the ShouldRetry method")
 //			},
 //		}
@@ -88,12 +89,14 @@ var _ RetryController = &RetryControllerMock{}
 //	}
 type RetryControllerMock struct {
 	// ShouldRetryFunc mocks the ShouldRetry method.
-	ShouldRetryFunc func(err error) (time.Duration, bool)
+	ShouldRetryFunc func(ctx context.Context, err error) (time.Duration, bool, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
 		// ShouldRetry holds details about calls to the ShouldRetry method.
 		ShouldRetry []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Err is the err argument value.
 			Err error
 		}
@@ -102,19 +105,21 @@ type RetryControllerMock struct {
 }
 
 // ShouldRetry calls ShouldRetryFunc.
-func (mock *RetryControllerMock) ShouldRetry(err error) (time.Duration, bool) {
+func (mock *RetryControllerMock) ShouldRetry(ctx context.Context, err error) (time.Duration, bool, error) {
 	if mock.ShouldRetryFunc == nil {
 		panic("RetryControllerMock.ShouldRetryFunc: method is nil but RetryController.ShouldRetry was just called")
 	}
 	callInfo := struct {
+		Ctx context.Context
 		Err error
 	}{
+		Ctx: ctx,
 		Err: err,
 	}
 	mock.lockShouldRetry.Lock()
 	mock.calls.ShouldRetry = append(mock.calls.ShouldRetry, callInfo)
 	mock.lockShouldRetry.Unlock()
-	return mock.ShouldRetryFunc(err)
+	return mock.ShouldRetryFunc(ctx, err)
 }
 
 // ShouldRetryCalls gets all the calls that were made to ShouldRetry.
@@ -122,9 +127,11 @@ func (mock *RetryControllerMock) ShouldRetry(err error) (time.Duration, bool) {
 //
 //	len(mockedRetryController.ShouldRetryCalls())
 func (mock *RetryControllerMock) ShouldRetryCalls() []struct {
+	Ctx context.Context
 	Err error
 } {
 	var calls []struct {
+		Ctx context.Context
 		Err error
 	}
 	mock.lockShouldRetry.RLock()
