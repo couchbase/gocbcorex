@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/couchbase/gocbcorex/contrib/ptr"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
@@ -122,7 +123,7 @@ func TestHttpMgmtCollections(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, listResp.UID)
 
-	var foundScope *cbmgmtx.CollectionManifestScopeJson
+	var foundScope *cbconfig.CollectionManifestScopeJson
 	for _, scope := range listResp.Scopes {
 		if scope.Name == testScopeName {
 			foundScope = &scope
@@ -132,7 +133,7 @@ func TestHttpMgmtCollections(t *testing.T) {
 	require.NotNil(t, foundScope)
 	require.NotEmpty(t, foundScope.UID)
 
-	var foundCollection *cbmgmtx.CollectionManifestCollectionJson
+	var foundCollection *cbconfig.CollectionManifestCollectionJson
 	for _, collection := range foundScope.Collections {
 		if collection.Name == testCollectionName {
 			foundCollection = &collection

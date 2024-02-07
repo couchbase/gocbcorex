@@ -387,25 +387,7 @@ type GetCollectionManifestOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
-type CollectionManifestCollectionJson struct {
-	UID     string `json:"uid"`
-	Name    string `json:"name"`
-	MaxTTL  int32  `json:"maxTTL,omitempty"`
-	History bool   `json:"history,omitempty"`
-}
-
-type CollectionManifestScopeJson struct {
-	UID         string                             `json:"uid"`
-	Name        string                             `json:"name"`
-	Collections []CollectionManifestCollectionJson `json:"collections,omitempty"`
-}
-
-type CollectionManifestJson struct {
-	UID    string                        `json:"uid"`
-	Scopes []CollectionManifestScopeJson `json:"scopes,omitempty"`
-}
-
-func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollectionManifestOptions) (*CollectionManifestJson, error) {
+func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	if opts.BucketName == "" {
 		return nil, errors.New("must specify bucket name when fetching a collection manifest")
 	}
@@ -420,7 +402,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return cbhttpx.JsonBlockStreamer[CollectionManifestJson]{
+	return cbhttpx.JsonBlockStreamer[cbconfig.CollectionManifestJson]{
 		Decoder: json.NewDecoder(resp.Body),
 	}.Recv()
 }
