@@ -1,8 +1,10 @@
-package gocbcore
+package transactionsx
 
 import (
 	"encoding/json"
 	"errors"
+
+	"github.com/couchbase/gocbcorex"
 )
 
 // TransactionStagedMutationType represents the type of a mutation performed in a transaction.
@@ -55,17 +57,17 @@ type TransactionStagedMutation struct {
 	ScopeName      string
 	CollectionName string
 	Key            []byte
-	Cas            Cas
+	Cas            uint64
 	Staged         json.RawMessage
 }
 
 type transactionStagedMutation struct {
 	OpType         TransactionStagedMutationType
-	Agent          *Agent
+	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
 	CollectionName string
 	Key            []byte
-	Cas            Cas
+	Cas            uint64
 	Staged         json.RawMessage
 }

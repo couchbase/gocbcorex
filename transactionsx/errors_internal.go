@@ -1,8 +1,6 @@
-package gocbcore
+package transactionsx
 
-import (
-	"fmt"
-)
+import "fmt"
 
 type wrappedError struct {
 	Message    string

@@ -1,4 +1,4 @@
-package gocbcore
+package transactionsx
 
 import (
 	"fmt"

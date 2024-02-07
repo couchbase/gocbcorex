@@ -1,4 +1,4 @@
-package gocbcore
+package transactionsx
 
 import (
 	"encoding/json"
@@ -291,9 +291,7 @@ func marshalErrorToJSON(err error) json.RawMessage {
 		}
 	}
 
-	data, err := json.Marshal(err.Error())
-	if err != nil {
-		logWarnf("Failed to marshal error: %v", err)
-	}
+	// Marshalling a string cannot fail
+	data, _ := json.Marshal(err.Error())
 	return data
 }

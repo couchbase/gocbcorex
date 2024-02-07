@@ -1,4 +1,4 @@
-package gocbcore
+package transactionsx
 
 import (
 	"encoding/json"
@@ -93,7 +93,7 @@ type transactionGetDoc struct {
 	Body    []byte
 	TxnMeta *jsonTxnXattr
 	DocMeta *transactionDocMeta
-	Cas     Cas
+	Cas     uint64
 	Deleted bool
 }
 

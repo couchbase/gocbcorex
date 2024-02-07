@@ -1,4 +1,4 @@
-package gocbcore
+package transactionsx
 
 type jsonSerializedMutation struct {
 	Bucket     string `json:"bkt"`

@@ -1,9 +1,11 @@
-package gocbcore
+package transactionsx
 
 import (
 	"errors"
-	"fmt"
 	"time"
+
+	"github.com/couchbase/gocbcorex"
+	"go.uber.org/zap"
 )
 
 // TransactionDurabilityLevel specifies the durability level to use for a mutation.
@@ -62,39 +64,10 @@ func transactionDurabilityLevelFromString(level string) (TransactionDurabilityLe
 // TransactionATRLocation specifies a specific location where ATR entries should be
 // placed when performing transactions.
 type TransactionATRLocation struct {
-	Agent          *Agent
+	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
 	CollectionName string
-}
-
-func (tlal TransactionATRLocation) build() string {
-	if tlal.Agent == nil {
-		return ""
-	}
-
-	scope := tlal.ScopeName
-	if scope == "" {
-		scope = "_default"
-	}
-	collection := tlal.CollectionName
-	if collection == "" {
-		collection = "_default"
-	}
-
-	return tlal.Agent.BucketName() + "." + scope + "." + collection
-}
-
-func (tlal TransactionATRLocation) String() string {
-	if isLogRedactionLevelFull() || isLogRedactionLevelPartial() {
-		return redactMetaData(tlal.build())
-	}
-
-	return tlal.build()
-}
-
-func (tlal TransactionATRLocation) redacted() interface{} {
-	return redactMetaData(tlal.build())
 }
 
 // TransactionLostATRLocation specifies a specific location where lost transactions should
@@ -105,38 +78,9 @@ type TransactionLostATRLocation struct {
 	CollectionName string
 }
 
-func (tlal TransactionLostATRLocation) build() string {
-	if tlal.BucketName == "" {
-		return ""
-	}
-
-	scope := tlal.ScopeName
-	if scope == "" {
-		scope = "_default"
-	}
-	collection := tlal.CollectionName
-	if collection == "" {
-		collection = "_default"
-	}
-
-	return tlal.BucketName + "." + scope + "." + collection
-}
-
-func (tlal TransactionLostATRLocation) String() string {
-	if isLogRedactionLevelFull() || isLogRedactionLevelPartial() {
-		return redactMetaData(tlal.build())
-	}
-
-	return tlal.build()
-}
-
-func (tlal TransactionLostATRLocation) redacted() interface{} {
-	return redactMetaData(tlal.build())
-}
-
 // TransactionsBucketAgentProviderFn is a function used to provide an agent for
 // a particular bucket by name.
-type TransactionsBucketAgentProviderFn func(bucketName string) (*Agent, string, error)
+type TransactionsBucketAgentProviderFn func(bucketName string) (*gocbcorex.Agent, string, error)
 
 // TransactionsLostCleanupATRLocationProviderFn is a function used to provide a list of ATRLocations for
 // lost transactions cleanup.
@@ -182,10 +126,9 @@ type TransactionsConfig struct {
 	// for use in lost transaction cleanup.
 	LostCleanupATRLocationProvider TransactionsLostCleanupATRLocationProviderFn
 
-	// CleanupWatchATRs is *NOT* used within the codebase, it is *only* here to provide API level backward
-	// compatibility.
-	// This should *never* be used.
-	CleanupWatchATRs bool
+	// Logger specifies the logger to use for the transactions manager and for
+	// any transaction which does not specify its own logger.
+	Logger *zap.Logger
 
 	// Internal specifies a set of options for internal use.
 	// Internal: This should never be used and is not supported.
@@ -199,21 +142,6 @@ type TransactionsConfig struct {
 		EnableMutationCaching   bool
 		NumATRs                 int
 	}
-}
-
-func (config *TransactionsConfig) String() string {
-	if config == nil {
-		return "<nil>"
-	}
-
-	return fmt.Sprintf("CustomATRLocation:%s ExpirationTime:%s DurabilityLevel:%s KeyValueTimeout:%s CleanupWindow:%s "+
-		"CleanupClientAttempts:%t CleanupLostAttempts:%t CleanupQueueSize:%d BucketAgentProvider:%p LostCleanupATRLocationProvider:%p "+
-		"Internal:{EnableNonFatalGets:%t EnableParallelUnstaging:%t "+"EnableExplicitATRs:%t EnableMutationCaching:%t NumATRs:%d}",
-		config.CustomATRLocation, config.ExpirationTime, transactionDurabilityLevelToString(config.DurabilityLevel),
-		config.KeyValueTimeout, config.CleanupWindow, config.CleanupClientAttempts, config.CleanupLostAttempts, config.CleanupQueueSize,
-		config.BucketAgentProvider, config.LostCleanupATRLocationProvider, config.Internal.EnableNonFatalGets,
-		config.Internal.EnableParallelUnstaging, config.Internal.EnableExplicitATRs, config.Internal.EnableMutationCaching,
-		config.Internal.NumATRs)
 }
 
 // TransactionOptions specifies options which can be overridden on a per transaction basis.
@@ -236,25 +164,10 @@ type TransactionOptions struct {
 	// a particular bucket by name.
 	BucketAgentProvider TransactionsBucketAgentProviderFn
 
-	// TransactionLogger is the logger to use with this transaction.
-	// Uncommitted: This API may change in the future.
-	TransactionLogger TransactionLogger
+	// Logger is the logger to use with this transaction.
+	Logger *zap.Logger
 
-	// Internal specifies a set of options for internal use.
-	// Internal: This should never be used and is not supported.
-	Internal struct {
-		Hooks                TransactionHooks
-		ResourceUnitCallback func(result *ResourceUnitResult)
-	}
-}
-
-func (opts *TransactionOptions) String() string {
-	if opts == nil {
-		return "<nil>"
-	}
-
-	return fmt.Sprintf("CustomATRLocation:%s ExpirationTime:%s DurabilityLevel:%s KeyValueTimeout:%s "+
-		"BucketAgentProvider:%p TransactionLogger:%p ",
-		opts.CustomATRLocation, opts.ExpirationTime, transactionDurabilityLevelToString(opts.DurabilityLevel),
-		opts.KeyValueTimeout, opts.BucketAgentProvider, opts.TransactionLogger)
+	// Hooks specifies hooks that can be configured to be invoked during
+	// transaction execution
+	Hooks TransactionHooks
 }

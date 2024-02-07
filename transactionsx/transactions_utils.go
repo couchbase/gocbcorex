@@ -1,21 +1,19 @@
-package gocbcore
+package transactionsx
 
 import (
-	"time"
-
-	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
-func transactionsDurabilityLevelToMemd(durabilityLevel TransactionDurabilityLevel) memd.DurabilityLevel {
+func transactionsDurabilityLevelToMemdx(durabilityLevel TransactionDurabilityLevel) memdx.DurabilityLevel {
 	switch durabilityLevel {
 	case TransactionDurabilityLevelNone:
-		return memd.DurabilityLevel(0)
+		return memdx.DurabilityLevel(0)
 	case TransactionDurabilityLevelMajority:
-		return memd.DurabilityLevelMajority
+		return memdx.DurabilityLevelMajority
 	case TransactionDurabilityLevelMajorityAndPersistToActive:
-		return memd.DurabilityLevelMajorityAndPersistOnMaster
+		return memdx.DurabilityLevelMajorityAndPersistToActive
 	case TransactionDurabilityLevelPersistToMajority:
-		return memd.DurabilityLevelPersistToMajority
+		return memdx.DurabilityLevelPersistToMajority
 	case TransactionDurabilityLevelUnknown:
 		panic("unexpected unset durability level")
 	default:
@@ -39,6 +37,8 @@ func transactionsDurabilityLevelToShorthand(durabilityLevel TransactionDurabilit
 	}
 }
 
+// TODO(brett19): Use this when needed
+/*
 func transactionsDurabilityLevelFromShorthand(durabilityLevel string) TransactionDurabilityLevel {
 	switch durabilityLevel {
 	case "m":
@@ -52,16 +52,4 @@ func transactionsDurabilityLevelFromShorthand(durabilityLevel string) Transactio
 		return TransactionDurabilityLevelMajority
 	}
 }
-
-func transactionsMutationTimeouts(opTimeout time.Duration, durability TransactionDurabilityLevel) (time.Time, time.Duration) {
-	var deadline time.Time
-	var duraTimeout time.Duration
-	if opTimeout > 0 {
-		deadline = time.Now().Add(opTimeout)
-		if durability > TransactionDurabilityLevelNone {
-			duraTimeout = opTimeout
-		}
-	}
-
-	return deadline, duraTimeout
-}
+*/

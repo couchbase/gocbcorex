@@ -1,412 +1,370 @@
-package gocbcore
+package transactionsx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"time"
 
-	"github.com/couchbase/gocbcore/v10/memd"
+	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) selectAtrLocked(
-	firstAgent *Agent,
+func (t *transactionAttempt) selectAtrExclusive(
+	ctx context.Context,
+	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
 	firstScopeName string,
 	firstCollectionName string,
 	firstKey []byte,
-	cb func(*TransactionOperationFailedError),
-) {
-	atrID := int(cbcVbMap(firstKey, 1024))
+) *TransactionOperationFailedError {
+	crc := crc32.ChecksumIEEE(firstKey)
+	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
+	firstKeyVbID := crcMidBits % uint16(1024)
+
+	atrID := int(firstKeyVbID)
 	atrKey := []byte(transactionAtrIDList[atrID])
 
-	t.hooks.RandomATRIDForVbucket(func(s string, err error) {
-		if err != nil {
-			cb(t.operationFailed(operationFailedDef{
-				Cerr:              classifyHookError(err),
+	hookAtrID, err := t.hooks.RandomATRIDForVbucket(ctx)
+	if err != nil {
+		return t.operationFailed(operationFailedDef{
+			Cerr:              classifyHookError(err),
+			ShouldNotRetry:    true,
+			ShouldNotRollback: true,
+			Reason:            TransactionErrorReasonTransactionFailed,
+		})
+	}
+
+	if hookAtrID != "" {
+		atrKey = []byte(hookAtrID)
+	}
+
+	atrAgent := firstAgent
+	atrOboUser := firstOboUser
+	atrScopeName := "_default"
+	atrCollectionName := "_default"
+	if t.atrLocation.Agent != nil {
+		atrAgent = t.atrLocation.Agent
+		atrOboUser = t.atrLocation.OboUser
+		atrScopeName = t.atrLocation.ScopeName
+		atrCollectionName = t.atrLocation.CollectionName
+	} else {
+		if t.enableExplicitATRs {
+			return t.operationFailed(operationFailedDef{
+				Cerr:              classifyError(errors.New("atrs must be explicitly defined")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
-			return
+			})
 		}
+	}
 
-		if s != "" {
-			atrKey = []byte(s)
-		}
+	t.lock.Lock()
 
-		atrAgent := firstAgent
-		atrOboUser := firstOboUser
-		atrScopeName := "_default"
-		atrCollectionName := "_default"
-		if t.atrLocation.Agent != nil {
-			atrAgent = t.atrLocation.Agent
-			atrOboUser = t.atrLocation.OboUser
-			atrScopeName = t.atrLocation.ScopeName
-			atrCollectionName = t.atrLocation.CollectionName
-		} else {
-			if t.enableExplicitATRs {
-				cb(t.operationFailed(operationFailedDef{
-					Cerr:              classifyError(errors.New("atrs must be explicitly defined")),
-					ShouldNotRetry:    true,
-					ShouldNotRollback: true,
-					Reason:            TransactionErrorReasonTransactionFailed,
-				}))
-				return
-			}
-		}
+	t.atrAgent = atrAgent
+	t.atrOboUser = atrOboUser
+	t.atrScopeName = atrScopeName
+	t.atrCollectionName = atrCollectionName
+	t.atrKey = atrKey
 
-		t.atrAgent = atrAgent
-		t.atrOboUser = atrOboUser
-		t.atrScopeName = atrScopeName
-		t.atrCollectionName = atrCollectionName
-		t.atrKey = atrKey
+	t.lock.Unlock()
 
-		cb(nil)
-	})
+	return nil
 }
 
-func (t *transactionAttempt) setATRPendingLocked(
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+func (t *transactionAttempt) setATRPendingExclusive(
+	ctx context.Context,
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
-
-		t.ReportResourceUnitsError(cerr.Source)
 
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.setATRPendingLocked(cb)
-			})
-			return
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.setATRPendingExclusive(ctx)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailPathAlreadyExists:
-			cb(nil)
-			return
+			return nil
 		case TransactionErrorClassFailExpiry:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionExpired,
-			}))
+			})
 		case TransactionErrorClassFailOutOfSpace:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrFull),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		case TransactionErrorClassFailTransient:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		default:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
+			})
 		}
 	}
 
-	t.checkExpiredAtomic(hookATRPending, []byte{}, false, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
+	cerr := t.checkExpiredAtomic(ctx, hookATRPending, nil, false)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
+
+	err := t.hooks.BeforeATRPending(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	var marshalErr error
+	atrFieldOp := func(fieldName string, data interface{}, flags memdx.SubdocOpFlag) memdx.MutateInOp {
+		b, err := json.Marshal(data)
+		if err != nil {
+			marshalErr = err
+			return memdx.MutateInOp{}
 		}
 
-		t.hooks.BeforeATRPending(func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+		return memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeDictAdd,
+			Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP | flags,
+			Path:  []byte("attempts." + t.id + "." + fieldName),
+			Value: b,
+		}
+	}
 
-			deadline, duraTimeout := transactionsMutationTimeouts(t.keyValueTimeout, t.durabilityLevel)
+	atrOps := []memdx.MutateInOp{
+		atrFieldOp("tst", "${Mutation.CAS}", memdx.SubdocOpFlagExpandMacros),
+		atrFieldOp("tid", t.transactionID, memdx.SubdocOpFlagNone),
+		atrFieldOp("st", jsonAtrStatePending, memdx.SubdocOpFlagNone),
+		atrFieldOp("exp", time.Until(t.expiryTime)/time.Millisecond, memdx.SubdocOpFlagNone),
+		atrFieldOp("d", transactionsDurabilityLevelToShorthand(t.durabilityLevel), memdx.SubdocOpFlagNone),
+		{
+			Op:    memdx.MutateInOpTypeSetDoc,
+			Flags: memdx.SubdocOpFlagNone,
+			Path:  nil,
+			Value: []byte{0},
+		},
+	}
+	if marshalErr != nil {
+		return ecCb(classifyError(marshalErr))
+	}
 
-			var marshalErr error
-			atrFieldOp := func(fieldName string, data interface{}, flags memd.SubdocFlag) SubDocOp {
-				b, err := json.Marshal(data)
-				if err != nil {
-					marshalErr = err
-					return SubDocOp{}
-				}
+	t.logger.Info("Setting ATR pending",
+		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey))
 
-				return SubDocOp{
-					Op:    memd.SubDocOpDictAdd,
-					Flags: memd.SubdocFlagMkDirP | flags,
-					Path:  "attempts." + t.id + "." + fieldName,
-					Value: b,
-				}
-			}
-
-			atrOps := []SubDocOp{
-				atrFieldOp("tst", "${Mutation.CAS}", memd.SubdocFlagXattrPath|memd.SubdocFlagExpandMacros),
-				atrFieldOp("tid", t.transactionID, memd.SubdocFlagXattrPath),
-				atrFieldOp("st", jsonAtrStatePending, memd.SubdocFlagXattrPath),
-				atrFieldOp("exp", time.Until(t.expiryTime)/time.Millisecond, memd.SubdocFlagXattrPath),
-				{
-					Op:    memd.SubDocOpSetDoc,
-					Flags: memd.SubdocFlagNone,
-					Path:  "",
-					Value: []byte{0},
-				},
-				atrFieldOp("d", transactionsDurabilityLevelToShorthand(t.durabilityLevel), memd.SubdocFlagXattrPath),
-			}
-			if marshalErr != nil {
-				ecCb(classifyError(marshalErr))
-				return
-			}
-			t.logger.logInfof(t.id, "Setting ATR %s pending", newLoggableATRKey(
-				t.atrAgent.BucketName(),
-				t.atrScopeName,
-				t.atrCollectionName,
-				t.atrKey,
-			))
-
-			_, err = t.atrAgent.MutateIn(MutateInOptions{
-				ScopeName:              t.atrScopeName,
-				CollectionName:         t.atrCollectionName,
-				Key:                    t.atrKey,
-				Ops:                    atrOps,
-				DurabilityLevel:        transactionsDurabilityLevelToMemd(t.durabilityLevel),
-				DurabilityLevelTimeout: duraTimeout,
-				Deadline:               deadline,
-				Flags:                  memd.SubdocDocFlagMkDoc,
-				User:                   t.atrOboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterATRPending(func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					t.addLostCleanupLocation(t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName)
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := t.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:       t.atrScopeName,
+		CollectionName:  t.atrCollectionName,
+		Key:             t.atrKey,
+		Ops:             atrOps,
+		Flags:           memdx.SubdocDocFlagMkDoc,
+		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		OnBehalfOf:      t.atrOboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterATRPending(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	// TODO(brett19): Lost Cleanup
+	//t.addLostCleanupLocation(t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName)
+
+	return nil
 }
 
-func (t *transactionAttempt) fetchATRCommitConflictLocked(
-	cb func(jsonAtrState, *TransactionOperationFailedError),
-) {
-	ecCb := func(st jsonAtrState, cerr *classifiedError) {
+func (t *transactionAttempt) fetchATRCommitConflictExclusive(
+	ctx context.Context,
+) (jsonAtrState, *TransactionOperationFailedError) {
+	ecCb := func(st jsonAtrState, cerr *classifiedError) (jsonAtrState, *TransactionOperationFailedError) {
 		if cerr == nil {
-			cb(st, nil)
-			return
+			return st, nil
 		}
-
-		t.ReportResourceUnitsError(cerr.Source)
 
 		switch cerr.Class {
 		case TransactionErrorClassFailTransient:
 			fallthrough
 		case TransactionErrorClassFailOther:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.fetchATRCommitConflictLocked(cb)
-			})
-			return
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.fetchATRCommitConflictExclusive(ctx)
+			case <-ctx.Done():
+				return jsonAtrStateUnknown, t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailDocNotFound:
-			cb(jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
-			}))
+			})
 		case TransactionErrorClassFailPathNotFound:
-			cb(jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrEntryNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
-			}))
+			})
 		case TransactionErrorClassFailExpiry:
-			cb(jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
-			}))
+			})
 		default:
-			cb(jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
-			}))
-			return
+			})
 		}
 	}
 
-	t.checkExpiredAtomic(hookATRCommitAmbiguityResolution, []byte{}, false, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(jsonAtrStateUnknown, cerr)
-			return
-		}
+	cerr := t.checkExpiredAtomic(ctx, hookATRCommitAmbiguityResolution, nil, false)
+	if cerr != nil {
+		return ecCb(jsonAtrStateUnknown, cerr)
+	}
 
-		t.hooks.BeforeATRCommitAmbiguityResolution(func(err error) {
-			if err != nil {
-				ecCb(jsonAtrStateUnknown, classifyHookError(err))
-				return
-			}
+	err := t.hooks.BeforeATRCommitAmbiguityResolution(ctx)
+	if err != nil {
+		return ecCb(jsonAtrStateUnknown, classifyHookError(err))
+	}
 
-			var deadline time.Time
-			if t.keyValueTimeout > 0 {
-				deadline = time.Now().Add(t.keyValueTimeout)
-			}
+	result, err := t.atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
+		ScopeName:      t.atrScopeName,
+		CollectionName: t.atrCollectionName,
+		Key:            t.atrKey,
+		Ops: []memdx.LookupInOp{
+			{
+				Op:    memdx.LookupInOpTypeGet,
+				Path:  []byte("attempts." + t.id + ".st"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+		},
+		Flags:      memdx.SubdocDocFlagNone,
+		OnBehalfOf: t.atrOboUser,
+	})
+	if err != nil {
+		return ecCb(jsonAtrStateUnknown, classifyError(err))
+	}
 
-			_, err = t.atrAgent.LookupIn(LookupInOptions{
-				ScopeName:      t.atrScopeName,
-				CollectionName: t.atrCollectionName,
-				Key:            t.atrKey,
-				Ops: []SubDocOp{
-					{
-						Op:    memd.SubDocOpGet,
-						Path:  "attempts." + t.id + ".st",
-						Flags: memd.SubdocFlagXattrPath,
-					},
-				},
-				Deadline: deadline,
-				Flags:    memd.SubdocDocFlagNone,
-				User:     t.atrOboUser,
-			}, func(result *LookupInResult, err error) {
-				if err != nil {
-					ecCb(jsonAtrStateUnknown, classifyError(err))
-					return
-				}
+	if result.Ops[0].Err != nil {
+		return ecCb(jsonAtrStateUnknown, classifyError(err))
+	}
 
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
+	var st jsonAtrState
+	if err := json.Unmarshal(result.Ops[0].Value, &st); err != nil {
+		return ecCb(jsonAtrStateUnknown, classifyError(err))
+	}
 
-				if result.Ops[0].Err != nil {
-					ecCb(jsonAtrStateUnknown, classifyError(err))
-					return
-				}
+	return st, nil
+}
 
-				var st jsonAtrState
-				if err := json.Unmarshal(result.Ops[0].Value, &st); err != nil {
-					ecCb(jsonAtrStateUnknown, classifyError(err))
-					return
-				}
+func (t *transactionAttempt) resolveATRCommitConflictExclusive(
+	ctx context.Context,
+) *TransactionOperationFailedError {
+	st, err := t.fetchATRCommitConflictExclusive(ctx)
+	if err != nil {
+		return err
+	}
 
-				ecCb(st, nil)
-			})
-			if err != nil {
-				ecCb(jsonAtrStateUnknown, classifyError(err))
-				return
-			}
+	switch st {
+	case jsonAtrStatePending:
+		return t.operationFailed(operationFailedDef{
+			Cerr: classifyError(
+				wrapError(ErrIllegalState, "transaction still pending even with p set during commit")),
+			ShouldNotRetry:    true,
+			ShouldNotRollback: true,
+			Reason:            TransactionErrorReasonTransactionFailed,
 		})
-	})
+	case jsonAtrStateCommitted:
+		return nil
+	case jsonAtrStateCompleted:
+		return t.operationFailed(operationFailedDef{
+			Cerr: classifyError(
+				wrapError(ErrIllegalState, "transaction already completed during commit")),
+			ShouldNotRetry:    true,
+			ShouldNotRollback: true,
+			Reason:            TransactionErrorReasonTransactionFailed,
+		})
+	case jsonAtrStateAborted:
+		return t.operationFailed(operationFailedDef{
+			Cerr: classifyError(
+				wrapError(ErrIllegalState, "transaction already aborted during commit")),
+			ShouldNotRetry:    false,
+			ShouldNotRollback: false,
+			Reason:            TransactionErrorReasonTransactionFailed,
+		})
+	case jsonAtrStateRolledBack:
+		return t.operationFailed(operationFailedDef{
+			Cerr: classifyError(
+				wrapError(ErrIllegalState, "transaction already rolled back during commit")),
+			ShouldNotRetry:    true,
+			ShouldNotRollback: true,
+			Reason:            TransactionErrorReasonTransactionFailed,
+		})
+	default:
+		return t.operationFailed(operationFailedDef{
+			Cerr: classifyError(
+				wrapError(ErrIllegalState, fmt.Sprintf("illegal transaction state during commit: %s", st))),
+			ShouldNotRetry:    true,
+			ShouldNotRollback: true,
+			Reason:            TransactionErrorReasonTransactionFailed,
+		})
+	}
 }
 
-func (t *transactionAttempt) resolveATRCommitConflictLocked(
-	cb func(*TransactionOperationFailedError),
-) {
-	t.fetchATRCommitConflictLocked(func(st jsonAtrState, err *TransactionOperationFailedError) {
-		if err != nil {
-			cb(err)
-			return
-		}
-
-		switch st {
-		case jsonAtrStatePending:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr: classifyError(
-					wrapError(ErrIllegalState, "transaction still pending even with p set during commit")),
-				ShouldNotRetry:    true,
-				ShouldNotRollback: true,
-				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
-		case jsonAtrStateCommitted:
-			cb(nil)
-		case jsonAtrStateCompleted:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr: classifyError(
-					wrapError(ErrIllegalState, "transaction already completed during commit")),
-				ShouldNotRetry:    true,
-				ShouldNotRollback: true,
-				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
-		case jsonAtrStateAborted:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr: classifyError(
-					wrapError(ErrIllegalState, "transaction already aborted during commit")),
-				ShouldNotRetry:    false,
-				ShouldNotRollback: false,
-				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
-		case jsonAtrStateRolledBack:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr: classifyError(
-					wrapError(ErrIllegalState, "transaction already rolled back during commit")),
-				ShouldNotRetry:    true,
-				ShouldNotRollback: true,
-				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
-		default:
-			cb(t.operationFailed(operationFailedDef{
-				Cerr: classifyError(
-					wrapError(ErrIllegalState, fmt.Sprintf("illegal transaction state during commit: %s", st))),
-				ShouldNotRetry:    true,
-				ShouldNotRollback: true,
-				Reason:            TransactionErrorReasonTransactionFailed,
-			}))
-		}
-	})
-}
-
-func (t *transactionAttempt) setATRCommittedLocked(
+func (t *transactionAttempt) setATRCommittedExclusive(
+	ctx context.Context,
 	ambiguityResolution bool,
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
-
-		t.ReportResourceUnitsError(cerr.Source)
 
 		errorReason := TransactionErrorReasonTransactionFailed
 		if ambiguityResolution {
@@ -415,84 +373,86 @@ func (t *transactionAttempt) setATRCommittedLocked(
 
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
-			time.AfterFunc(3*time.Millisecond, func() {
+			select {
+			case <-time.After(3 * time.Millisecond):
 				ambiguityResolution = true
-				t.setATRCommittedLocked(ambiguityResolution, cb)
-			})
-			return
+				return t.setATRCommittedExclusive(ctx, ambiguityResolution)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailTransient:
 			if ambiguityResolution {
-				time.AfterFunc(3*time.Millisecond, func() {
-					t.setATRCommittedLocked(ambiguityResolution, cb)
-				})
-				return
+				select {
+				case <-time.After(3 * time.Millisecond):
+					return t.setATRCommittedExclusive(ctx, ambiguityResolution)
+				case <-ctx.Done():
+					return t.contextFailed(ctx.Err())
+				}
 			}
 
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            errorReason,
-			}))
+			})
 		case TransactionErrorClassFailPathAlreadyExists:
-			t.resolveATRCommitConflictLocked(cb)
-			return
+			return t.resolveATRCommitConflictExclusive(ctx)
 		case TransactionErrorClassFailDocNotFound:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            errorReason,
-			}))
+			})
 		case TransactionErrorClassFailPathNotFound:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrEntryNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            errorReason,
-			}))
+			})
 		case TransactionErrorClassFailOutOfSpace:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrFull),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            errorReason,
-			}))
+			})
 		case TransactionErrorClassFailExpiry:
 			if errorReason == TransactionErrorReasonTransactionFailed {
 				errorReason = TransactionErrorReasonTransactionExpired
 			}
 
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            errorReason,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            errorReason,
-			}))
+			})
 		default:
 			if ambiguityResolution {
-				cb(t.operationFailed(operationFailedDef{
+				return t.operationFailed(operationFailedDef{
 					Cerr:              cerr,
 					ShouldNotRetry:    true,
 					ShouldNotRollback: true,
 					Reason:            errorReason,
-				}))
-				return
+				})
 			}
 
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            errorReason,
-			}))
+			})
 		}
 	}
 
@@ -521,115 +481,90 @@ func (t *transactionAttempt) setATRCommittedLocked(
 		} else if mutation.OpType == TransactionStagedMutationRemove {
 			remMutations = append(remMutations, jsonMutation)
 		} else {
-			ecCb(classifyError(wrapError(ErrIllegalState, "unexpected staged mutation type")))
-			return
+			return ecCb(classifyError(wrapError(ErrIllegalState, "unexpected staged mutation type")))
 		}
 	}
 
-	t.checkExpiredAtomic(hookATRCommit, []byte{}, false, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
+	cerr := t.checkExpiredAtomic(ctx, hookATRCommit, nil, false)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
+
+	err := t.hooks.BeforeATRCommit(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	var marshalErr error
+	atrFieldOp := func(fieldName string, data interface{}, flags memdx.SubdocOpFlag, op memdx.MutateInOpType) memdx.MutateInOp {
+		bytes, err := json.Marshal(data)
+		if err != nil {
+			marshalErr = err
 		}
 
-		t.hooks.BeforeATRCommit(func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+		return memdx.MutateInOp{
+			Op:    op,
+			Flags: memdx.SubdocOpFlagXattrPath | flags,
+			Path:  []byte("attempts." + t.id + "." + fieldName),
+			Value: bytes,
+		}
+	}
 
-			deadline, duraTimeout := transactionsMutationTimeouts(t.keyValueTimeout, t.durabilityLevel)
+	atrOps := []memdx.MutateInOp{
+		atrFieldOp("st", jsonAtrStateCommitted, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
+		atrFieldOp("tsc", "${Mutation.CAS}", memdx.SubdocOpFlagExpandMacros, memdx.MutateInOpTypeDictSet),
+		atrFieldOp("p", 0, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictAdd),
+		atrFieldOp("ins", insMutations, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
+		atrFieldOp("rep", repMutations, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
+		atrFieldOp("rem", remMutations, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
+	}
+	if marshalErr != nil {
+		return ecCb(classifyError(marshalErr))
+	}
 
-			var marshalErr error
-			atrFieldOp := func(fieldName string, data interface{}, flags memd.SubdocFlag, op memd.SubDocOpType) SubDocOp {
-				bytes, err := json.Marshal(data)
-				if err != nil {
-					marshalErr = err
-				}
-
-				return SubDocOp{
-					Op:    op,
-					Flags: flags,
-					Path:  "attempts." + t.id + "." + fieldName,
-					Value: bytes,
-				}
-			}
-
-			atrOps := []SubDocOp{
-				atrFieldOp("st", jsonAtrStateCommitted, memd.SubdocFlagXattrPath, memd.SubDocOpDictSet),
-				atrFieldOp("tsc", "${Mutation.CAS}", memd.SubdocFlagXattrPath|memd.SubdocFlagExpandMacros, memd.SubDocOpDictSet),
-				atrFieldOp("p", 0, memd.SubdocFlagXattrPath, memd.SubDocOpDictAdd),
-				atrFieldOp("ins", insMutations, memd.SubdocFlagXattrPath, memd.SubDocOpDictSet),
-				atrFieldOp("rep", repMutations, memd.SubdocFlagXattrPath, memd.SubDocOpDictSet),
-				atrFieldOp("rem", remMutations, memd.SubdocFlagXattrPath, memd.SubDocOpDictSet),
-			}
-			if marshalErr != nil {
-				ecCb(classifyError(marshalErr))
-				return
-			}
-
-			_, err = atrAgent.MutateIn(MutateInOptions{
-				ScopeName:              atrScopeName,
-				CollectionName:         atrCollectionName,
-				Key:                    atrKey,
-				Ops:                    atrOps,
-				DurabilityLevel:        transactionsDurabilityLevelToMemd(t.durabilityLevel),
-				DurabilityLevelTimeout: duraTimeout,
-				Flags:                  memd.SubdocDocFlagNone,
-				Deadline:               deadline,
-				User:                   atrOboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterATRCommit(func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:       atrScopeName,
+		CollectionName:  atrCollectionName,
+		Key:             atrKey,
+		Ops:             atrOps,
+		Flags:           memdx.SubdocDocFlagNone,
+		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		OnBehalfOf:      atrOboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterATRCommit(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	return nil
 }
 
-func (t *transactionAttempt) setATRCompletedLocked(
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+func (t *transactionAttempt) setATRCompletedExclusive(
+	ctx context.Context,
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
 
-		t.ReportResourceUnitsError(cerr.Source)
-
 		if t.isExpiryOvertimeAtomic() {
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "completed atr removal failed during overtime")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
-			}))
-			return
+			})
 		}
 
 		switch cerr.Class {
@@ -637,34 +572,34 @@ func (t *transactionAttempt) setATRCompletedLocked(
 			fallthrough
 		case TransactionErrorClassFailPathNotFound:
 			// This is technically a full success, but FIT expects unstagingCompleted=false...
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
-			}))
+			})
 		case TransactionErrorClassFailExpiry:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "completed atr removal operation expired")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
-			}))
+			})
 		default:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
-			}))
+			})
 		}
 	}
 
@@ -674,125 +609,109 @@ func (t *transactionAttempt) setATRCompletedLocked(
 	atrKey := t.atrKey
 	atrCollectionName := t.atrCollectionName
 
-	t.checkExpiredAtomic(hookATRComplete, []byte{}, true, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
-		}
+	cerr := t.checkExpiredAtomic(ctx, hookATRComplete, nil, true)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
 
-		t.hooks.BeforeATRComplete(func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+	err := t.hooks.BeforeATRComplete(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
 
-			deadline, duraTimeout := transactionsMutationTimeouts(t.keyValueTimeout, t.durabilityLevel)
+	atrOps := []memdx.MutateInOp{
+		{
+			Op:    memdx.MutateInOpTypeDelete,
+			Flags: memdx.SubdocOpFlagXattrPath,
+			Path:  []byte("attempts." + t.id),
+		},
+	}
 
-			atrOps := []SubDocOp{
-				{
-					Op:    memd.SubDocOpDelete,
-					Flags: memd.SubdocFlagXattrPath,
-					Path:  "attempts." + t.id,
-				},
-			}
-
-			_, err = atrAgent.MutateIn(MutateInOptions{
-				ScopeName:              atrScopeName,
-				CollectionName:         atrCollectionName,
-				Key:                    atrKey,
-				Ops:                    atrOps,
-				DurabilityLevel:        transactionsDurabilityLevelToMemd(t.durabilityLevel),
-				DurabilityLevelTimeout: duraTimeout,
-				Deadline:               deadline,
-				Flags:                  memd.SubdocDocFlagNone,
-				User:                   atrOboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterATRComplete(func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:       atrScopeName,
+		CollectionName:  atrCollectionName,
+		Key:             atrKey,
+		Ops:             atrOps,
+		Flags:           memdx.SubdocDocFlagNone,
+		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		OnBehalfOf:      atrOboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterATRComplete(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	return nil
 }
 
-func (t *transactionAttempt) setATRAbortedLocked(
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+func (t *transactionAttempt) setATRAbortedExclusive(
+	ctx context.Context,
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
 
-		t.ReportResourceUnitsError(cerr.Source)
-
 		if t.isExpiryOvertimeAtomic() {
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "atr abort failed during overtime")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-			return
+			})
 		}
 
 		switch cerr.Class {
 		case TransactionErrorClassFailExpiry:
 			t.setExpiryOvertimeAtomic()
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.setATRAbortedLocked(cb)
-			})
+
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.setATRAbortedExclusive(ctx)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		case TransactionErrorClassFailDocNotFound:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
+			})
 		case TransactionErrorClassFailPathNotFound:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrEntryNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
+			})
 		case TransactionErrorClassFailOutOfSpace:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrFull),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-		default:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.setATRAbortedLocked(cb)
 			})
+		default:
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.setATRAbortedExclusive(ctx)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		}
 	}
 
@@ -821,138 +740,115 @@ func (t *transactionAttempt) setATRAbortedLocked(
 		} else if mutation.OpType == TransactionStagedMutationRemove {
 			remMutations = append(remMutations, jsonMutation)
 		} else {
-			ecCb(classifyError(wrapError(ErrIllegalState, "unexpected staged mutation type")))
-			return
+			return ecCb(classifyError(wrapError(ErrIllegalState, "unexpected staged mutation type")))
 		}
 	}
 
-	t.checkExpiredAtomic(hookATRAbort, []byte{}, true, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
+	cerr := t.checkExpiredAtomic(ctx, hookATRAbort, nil, true)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
+
+	err := t.hooks.BeforeATRAborted(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	var marshalErr error
+	atrFieldOp := func(fieldName string, data interface{}, flags memdx.SubdocOpFlag) memdx.MutateInOp {
+		bytes, err := json.Marshal(data)
+		if err != nil {
+			marshalErr = err
 		}
 
-		t.hooks.BeforeATRAborted(func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+		return memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeDictSet,
+			Flags: memdx.SubdocOpFlagXattrPath | flags,
+			Path:  []byte("attempts." + t.id + "." + fieldName),
+			Value: bytes,
+		}
+	}
 
-			deadline, duraTimeout := transactionsMutationTimeouts(t.keyValueTimeout, t.durabilityLevel)
+	atrOps := []memdx.MutateInOp{
+		atrFieldOp("st", jsonAtrStateAborted, memdx.SubdocOpFlagNone),
+		atrFieldOp("tsrs", "${Mutation.CAS}", memdx.SubdocOpFlagExpandMacros),
+		atrFieldOp("ins", insMutations, memdx.SubdocOpFlagNone),
+		atrFieldOp("rep", repMutations, memdx.SubdocOpFlagNone),
+		atrFieldOp("rem", remMutations, memdx.SubdocOpFlagNone),
+	}
+	if marshalErr != nil {
+		return ecCb(classifyError(marshalErr))
+	}
 
-			var marshalErr error
-			atrFieldOp := func(fieldName string, data interface{}, flags memd.SubdocFlag) SubDocOp {
-				bytes, err := json.Marshal(data)
-				if err != nil {
-					marshalErr = err
-				}
-
-				return SubDocOp{
-					Op:    memd.SubDocOpDictSet,
-					Flags: flags,
-					Path:  "attempts." + t.id + "." + fieldName,
-					Value: bytes,
-				}
-			}
-
-			atrOps := []SubDocOp{
-				atrFieldOp("st", jsonAtrStateAborted, memd.SubdocFlagXattrPath),
-				atrFieldOp("tsrs", "${Mutation.CAS}", memd.SubdocFlagXattrPath|memd.SubdocFlagExpandMacros),
-				atrFieldOp("ins", insMutations, memd.SubdocFlagXattrPath),
-				atrFieldOp("rep", repMutations, memd.SubdocFlagXattrPath),
-				atrFieldOp("rem", remMutations, memd.SubdocFlagXattrPath),
-			}
-			if marshalErr != nil {
-				ecCb(classifyError(marshalErr))
-				return
-			}
-
-			_, err = atrAgent.MutateIn(MutateInOptions{
-				ScopeName:              atrScopeName,
-				CollectionName:         atrCollectionName,
-				Key:                    atrKey,
-				Ops:                    atrOps,
-				DurabilityLevel:        transactionsDurabilityLevelToMemd(t.durabilityLevel),
-				DurabilityLevelTimeout: duraTimeout,
-				Flags:                  memd.SubdocDocFlagNone,
-				Deadline:               deadline,
-				User:                   atrOboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterATRAborted(func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:       atrScopeName,
+		CollectionName:  atrCollectionName,
+		Key:             atrKey,
+		Ops:             atrOps,
+		Flags:           memdx.SubdocDocFlagNone,
+		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		OnBehalfOf:      atrOboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterATRAborted(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	return nil
 }
 
-func (t *transactionAttempt) setATRRolledBackLocked(
-	cb func(*TransactionOperationFailedError),
-) {
-	ecCb := func(cerr *classifiedError) {
+func (t *transactionAttempt) setATRRolledBackExclusive(
+	ctx context.Context,
+) *TransactionOperationFailedError {
+	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
 		if cerr == nil {
-			cb(nil)
-			return
+			return nil
 		}
 
-		t.ReportResourceUnitsError(cerr.Source)
-
 		if t.isExpiryOvertimeAtomic() {
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "rolled back atr removal failed during overtime")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-			return
+			})
 		}
 
 		switch cerr.Class {
 		case TransactionErrorClassFailDocNotFound:
 			fallthrough
 		case TransactionErrorClassFailPathNotFound:
-			cb(nil)
-			return
+			return nil
 		case TransactionErrorClassFailExpiry:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					wrapError(ErrAttemptExpired, "rolled back atr removal operation expired")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
+			})
 		case TransactionErrorClassFailHard:
-			cb(t.operationFailed(operationFailedDef{
+			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
-			}))
-		default:
-			time.AfterFunc(3*time.Millisecond, func() {
-				t.setATRRolledBackLocked(cb)
 			})
+		default:
+			select {
+			case <-time.After(3 * time.Millisecond):
+				return t.setATRRolledBackExclusive(ctx)
+			case <-ctx.Done():
+				return t.contextFailed(ctx.Err())
+			}
 		}
 	}
 
@@ -962,66 +858,48 @@ func (t *transactionAttempt) setATRRolledBackLocked(
 	atrKey := t.atrKey
 	atrCollectionName := t.atrCollectionName
 
-	t.checkExpiredAtomic(hookATRRollback, []byte{}, true, func(cerr *classifiedError) {
-		if cerr != nil {
-			ecCb(cerr)
-			return
-		}
+	cerr := t.checkExpiredAtomic(ctx, hookATRRollback, nil, true)
+	if cerr != nil {
+		return ecCb(cerr)
+	}
 
-		t.hooks.BeforeATRRolledBack(func(err error) {
-			if err != nil {
-				ecCb(classifyHookError(err))
-				return
-			}
+	err := t.hooks.BeforeATRRolledBack(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
 
-			deadline, duraTimeout := transactionsMutationTimeouts(t.keyValueTimeout, t.durabilityLevel)
+	atrOps := []memdx.MutateInOp{
+		{
+			Op:    memdx.MutateInOpTypeDelete,
+			Flags: memdx.SubdocOpFlagXattrPath,
+			Path:  []byte("attempts." + t.id),
+		},
+	}
 
-			atrOps := []SubDocOp{
-				{
-					Op:    memd.SubDocOpDelete,
-					Flags: memd.SubdocFlagXattrPath,
-					Path:  "attempts." + t.id,
-				},
-			}
-
-			_, err = atrAgent.MutateIn(MutateInOptions{
-				ScopeName:              atrScopeName,
-				CollectionName:         atrCollectionName,
-				Key:                    atrKey,
-				Ops:                    atrOps,
-				DurabilityLevel:        transactionsDurabilityLevelToMemd(t.durabilityLevel),
-				DurabilityLevelTimeout: duraTimeout,
-				Deadline:               deadline,
-				Flags:                  memd.SubdocDocFlagNone,
-				User:                   atrOboUser,
-			}, func(result *MutateInResult, err error) {
-				if err != nil {
-					ecCb(classifyError(err))
-					return
-				}
-
-				t.ReportResourceUnits(result.Internal.ResourceUnits)
-
-				for _, op := range result.Ops {
-					if op.Err != nil {
-						ecCb(classifyError(op.Err))
-						return
-					}
-				}
-
-				t.hooks.AfterATRRolledBack(func(err error) {
-					if err != nil {
-						ecCb(classifyHookError(err))
-						return
-					}
-
-					ecCb(nil)
-				})
-			})
-			if err != nil {
-				ecCb(classifyError(err))
-				return
-			}
-		})
+	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+		ScopeName:       atrScopeName,
+		CollectionName:  atrCollectionName,
+		Key:             atrKey,
+		Ops:             atrOps,
+		Flags:           memdx.SubdocDocFlagNone,
+		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		OnBehalfOf:      atrOboUser,
 	})
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
+	for _, op := range result.Ops {
+		if op.Err != nil {
+			return ecCb(classifyError(op.Err))
+		}
+	}
+
+	err = t.hooks.AfterATRRolledBack(ctx)
+	if err != nil {
+		return ecCb(classifyHookError(err))
+	}
+
+	return nil
+
 }
