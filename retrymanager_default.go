@@ -1,6 +1,7 @@
 package gocbcorex
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -38,9 +39,9 @@ func (rc *retryControllerDefault) isRetriableError(err error) bool {
 		errors.Is(err, ErrCollectionManifestOutdated)
 }
 
-func (rc *retryControllerDefault) ShouldRetry(err error) (time.Duration, bool) {
+func (rc *retryControllerDefault) ShouldRetry(ctx context.Context, err error) (time.Duration, bool, error) {
 	if !rc.isRetriableError(err) {
-		return 0, false
+		return 0, false, nil
 	}
 
 	calc := rc.parent.calc
@@ -51,5 +52,5 @@ func (rc *retryControllerDefault) ShouldRetry(err error) (time.Duration, bool) {
 	// increment the retry count
 	rc.retryCount++
 
-	return retryTime, true
+	return retryTime, true, nil
 }
