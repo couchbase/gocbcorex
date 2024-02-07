@@ -206,3 +206,16 @@ func (e PathProjectionError) Error() string {
 func (e PathProjectionError) Unwrap() error {
 	return e.Cause
 }
+
+type KvBucketError struct {
+	Cause      error
+	BucketName string
+}
+
+func (e KvBucketError) Error() string {
+	return fmt.Sprintf("%s (bucket: %s)", e.Cause, e.BucketName)
+}
+
+func (e KvBucketError) Unwrap() error {
+	return e.Cause
+}
