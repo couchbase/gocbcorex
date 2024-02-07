@@ -221,10 +221,41 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		agent.cfgWatcher = configWatcher
 	}
 
+	agent.mgmt = NewMgmtComponent(
+		agent.retries,
+		&agentComponentConfigs.MgmtComponentConfig,
+		&MgmtComponentOptions{
+			Logger:    logger,
+			UserAgent: clientName,
+		},
+	)
+
+	bucketChecker := NewBucketCheckerCoalesced(&BucketCheckerCoalescedOptions{
+		Checker: &BucketCheckerMgmt{
+			Mgmt: agent.mgmt,
+		},
+	})
+
+	manifestFetcher := NewManifestFetcherCoalesced(&ManifestFetcherCoalescedOptions{
+		Fetcher: &ManifestFetcherMgmt{
+			Mgmt: agent.mgmt,
+		},
+	})
+
+	collectionChecker := &CollectionCheckerManifest{
+		ManifestFetcher: manifestFetcher,
+	}
+
+	consistencyRetryMgr := &RetryManagerConsistency{
+		Base:              agent.retries,
+		BucketChecker:     bucketChecker,
+		CollectionChecker: collectionChecker,
+	}
+
 	agent.crud = &CrudComponent{
 		logger:      agent.logger,
 		collections: agent.collections,
-		retries:     agent.retries,
+		retries:     consistencyRetryMgr,
 		connManager: agent.connMgr,
 		nmvHandler:  &agentNmvHandler{agent},
 		vbs:         agent.vbRouter,
@@ -236,23 +267,16 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 	}
 	agent.query = NewQueryComponent(
-		agent.retries,
+		consistencyRetryMgr,
 		&agentComponentConfigs.QueryComponentConfig,
 		&QueryComponentOptions{
 			Logger:    logger,
 			UserAgent: clientName,
 		},
 	)
-	agent.mgmt = NewMgmtComponent(
-		agent.retries,
-		&agentComponentConfigs.MgmtComponentConfig,
-		&MgmtComponentOptions{
-			Logger:    logger,
-			UserAgent: clientName,
-		},
-	)
+
 	agent.search = NewSearchComponent(
-		agent.retries,
+		consistencyRetryMgr,
 		&agentComponentConfigs.SearchComponentConfig,
 		&SearchComponentOptions{
 			Logger:    logger,
