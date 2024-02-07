@@ -119,3 +119,21 @@ type TerseConfigJson struct {
 	ClusterCapabilitiesVer []int                 `json:"clusterCapabilitiesVer"`
 	ClusterCapabilities    map[string][]string   `json:"clusterCapabilities"`
 }
+
+type CollectionManifestCollectionJson struct {
+	UID     string `json:"uid"`
+	Name    string `json:"name"`
+	MaxTTL  int32  `json:"maxTTL,omitempty"`
+	History bool   `json:"history,omitempty"`
+}
+
+type CollectionManifestScopeJson struct {
+	UID         string                             `json:"uid"`
+	Name        string                             `json:"name"`
+	Collections []CollectionManifestCollectionJson `json:"collections,omitempty"`
+}
+
+type CollectionManifestJson struct {
+	UID    string                        `json:"uid"`
+	Scopes []CollectionManifestScopeJson `json:"scopes,omitempty"`
+}
