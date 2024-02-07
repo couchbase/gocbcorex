@@ -262,51 +262,39 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 			func(collectionID uint32, manifestID uint64) (any, error) {
 				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
 				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
-
-				// The second retryer is for retrying individual replica reads, hence the different retry manager
-				// being used, since the set of errors for which are different
-				replicaRetryManager := NewRetryManagerGetAllReplicas()
 				wg.Add(maxReplicas + 1)
 				go func() {
 					for i := 0; i <= maxReplicas; i++ {
 						go func(i int) {
 							defer wg.Done()
-							res, err := OrchestrateMemdRetries(
-								ctx, replicaRetryManager, func() (*GetAllReplicasResult, error) {
-									res, err := OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, uint32(i),
-										func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
-											return OrchestrateMemdClient(ctx, cc.connManager, endpoint,
-												func(client KvClient) (*GetAllReplicasResult, error) {
+							res, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connManager, opts.Key, uint32(i),
+								func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
+									// If we have already fetched a replica from this node the thread is
+									// complete.
+									mu.Lock()
+									if slices.Contains(endpoints, ep) {
+										mu.Unlock()
+										return nil, nil
+									}
+									mu.Unlock()
 
-													// If we have already fetched a replica from this node the thread is
-													// complete.
-													mu.Lock()
-													if slices.Contains(endpoints, endpoint) {
-														mu.Unlock()
-														return nil, nil
-													}
-													mu.Unlock()
+									var res *GetAllReplicasResult
+									var err error
 
-													var res *GetAllReplicasResult
-													var err error
+									if i == 0 {
+										res, err = getFn(collectionID, vbID, client)
+									} else {
+										res, err = getReplicaFn(collectionID, vbID, client)
+									}
 
-													if i == 0 {
-														res, err = getFn(collectionID, vbID, client)
-													} else {
-														res, err = getReplicaFn(collectionID, vbID, client)
-													}
+									// If we get no error we have a result and track the nodes we have recieved
+									// a replica from
+									if err == nil {
+										mu.Lock()
+										endpoints = append(endpoints, ep)
+										mu.Unlock()
+									}
 
-													// If we get no error we have a result and track the nodes we have recieved
-													// a replica from
-													if err == nil {
-														mu.Lock()
-														endpoints = append(endpoints, endpoint)
-														mu.Unlock()
-													}
-
-													return res, err
-												})
-										})
 									return res, err
 								})
 
@@ -336,6 +324,27 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 	}
 
 	return result, err
+}
+
+func OrchestrateReplicaRead(
+	ctx context.Context,
+	vb VbucketRouter,
+	ch NotMyVbucketConfigHandler,
+	nkcp KvClientManager,
+	key []byte,
+	replica uint32,
+	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
+) (*GetAllReplicasResult, error) {
+	// The second retryer is for retrying individual replica reads, hence the different retry manager
+	// being used, since the set of errors for which are different
+	rs := NewRetryManagerGetAllReplicas()
+	return OrchestrateMemdRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
+		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
+			return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (*GetAllReplicasResult, error) {
+				return fn(endpoint, vbID, client)
+			})
+		})
+	})
 }
 
 type UpsertOptions struct {
