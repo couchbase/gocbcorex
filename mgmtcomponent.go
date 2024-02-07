@@ -156,6 +156,10 @@ func (w *MgmtComponent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBu
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteBucket, opts)
 }
 
+func (w *MgmtComponent) CheckBucketExists(ctx context.Context, opts *cbmgmtx.CheckBucketExistsOptions) (bool, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.CheckBucketExists, opts)
+}
+
 type EnsureBucketOptions struct {
 	BucketName  string
 	BucketUUID  string
