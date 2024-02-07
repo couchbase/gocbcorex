@@ -1,6 +1,9 @@
 package gocbcorex
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type RetryManagerFastFail struct {
 }
@@ -15,6 +18,6 @@ func (m *RetryManagerFastFail) NewRetryController() RetryController {
 
 type retryControllerFastFail struct{}
 
-func (rc retryControllerFastFail) ShouldRetry(err error) (time.Duration, bool) {
-	return 0, false
+func (rc retryControllerFastFail) ShouldRetry(ctx context.Context, err error) (time.Duration, bool, error) {
+	return 0, false, nil
 }

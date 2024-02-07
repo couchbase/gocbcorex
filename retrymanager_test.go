@@ -14,9 +14,9 @@ func TestOrchestrateRetriesDeadlinesInOp(t *testing.T) {
 
 	retryCount := 0
 	mockCtrl := &RetryControllerMock{
-		ShouldRetryFunc: func(err error) (time.Duration, bool) {
+		ShouldRetryFunc: func(ctx context.Context, err error) (time.Duration, bool, error) {
 			retryCount++
-			return 0, true
+			return 0, true, nil
 		},
 	}
 	mockMgr := &RetryManagerMock{
@@ -54,9 +54,9 @@ func TestOrchestrateRetriesDeadlinesInWait(t *testing.T) {
 
 	retryCount := 0
 	mockCtrl := &RetryControllerMock{
-		ShouldRetryFunc: func(err error) (time.Duration, bool) {
+		ShouldRetryFunc: func(ctx context.Context, err error) (time.Duration, bool, error) {
 			retryCount++
-			return 1 * time.Second, true
+			return 1 * time.Second, true, nil
 		},
 	}
 	mockMgr := &RetryManagerMock{

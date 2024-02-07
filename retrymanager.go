@@ -7,7 +7,7 @@ import (
 )
 
 type RetryController interface {
-	ShouldRetry(err error) (time.Duration, bool)
+	ShouldRetry(ctx context.Context, err error) (time.Duration, bool, error)
 }
 
 type RetryManager interface {
@@ -32,7 +32,14 @@ func OrchestrateRetries[RespT any](
 				opRetryController = rs.NewRetryController()
 			}
 
-			retryTime, shouldRetry := opRetryController.ShouldRetry(err)
+			retryTime, shouldRetry, orchErr := opRetryController.ShouldRetry(ctx, err)
+			if orchErr != nil {
+				return res, &RetryOrchestrationError{
+					Cause:         orchErr,
+					OriginalCause: err,
+				}
+			}
+
 			if shouldRetry {
 				select {
 				case <-time.After(retryTime):
