@@ -292,6 +292,33 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 	}.Recv()
 }
 
+type CheckBucketExistsOptions struct {
+	BucketName string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) CheckBucketExists(ctx context.Context, opts *CheckBucketExistsOptions) (bool, error) {
+	if opts.BucketName == "" {
+		return false, errors.New("must specify bucket name when checking a bucket exists")
+	}
+
+	resp, err := h.Execute(ctx, "HEAD",
+		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
+	if err != nil {
+		return false, err
+	}
+
+	if resp.StatusCode != 200 {
+		err := h.DecodeCommonError(resp)
+		if errors.Is(err, ErrBucketNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
 type StreamTerseBucketConfigOptions struct {
 	BucketName string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
