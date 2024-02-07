@@ -76,6 +76,8 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	atomic.AddUint32(&resulter.AllocCount, 1)
 
 	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
+		err = c.wrapErrorWithBucket(err)
+
 		span.AddEvent("RECEIVED")
 
 		if span.IsRecording() {
@@ -172,6 +174,24 @@ func kvClient_SimpleCrudCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 		DurabilityEnabled:     c.HasFeature(memdx.HelloFeatureSyncReplication),
 		PreserveExpiryEnabled: c.HasFeature(memdx.HelloFeaturePreserveExpiry),
 	}, execFn, req)
+}
+
+// wrapErrorWithBucket will attempt to wrap any errors we receive with some
+// context about which particular bucket the error occurred against
+func (c *kvClient) wrapErrorWithBucket(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	selectedBucket := c.selectedBucket.Load()
+	if selectedBucket == nil {
+		return err
+	}
+
+	return &KvBucketError{
+		Cause:      err,
+		BucketName: *selectedBucket,
+	}
 }
 
 func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) (*memdx.BootstrapResult, error) {
@@ -293,6 +313,8 @@ func (c *kvClient) RangeScanContinue(ctx context.Context, req *memdx.RangeScanCo
 			errChan <- err
 		}
 	}, func(resp *memdx.RangeScanActionResponse, err error) {
+		err = c.wrapErrorWithBucket(err)
+
 		if atomic.CompareAndSwapUint32(&calledBack, 0, 1) {
 			resulter.Ch <- syncCrudResult{
 				Result: resp,

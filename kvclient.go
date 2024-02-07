@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 
+	"github.com/couchbase/gocbcorex/contrib/ptr"
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
@@ -115,6 +116,12 @@ type kvClient struct {
 	currentConfig KvClientConfig
 
 	supportedFeatures []memdx.HelloFeature
+
+	// selectedBucket atomically stores the currently selected bucket,
+	// so that we can use it in our errors.  Note that it is set before
+	// we send the operation to select the bucket, since things happen
+	// asynchronously and we do not support changing selected buckets.
+	selectedBucket atomic.Pointer[string]
 
 	closed       uint32
 	closeHandler func(KvClient, error)
@@ -235,6 +242,10 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	kvCli.localPort = localPort
 
 	if shouldBootstrap {
+		if bootstrapSelectBucket != nil {
+			kvCli.selectedBucket.Store(ptr.To(bootstrapSelectBucket.BucketName))
+		}
+
 		kvCli.logger.Debug("bootstrapping")
 		res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
 			Hello:            bootstrapHello,
@@ -308,12 +319,15 @@ func (c *kvClient) Reconfigure(config *KvClientConfig, cb func(error)) error {
 
 	go func() {
 		if selectBucketName != "" {
+			c.selectedBucket.Store(ptr.To(selectBucketName))
+
 			_, err := c.SelectBucket(context.Background(), &memdx.SelectBucketRequest{
 				BucketName: selectBucketName,
 			})
 			if err != nil {
 				c.lock.Lock()
 				c.currentConfig.SelectedBucket = ""
+				c.selectedBucket.Store(ptr.To(""))
 				c.lock.Unlock()
 
 				cb(err)
