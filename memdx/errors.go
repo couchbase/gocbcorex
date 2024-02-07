@@ -224,3 +224,21 @@ func (o ServerErrorWithContext) ParseContext() ServerErrorContext {
 
 	return contextOut
 }
+
+type ResourceError struct {
+	Cause          error
+	ScopeName      string
+	CollectionName string
+}
+
+func (e ResourceError) Error() string {
+	return fmt.Sprintf(
+		"resource error: %s (scope: %s, collection: %s)",
+		e.Cause,
+		e.ScopeName,
+		e.CollectionName)
+}
+
+func (e ResourceError) Unwrap() error {
+	return e.Cause
+}
