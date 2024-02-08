@@ -3,7 +3,6 @@ package gocbcorex
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -266,10 +265,9 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 		return nil, err
 	}
 	numReplicas.Store(uint32(temp))
-	fmt.Println("JW REPLICAS")
-	fmt.Println(numReplicas.Load())
 
-	// This retry orchestrator handles request level retryable errors, e.g the collection ID not yet being consistent
+	// This retry orchestrator handles request level retryable errors, errors which impact every replica request,
+	// e.g the collection ID not yet being consistent
 	_, err = OrchestrateMemdRetries(ctx, cc.retries, func() (any, error) {
 		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName,
 			func(collectionID uint32, manifestID uint64) (any, error) {
@@ -297,11 +295,10 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 										res, err = getReplicaFn(collectionID, vbID, client)
 									}
 
-									// If we get no error we have a result and track the nodes we have recieved
-									// a replica from
 									mu.Lock()
-									// It is possible that two threads get the same replica from the same endpoint at the same
-									// time. In this case we would end up with the endpoint being duplicated in endpoints
+									// If a rebalance occured while we were executing the function to get the doc
+									// a thread with a different replicaID may have been routed to the same endpoint,
+									// fetched the replica and added to the endpoints slice, so we repeat the check
 									if err == nil && !slices.Contains(endpoints, ep) {
 										endpoints = append(endpoints, ep)
 										mu.Unlock()
@@ -314,7 +311,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 							// The replicaID is being routed to a node from which we have already received a result
 							// therefore we wait and then try again, incase the replicaIds have been changed by a rebalance
 							if res == nil && err == nil {
-								time.Sleep(time.Millisecond)
+								time.Sleep(10 * time.Millisecond)
 								continue
 							}
 
@@ -325,29 +322,27 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 								break
 							}
 
-							// If we have sent a result for each replica and the original we are done
 							sendLock.Lock()
+							// Check another thread hasn't sent a final result so we don't try and send on a closed channel
 							if returnedResults == numReplicas.Load()+1 {
 								break
 							}
 
-							// Else send the result from this thread down the channel, and increment the count
 							returnedResults++
 							result.OutCh <- &ReplicaStreamEntry{
 								Err: err,
 								Res: res,
 							}
 
-							// If we just sent the last result then we are done and can close the channel
 							if returnedResults == numReplicas.Load()+1 {
 								close(result.OutCh)
 								break
 							}
 							sendLock.Unlock()
-							time.Sleep(time.Millisecond)
 
-							// Although we have returned a result from this thread we continue running in case there is a
-							// rebalance which causes the replicaID of this thread to be routed to a different node.
+							// Although we have returned a result from this thread we wait then continue running in case
+							// there is a rebalance which causes the replicaID of this thread to be routed to a different node.
+							time.Sleep(10 * time.Millisecond)
 						}
 					}(i)
 				}
@@ -374,8 +369,6 @@ func OrchestrateReplicaRead(
 	replica uint32,
 	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
 ) (*GetAllReplicasResult, error) {
-	// The second retryer is for retrying individual replica reads, hence the different retry manager
-	// being used
 	rs := NewRetryManagerGetAllReplicas()
 	return OrchestrateMemdRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
 		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {

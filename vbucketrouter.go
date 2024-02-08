@@ -55,7 +55,7 @@ func (vbd *vbucketRouter) UpdateRoutingInfo(info *VbucketRoutingInfo) {
 	vbd.routingInfo.Store(info)
 }
 
-func (vbd vbucketRouter) NumReplicas() (int, error) {
+func (vbd *vbucketRouter) NumReplicas() (int, error) {
 	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return 0, err
