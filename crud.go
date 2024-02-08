@@ -3,9 +3,12 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/couchbase/gocbcorex/memdx"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
@@ -254,23 +257,30 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 	var endpoints []string
 	var mu sync.Mutex
-	var wg sync.WaitGroup
+	var sendLock sync.Mutex
+	var returnedResults uint32
+	var numReplicas atomic.Uint32
 
-	// First retry mananger handles "Request level" retries, e.g. id a collection ID is becoming eventually consistent
-	_, err := OrchestrateMemdRetries(ctx, cc.retries, func() (any, error) {
+	temp, err := cc.vbs.NumReplicas()
+	if err != nil {
+		return nil, err
+	}
+	numReplicas.Store(uint32(temp))
+	fmt.Println("JW REPLICAS")
+	fmt.Println(numReplicas.Load())
+
+	// This retry orchestrator handles request level retryable errors, e.g the collection ID not yet being consistent
+	_, err = OrchestrateMemdRetries(ctx, cc.retries, func() (any, error) {
 		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName,
 			func(collectionID uint32, manifestID uint64) (any, error) {
+
 				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
 				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
-				wg.Add(maxReplicas + 1)
-				go func() {
-					for i := 0; i <= maxReplicas; i++ {
-						go func(i int) {
-							defer wg.Done()
-							res, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connManager, opts.Key, uint32(i),
+				for i := uint32(0); i <= numReplicas.Load(); i++ {
+					go func(replicaID uint32) {
+						for {
+							res, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connManager, opts.Key, replicaID,
 								func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
-									// If we have already fetched a replica from this node the thread is
-									// complete.
 									mu.Lock()
 									if slices.Contains(endpoints, ep) {
 										mu.Unlock()
@@ -281,7 +291,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 									var res *GetAllReplicasResult
 									var err error
 
-									if i == 0 {
+									if replicaID == 0 {
 										res, err = getFn(collectionID, vbID, client)
 									} else {
 										res, err = getReplicaFn(collectionID, vbID, client)
@@ -289,36 +299,65 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 									// If we get no error we have a result and track the nodes we have recieved
 									// a replica from
-									if err == nil {
-										mu.Lock()
+									mu.Lock()
+									// It is possible that two threads get the same replica from the same endpoint at the same
+									// time. In this case we would end up with the endpoint being duplicated in endpoints
+									if err == nil && !slices.Contains(endpoints, ep) {
 										endpoints = append(endpoints, ep)
 										mu.Unlock()
+										return res, err
 									}
-
-									return res, err
+									mu.Unlock()
+									return nil, err
 								})
 
-							// ErrInvalidReplica is considered a fatal error for a replica fetch, but it is expected
-							// since we naievely try to get all possible replicas, so we ignore.
-							if res != nil || err != nil && !errors.Is(err, ErrInvalidReplica) {
-								result.OutCh <- &ReplicaStreamEntry{
-									Err: err,
-									Res: res,
-								}
+							// The replicaID is being routed to a node from which we have already received a result
+							// therefore we wait and then try again, incase the replicaIds have been changed by a rebalance
+							if res == nil && err == nil {
+								time.Sleep(time.Millisecond)
+								continue
 							}
-						}(i)
-					}
-					wg.Wait()
-					close(result.OutCh)
-				}()
 
+							// If we get invalid replica then the number of replicas has been reduced since we started
+							// got numReplicas. Therefore we decrease numReplicas and kill this thread
+							if errors.Is(err, ErrInvalidReplica) {
+								numReplicas.Dec()
+								break
+							}
+
+							// If we have sent a result for each replica and the original we are done
+							sendLock.Lock()
+							if returnedResults == numReplicas.Load()+1 {
+								break
+							}
+
+							// Else send the result from this thread down the channel, and increment the count
+							returnedResults++
+							result.OutCh <- &ReplicaStreamEntry{
+								Err: err,
+								Res: res,
+							}
+
+							// If we just sent the last result then we are done and can close the channel
+							if returnedResults == numReplicas.Load()+1 {
+								close(result.OutCh)
+								break
+							}
+							sendLock.Unlock()
+							time.Sleep(time.Millisecond)
+
+							// Although we have returned a result from this thread we continue running in case there is a
+							// rebalance which causes the replicaID of this thread to be routed to a different node.
+						}
+					}(i)
+				}
 				// Always return nil, nil here because any errors encounted from OrchestrateMemdRetries are regarded
-				// as Replica specific, to be streamed back to the user, not propogated back to OrchestrateCollection....
+				// as Replica specific, to be streamed back to the user, not propogated back to OrchestrateMemdCollectionID
 				return nil, nil
 			})
 	})
 
-	// A terminal request error so can close the channel seonce no replicas are being fetched
+	// A terminal request error so can close the channel since no replicas are being fetched
 	if err != nil {
 		close(result.OutCh)
 	}
@@ -336,7 +375,7 @@ func OrchestrateReplicaRead(
 	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
 ) (*GetAllReplicasResult, error) {
 	// The second retryer is for retrying individual replica reads, hence the different retry manager
-	// being used, since the set of errors for which are different
+	// being used
 	rs := NewRetryManagerGetAllReplicas()
 	return OrchestrateMemdRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
 		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
