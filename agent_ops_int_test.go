@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ func TestAgentDelete(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	docKey := uuid.NewString()
@@ -91,6 +93,7 @@ func TestAgentDoesNotRetryMemdxInvalidArgs(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
@@ -60,6 +61,7 @@ func TestKvClientReconfigureBucket(t *testing.T) {
 
 	err = cli.Close()
 	require.NoError(t, err)
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestKvClientCloseAfterReconfigure(t *testing.T) {
@@ -93,4 +95,5 @@ func TestKvClientCloseAfterReconfigure(t *testing.T) {
 
 	err = cli.Close()
 	require.NoError(t, err)
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }

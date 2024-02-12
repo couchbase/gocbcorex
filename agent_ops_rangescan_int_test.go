@@ -10,6 +10,7 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ func TestRangeScanRangeLargeValues(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	size := 8192 * 2
@@ -77,6 +79,7 @@ func TestRangeScanRangeSmallValues(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	value := []byte(`{"barry": "sheen"}`)
@@ -127,6 +130,7 @@ func TestRangeScanRangeKeysOnly(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	value := "value"
@@ -174,6 +178,7 @@ func TestRangeScanSamplingKeysOnly(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	scopeName := "sample" + uuid.NewString()[:6]
@@ -247,6 +252,7 @@ func TestRangeScanRangeCancellation(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	value := "value"
@@ -281,6 +287,7 @@ func TestRangeScanRangeContinueClosedClient(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	value := "value"
@@ -318,6 +325,7 @@ func TestRangeScanRangeCancelClosedClient(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	value := "value"

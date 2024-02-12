@@ -10,6 +10,7 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -75,6 +76,8 @@ func TestAgentBasic(t *testing.T) {
 
 	err = agent.Close()
 	require.NoError(t, err)
+
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentBasicTLSInsecure(t *testing.T) {
@@ -114,6 +117,8 @@ func TestAgentBasicTLSInsecure(t *testing.T) {
 
 	err = agent.Close()
 	require.NoError(t, err)
+
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentReconfigureNoTLSToTLS(t *testing.T) {
@@ -154,6 +159,8 @@ func TestAgentReconfigureNoTLSToTLS(t *testing.T) {
 
 	err = agent.Close()
 	require.NoError(t, err)
+
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
@@ -191,6 +198,8 @@ func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
 
 	err = agent.Close()
 	require.NoError(t, err)
+
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentBadCollection(t *testing.T) {
@@ -214,6 +223,8 @@ func TestAgentBadCollection(t *testing.T) {
 
 	err = agent.Close()
 	require.NoError(t, err)
+
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentCrudCompress(t *testing.T) {
@@ -354,6 +365,7 @@ func TestAgentCrudCompress(t *testing.T) {
 			assert.Equal(tt, test.Expect, get2.Value)
 		})
 	}
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentCrudDecompress(t *testing.T) {
@@ -444,6 +456,7 @@ func TestAgentCrudDecompress(t *testing.T) {
 
 		})
 	}
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentWatchConfig(t *testing.T) {
@@ -453,6 +466,8 @@ func TestAgentWatchConfig(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
@@ -477,6 +492,7 @@ func TestAgentBucketNotExist(t *testing.T) {
 		err = agent.Close()
 		require.NoError(t, err)
 	}
+	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestAgentConnectAfterCreateBucket(t *testing.T) {
@@ -490,6 +506,7 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
+		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	bucketName := "testBucket-" + uuid.NewString()[:6]
@@ -597,5 +614,5 @@ func BenchmarkBasicGet(b *testing.B) {
 		}
 	}
 	b.ReportAllocs()
-
+	require.False(b, leakcheck.ReportLeakedGoroutines())
 }
