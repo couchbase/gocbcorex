@@ -2,6 +2,7 @@ package cbsearchx_test
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -13,50 +14,93 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexPolling(t *testing.T) {
-	testutilsint.SkipIfShortTest(t)
+func TestEnsureIndexDino(t *testing.T) {
+	testutilsint.SkipIfNoDinoCluster(t)
 
 	ctx := context.Background()
 	transport := http.DefaultTransport
 
 	nodes := testutilsint.GetTestNodes(t)
-	searchNodes := nodes.Select(func(node *testutilsint.NodeTarget) bool {
-		return node.SearchPort > 0
+
+	blockNode := nodes.SelectFirst(t, func(node *testutilsint.NodeTarget) bool {
+		return !node.IsOrchestrator && node.SearchPort != 0
 	})
-	if len(searchNodes) == 0 {
-		t.Skip("Skipping test, no search nodes")
+	execNode := nodes.SelectLast(t, func(node *testutilsint.NodeTarget) bool {
+		return node != blockNode && node.SearchPort != 0
+	})
+
+	blockHost := blockNode.Hostname
+	execEndpoint := execNode.SearchEndpoint()
+
+	log.Printf("nodes:")
+	for _, node := range nodes {
+		log.Printf("  %s", node)
 	}
+	log.Printf("execution endpoint: %s", execEndpoint)
+	log.Printf("blocked host: %s", blockHost)
 
 	var targets []cbsearchx.NodeTarget
-	for _, queryNode := range searchNodes {
+	for _, searchNode := range nodes {
 		targets = append(targets, cbsearchx.NodeTarget{
-			Endpoint: queryNode.SearchEndpoint(),
+			Endpoint: searchNode.SearchEndpoint(),
 			Username: testutilsint.TestOpts.Username,
 			Password: testutilsint.TestOpts.Password,
 		})
 	}
 
-	// we intentionally use the last target that will be polled as the node
-	// to create the index with so we don't unintentionally give additional
-	// time for nodes to sync their configuration
 	search := cbsearchx.Search{
+		Logger:    testutils.MakeTestLogger(t),
 		Transport: transport,
 		UserAgent: "useragent",
-		Endpoint:  targets[len(targets)-1].Endpoint,
+		Endpoint:  execEndpoint,
 		Username:  testutilsint.TestOpts.Username,
 		Password:  testutilsint.TestOpts.Password,
 	}
 
 	indexName := "a" + uuid.NewString()[:6]
-	err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
-		Index: cbsearchx.Index{
-			Name:       indexName,
-			Type:       "fulltext-index",
-			SourceType: "couchbase",
-			SourceName: testutilsint.TestOpts.BucketName,
-		},
-	})
-	require.NoError(t, err)
+
+	upsertTestIndex := func() {
+		require.Eventually(t, func() bool {
+			log.Printf("attempting to create the index")
+			err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+				Index: cbsearchx.Index{
+					Name:       indexName,
+					Type:       "fulltext-index",
+					SourceType: "couchbase",
+					SourceName: testutilsint.TestOpts.BucketName,
+				},
+			})
+			if err != nil {
+				log.Printf("index creation failed with error: %s", err)
+				return false
+			}
+
+			return true
+		}, 120*time.Second, 1*time.Second)
+	}
+
+	deleteTestIndex := func() {
+		require.Eventually(t, func() bool {
+			log.Printf("attempting to delete the index")
+			err := search.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
+				IndexName: indexName,
+			})
+			if err != nil {
+				log.Printf("index deletion failed with error: %s", err)
+				return false
+			}
+
+			return true
+		}, 120*time.Second, 1*time.Second)
+	}
+
+	// start dino testing
+	dino := testutilsint.StartDinoTesting(t, true)
+
+	// block access to the first endpoint
+	dino.BlockNodeTraffic(blockHost)
+
+	upsertTestIndex()
 
 	hlpr := cbsearchx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
@@ -66,27 +110,73 @@ func TestIndexPolling(t *testing.T) {
 		IndexName: indexName,
 	}
 
+	require.Never(t, func() bool {
+		res, err := hlpr.PollCreated(ctx, &cbsearchx.EnsureIndexPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		if err != nil {
+			log.Printf("index creation failed with error: %s", err)
+			return false
+		}
+
+		return res
+	}, 5*time.Second, 1*time.Second)
+
+	// stop blocking traffic to the node
+	dino.AllowTraffic(blockHost)
+
 	require.Eventually(t, func() bool {
 		res, err := hlpr.PollCreated(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
-		require.NoError(t, err)
+		if err != nil {
+			log.Printf("index creation failed with error: %s", err)
+			return false
+		}
 
 		return res
 	}, 30*time.Second, 1*time.Second)
 
-	err = search.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
-		IndexName: indexName,
-	})
-	require.NoError(t, err)
+	// now lets block traffic again before we delete
+	dino.BlockNodeTraffic(blockHost)
 
-	require.Eventually(t, func() bool {
-		res, err := hlpr.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
+	hlprOut := cbsearchx.EnsureIndexHelper{
+		Logger:     testutils.MakeTestLogger(t),
+		UserAgent:  "useragent",
+		OnBehalfOf: nil,
+
+		IndexName: indexName,
+	}
+
+	deleteTestIndex()
+
+	require.Never(t, func() bool {
+		res, err := hlprOut.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
-		require.NoError(t, err)
+		if err != nil {
+			log.Printf("index deletion failed with error: %s", err)
+			return false
+		}
+
+		return res
+	}, 5*time.Second, 1*time.Second)
+
+	// stop blocking traffic to the node
+	dino.AllowTraffic(blockHost)
+
+	require.Eventually(t, func() bool {
+		res, err := hlprOut.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		if err != nil {
+			log.Printf("index deletion failed with error: %s", err)
+			return false
+		}
 
 		return res
 	}, 30*time.Second, 1*time.Second)
