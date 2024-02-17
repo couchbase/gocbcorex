@@ -58,6 +58,45 @@ type Control struct {
 	Timeout     time.Duration
 }
 
+type KnnQuery struct {
+	Boost  float32
+	Field  string
+	K      int64
+	Vector []float32
+}
+
+func (s *KnnQuery) encodeToJSON() (json.RawMessage, error) {
+	encoder := &jsonRawMessageEncoder{}
+
+	m := map[string]json.RawMessage{}
+	if s.Boost > 0 {
+		m["boost"] = encoder.EncodeField(s.Boost)
+	}
+	if s.Field != "" {
+		m["field"] = encoder.EncodeField(s.Field)
+	}
+	if s.K != 0 {
+		m["k"] = encoder.EncodeField(s.K)
+	}
+	if len(s.Vector) > 0 {
+		m["vector"] = encoder.EncodeField(s.Vector)
+	}
+
+	if err := encoder.Err(); err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(m)
+}
+
+type KnnOperator string
+
+const (
+	KnnOperatorUnset KnnOperator = ""
+	KnnOperatorOr    KnnOperator = "or"
+	KnnOperatorAnd   KnnOperator = "and"
+)
+
 type QueryOptions struct {
 	Collections      []string
 	Control          *Control
@@ -73,6 +112,9 @@ type QueryOptions struct {
 	SearchBefore     []string
 	Size             int
 	Sort             []Sort
+
+	Knn         []KnnQuery
+	KnnOperator KnnOperator
 
 	IndexName  string
 	ScopeName  string
@@ -174,6 +216,22 @@ func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
 			sorts[i] = raw
 		}
 		m["sort"] = encoder.EncodeField(sorts)
+	}
+
+	if len(o.Knn) > 0 {
+		knns := make([]json.RawMessage, len(o.Knn))
+		for i, s := range o.Knn {
+			raw, err := s.encodeToJSON()
+			if err != nil {
+				return nil, err
+			}
+
+			knns[i] = raw
+		}
+		m["knn"] = encoder.EncodeField(knns)
+	}
+	if o.KnnOperator != KnnOperatorUnset {
+		m["knn_operator"] = encoder.EncodeField(o.KnnOperator)
 	}
 
 	for k, v := range o.Raw {
