@@ -24,6 +24,10 @@ type ParsedConfigAddresses struct {
 	SSL    ParsedConfigServiceAddresses
 }
 
+type ParsedConfigFeatures struct {
+	FtsVectorSearch bool
+}
+
 type ParsedConfig struct {
 	RevID    int64
 	RevEpoch int64
@@ -35,6 +39,8 @@ type ParsedConfig struct {
 
 	Addresses          *ParsedConfigAddresses
 	AlternateAddresses map[string]*ParsedConfigAddresses
+
+	Features ParsedConfigFeatures
 }
 
 func (config *ParsedConfig) IsVersioned() bool {

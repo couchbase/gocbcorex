@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
@@ -11,17 +12,25 @@ import (
 	"go.uber.org/zap"
 )
 
+type searchComponentState struct {
+	VectorSearchEnabled bool
+}
+
 type SearchComponent struct {
 	baseHttpComponent
 
 	logger  *zap.Logger
 	retries RetryManager
+
+	searchState atomic.Pointer[searchComponentState]
 }
 
 type SearchComponentConfig struct {
 	HttpRoundTripper http.RoundTripper
 	Endpoints        []string
 	Authenticator    Authenticator
+
+	VectorSearchEnabled bool
 }
 
 type SearchComponentOptions struct {
@@ -90,7 +99,7 @@ func OrchestrateSearchMgmtCall[OptsT any, RespT any](
 }
 
 func NewSearchComponent(retries RetryManager, config *SearchComponentConfig, opts *SearchComponentOptions) *SearchComponent {
-	return &SearchComponent{
+	w := &SearchComponent{
 		baseHttpComponent: baseHttpComponent{
 			serviceType: ServiceTypeSearch,
 			userAgent:   opts.UserAgent,
@@ -103,6 +112,12 @@ func NewSearchComponent(retries RetryManager, config *SearchComponentConfig, opt
 		logger:  opts.Logger,
 		retries: retries,
 	}
+
+	w.searchState.Store(&searchComponentState{
+		VectorSearchEnabled: config.VectorSearchEnabled,
+	})
+
+	return w
 }
 
 func (w *SearchComponent) Reconfigure(config *SearchComponentConfig) error {
@@ -111,20 +126,34 @@ func (w *SearchComponent) Reconfigure(config *SearchComponentConfig) error {
 		endpoints:        config.Endpoints,
 		authenticator:    config.Authenticator,
 	})
+
+	// we only support turning features on that were previously off, not the other
+	// way around, so we can simply set these values after updating the endpoints list
+	// and then load it before picking endpoints to ensure we never send requests using
+	// a feature to endpoints that did not support it (but dont prevent the inverse).
+	w.searchState.Store(&searchComponentState{
+		VectorSearchEnabled: config.VectorSearchEnabled,
+	})
+
 	return nil
 }
 
 func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
+	// we load this before doing anything else to ensure ordering guarentees mentioned
+	// above where we store the searchState.
+	searchState := w.searchState.Load()
+
 	return OrchestrateRetries(ctx, w.retries, func() (cbsearchx.QueryResultStream, error) {
 		return OrchestrateSearchEndpoint(ctx, w,
 			func(roundTripper http.RoundTripper, endpoint, username, password string) (cbsearchx.QueryResultStream, error) {
 				return cbsearchx.Search{
-					Logger:    w.logger,
-					UserAgent: w.userAgent,
-					Transport: roundTripper,
-					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Logger:              w.logger,
+					UserAgent:           w.userAgent,
+					Transport:           roundTripper,
+					Endpoint:            endpoint,
+					Username:            username,
+					Password:            password,
+					VectorSearchEnabled: searchState.VectorSearchEnabled,
 				}.Query(ctx, opts)
 			})
 	})
