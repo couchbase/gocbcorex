@@ -21,6 +21,8 @@ type Search struct {
 	Endpoint  string
 	Username  string
 	Password  string
+
+	VectorSearchEnabled bool
 }
 
 func (h Search) NewRequest(
@@ -68,6 +70,12 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 	reqBytes, err := opts.encodeToJson()
 	if err != nil {
 		return nil, err
+	}
+
+	if !h.VectorSearchEnabled {
+		if len(opts.Knn) > 0 || opts.KnnOperator != KnnOperatorUnset {
+			return nil, ErrUnsupportedFeature
+		}
 	}
 
 	var reqURI string

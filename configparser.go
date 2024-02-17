@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
+	"golang.org/x/exp/slices"
 )
 
 func parseConfigHostname(hostname string, sourceHostname string) string {
@@ -124,6 +125,14 @@ func (p ConfigParser) ParseTerseConfig(config *cbconfig.TerseConfigJson, sourceH
 			out.VbucketMap = vbMap
 		default:
 			out.BucketType = bktTypeInvalid
+		}
+	}
+
+	clusterCaps := config.ClusterCapabilities
+	if clusterCaps != nil {
+		ftsCaps := config.ClusterCapabilities["fts"]
+		if ftsCaps != nil {
+			out.Features.FtsVectorSearch = slices.Contains(ftsCaps, "vectorSearch")
 		}
 	}
 

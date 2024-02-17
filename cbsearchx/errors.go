@@ -15,6 +15,7 @@ var (
 	ErrSourceNotFound           = errors.New("source not found")
 	ErrNoIndexPartitionsPlanned = errors.New("no index partitions planned")
 	ErrNoIndexPartitionsFound   = errors.New("no index partitions found")
+	ErrUnsupportedFeature       = errors.New("unsupported feature")
 )
 
 type contextualError struct {

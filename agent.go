@@ -287,7 +287,8 @@ type agentComponentConfigs struct {
 func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 	clientName := fmt.Sprintf("gocbcorex/%s", buildVersion)
 
-	bootstrapHosts := agent.state.latestConfig.AddressesGroupForNetworkType(agent.networkType)
+	latestConfig := agent.state.latestConfig
+	bootstrapHosts := latestConfig.AddressesGroupForNetworkType(agent.networkType)
 
 	var kvDataHosts []string
 	var mgmtEndpoints []string
@@ -369,9 +370,10 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 			Authenticator:    agent.state.authenticator,
 		},
 		SearchComponentConfig: SearchComponentConfig{
-			HttpRoundTripper: agent.state.httpTransport,
-			Endpoints:        searchEndpoints,
-			Authenticator:    agent.state.authenticator,
+			HttpRoundTripper:    agent.state.httpTransport,
+			Endpoints:           searchEndpoints,
+			Authenticator:       agent.state.authenticator,
+			VectorSearchEnabled: latestConfig.Features.FtsVectorSearch,
 		},
 		AnalyticsComponentConfig: AnalyticsComponentConfig{
 			HttpRoundTripper: agent.state.httpTransport,
