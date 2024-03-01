@@ -325,6 +325,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 							sendLock.Lock()
 							// Check another thread hasn't sent a final result so we don't try and send on a closed channel
 							if returnedResults == numReplicas.Load()+1 {
+								sendLock.Unlock()
 								break
 							}
 
@@ -336,6 +337,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 							if returnedResults == numReplicas.Load()+1 {
 								close(result.OutCh)
+								sendLock.Unlock()
 								break
 							}
 							sendLock.Unlock()
