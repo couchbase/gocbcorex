@@ -71,25 +71,25 @@ func TestGetAllReplicasDino(t *testing.T) {
 		dino.BlockAllTraffic(node.Hostname)
 	}
 
-	time.Sleep(time.Second * 5)
-
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
-	stream, err = agent.GetAllReplicas(ctx, &gocbcorex.GetAllReplicasOptions{
-		Key:            []byte(docKey),
-		BucketName:     "default",
-		ScopeName:      "",
-		CollectionName: "",
-	})
-	require.NoError(t, err)
-
-	result, err = stream.Next()
-	masterCount = 0
-	for result != nil {
+	require.Eventually(t, func() bool {
+		stream, err = agent.GetAllReplicas(ctx, &gocbcorex.GetAllReplicasOptions{
+			Key:            []byte(docKey),
+			BucketName:     "default",
+			ScopeName:      "",
+			CollectionName: "",
+		})
 		require.NoError(t, err)
-		require.Equal(t, result.Value, []byte(`{"foo": "bar"}`))
-		masterCount += 1
+
 		result, err = stream.Next()
-	}
-	require.Equal(t, 1, masterCount)
+		masterCount = 0
+		for result != nil {
+			require.NoError(t, err)
+			require.Equal(t, result.Value, []byte(`{"foo": "bar"}`))
+			masterCount += 1
+			result, err = stream.Next()
+		}
+		return masterCount == 1
+	}, time.Second*30, time.Second*5)
 }
