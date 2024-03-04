@@ -20,6 +20,7 @@ type VbucketRouter interface {
 	UpdateRoutingInfo(*VbucketRoutingInfo)
 	DispatchByKey(key []byte, vbServerIdx uint32) (string, uint16, error)
 	DispatchToVbucket(vbID uint16) (string, error)
+	NumReplicas() (int, error)
 }
 
 type VbucketRoutingInfo struct {
@@ -52,6 +53,15 @@ func NewVbucketRouter(opts *VbucketRouterOptions) *vbucketRouter {
 
 func (vbd *vbucketRouter) UpdateRoutingInfo(info *VbucketRoutingInfo) {
 	vbd.routingInfo.Store(info)
+}
+
+func (vbd *vbucketRouter) NumReplicas() (int, error) {
+	info, err := vbd.getRoutingInfo()
+	if err != nil {
+		return 0, err
+	}
+
+	return info.VbMap.NumReplicas(), nil
 }
 
 func (vbd *vbucketRouter) getRoutingInfo() (*VbucketRoutingInfo, error) {
