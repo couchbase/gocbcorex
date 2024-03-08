@@ -33,7 +33,7 @@ func OrchestrateSimpleCrud[RespT any](
 	key []byte,
 	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),
 ) (RespT, error) {
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, rs,
 		func() (RespT, error) {
 			return OrchestrateMemdCollectionID(
@@ -142,7 +142,7 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 	}
 
 	vbServerIdx := 1 + opts.ReplicaIdx
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, cc.retries,
 		func() (*GetReplicaResult, error) {
 			return OrchestrateMemdCollectionID(
@@ -268,7 +268,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 	// This retry orchestrator handles request level retryable errors, errors which impact every replica request,
 	// e.g the collection ID not yet being consistent
-	_, err = OrchestrateMemdRetries(ctx, cc.retries, func() (any, error) {
+	_, err = OrchestrateRetries(ctx, cc.retries, func() (any, error) {
 		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName,
 			func(collectionID uint32, manifestID uint64) (any, error) {
 
@@ -348,7 +348,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 						}
 					}(i)
 				}
-				// Always return nil, nil here because any errors encountered from OrchestrateMemdRetries are regarded
+				// Always return nil, nil here because any errors encountered from OrchestrateRetries are regarded
 				// as Replica specific, to be streamed back to the user, not propogated back to OrchestrateMemdCollectionID
 				return nil, nil
 			})
@@ -372,7 +372,7 @@ func OrchestrateReplicaRead(
 	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
 ) (*GetAllReplicasResult, error) {
 	rs := NewRetryManagerGetAllReplicas()
-	return OrchestrateMemdRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
+	return OrchestrateRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
 		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
 			return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (*GetAllReplicasResult, error) {
 				return fn(endpoint, vbID, client)
