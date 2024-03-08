@@ -63,6 +63,13 @@ func parseConfigHostsInto(config *ParsedConfigAddresses, hostname string, ports 
 	if ports.FtsSsl > 0 {
 		config.SSL.Search = append(config.SSL.Search, fmt.Sprintf("%s:%d", hostname, ports.FtsSsl))
 	}
+
+	if ports.Cbas > 0 {
+		config.NonSSL.Analytics = append(config.NonSSL.Analytics, fmt.Sprintf("%s:%d", hostname, ports.Cbas))
+	}
+	if ports.CbasSsl > 0 {
+		config.SSL.Analytics = append(config.SSL.Analytics, fmt.Sprintf("%s:%d", hostname, ports.CbasSsl))
+	}
 }
 
 type ConfigParser struct{}

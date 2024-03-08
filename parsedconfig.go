@@ -10,12 +10,13 @@ const (
 )
 
 type ParsedConfigServiceAddresses struct {
-	Kv     []string
-	KvData []string
-	Mgmt   []string
-	Views  []string
-	Query  []string
-	Search []string
+	Kv        []string
+	KvData    []string
+	Mgmt      []string
+	Views     []string
+	Query     []string
+	Search    []string
+	Analytics []string
 }
 
 type ParsedConfigAddresses struct {
