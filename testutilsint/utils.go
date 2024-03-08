@@ -98,7 +98,9 @@ func SetupTests(m *testing.M) {
 	}
 
 	// default supported features
-	TestOpts.SupportedFeatures = []TestFeature{}
+	TestOpts.SupportedFeatures = []TestFeature{
+		TestFeatureAnalytics,
+	}
 
 	if featsStr != nil {
 		featStrs := strings.Split(*featsStr, ",")

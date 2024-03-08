@@ -11,11 +11,13 @@ type TestFeature string
 const (
 	TestFeatureRangeScan    TestFeature = "range-scan"
 	TestFeatureScopedSearch TestFeature = "scoped-search"
+	TestFeatureAnalytics    TestFeature = "analytics"
 )
 
 var AllTestFeatures = []TestFeature{
 	TestFeatureRangeScan,
 	TestFeatureScopedSearch,
+	TestFeatureAnalytics,
 }
 
 func SupportsFeature(feat TestFeature) bool {

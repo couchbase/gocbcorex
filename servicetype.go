@@ -17,6 +17,9 @@ const (
 
 	// ServiceTypeSearch represents a full-text-search service.
 	ServiceTypeSearch = ServiceType(5)
+
+	// ServiceTypeAnalytics represents an analytics service.
+	ServiceTypeAnalytics = ServiceType(6)
 )
 
 func (s ServiceType) String() string {
@@ -29,6 +32,8 @@ func (s ServiceType) String() string {
 		return "Query"
 	case ServiceTypeSearch:
 		return "Search"
+	case ServiceTypeAnalytics:
+		return "Analytics"
 	}
 
 	return "x" + hex.EncodeToString([]byte{byte(s)})
