@@ -3,11 +3,10 @@ package gocbcorex
 import (
 	"context"
 
-	"github.com/couchbase/gocbcorex/cbqueryx"
-
-	"github.com/couchbase/gocbcorex/cbsearchx"
-
+	"github.com/couchbase/gocbcorex/cbanalyticsx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/cbqueryx"
+	"github.com/couchbase/gocbcorex/cbsearchx"
 )
 
 func (agent *Agent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
@@ -252,4 +251,8 @@ func (agent *Agent) EnsureSearchIndexDropped(ctx context.Context, opts *EnsureSe
 
 func (agent *Agent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
 	return agent.crud.RangeScanCreate(ctx, opts)
+}
+
+func (agent *Agent) AnalyticsQuery(ctx context.Context, opts *cbanalyticsx.QueryOptions) (cbanalyticsx.QueryResultStream, error) {
+	return agent.analytics.Query(ctx, opts)
 }

@@ -47,10 +47,11 @@ type Agent struct {
 	memdCfgWatcher   *ConfigWatcherMemd
 	cfgWatcherCancel func()
 
-	crud   *CrudComponent
-	query  *QueryComponent
-	mgmt   *MgmtComponent
-	search *SearchComponent
+	crud      *CrudComponent
+	query     *QueryComponent
+	mgmt      *MgmtComponent
+	search    *SearchComponent
+	analytics *AnalyticsComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -258,6 +259,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			UserAgent: clientName,
 		},
 	)
+	agent.analytics = NewAnalyticsComponent(
+		agent.retries,
+		&agentComponentConfigs.AnalyticsComponentConfig,
+		&AnalyticsComponentOptions{
+			Logger:    logger,
+			UserAgent: clientName,
+		},
+	)
 
 	agent.startConfigWatcher()
 
@@ -265,13 +274,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 }
 
 type agentComponentConfigs struct {
-	ConfigWatcherHttpConfig ConfigWatcherHttpConfig
-	ConfigWatcherMemdConfig ConfigWatcherMemdConfig
-	KvClientManagerClients  map[string]*KvClientConfig
-	VbucketRoutingInfo      *VbucketRoutingInfo
-	QueryComponentConfig    QueryComponentConfig
-	MgmtComponentConfig     MgmtComponentConfig
-	SearchComponentConfig   SearchComponentConfig
+	ConfigWatcherHttpConfig  ConfigWatcherHttpConfig
+	ConfigWatcherMemdConfig  ConfigWatcherMemdConfig
+	KvClientManagerClients   map[string]*KvClientConfig
+	VbucketRoutingInfo       *VbucketRoutingInfo
+	QueryComponentConfig     QueryComponentConfig
+	MgmtComponentConfig      MgmtComponentConfig
+	SearchComponentConfig    SearchComponentConfig
+	AnalyticsComponentConfig AnalyticsComponentConfig
 }
 
 func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
@@ -283,6 +293,7 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 	var mgmtEndpoints []string
 	var queryEndpoints []string
 	var searchEndpoints []string
+	var analyticsEndpoints []string
 
 	tlsConfig := agent.state.tlsConfig
 	if tlsConfig == nil {
@@ -296,6 +307,9 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		for _, host := range bootstrapHosts.NonSSL.Search {
 			searchEndpoints = append(searchEndpoints, "http://"+host)
 		}
+		for _, host := range bootstrapHosts.NonSSL.Analytics {
+			analyticsEndpoints = append(analyticsEndpoints, "http://"+host)
+		}
 	} else {
 		kvDataHosts = bootstrapHosts.SSL.KvData
 		for _, host := range bootstrapHosts.SSL.Mgmt {
@@ -306,6 +320,9 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		}
 		for _, host := range bootstrapHosts.SSL.Search {
 			searchEndpoints = append(searchEndpoints, "https://"+host)
+		}
+		for _, host := range bootstrapHosts.SSL.Analytics {
+			analyticsEndpoints = append(analyticsEndpoints, "https://"+host)
 		}
 	}
 	kvDataNodeIds := make([]string, len(bootstrapHosts.NonSSL.KvData))
@@ -354,6 +371,11 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		SearchComponentConfig: SearchComponentConfig{
 			HttpRoundTripper: agent.state.httpTransport,
 			Endpoints:        searchEndpoints,
+			Authenticator:    agent.state.authenticator,
+		},
+		AnalyticsComponentConfig: AnalyticsComponentConfig{
+			HttpRoundTripper: agent.state.httpTransport,
+			Endpoints:        analyticsEndpoints,
 			Authenticator:    agent.state.authenticator,
 		},
 	}
@@ -476,6 +498,11 @@ func (agent *Agent) updateStateLocked() {
 	err = agent.search.Reconfigure(&agentComponentConfigs.SearchComponentConfig)
 	if err != nil {
 		agent.logger.Error("failed to reconfigure query component", zap.Error(err))
+	}
+
+	err = agent.analytics.Reconfigure(&agentComponentConfigs.AnalyticsComponentConfig)
+	if err != nil {
+		agent.logger.Error("failed to reconfigure analytics component", zap.Error(err))
 	}
 
 	if agent.httpCfgWatcher != nil {
