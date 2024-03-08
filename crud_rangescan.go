@@ -30,7 +30,7 @@ type RangeScanCreateResult struct {
 }
 
 func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, cc.retries,
 		func() (*RangeScanCreateResult, error) {
 			return OrchestrateMemdCollectionID(
@@ -87,7 +87,7 @@ type RangeScanContinueResult struct {
 
 func (cr *RangeScanCreateResult) Continue(ctx context.Context, opts *RangeScanContinueOptions,
 	dataCb func(RangeScanContinueDataResult)) (*RangeScanContinueResult, error) {
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, cr.parent.retries,
 		func() (*RangeScanContinueResult, error) {
 			deadline, _ := ctx.Deadline()
@@ -138,7 +138,7 @@ type RangeScanCancelResult struct {
 }
 
 func (cr *RangeScanCreateResult) Cancel(ctx context.Context, opts *RangeScanCancelOptions) (*RangeScanCancelResult, error) {
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, cr.parent.retries,
 		func() (*RangeScanCancelResult, error) {
 			_, err := cr.client.RangeScanCancel(ctx, &memdx.RangeScanCancelRequest{

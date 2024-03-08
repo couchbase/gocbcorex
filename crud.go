@@ -28,7 +28,7 @@ func OrchestrateSimpleCrud[RespT any](
 	key []byte,
 	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),
 ) (RespT, error) {
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, rs,
 		func() (RespT, error) {
 			return OrchestrateMemdCollectionID(
@@ -137,7 +137,7 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 	}
 
 	vbServerIdx := 1 + opts.ReplicaIdx
-	return OrchestrateMemdRetries(
+	return OrchestrateRetries(
 		ctx, cc.retries,
 		func() (*GetReplicaResult, error) {
 			return OrchestrateMemdCollectionID(
