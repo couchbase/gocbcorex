@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOrchestrateMemdRetriesDeadlinesInOp(t *testing.T) {
+func TestOrchestrateRetriesDeadlinesInOp(t *testing.T) {
 	testErrMsg := "this is a message that always errors"
 
 	retryCount := 0
@@ -27,7 +27,7 @@ func TestOrchestrateMemdRetriesDeadlinesInOp(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Millisecond))
 
 	fnCalls := 0
-	_, err := OrchestrateMemdRetries(ctx, mockMgr, func() (int, error) {
+	_, err := OrchestrateRetries(ctx, mockMgr, func() (int, error) {
 		fnCalls++
 
 		// first call returns a real error
@@ -49,7 +49,7 @@ func TestOrchestrateMemdRetriesDeadlinesInOp(t *testing.T) {
 	require.ErrorContains(t, err, testErrMsg)
 }
 
-func TestOrchestrateMemdRetriesDeadlinesInWait(t *testing.T) {
+func TestOrchestrateRetriesDeadlinesInWait(t *testing.T) {
 	testErrMsg := "this is a message that always errors"
 
 	retryCount := 0
@@ -66,7 +66,7 @@ func TestOrchestrateMemdRetriesDeadlinesInWait(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now())
 
 	fnCalls := 0
-	_, err := OrchestrateMemdRetries(ctx, mockMgr, func() (int, error) {
+	_, err := OrchestrateRetries(ctx, mockMgr, func() (int, error) {
 		fnCalls++
 		return 0, errors.New(testErrMsg)
 	})

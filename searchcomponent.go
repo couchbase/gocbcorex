@@ -75,7 +75,7 @@ func OrchestrateSearchMgmtCall[OptsT any, RespT any](
 	execFn func(o cbsearchx.Search, ctx context.Context, req OptsT) (RespT, error),
 	opts OptsT,
 ) (RespT, error) {
-	return OrchestrateSearchRetries(ctx, w.retries, func() (RespT, error) {
+	return OrchestrateRetries(ctx, w.retries, func() (RespT, error) {
 		return OrchestrateSearchEndpoint(ctx, w,
 			func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error) {
 				return execFn(cbsearchx.Search{
@@ -115,7 +115,7 @@ func (w *SearchComponent) Reconfigure(config *SearchComponentConfig) error {
 }
 
 func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
-	return OrchestrateSearchRetries(ctx, w.retries, func() (cbsearchx.QueryResultStream, error) {
+	return OrchestrateRetries(ctx, w.retries, func() (cbsearchx.QueryResultStream, error) {
 		return OrchestrateSearchEndpoint(ctx, w,
 			func(roundTripper http.RoundTripper, endpoint, username, password string) (cbsearchx.QueryResultStream, error) {
 				return cbsearchx.Search{
