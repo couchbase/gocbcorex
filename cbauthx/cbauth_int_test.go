@@ -336,3 +336,80 @@ func TestCbauthFailuresDino(t *testing.T) {
 	_ = authOne.Close()
 	_ = authMulti.Close()
 }
+
+func TestCbauthRebalanceOutDino(t *testing.T) {
+	testutilsint.SkipIfNoDinoCluster(t)
+	testutilsint.SkipIfOlderServerVersion(t, "7.2.0")
+
+	ctx := context.Background()
+	logger := testutils.MakeTestLogger(t)
+
+	// start dino testing
+	dino := testutilsint.StartDinoTesting(t, true)
+
+	// add a new node to the cluster to test with
+	nodeID := dino.AddNode()
+	nodeIP := dino.GetNodeIP(nodeID)
+
+	// fetch the list of nodes (after we added one)
+	nodes := testutilsint.GetTestNodes(t)
+	log.Printf("Nodes: %+v %+v", nodes, nodeIP)
+
+	// identify the node endpoint for our test node
+	var testNodeEndpoint string
+	for _, target := range nodes {
+		if target.Hostname == nodeIP {
+			testNodeEndpoint = target.NsEndpoint()
+		}
+	}
+	require.NotEmpty(t, testNodeEndpoint)
+
+	// list the rest of the nodes
+	var allEndpoints []string
+	for _, node := range nodes {
+		allEndpoints = append(allEndpoints, node.NsEndpoint())
+	}
+
+	// We create with a single host, and then reconfigure into multiple to
+	// force it to be connected to the block host initially.
+	auth, err := cbauthx.NewCbAuth(ctx, &cbauthx.CbAuthConfig{
+		Endpoints: []string{
+			testNodeEndpoint,
+		},
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	}, &cbauthx.CbAuthOptions{
+		Logger:            logger.Named("auth"),
+		ServiceName:       "stgm",
+		UserAgent:         "cng-test",
+		HeartbeatInterval: 3 * time.Second,
+		HeartbeatTimeout:  5 * time.Second,
+		LivenessTimeout:   6 * time.Second,
+		ConnectTimeout:    3 * time.Second,
+	})
+	require.NoError(t, err)
+
+	err = auth.Reconfigure(&cbauthx.CbAuthConfig{
+		Endpoints:   allEndpoints,
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	})
+	require.NoError(t, err)
+
+	// do not check any users so that our cache is empty
+
+	// remove the node from the cluster
+	dino.RemoveNode(nodeID)
+
+	// Check that a valid user works
+	userInfo, err := auth.CheckUserPass(ctx,
+		testutilsint.TestOpts.Username,
+		testutilsint.TestOpts.Password)
+	require.NoError(t, err)
+	require.NotEmpty(t, userInfo)
+
+	// clean up
+	_ = auth.Close()
+}
