@@ -1,6 +1,7 @@
 package testutilsint
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"log"
@@ -33,43 +34,87 @@ func SkipIfNoDinoCluster(t *testing.T) {
 	}
 }
 
-func runDinoCmd(args []string) error {
+func runDinoCmd(args []string) (string, error) {
 	cmd := exec.Command(dinoclusterPath, append([]string{"-v"}, args...)...)
 	log.Printf("running command: %s ", strings.Join(cmd.Args, " "))
 	log.Printf("---")
 
 	stdOut, _ := cmd.StdoutPipe()
 	stdErr, _ := cmd.StderrPipe()
-	go func() { _, _ = io.Copy(os.Stdout, stdOut) }()
+
+	pipeRdr, pipeWrt := io.Pipe()
+	teeRdr := io.TeeReader(stdOut, pipeWrt)
+
+	pipeBufRdr := bufio.NewReader(pipeRdr)
+	var output string
+	outputWaitCh := make(chan struct{}, 1)
+	go func() {
+		for {
+			line, _, err := pipeBufRdr.ReadLine()
+			if err != nil {
+				break
+			}
+
+			if output != "" {
+				output += "\n"
+			}
+			output += string(line)
+		}
+
+		outputWaitCh <- struct{}{}
+	}()
+
+	go func() { _, _ = io.Copy(os.Stdout, teeRdr) }()
 	go func() { _, _ = io.Copy(os.Stdout, stdErr) }()
 
 	err := cmd.Run()
 
+	pipeWrt.Close()
+	<-outputWaitCh
+
 	log.Printf("---")
 
+	return output, err
+}
+
+func runNoResDinoCmd(args []string) error {
+	_, err := runDinoCmd(args)
 	return err
 }
 
 func runDinoBlockNodeTraffic(node string) error {
-	return runDinoCmd([]string{"chaos", "block-traffic", TestOpts.DinoClusterID, node})
+	return runNoResDinoCmd([]string{"chaos", "block-traffic", TestOpts.DinoClusterID, node})
 }
 
 func runDinoBlockAllTraffic(node string) error {
-	return runDinoCmd([]string{"chaos", "block-traffic", TestOpts.DinoClusterID, node, "all"})
+	return runNoResDinoCmd([]string{"chaos", "block-traffic", TestOpts.DinoClusterID, node, "all"})
 }
 
 func runDinoAllowTraffic(node string) error {
-	return runDinoCmd([]string{"chaos", "allow-traffic", TestOpts.DinoClusterID, node})
+	return runNoResDinoCmd([]string{"chaos", "allow-traffic", TestOpts.DinoClusterID, node})
+}
+
+func runDinoGetNodeIP(node string) (string, error) {
+	return runDinoCmd([]string{"ip", TestOpts.DinoClusterID, node})
+}
+
+func runDinoAddNode() (string, error) {
+	return runDinoCmd([]string{"nodes", "add", TestOpts.DinoClusterID})
+}
+
+func runDinoRemoveNode(node string) error {
+	return runNoResDinoCmd([]string{"nodes", "rm", TestOpts.DinoClusterID, node})
 }
 
 func RunGenericDinoCmd(t *testing.T, args []string) {
-	err := runDinoCmd(args)
+	_, err := runDinoCmd(args)
 	require.NoError(t, err)
 }
 
 type DinoController struct {
 	t             *testing.T
 	oldFoSettings *cbmgmtx.GetAutoFailoverSettingsResponse
+	addedNodes    []string
 	blockedNodes  []string
 }
 
@@ -91,11 +136,19 @@ func StartDinoTesting(t *testing.T, disableAutoFailover bool) *DinoController {
 func (c *DinoController) cleanup() {
 	blockedNodes := c.blockedNodes
 	c.blockedNodes = nil
-
 	for _, node := range blockedNodes {
 		err := runDinoAllowTraffic(node)
 		if err != nil {
 			c.t.Errorf("failed to reset traffic control for %s", node)
+		}
+	}
+
+	addedNodes := c.addedNodes
+	c.addedNodes = nil
+	for _, node := range addedNodes {
+		err := runDinoRemoveNode(node)
+		if err != nil {
+			c.t.Errorf("failed to remove node %s", node)
 		}
 	}
 
@@ -143,6 +196,28 @@ func (c *DinoController) AllowTraffic(node string) {
 	require.NoError(c.t, err)
 	hostIdx := slices.Index(c.blockedNodes, node)
 	if hostIdx >= 0 {
-		c.blockedNodes = slices.Delete(c.blockedNodes, hostIdx, hostIdx)
+		c.blockedNodes = slices.Delete(c.blockedNodes, hostIdx, hostIdx+1)
 	}
+}
+
+func (c *DinoController) AddNode() string {
+	nodeID, err := runDinoAddNode()
+	require.NoError(c.t, err)
+	c.addedNodes = append(c.addedNodes, nodeID)
+	return nodeID
+}
+
+func (c *DinoController) RemoveNode(node string) {
+	err := runDinoRemoveNode(node)
+	require.NoError(c.t, err)
+	nodeIdx := slices.Index(c.addedNodes, node)
+	if nodeIdx >= 0 {
+		c.addedNodes = slices.Delete(c.addedNodes, nodeIdx, nodeIdx+1)
+	}
+}
+
+func (c *DinoController) GetNodeIP(node string) string {
+	ip, err := runDinoGetNodeIP(node)
+	require.NoError(c.t, err)
+	return ip
 }
