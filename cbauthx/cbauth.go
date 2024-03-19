@@ -242,7 +242,7 @@ func (a *CbAuth) newClient(
 		return cli, endpoint, nil
 	}
 
-	a.logger.Debug("failed to connect to all cbauth endpoints...")
+	a.logger.Warn("failed to connect to all cbauth endpoints...")
 	return nil, "", &MultiConnectError{
 		Reasons: failedErrors,
 	}
@@ -334,6 +334,8 @@ func (a *CbAuth) runThread(
 
 				continue
 			}
+
+			a.logger.Info("new cbauth client established")
 
 			newCli = cli
 			newEndpoint = endpoint
