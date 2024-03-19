@@ -123,7 +123,7 @@ func NewCbAuthClient(ctx context.Context, opts *CbAuthClientOptions) (*CbAuthCli
 		}
 	case <-ctx.Done():
 		return nil, &contextualError{
-			Message: "revrpc connection died before initialization event",
+			Message: "context cancelled before initialization event",
 			Cause:   ctx.Err(),
 		}
 	}
