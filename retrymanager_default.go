@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
@@ -34,6 +35,7 @@ func (rc *retryControllerDefault) isRetriableError(err error) bool {
 		errors.Is(err, memdx.ErrConfigNotSet) ||
 		errors.Is(err, memdx.ErrSyncWriteInProgress) ||
 		errors.Is(err, memdx.ErrSyncWriteReCommitInProgress) ||
+		errors.Is(err, cbhttpx.ErrConnectError) ||
 		errors.Is(err, ErrVbucketMapOutdated) ||
 		errors.Is(err, ErrCollectionManifestOutdated)
 }
