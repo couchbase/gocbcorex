@@ -2,6 +2,7 @@ package cbhttpx
 
 import (
 	"errors"
+	"net"
 	"net/http"
 
 	"github.com/couchbase/gocbcorex/contrib/leakcheck"
@@ -36,6 +37,15 @@ func (c Client) GetHttpClient() *http.Client {
 func (c Client) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.GetHttpClient().Do(req)
 	if err != nil {
+		var netOpError *net.OpError
+		if errors.As(err, &netOpError) {
+			if netOpError.Op == "dial" {
+				return resp, &ConnectError{
+					Cause: err,
+				}
+			}
+		}
+
 		return resp, err
 	}
 
