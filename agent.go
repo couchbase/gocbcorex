@@ -543,9 +543,9 @@ func makeHTTPTransport(tlsConfig *tls.Config) *http.Transport {
 			tlsConn := tls.Client(tcpConn, tlsConfig)
 			return tlsConn, nil
 		},
-		// MaxIdleConns:        maxIdleConns,
-		// MaxIdleConnsPerHost: maxIdleConnsPerHost,
-		// IdleConnTimeout:     idleTimeout,
+		MaxIdleConns:        0,
+		MaxIdleConnsPerHost: 1024,
+		IdleConnTimeout:     4 * time.Second,
 	}
 }
 
