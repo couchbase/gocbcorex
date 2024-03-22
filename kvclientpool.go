@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -51,11 +52,12 @@ type kvClientPool struct {
 	clientIdx uint64
 	fastMap   atomic.Pointer[kvClientPoolFastMap]
 
-	lock       sync.Mutex
-	config     KvClientPoolConfig
-	connectErr error
-	closeSig   chan struct{}
-	closed     bool
+	lock           sync.Mutex
+	config         KvClientPoolConfig
+	connectErr     error
+	connectErrTime time.Time
+	closeSig       chan struct{}
+	closed         bool
 	// activeClients contains both current and defunct clients, this allows us to continue
 	// dispatching operations during a rebalance.
 	activeClients   []KvClient
@@ -196,12 +198,37 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 
 	// create the goroutine to actually create the client
 	go func() {
-		p.logger.Debug("creating new client")
+		p.logger.Info("creating new client kv client",
+			zap.Any("clientConfig", clientConfig))
+
+		p.lock.Lock()
+		defer p.lock.Unlock()
+
+		connectErrThrottle := 1 * time.Second
+		for {
+			connectWaitPeriod := connectErrThrottle - time.Since(p.connectErrTime)
+			if connectWaitPeriod > 0 {
+				p.lock.Unlock()
+
+				p.logger.Debug("throttling client connection due to recent error",
+					zap.Duration("throttlePeriod", connectErrThrottle),
+					zap.Duration("waitPeriod", connectWaitPeriod))
+
+				time.Sleep(connectWaitPeriod)
+
+				p.lock.Lock()
+				continue
+			}
+
+			break
+		}
+
+		p.lock.Unlock()
+
 		client, err := p.newKvClient(cancelCtx, &clientConfig)
 		cancelFn()
 
 		p.lock.Lock()
-		defer p.lock.Unlock()
 
 		if p.closed {
 			p.logger.Debug("closed during new client creation")
@@ -218,15 +245,19 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 
 		if !p.removePendingClientLocked(pendingClient) {
 			// if nobody was waiting for us anymore, we just return
+			p.logger.Info("aborting new client creation due to no longer pending")
 			close(completeCh)
 			return
 		}
 
 		if err != nil {
+			p.logger.Warn("failed to connect new client", zap.Error(err))
+
 			p.connectErr = contextualError{
 				Message: "failed to async connect",
 				Cause:   err,
 			}
+			p.connectErrTime = time.Now()
 			p.checkConnectionsLocked()
 			close(completeCh)
 			return
@@ -234,6 +265,9 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 
 		for !clientConfig.Equals(&p.config.ClientConfig) {
 			clientConfig = p.config.ClientConfig
+
+			p.logger.Info("reconfiguring new client due to updated config",
+				zap.Any("clientConfig", clientConfig))
 
 			reconfigureErr := make(chan error, 1)
 
@@ -262,6 +296,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 		}
 
 		p.connectErr = nil
+		p.connectErrTime = time.Time{}
 		p.addCurrentClientLocked(client)
 		p.rebuildActiveClientsLocked()
 		p.checkConnectionsLocked()
