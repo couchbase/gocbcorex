@@ -82,7 +82,9 @@ func configWatcherHttp_pollOne(
 		return nil, err
 	}
 
-	logger.Debug("Polling for new config", zap.String("hostPort", hostPort), zap.String("endpoint", endpoint))
+	logger.Debug("Polling for new config",
+		zap.String("hostPort", hostPort),
+		zap.String("endpoint", endpoint))
 
 	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, hostPort)
 	if err != nil {
@@ -102,7 +104,9 @@ func configWatcherHttp_pollOne(
 			return nil, err
 		}
 
-		logger.Debug("Poller fetched new config", zap.Any("config", resp))
+		logger.Debug("Poller fetched new config",
+			zap.Int("config", resp.Rev),
+			zap.Int("configRevEpoch", resp.RevEpoch))
 
 		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostname)
 		if err != nil {
@@ -122,7 +126,9 @@ func configWatcherHttp_pollOne(
 			return nil, err
 		}
 
-		logger.Debug("Poller fetched new config", zap.Any("config", resp))
+		logger.Debug("Poller fetched new config",
+			zap.Int("config", resp.Rev),
+			zap.Int("configRevEpoch", resp.RevEpoch))
 
 		parsedConfig, err = ConfigParser{}.ParseTerseConfig(resp, hostname)
 		if err != nil {

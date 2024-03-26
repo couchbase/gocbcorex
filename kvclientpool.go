@@ -199,7 +199,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 	// create the goroutine to actually create the client
 	go func() {
 		p.logger.Info("creating new client kv client",
-			zap.Any("clientConfig", clientConfig))
+			zap.Any("address", clientConfig.Address))
 
 		p.lock.Lock()
 		defer p.lock.Unlock()
@@ -267,7 +267,7 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 			clientConfig = p.config.ClientConfig
 
 			p.logger.Info("reconfiguring new client due to updated config",
-				zap.Any("clientConfig", clientConfig))
+				zap.Any("address", clientConfig.Address))
 
 			reconfigureErr := make(chan error, 1)
 

@@ -399,6 +399,9 @@ func (agent *Agent) applyConfig(config *ParsedConfig) {
 		return
 	}
 
+	agent.logger.Info("applying updated config",
+		zap.Any("config", *config))
+
 	agent.state.latestConfig = config
 	agent.updateStateLocked()
 }
