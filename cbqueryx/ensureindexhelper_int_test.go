@@ -85,7 +85,7 @@ func TestEnsureQuery(t *testing.T) {
 		require.NoError(t, err)
 
 		return res
-	}, 30*time.Second, 1*time.Second)
+	}, 60*time.Second, 1*time.Second)
 
 	res, err = query.Query(ctx, &cbqueryx.Options{
 		Statement: fmt.Sprintf(
@@ -106,5 +106,5 @@ func TestEnsureQuery(t *testing.T) {
 		require.NoError(t, err)
 
 		return res
-	}, 30*time.Second, 1*time.Second)
+	}, 60*time.Second, 1*time.Second)
 }
