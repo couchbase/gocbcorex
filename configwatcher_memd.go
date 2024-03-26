@@ -72,6 +72,10 @@ func configWatcherMemd_pollOne(
 		return nil, errors.New("unexpected cccp endpoint format")
 	}
 
+	logger.Debug("Polling for new config",
+		zap.String("host", host),
+		zap.String("endpoint", endpoint))
+
 	resp, err := client.GetClusterConfig(ctx, &memdx.GetClusterConfigRequest{})
 	if err != nil {
 		return nil, err
@@ -82,6 +86,10 @@ func configWatcherMemd_pollOne(
 	if err != nil {
 		return nil, err
 	}
+
+	logger.Debug("Poller fetched new config",
+		zap.Int("config", config.Rev),
+		zap.Int("configRevEpoch", config.RevEpoch))
 
 	parsedConfig, err := ConfigParser{}.ParseTerseConfig(&config, host)
 	if err != nil {
