@@ -313,6 +313,10 @@ func (a *CbAuth) runThread(
 
 			a.lock.Unlock()
 
+			a.logger.Info("new cbauth client connecting",
+				zap.Strings("endpoints", endpoints),
+				zap.String("clusterUuid", clusterUuid))
+
 			cli, endpoint, err := a.newClient(
 				ctx,
 				endpoints,
