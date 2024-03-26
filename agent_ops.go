@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/couchbase/gocbcorex/cbqueryx"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 
 	"github.com/couchbase/gocbcorex/cbsearchx"
 
@@ -130,7 +131,7 @@ func (agent *Agent) EnsureQueryIndexDropped(ctx context.Context, opts *EnsureQue
 	return agent.query.EnsureIndexDropped(ctx, opts)
 }
 
-func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
+func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return agent.mgmt.GetCollectionManifest(ctx, opts)
 }
 

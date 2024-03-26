@@ -292,6 +292,33 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 	}.Recv()
 }
 
+type CheckBucketExistsOptions struct {
+	BucketName string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) CheckBucketExists(ctx context.Context, opts *CheckBucketExistsOptions) (bool, error) {
+	if opts.BucketName == "" {
+		return false, errors.New("must specify bucket name when checking a bucket exists")
+	}
+
+	resp, err := h.Execute(ctx, "HEAD",
+		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
+	if err != nil {
+		return false, err
+	}
+
+	if resp.StatusCode != 200 {
+		err := h.DecodeCommonError(resp)
+		if errors.Is(err, ErrBucketNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
+}
+
 type StreamTerseBucketConfigOptions struct {
 	BucketName string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
@@ -387,25 +414,7 @@ type GetCollectionManifestOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
-type CollectionManifestCollectionJson struct {
-	UID     string `json:"uid"`
-	Name    string `json:"name"`
-	MaxTTL  uint32 `json:"maxTTL,omitempty"`
-	History bool   `json:"history,omitempty"`
-}
-
-type CollectionManifestScopeJson struct {
-	UID         string                             `json:"uid"`
-	Name        string                             `json:"name"`
-	Collections []CollectionManifestCollectionJson `json:"collections,omitempty"`
-}
-
-type CollectionManifestJson struct {
-	UID    string                        `json:"uid"`
-	Scopes []CollectionManifestScopeJson `json:"scopes,omitempty"`
-}
-
-func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollectionManifestOptions) (*CollectionManifestJson, error) {
+func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	if opts.BucketName == "" {
 		return nil, errors.New("must specify bucket name when fetching a collection manifest")
 	}
@@ -420,7 +429,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	return cbhttpx.JsonBlockStreamer[CollectionManifestJson]{
+	return cbhttpx.JsonBlockStreamer[cbconfig.CollectionManifestJson]{
 		Decoder: json.NewDecoder(resp.Body),
 	}.Recv()
 }

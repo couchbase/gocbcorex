@@ -7,6 +7,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"go.uber.org/zap"
 )
 
@@ -107,7 +108,7 @@ func OrchestrateNoResMgmtCall[OptsT any](
 	return err
 }
 
-func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbmgmtx.CollectionManifestJson, error) {
+func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetCollectionManifest, opts)
 }
 
@@ -153,6 +154,10 @@ func (w *MgmtComponent) FlushBucket(ctx context.Context, opts *cbmgmtx.FlushBuck
 
 func (w *MgmtComponent) DeleteBucket(ctx context.Context, opts *cbmgmtx.DeleteBucketOptions) error {
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteBucket, opts)
+}
+
+func (w *MgmtComponent) CheckBucketExists(ctx context.Context, opts *cbmgmtx.CheckBucketExistsOptions) (bool, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.CheckBucketExists, opts)
 }
 
 type EnsureBucketOptions struct {
