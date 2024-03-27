@@ -151,11 +151,13 @@ func (w *ConfigWatcherMemd) watchThread(ctx context.Context, outCh chan<- *Parse
 		endpoint := remainingEndpoints[0]
 		recentEndpoints = append(recentEndpoints, endpoint)
 
+		pollCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 		parsedConfig, err := configWatcherMemd_pollOne(
-			ctx,
+			pollCtx,
 			w.logger,
 			w.kvClientManager,
 			endpoint)
+		cancel()
 		if err != nil {
 			w.logger.Debug("failed to poll config via cccp",
 				zap.Error(err),
