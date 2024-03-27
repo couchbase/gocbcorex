@@ -263,10 +263,9 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 	ctx, cancel := context.WithTimeout(ctx, m.createAgentTimeout)
 	defer cancel()
 
-	// annotate the logger with which bucket relative to the agent manager
-	// that this agent is being used for.
-	logger := m.logger.With(
-		zap.String("am-bucket", bucketName))
+	// annotate the logger to indicate this is an agent under the
+	// bucket tracking agentmanager.
+	logger := m.logger.Named("agent")
 
 	return CreateAgent(ctx, AgentOptions{
 		Logger:        logger,

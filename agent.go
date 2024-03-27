@@ -13,6 +13,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/contrib/buildversion"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -54,6 +55,11 @@ type Agent struct {
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	logger := loggerOrNop(opts.Logger)
+
+	// We namespace the agent to improve debugging,
+	logger = logger.With(
+		zap.String("agentId", uuid.NewString()[:8]),
+	)
 
 	logger.Debug("Creating new agent",
 		zap.Object("config", opts),
