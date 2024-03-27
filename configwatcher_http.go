@@ -186,14 +186,16 @@ func (w *ConfigWatcherHttp) watchThread(ctx context.Context, outCh chan<- *Parse
 		endpoint := remainingEndpoints[0]
 		recentEndpoints = append(recentEndpoints, endpoint)
 
+		pollCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 		parsedConfig, err := configWatcherHttp_pollOne(
-			ctx,
+			pollCtx,
 			w.logger,
 			state.httpRoundTripper,
 			endpoint,
 			state.userAgent,
 			state.authenticator,
 			state.bucketName)
+		cancel()
 		if err != nil {
 			w.logger.Debug("failed to poll config via http",
 				zap.Error(err),
