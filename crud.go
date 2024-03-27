@@ -110,7 +110,7 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 	ctx, span := tracer.Start(ctx, "GetReplica")
 	defer span.End()
 
-	fn := func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetReplicaResult, error) {
+	fn := func(collectionID uint32, vbID uint16, client KvClient) (*GetReplicaResult, error) {
 		resp, err := client.GetReplica(ctx, &memdx.GetReplicaRequest{
 			CollectionID: collectionID,
 			Key:          opts.Key,
@@ -145,7 +145,7 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 				func(collectionID uint32, manifestID uint64) (*GetReplicaResult, error) {
 					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
 						return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*GetReplicaResult, error) {
-							return fn(collectionID, manifestID, endpoint, vbID, client)
+							return fn(collectionID, vbID, client)
 						})
 					})
 				})

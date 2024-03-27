@@ -335,7 +335,6 @@ func (bw *BucketsWatcherHttp) manuallyFetchBuckets(ctx context.Context) ([]bucke
 
 		buckets, err := bucketsTracker_fetchOneBuckets(
 			ctx,
-			bw.logger,
 			state.httpRoundTripper,
 			endpoint,
 			bw.userAgent,
@@ -354,7 +353,6 @@ func (bw *BucketsWatcherHttp) manuallyFetchBuckets(ctx context.Context) ([]bucke
 
 func bucketsTracker_fetchOneBuckets(
 	ctx context.Context,
-	logger *zap.Logger,
 	httpRoundTripper http.RoundTripper,
 	endpoint string,
 	userAgent string,
