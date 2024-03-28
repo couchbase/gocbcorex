@@ -32,8 +32,10 @@ type KvClientPoolConfig struct {
 }
 
 type KvClientPoolOptions struct {
-	Logger      *zap.Logger
-	NewKvClient NewKvClientFunc
+	Logger                   *zap.Logger
+	NewKvClient              NewKvClientFunc
+	ConnectTimeout           time.Duration
+	ConnectErrThrottlePeriod time.Duration
 }
 
 type kvClientPoolFastMap struct {
@@ -46,8 +48,10 @@ type pendingKvClient struct {
 }
 
 type kvClientPool struct {
-	logger      *zap.Logger
-	newKvClient NewKvClientFunc
+	logger                   *zap.Logger
+	newKvClient              NewKvClientFunc
+	connectTimeout           time.Duration
+	connectErrThrottlePeriod time.Duration
 
 	clientIdx uint64
 	fastMap   atomic.Pointer[kvClientPoolFastMap]
@@ -77,15 +81,28 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 	if opts == nil {
 		opts = &KvClientPoolOptions{}
 	}
+
 	logger := loggerOrNop(opts.Logger)
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
 		zap.String("poolId", uuid.NewString()[:8]),
 	)
 
+	connectTimeout := opts.ConnectTimeout
+	if connectTimeout == 0 {
+		connectTimeout = 10 * time.Second
+	}
+
+	connectErrThrottlePeriod := opts.ConnectErrThrottlePeriod
+	if connectErrThrottlePeriod == 0 {
+		connectErrThrottlePeriod = 1 * time.Second
+	}
+
 	p := &kvClientPool{
-		logger: logger,
-		config: *config,
+		logger:                   logger,
+		config:                   *config,
+		connectTimeout:           connectTimeout,
+		connectErrThrottlePeriod: connectErrThrottlePeriod,
 
 		closeSig:        make(chan struct{}),
 		needClientSigCh: make(chan struct{}, 1),
@@ -204,14 +221,13 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 		p.lock.Lock()
 		defer p.lock.Unlock()
 
-		connectErrThrottle := 1 * time.Second
 		for {
-			connectWaitPeriod := connectErrThrottle - time.Since(p.connectErrTime)
+			connectWaitPeriod := p.connectErrThrottlePeriod - time.Since(p.connectErrTime)
 			if connectWaitPeriod > 0 {
 				p.lock.Unlock()
 
 				p.logger.Debug("throttling client connection due to recent error",
-					zap.Duration("throttlePeriod", connectErrThrottle),
+					zap.Duration("throttlePeriod", p.connectErrThrottlePeriod),
 					zap.Duration("waitPeriod", connectWaitPeriod))
 
 				time.Sleep(connectWaitPeriod)
@@ -225,7 +241,10 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 
 		p.lock.Unlock()
 
-		client, err := p.newKvClient(cancelCtx, &clientConfig)
+		timeoutCtx, timeoutCancel := context.WithTimeout(cancelCtx, p.connectTimeout)
+		client, err := p.newKvClient(timeoutCtx, &clientConfig)
+		timeoutCancel()
+
 		cancelFn()
 
 		p.lock.Lock()
