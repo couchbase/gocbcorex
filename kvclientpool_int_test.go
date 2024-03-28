@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex"
-	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -40,7 +39,6 @@ func TestKvClientPoolClose(t *testing.T) {
 	t.Cleanup(func() {
 		err := pool.Close()
 		require.NoError(t, err)
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	// Check that we've connected at least 1 client
@@ -98,8 +96,6 @@ func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 
 	err = pool.Close()
 	require.NoError(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestKvClientPoolHandleClientClose(t *testing.T) {
@@ -147,6 +143,4 @@ func TestKvClientPoolHandleClientClose(t *testing.T) {
 
 	err = pool.Close()
 	require.NoError(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }

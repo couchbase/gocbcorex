@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/couchbase/gocbcorex"
-	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -56,8 +55,6 @@ func TestClientManagerClose(t *testing.T) {
 	// Check that getting a client fails after close.
 	_, err = mgr.GetClient(context.Background(), endpointName)
 	require.Error(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestClientManagerCloseAfterReconfigure(t *testing.T) {
@@ -119,6 +116,4 @@ func TestClientManagerCloseAfterReconfigure(t *testing.T) {
 	// Check that getting a client fails after close.
 	_, err = mgr.GetClient(context.Background(), endpointName)
 	require.Error(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }

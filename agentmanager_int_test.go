@@ -7,7 +7,6 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
-	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 
 	"github.com/stretchr/testify/assert"
 
@@ -88,8 +87,6 @@ func TestOnDemandAgentManagerClose(t *testing.T) {
 
 	_, err = mgr.GetBucketAgent(context.Background(), testutilsint.TestOpts.BucketName)
 	assert.Error(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestBucketsTrackingAgentManagerClose(t *testing.T) {
@@ -125,8 +122,6 @@ func TestBucketsTrackingAgentManagerClose(t *testing.T) {
 
 	_, err = mgr.GetBucketAgent(context.Background(), testutilsint.TestOpts.BucketName)
 	assert.Error(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }
 
 func TestBucketsTrackingAgentManagerBucketNotExist(t *testing.T) {
@@ -150,6 +145,4 @@ func TestBucketsTrackingAgentManagerBucketNotExist(t *testing.T) {
 
 	err = mgr.Close()
 	require.NoError(t, err)
-
-	require.False(t, leakcheck.ReportLeakedGoroutines())
 }

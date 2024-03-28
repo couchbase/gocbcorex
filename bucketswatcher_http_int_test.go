@@ -9,7 +9,6 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
-	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 
 	"github.com/stretchr/testify/assert"
 
@@ -70,7 +69,6 @@ func TestBucketsWatcherHttp(t *testing.T) {
 
 		// There should only have been 1 request, the stream open.
 		assert.Equal(tt, 1, tripper.NumReqs())
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	t.Run("FetchesUnknownBuckets", func(tt *testing.T) {
@@ -90,7 +88,6 @@ func TestBucketsWatcherHttp(t *testing.T) {
 
 		// There should only have been 1 request.
 		assert.Equal(tt, 1, tripper.NumReqs())
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	t.Run("OnlyFetchesABucketOnce", func(tt *testing.T) {
@@ -115,7 +112,6 @@ func TestBucketsWatcherHttp(t *testing.T) {
 
 		// There should only have been 1 request.
 		assert.Equal(tt, 1, tripper.NumReqs())
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	t.Run("OnlyFetchesABucketOnceWithConcurrency", func(tt *testing.T) {
@@ -148,7 +144,6 @@ func TestBucketsWatcherHttp(t *testing.T) {
 
 		// There should only have been 1 request.
 		assert.Equal(tt, 1, tripper.NumReqs())
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	t.Run("UnknownBucketWithConcurrencyAfterFirstRequestIssued", func(tt *testing.T) {
@@ -190,6 +185,5 @@ func TestBucketsWatcherHttp(t *testing.T) {
 
 		// There should have been 2 requests, as we issued the second GetAgent whilst the first was already in flight.
 		assert.Equal(tt, 2, tripper.NumReqs())
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 }

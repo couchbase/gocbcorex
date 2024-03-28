@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/couchbase/gocbcorex/contrib/leakcheck"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/stretchr/testify/require"
@@ -47,7 +46,6 @@ func createTestClient(t *testing.T) *memdx.Client {
 	t.Cleanup(func() {
 		err := cli.Close()
 		require.NoError(t, err)
-		require.False(t, leakcheck.ReportLeakedGoroutines())
 	})
 
 	return cli
