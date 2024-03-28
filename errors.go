@@ -72,7 +72,7 @@ type contextualDeadline struct {
 }
 
 func (e contextualDeadline) Error() string {
-	return e.Message
+	return e.Message + ": " + context.DeadlineExceeded.Error()
 }
 
 func (e contextualDeadline) Unwrap() error {
