@@ -79,10 +79,13 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		span.AddEvent("RECEIVED")
 
 		if span.IsRecording() {
-			if sdResp, _ := any(resp).(memdx.ServerDurationResponse); sdResp != nil {
-				span.SetAttributes(attribute.Int(
-					"db.couchbase.server_duration",
-					int(sdResp.GetServerDuration()/time.Microsecond)))
+			var emptyResp RespT
+			if resp != emptyResp {
+				if sdResp, _ := any(resp).(memdx.ServerDurationResponse); sdResp != nil {
+					span.SetAttributes(attribute.Int(
+						"db.couchbase.server_duration",
+						int(sdResp.GetServerDuration()/time.Microsecond)))
+				}
 			}
 		}
 

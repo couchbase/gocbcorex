@@ -13,6 +13,7 @@ type OpRequest interface {
 }
 
 type OpResponse interface {
+	comparable
 }
 
 type CoreRequestMeta struct{}
