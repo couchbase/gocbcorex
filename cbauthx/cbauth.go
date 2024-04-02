@@ -310,6 +310,12 @@ func (a *CbAuth) runThread(
 			password := a.password
 			clusterUuid := a.clusterUuid
 
+			// if there is no high-level cluster-uuid specified, we should use
+			// the cluster uuid associated with the previous client.
+			if clusterUuid == "" {
+				clusterUuid = a.cliClusterUuid
+			}
+
 			a.lock.Unlock()
 
 			a.logger.Info("new cbauth client connecting",
