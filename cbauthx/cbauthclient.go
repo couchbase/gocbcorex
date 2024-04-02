@@ -113,6 +113,10 @@ func NewCbAuthClient(ctx context.Context, opts *CbAuthClientOptions) (*CbAuthCli
 	go func() {
 		err := rpcCli.Run()
 		cli.lock.Lock()
+		if cli.heartbeatTimer != nil {
+			cli.heartbeatTimer.Stop()
+			cli.heartbeatTimer = nil
+		}
 		if cli.closeReason != nil {
 			err = cli.closeReason
 		}
@@ -258,6 +262,11 @@ func (c *CbAuthClient) Run() error {
 
 func (c *CbAuthClient) internalCloseLocked(reason error) {
 	c.logger.Debug("internal close triggered", zap.Error(reason))
+
+	if c.heartbeatTimer != nil {
+		c.heartbeatTimer.Stop()
+		c.heartbeatTimer = nil
+	}
 
 	if c.closeReason == nil {
 		// Record the reason we closed the client for debugging
