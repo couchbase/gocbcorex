@@ -213,8 +213,6 @@ func (a *CbAuth) newClient(
 			zap.String("endpoint", endpoint))
 
 		connectCtx, cancel := context.WithTimeout(ctx, a.connectTimeout)
-		defer cancel()
-
 		cli, err := a.newCbAuthClient(connectCtx,
 			&CbAuthClientOptions{
 				Logger:        a.logger,
@@ -230,6 +228,7 @@ func (a *CbAuth) newClient(
 				HeartbeatTimeout:  a.heartbeatTimeout,
 				LivenessTimeout:   a.livenessTimeout,
 			})
+		cancel()
 		if err != nil {
 			failedEndpoints = append(failedEndpoints, endpoint)
 			failedErrors = append(failedErrors, err)
