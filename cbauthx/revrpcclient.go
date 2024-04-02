@@ -49,29 +49,44 @@ func NewRevRpcClient(
 	// we can peek some bytes to make sure we aren't receiving a second
 	// http response here, allowing us to produce a more useful error
 	// rather than a JSON parse error.
-	{
+	peekErrCh := make(chan error, 1)
+	go func() {
 		peekBytes, err := netConn.Peek(1)
 		if err != nil {
-			return nil, &contextualError{
+			peekErrCh <- &contextualError{
 				Message: "failed to peek response",
 				Cause:   err,
 			}
+			return
 		}
 
 		if peekBytes[0] != '{' {
 			bodyBytes, readErr := io.ReadAll(netConn)
 			if readErr != nil {
-				return nil, &contextualError{
+				peekErrCh <- &contextualError{
 					Message: "failed to read error body for invalid response",
 					Cause:   readErr,
 				}
+				return
 			}
 
-			return nil, &ServerError{
+			peekErrCh <- &ServerError{
 				StatusCode: 200,
 				Body:       bodyBytes,
 			}
+			return
 		}
+
+		peekErrCh <- nil
+	}()
+	select {
+	case err := <-peekErrCh:
+		if err != nil {
+			return nil, err
+		}
+	case <-ctx.Done():
+		_ = netConn.Close()
+		return nil, ctx.Err()
 	}
 
 	client := &RevRpcClient{
