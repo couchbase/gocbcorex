@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -65,8 +66,13 @@ type CbAuthClientOptions struct {
 }
 
 func NewCbAuthClient(ctx context.Context, opts *CbAuthClientOptions) (*CbAuthClient, error) {
+	// We namespace the agent to improve debugging,
+	logger := opts.Logger.With(
+		zap.String("clientId", uuid.NewString()[:8]),
+	)
+
 	cli := &CbAuthClient{
-		logger:           opts.Logger,
+		logger:           logger,
 		heartbeatTimeout: opts.HeartbeatTimeout,
 		livenessTimeout:  opts.LivenessTimeout,
 		clusterUuid:      opts.ClusterUuid,
