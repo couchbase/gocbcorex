@@ -183,7 +183,10 @@ func (a *CbAuth) newClient(
 			select {
 			case <-time.After(a.minReconnectTime - lastConnectDelta):
 			case <-ctx.Done():
-				return nil, "", ctx.Err()
+				return nil, "", &contextualError{
+					Message: "context cancelled between reconnect attempts",
+					Cause:   ctx.Err(),
+				}
 			}
 		}
 
