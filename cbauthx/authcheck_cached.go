@@ -119,7 +119,10 @@ func (a *AuthCheckCached) checkSlow(ctx context.Context, username string, passwo
 		select {
 		case <-pendingCh:
 		case <-ctx.Done():
-			return UserInfo{}, ctx.Err()
+			return UserInfo{}, &contextualError{
+				Message: "context cancelled during background auth check",
+				Cause:   ctx.Err(),
+			}
 		}
 	}
 

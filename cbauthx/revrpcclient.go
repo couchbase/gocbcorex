@@ -41,7 +41,10 @@ func NewRevRpcClient(
 		Password:  opts.Password,
 	})
 	if err != nil {
-		return nil, err
+		return nil, &contextualError{
+			Message: "failed to dial nsrpc",
+			Cause:   err,
+		}
 	}
 
 	// BUG(MB-55281): We need to check for another response
@@ -86,7 +89,11 @@ func NewRevRpcClient(
 		}
 	case <-ctx.Done():
 		_ = netConn.Close()
-		return nil, ctx.Err()
+		<-peekErrCh
+		return nil, &contextualError{
+			Message: "context cancelled while peeking response",
+			Cause:   ctx.Err(),
+		}
 	}
 
 	client := &RevRpcClient{
