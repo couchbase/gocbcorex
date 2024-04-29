@@ -526,7 +526,7 @@ type CreateCollectionOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
-	MaxTTL         uint32
+	MaxTTL         int32
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
@@ -551,7 +551,7 @@ func (h Management) CreateCollection(
 	posts := url.Values{}
 	posts.Add("name", opts.CollectionName)
 
-	if opts.MaxTTL > 0 {
+	if opts.MaxTTL != 0 {
 		posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxTTL)))
 	}
 
@@ -634,7 +634,7 @@ type UpdateCollectionOptions struct {
 	CollectionName string
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 	HistoryEnabled *bool
-	MaxTTL         *uint32
+	MaxTTL         *int32
 }
 
 type UpdateCollectionResponse struct {
@@ -656,7 +656,7 @@ func (h Management) UpdateCollection(
 	}
 
 	posts := url.Values{}
-	if opts.MaxTTL != nil && *opts.MaxTTL > 0 {
+	if opts.MaxTTL != nil {
 		posts.Add("maxTTL", fmt.Sprintf("%d", *opts.MaxTTL))
 	}
 
