@@ -85,6 +85,7 @@ func NewRevRpcClient(
 	select {
 	case err := <-peekErrCh:
 		if err != nil {
+			_ = netConn.Close()
 			return nil, err
 		}
 	case <-ctx.Done():
@@ -123,6 +124,7 @@ func (r *RevRpcClient) Run() error {
 				return nil
 			}
 
+			_ = r.conn.Close()
 			return &contextualError{
 				Message: "failed to read request",
 				Cause:   err,
@@ -151,6 +153,7 @@ func (r *RevRpcClient) Run() error {
 				return nil
 			}
 
+			_ = r.conn.Close()
 			return &contextualError{
 				Message: "failed to write response",
 				Cause:   err,
