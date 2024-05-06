@@ -75,6 +75,7 @@ func DialNsRpcConn(ctx context.Context, uri string, opts *NsRpcConnOptions) (*Ns
 
 	err = req.Write(netConn)
 	if err != nil {
+		_ = netConn.Close()
 		return nil, &contextualError{
 			Message: "failed to write request to server",
 			Cause:   err,
@@ -83,6 +84,7 @@ func DialNsRpcConn(ctx context.Context, uri string, opts *NsRpcConnOptions) (*Ns
 
 	resp, err := http.ReadResponse(netRdr, req)
 	if err != nil {
+		_ = netConn.Close()
 		return nil, &contextualError{
 			Message: "failed to read response from server",
 			Cause:   err,
@@ -92,12 +94,14 @@ func DialNsRpcConn(ctx context.Context, uri string, opts *NsRpcConnOptions) (*Ns
 	if resp.StatusCode != 200 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
+			_ = netConn.Close()
 			return nil, &contextualError{
 				Message: "failed to read error body for non-success response",
 				Cause:   readErr,
 			}
 		}
 
+		_ = resp.Body.Close()
 		return nil, &ServerError{
 			StatusCode: resp.StatusCode,
 			Body:       bodyBytes,
