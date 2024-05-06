@@ -23,6 +23,9 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //			DispatchToVbucketFunc: func(vbID uint16) (string, error) {
 //				panic("mock out the DispatchToVbucket method")
 //			},
+//			NumReplicasFunc: func() (int, error) {
+//				panic("mock out the NumReplicas method")
+//			},
 //			UpdateRoutingInfoFunc: func(vbucketRoutingInfo *VbucketRoutingInfo)  {
 //				panic("mock out the UpdateRoutingInfo method")
 //			},
@@ -38,6 +41,9 @@ type VbucketRouterMock struct {
 
 	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
 	DispatchToVbucketFunc func(vbID uint16) (string, error)
+
+	// NumReplicasFunc mocks the NumReplicas method.
+	NumReplicasFunc func() (int, error)
 
 	// UpdateRoutingInfoFunc mocks the UpdateRoutingInfo method.
 	UpdateRoutingInfoFunc func(vbucketRoutingInfo *VbucketRoutingInfo)
@@ -56,6 +62,9 @@ type VbucketRouterMock struct {
 			// VbID is the vbID argument value.
 			VbID uint16
 		}
+		// NumReplicas holds details about calls to the NumReplicas method.
+		NumReplicas []struct {
+		}
 		// UpdateRoutingInfo holds details about calls to the UpdateRoutingInfo method.
 		UpdateRoutingInfo []struct {
 			// VbucketRoutingInfo is the vbucketRoutingInfo argument value.
@@ -64,6 +73,7 @@ type VbucketRouterMock struct {
 	}
 	lockDispatchByKey     sync.RWMutex
 	lockDispatchToVbucket sync.RWMutex
+	lockNumReplicas       sync.RWMutex
 	lockUpdateRoutingInfo sync.RWMutex
 }
 
@@ -103,10 +113,6 @@ func (mock *VbucketRouterMock) DispatchByKeyCalls() []struct {
 	return calls
 }
 
-func (mock *VbucketRouterMock) NumReplicas() (int, error) {
-	return 0, nil
-}
-
 // DispatchToVbucket calls DispatchToVbucketFunc.
 func (mock *VbucketRouterMock) DispatchToVbucket(vbID uint16) (string, error) {
 	if mock.DispatchToVbucketFunc == nil {
@@ -136,6 +142,33 @@ func (mock *VbucketRouterMock) DispatchToVbucketCalls() []struct {
 	mock.lockDispatchToVbucket.RLock()
 	calls = mock.calls.DispatchToVbucket
 	mock.lockDispatchToVbucket.RUnlock()
+	return calls
+}
+
+// NumReplicas calls NumReplicasFunc.
+func (mock *VbucketRouterMock) NumReplicas() (int, error) {
+	if mock.NumReplicasFunc == nil {
+		panic("VbucketRouterMock.NumReplicasFunc: method is nil but VbucketRouter.NumReplicas was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockNumReplicas.Lock()
+	mock.calls.NumReplicas = append(mock.calls.NumReplicas, callInfo)
+	mock.lockNumReplicas.Unlock()
+	return mock.NumReplicasFunc()
+}
+
+// NumReplicasCalls gets all the calls that were made to NumReplicas.
+// Check the length with:
+//
+//	len(mockedVbucketRouter.NumReplicasCalls())
+func (mock *VbucketRouterMock) NumReplicasCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockNumReplicas.RLock()
+	calls = mock.calls.NumReplicas
+	mock.lockNumReplicas.RUnlock()
 	return calls
 }
 
