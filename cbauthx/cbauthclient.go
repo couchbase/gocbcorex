@@ -36,6 +36,8 @@ type CbAuthClient struct {
 	closeReason error
 }
 
+var _ AuthCheck = (*CbAuthClient)(nil)
+
 type CbAuthClientOptions struct {
 	Logger        *zap.Logger
 	HttpTransport http.RoundTripper
