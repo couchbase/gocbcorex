@@ -61,7 +61,7 @@ type ResultStream interface {
 	MetaData() (*MetaData, error)
 }
 
-func (h Query) Query(ctx context.Context, opts *Options) (ResultStream, error) {
+func (h Query) Query(ctx context.Context, opts *QueryOptions) (ResultStream, error) {
 	reqBytes, err := opts.encodeToJson()
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (h Query) GetAllIndexes(ctx context.Context, opts *GetAllIndexesOptions) ([
 	qs := fmt.Sprintf("SELECT `idx`.* FROM system:indexes AS idx WHERE %s ORDER BY is_primary DESC, name ASC",
 		where)
 
-	var queryOpts Options
+	var queryOpts QueryOptions
 	queryOpts.OnBehalfOf = opts.OnBehalfOf
 	queryOpts.Statement = qs
 
@@ -202,7 +202,7 @@ func (h Query) CreatePrimaryIndex(ctx context.Context, opts *CreatePrimaryIndexO
 		qs += " WITH " + string(withBytes)
 	}
 
-	var queryOpts Options
+	var queryOpts QueryOptions
 	queryOpts.OnBehalfOf = opts.OnBehalfOf
 	queryOpts.Statement = qs
 
@@ -275,7 +275,7 @@ func (h Query) CreateIndex(ctx context.Context, opts *CreateIndexOptions) error 
 		qs += " WITH " + string(withBytes)
 	}
 
-	var queryOpts Options
+	var queryOpts QueryOptions
 	queryOpts.OnBehalfOf = opts.OnBehalfOf
 	queryOpts.Statement = qs
 
@@ -330,7 +330,7 @@ func (h Query) DropPrimaryIndex(ctx context.Context, opts *DropPrimaryIndexOptio
 		}
 	}
 
-	var queryOpts Options
+	var queryOpts QueryOptions
 	queryOpts.OnBehalfOf = opts.OnBehalfOf
 	queryOpts.Statement = qs
 
@@ -377,7 +377,7 @@ func (h Query) DropIndex(ctx context.Context, opts *DropIndexOptions) error {
 		qs += fmt.Sprintf("DROP INDEX %s.%s", keyspace, encodedName)
 	}
 
-	var queryOpts Options
+	var queryOpts QueryOptions
 	queryOpts.OnBehalfOf = opts.OnBehalfOf
 	queryOpts.Statement = qs
 
@@ -456,7 +456,7 @@ func (h Query) BuildDeferredIndexes(ctx context.Context, opts *BuildDeferredInde
 		qs += fmt.Sprintf("BUILD INDEX ON %s(%s)",
 			keyspace, strings.Join(escapedIndexNames, ","))
 
-		var queryOpts Options
+		var queryOpts QueryOptions
 		queryOpts.OnBehalfOf = opts.OnBehalfOf
 		queryOpts.Statement = qs
 

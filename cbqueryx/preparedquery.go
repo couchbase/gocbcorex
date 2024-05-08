@@ -5,7 +5,7 @@ import (
 )
 
 type Executor interface {
-	Query(ctx context.Context, opts *Options) (ResultStream, error)
+	Query(ctx context.Context, opts *QueryOptions) (ResultStream, error)
 }
 
 type PreparedQuery struct {
@@ -13,7 +13,7 @@ type PreparedQuery struct {
 	Cache    *PreparedStatementCache
 }
 
-func (p PreparedQuery) PreparedQuery(ctx context.Context, opts *Options) (ResultStream, error) {
+func (p PreparedQuery) PreparedQuery(ctx context.Context, opts *QueryOptions) (ResultStream, error) {
 	newOpts := *opts
 
 	// if this is already marked as auto-execute, we just pass it through

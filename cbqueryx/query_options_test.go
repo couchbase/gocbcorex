@@ -9,7 +9,7 @@ import (
 
 func TestEncodeQueryOptions(t *testing.T) {
 	t.Run("statement", func(t *testing.T) {
-		opts := &Options{
+		opts := &QueryOptions{
 			Statement: "SELECT *",
 		}
 
@@ -20,7 +20,7 @@ func TestEncodeQueryOptions(t *testing.T) {
 	})
 
 	t.Run("scan_wait", func(t *testing.T) {
-		opts := &Options{
+		opts := &QueryOptions{
 			ScanWait: 2500 * time.Millisecond,
 		}
 
@@ -31,7 +31,7 @@ func TestEncodeQueryOptions(t *testing.T) {
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		opts := &Options{
+		opts := &QueryOptions{
 			Timeout: 2500 * time.Millisecond,
 		}
 
@@ -42,7 +42,7 @@ func TestEncodeQueryOptions(t *testing.T) {
 	})
 
 	t.Run("tx_timeout", func(t *testing.T) {
-		opts := &Options{
+		opts := &QueryOptions{
 			TxTimeout: 2500 * time.Millisecond,
 		}
 
@@ -53,7 +53,7 @@ func TestEncodeQueryOptions(t *testing.T) {
 	})
 
 	t.Run("kvtimeout", func(t *testing.T) {
-		opts := &Options{
+		opts := &QueryOptions{
 			KvTimeout: 2500 * time.Millisecond,
 		}
 

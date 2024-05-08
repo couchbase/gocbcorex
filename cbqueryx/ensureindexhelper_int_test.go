@@ -50,7 +50,7 @@ func TestEnsureQuery(t *testing.T) {
 	}
 
 	idxName := uuid.NewString()[:6]
-	res, err := query.Query(ctx, &cbqueryx.Options{
+	res, err := query.Query(ctx, &cbqueryx.QueryOptions{
 		Statement: fmt.Sprintf(
 			"CREATE INDEX `%s` On `%s`._default._default(test)",
 			idxName,
@@ -87,7 +87,7 @@ func TestEnsureQuery(t *testing.T) {
 		return res
 	}, 60*time.Second, 1*time.Second)
 
-	res, err = query.Query(ctx, &cbqueryx.Options{
+	res, err = query.Query(ctx, &cbqueryx.QueryOptions{
 		Statement: fmt.Sprintf(
 			"DROP INDEX `%s` ON `%s`.`_default`.`_default`",
 			idxName,
