@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type QueryOptions = cbqueryx.Options
+type QueryOptions = cbqueryx.QueryOptions
 type QueryResultStream = cbqueryx.ResultStream
 type PreparedStatementCache = cbqueryx.PreparedStatementCache
 

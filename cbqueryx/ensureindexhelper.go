@@ -112,7 +112,7 @@ func (e *EnsureIndexHelper) pollOne(
 		Endpoint:  target.Endpoint,
 		Username:  target.Username,
 		Password:  target.Password,
-	}.Query(ctx, &Options{
+	}.Query(ctx, &QueryOptions{
 		ReadOnly:   true,
 		OnBehalfOf: e.OnBehalfOf,
 		Statement:  statement,

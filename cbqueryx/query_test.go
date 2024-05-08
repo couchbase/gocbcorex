@@ -32,7 +32,7 @@ func TestQuery(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 	cache := NewPreparedStatementCache()
-	opts := &Options{
+	opts := &QueryOptions{
 		Statement: "SELECT 1",
 	}
 	res, err := Query{
@@ -71,7 +71,7 @@ func TestQueryIndexExists(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 
-	opts := &Options{
+	opts := &QueryOptions{
 		Statement: fmt.Sprintf("CREATE INDEX %s", index),
 	}
 	_, err = Query{
@@ -106,7 +106,7 @@ func TestQueryIndexNotFound(t *testing.T) {
 		ContentLength: int64(len(body)),
 	}
 
-	opts := &Options{
+	opts := &QueryOptions{
 		Statement: fmt.Sprintf("CREATE INDEX %s", index),
 	}
 	_, err = Query{

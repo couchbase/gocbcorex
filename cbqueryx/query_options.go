@@ -88,7 +88,7 @@ type FullScanVectors []ScanVectorEntry
 
 type SparseScanVectors map[uint32]ScanVectorEntry
 
-type Options struct {
+type QueryOptions struct {
 	Args            []json.RawMessage
 	AtrCollection   string
 	AutoExecute     bool
@@ -136,7 +136,7 @@ type Options struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
-func (o *Options) encodeToJson() (json.RawMessage, error) {
+func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
 	var anyErr error
 
 	m := make(map[string]json.RawMessage)
