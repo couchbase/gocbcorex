@@ -318,6 +318,14 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 									return nil, err
 								})
 
+							// If we read a replica from a node that we have already read from we wait for a short time
+							// before trying this replica again. Since there may be a rebalance where the replicaId is moved to
+							// a new node
+							if errors.Is(err, ErrRepeatedReplicaRead) {
+								time.Sleep(10 * time.Millisecond)
+								continue
+							}
+
 							// If we get invalid replica then the number of replicas has been reduced since we started
 							// got numReplicas. Therefore we decrease numReplicas and kill this thread
 							if errors.Is(err, ErrInvalidReplica) {
@@ -374,7 +382,7 @@ func OrchestrateReplicaRead(
 	replica uint32,
 	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
 ) (*GetAllReplicasResult, error) {
-	rs := NewRetryManagerGetAllReplicas()
+	rs := NewRetryManagerDefault()
 	return OrchestrateRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
 		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
 			return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (*GetAllReplicasResult, error) {
