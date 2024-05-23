@@ -3,9 +3,12 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/helpers/subdocpath"
+	"github.com/couchbase/gocbcorex/helpers/subdocprojection"
 	"github.com/couchbase/gocbcorex/memdx"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -1319,4 +1322,252 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 				},
 			}, nil
 		})
+}
+
+type GetExOptions struct {
+	Key            []byte
+	ScopeName      string
+	CollectionName string
+	Project        []string
+	WithExpiry     bool
+	WithFlags      bool
+	OnBehalfOf     string
+}
+
+type GetExResult struct {
+	Value    []byte
+	Flags    uint32
+	Datatype memdx.DatatypeFlag
+	Cas      uint64
+	Expiry   uint32
+}
+
+func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExResult, error) {
+	// TODO(brett19): This functions error handling needs to be modified to return some
+	// form of projection-style error so we know which projected paths failed when
+	// errors ultimately occur.
+
+	if len(opts.Project) == 0 && !opts.WithExpiry {
+		resp, err := cc.Get(ctx, &GetOptions{
+			Key:            opts.Key,
+			ScopeName:      opts.ScopeName,
+			CollectionName: opts.CollectionName,
+			OnBehalfOf:     opts.OnBehalfOf,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// if the user does not want flags, we remove them so they do not
+		// accidentally get used when it wasn't expected to be there.
+		flags := resp.Flags
+		if !opts.WithFlags {
+			flags = 0
+		}
+
+		return &GetExResult{
+			Value:    resp.Value,
+			Flags:    flags,
+			Datatype: resp.Datatype,
+			Cas:      resp.Cas,
+			Expiry:   0,
+		}, nil
+	}
+
+	var executeGet func(forceFullDoc bool) (*GetExResult, error)
+	executeGet = func(forceFullDoc bool) (*GetExResult, error) {
+		var opOpts LookupInOptions
+		opOpts.OnBehalfOf = opts.OnBehalfOf
+		opOpts.ScopeName = opts.ScopeName
+		opOpts.CollectionName = opts.CollectionName
+		opOpts.Key = opts.Key
+
+		withFlags := opts.WithFlags
+		withExpiry := opts.WithExpiry
+
+		flagsOffset := -1
+		if withFlags {
+			opOpts.Ops = append(opOpts.Ops, memdx.LookupInOp{
+				Op:    memdx.LookupInOpTypeGet,
+				Flags: memdx.SubdocOpFlagXattrPath,
+				Path:  []byte("$document.flags"),
+			})
+			flagsOffset = len(opOpts.Ops) - 1
+		}
+
+		expiryOffset := -1
+		if withExpiry {
+			opOpts.Ops = append(opOpts.Ops, memdx.LookupInOp{
+				Op:    memdx.LookupInOpTypeGet,
+				Flags: memdx.SubdocOpFlagXattrPath,
+				Path:  []byte("$document.exptime"),
+			})
+			expiryOffset = len(opOpts.Ops) - 1
+		}
+
+		userProjectOffset := len(opOpts.Ops)
+		maxUserProjections := 16 - userProjectOffset
+
+		isFullDocFetch := false
+		if len(opts.Project) > 0 && len(opts.Project) < maxUserProjections && !forceFullDoc {
+			for _, projectPath := range opts.Project {
+				opOpts.Ops = append(opOpts.Ops, memdx.LookupInOp{
+					Op:    memdx.LookupInOpTypeGet,
+					Flags: memdx.SubdocOpFlagNone,
+					Path:  []byte(projectPath),
+				})
+			}
+
+			isFullDocFetch = false
+		} else {
+			opOpts.Ops = append(opOpts.Ops, memdx.LookupInOp{
+				Op:    memdx.LookupInOpTypeGetDoc,
+				Flags: memdx.SubdocOpFlagNone,
+				Path:  nil,
+			})
+
+			isFullDocFetch = true
+		}
+
+		result, err := cc.LookupIn(ctx, &opOpts)
+		if err != nil {
+			return nil, err
+		}
+
+		var flags uint32
+		if flagsOffset >= 0 {
+			parsedFlags, err := strconv.ParseUint(string(result.Ops[flagsOffset].Value), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+
+			flags = uint32(parsedFlags)
+		}
+
+		var expiryTime uint32
+		if expiryOffset >= 0 {
+			parsedExpiryTime, err := strconv.ParseInt(string(result.Ops[expiryOffset].Value), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+
+			expiryTime = uint32(parsedExpiryTime)
+		}
+
+		if len(opts.Project) > 0 {
+			var writer subdocprojection.Projector
+
+			if isFullDocFetch {
+				docValue := result.Ops[userProjectOffset].Value
+
+				var reader subdocprojection.Projector
+
+				err := reader.Init(docValue)
+				if err != nil {
+					return nil, err
+				}
+
+				for _, path := range opts.Project {
+					parsedPath, err := subdocpath.Parse(path)
+					if err != nil {
+						return nil, &PathProjectionError{
+							Path:  path,
+							Cause: err,
+						}
+					}
+
+					pathValue, err := reader.Get(parsedPath)
+					if err != nil {
+						return nil, &PathProjectionError{
+							Path:  path,
+							Cause: err,
+						}
+					}
+
+					err = writer.Set(parsedPath, pathValue)
+					if err != nil {
+						return nil, &PathProjectionError{
+							Path:  path,
+							Cause: err,
+						}
+					}
+				}
+			} else {
+				for pathIdx, path := range opts.Project {
+					op := result.Ops[userProjectOffset+pathIdx]
+
+					if op.Err != nil {
+						if errors.Is(op.Err, memdx.ErrSubDocDocTooDeep) {
+							cc.logger.Debug("falling back to fulldoc projection due to ErrSubDocDocTooDeep")
+							return executeGet(true)
+						} else if errors.Is(op.Err, memdx.ErrSubDocNotJSON) {
+							// this is actually a document error, not a path error
+							return nil, err
+						} else if errors.Is(op.Err, memdx.ErrSubDocPathNotFound) {
+							// path not founds are skipped and not included in the
+							// output document rather than triggering errors.
+							continue
+						} else if errors.Is(op.Err, memdx.ErrSubDocPathInvalid) {
+							return nil, &PathProjectionError{
+								Path:  path,
+								Cause: err,
+							}
+						} else if errors.Is(op.Err, memdx.ErrSubDocPathMismatch) {
+							return nil, &PathProjectionError{
+								Path:  path,
+								Cause: err,
+							}
+						} else if errors.Is(op.Err, memdx.ErrSubDocPathTooBig) {
+							cc.logger.Debug("falling back to fulldoc projection due to ErrSubDocPathTooBig")
+							return executeGet(true)
+						}
+
+						cc.logger.Debug("falling back to fulldoc projection due to unexpected op error", zap.Error(op.Err))
+						return executeGet(true)
+					}
+
+					parsedPath, err := subdocpath.Parse(path)
+					if err != nil {
+						return nil, &PathProjectionError{
+							Path:  path,
+							Cause: err,
+						}
+					}
+
+					err = writer.Set(parsedPath, op.Value)
+					if err != nil {
+						return nil, &PathProjectionError{
+							Path:  path,
+							Cause: err,
+						}
+					}
+				}
+			}
+
+			projectedDocValue, err := writer.Build()
+			if err != nil {
+				return nil, err
+			}
+
+			return &GetExResult{
+				Value:    projectedDocValue,
+				Flags:    flags,
+				Datatype: 0,
+				Cas:      result.Cas,
+				Expiry:   expiryTime,
+			}, nil
+		}
+
+		docValue := result.Ops[userProjectOffset].Value
+
+		return &GetExResult{
+			Value:    docValue,
+			Flags:    flags,
+			Datatype: 0,
+			Cas:      result.Cas,
+			Expiry:   expiryTime,
+		}, nil
+	}
+
+	return executeGet(false)
 }

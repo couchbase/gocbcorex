@@ -193,3 +193,16 @@ func (e serviceNotAvailableError) Error() string {
 func (e serviceNotAvailableError) Unwrap() error {
 	return ErrServiceNotAvailable
 }
+
+type PathProjectionError struct {
+	Path  string
+	Cause error
+}
+
+func (e PathProjectionError) Error() string {
+	return fmt.Sprintf("%s (path: %s)", e.Cause, e.Path)
+}
+
+func (e PathProjectionError) Unwrap() error {
+	return e.Cause
+}
