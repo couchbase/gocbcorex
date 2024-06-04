@@ -613,6 +613,15 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		} else if resp.Status == StatusTooBig {
 			cb(nil, ErrValueTooLarge)
 			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -857,6 +866,15 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -950,6 +968,15 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 			return false
 		} else if resp.Status == StatusTooBig {
 			cb(nil, ErrValueTooLarge)
+			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
 
@@ -1058,6 +1085,15 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 		} else if resp.Status == StatusTooBig {
 			cb(nil, ErrValueTooLarge)
 			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1153,6 +1189,15 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		} else if resp.Status == StatusTooBig {
 			cb(nil, ErrValueTooLarge)
 			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -1247,6 +1292,15 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		} else if resp.Status == StatusTooBig {
 			cb(nil, ErrValueTooLarge)
+			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
 
@@ -1346,6 +1400,15 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 			return false
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
+			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
 
@@ -1452,6 +1515,15 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 			return false
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
+			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
+			return false
+		} else if resp.Status == StatusSyncWriteInProgress {
+			cb(nil, ErrSyncWriteInProgress)
+			return false
+		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
 
@@ -2076,6 +2148,9 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			return false
 		} else if resp.Status == StatusSubDocDeletedDocumentCantHaveValue {
 			cb(nil, ErrSubDocDeletedDocumentCantHaveValue)
+			return false
+		} else if resp.Status == StatusSyncWriteAmbiguous {
+			cb(nil, ErrSyncWriteAmbiguous)
 			return false
 		} else if resp.Status == StatusSyncWriteInProgress {
 			cb(nil, ErrSyncWriteInProgress)
