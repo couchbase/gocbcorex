@@ -50,6 +50,7 @@ var (
 	ErrSubDocXattrUnknownVattrMacro        = errors.New("subdoc xattr unknown vattr macro")
 	ErrSubDocCanOnlyReviveDeletedDocuments = errors.New("subdoc can only revive deleted documents")
 	ErrSubDocDeletedDocumentCantHaveValue  = errors.New("subdoc deleted document cant have value")
+	ErrSyncWriteAmbiguous                  = errors.New("sync write was ambiguous")
 	ErrSyncWriteInProgress                 = errors.New("sync write in progress")
 	ErrSyncWriteReCommitInProgress         = errors.New("sync write recommit in progress")
 	ErrTmpFail                             = errors.New("temporary failure")
