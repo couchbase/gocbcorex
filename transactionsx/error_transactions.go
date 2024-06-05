@@ -11,21 +11,6 @@ var (
 	// ErrNoAttempt indicates no attempt was started before an operation was performed.
 	ErrNoAttempt = errors.New("attempt was not started")
 
-	// ErrOther indicates an non-specific error has occured.
-	ErrOther = errors.New("other error")
-
-	// ErrTransient indicates a transient error occured which may succeed at a later point in time.
-	ErrTransient = errors.New("transient error")
-
-	// ErrWriteWriteConflict indicates that another transaction conflicted with this one.
-	ErrWriteWriteConflict = errors.New("write write conflict")
-
-	// ErrHard indicates that an unrecoverable error occured.
-	ErrHard = errors.New("hard")
-
-	// ErrAmbiguous indicates that a failure occured but the outcome was not known.
-	ErrAmbiguous = errors.New("ambiguous error")
-
 	// ErrAtrFull indicates that the ATR record was too full to accept a new mutation.
 	ErrAtrFull = errors.New("atr full")
 
@@ -37,9 +22,6 @@ var (
 
 	// ErrAtrEntryNotFound indicates that an expected ATR entry was missing.
 	ErrAtrEntryNotFound = errors.New("atr entry not found")
-
-	// ErrDocAlreadyInTransaction indicates that a document is already in a transaction.
-	ErrDocAlreadyInTransaction = errors.New("doc already in transaction")
 
 	// ErrIllegalState is used for when a transaction enters an illegal State.
 	ErrIllegalState = errors.New("illegal State")
@@ -53,6 +35,24 @@ var (
 	// ErrForwardCompatibilityFailure indicates an operation failed due to involving a document in another transaction
 	// which contains features this transaction does not support.
 	ErrForwardCompatibilityFailure = errors.New("forward compatibility error")
+
+	// ErrDocNotFound indicates that a document was not found.
+	ErrDocNotFound = errors.New("document not found")
+
+	// ErrDocExists indicates that a document already exists.
+	ErrDocExists = errors.New("document exists")
+
+	// ErrTransient indicates a transient error occured which may succeed at a later point in time.
+	ErrTestTransient = errors.New("transient error")
+
+	// ErrHard indicates that an unrecoverable error occured.
+	ErrTestHard = errors.New("hard")
+
+	// ErrAmbiguous indicates that a failure occured but the outcome was not known.
+	ErrTestAmbiguous = errors.New("ambiguous error")
+
+	// ErrOther indicates an non-specific error has occured.
+	ErrTestOther = errors.New("other error")
 )
 
 type classifiedError struct {
@@ -199,13 +199,6 @@ func (wwce writeWriteConflictError) Error() string {
 		errStr += " | " + wwce.Source.Error()
 	}
 	return errStr
-}
-
-func (wwce writeWriteConflictError) Is(err error) bool {
-	if err == ErrWriteWriteConflict {
-		return true
-	}
-	return errors.Is(wwce.Source, err)
 }
 
 func (wwce writeWriteConflictError) Unwrap() error {

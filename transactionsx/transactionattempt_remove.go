@@ -14,7 +14,7 @@ func (t *transactionAttempt) Remove(ctx context.Context, opts TransactionRemoveO
 	if err != nil {
 		t.logger.Info("Remove failed")
 
-		if err.shouldNotRollback {
+		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
 		}
 
@@ -83,7 +83,7 @@ func (t *transactionAttempt) remove(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): Right error?
-					wrapError(memdx.ErrDocNotFound, "attempted to remove a document previously removed in this transaction")),
+					wrapError(ErrDocNotFound, "attempted to remove a document previously removed in this transaction")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
@@ -103,7 +103,7 @@ func (t *transactionAttempt) remove(
 	err = t.writeWriteConflictPoll(
 		ctx,
 		forwardCompatStageWWCRemoving,
-		agent, oboUser, scopeName, collectionName, key, cas,
+		agent.BucketName(), scopeName, collectionName, key, cas,
 		meta,
 		existingMutation)
 	if err != nil {
@@ -111,7 +111,7 @@ func (t *transactionAttempt) remove(
 		return nil, err
 	}
 
-	err = t.confirmATRPending(ctx, agent, oboUser, scopeName, collectionName, key)
+	err = t.confirmATRPending(ctx, agent, oboUser, key)
 	if err != nil {
 		t.endOp()
 		return nil, err
@@ -150,7 +150,7 @@ func (t *transactionAttempt) stageRemove(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): Right error?
-					wrapError(memdx.ErrDocNotFound, "document not found during staging")),
+					wrapError(ErrDocNotFound, "document not found during staging")),
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
@@ -328,7 +328,7 @@ func (t *transactionAttempt) stageRemoveOfInsert(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): Right error?
-					wrapError(memdx.ErrDocNotFound, "staged document was modified since insert")),
+					wrapError(ErrDocNotFound, "staged document was modified since insert")),
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,

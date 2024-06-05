@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/couchbase/gocbcorex/zaputils"
 	"go.uber.org/zap"
 )
 
@@ -254,8 +256,6 @@ func (t *transactionAttempt) confirmATRPending(
 	ctx context.Context,
 	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
-	firstScopeName string,
-	firstCollectionName string,
 	firstKey []byte,
 ) *TransactionOperationFailedError {
 	t.lock.Lock()
@@ -294,8 +294,6 @@ func (t *transactionAttempt) confirmATRPending(
 		ctx,
 		firstAgent,
 		firstOboUser,
-		firstScopeName,
-		firstCollectionName,
 		firstKey)
 	if err != nil {
 		t.lock.Lock()
@@ -480,13 +478,16 @@ func (t *transactionAttempt) getTxnState(
 			return nil, time.Time{}, nil
 		default:
 			return nil, time.Time{}, t.operationFailed(operationFailedDef{
-				Cerr: classifyError(&writeWriteConflictError{
-					Source:         cerr.Source,
-					BucketName:     srcBucketName,
-					ScopeName:      srcScopeName,
-					CollectionName: srcCollectionName,
-					DocumentKey:    srcDocID,
-				}),
+				Cerr: &classifiedError{
+					Source: &writeWriteConflictError{
+						Source:         cerr.Source,
+						BucketName:     srcBucketName,
+						ScopeName:      srcScopeName,
+						CollectionName: srcCollectionName,
+						DocumentKey:    srcDocID,
+					},
+					Class: TransactionErrorClassFailWriteWriteConflict,
+				},
 				CanStillCommit:    forceNonFatal,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
@@ -568,8 +569,7 @@ func (t *transactionAttempt) getTxnState(
 func (t *transactionAttempt) writeWriteConflictPoll(
 	ctx context.Context,
 	stage forwardCompatStage,
-	agent *gocbcorex.Agent,
-	oboUser string,
+	bucketName string,
 	scopeName string,
 	collectionName string,
 	key []byte,
@@ -592,8 +592,10 @@ func (t *transactionAttempt) writeWriteConflictPoll(
 					// CAS.  We throw a CAS mismatch to early detect this.
 					// TODO(brett19): Consider whether CAS mismatch is correct here...
 					return t.operationFailed(operationFailedDef{
-						Cerr: classifyError(
-							wrapError(memdx.ErrCasMismatch, "cas mismatch occured against local staged mutation")),
+						Cerr: &classifiedError{
+							Source: errors.New("cas mismatch occured against local staged mutation"),
+							Class:  TransactionErrorClassFailCasMismatch,
+						},
 						ShouldNotRetry:    false,
 						ShouldNotRollback: false,
 						Reason:            TransactionErrorReasonTransactionFailed,
@@ -634,25 +636,28 @@ func (t *transactionAttempt) writeWriteConflictPoll(
 
 			// If the deadline expired, lets just immediately return.
 			return t.operationFailed(operationFailedDef{
-				Cerr: classifyError(&writeWriteConflictError{
-					Source: fmt.Errorf(
-						"deadline expired before WWC was resolved on %s.%s.%s.%s",
-						meta.ATR.BucketName,
-						meta.ATR.ScopeName,
-						meta.ATR.CollectionName,
-						meta.ATR.DocID),
-					BucketName:     agent.BucketName(),
-					ScopeName:      scopeName,
-					CollectionName: collectionName,
-					DocumentKey:    key,
-				}),
+				Cerr: &classifiedError{
+					Source: &writeWriteConflictError{
+						Source: fmt.Errorf(
+							"deadline expired before WWC was resolved on %s.%s.%s.%s",
+							meta.ATR.BucketName,
+							meta.ATR.ScopeName,
+							meta.ATR.CollectionName,
+							meta.ATR.DocID),
+						BucketName:     bucketName,
+						ScopeName:      scopeName,
+						CollectionName: collectionName,
+						DocumentKey:    key,
+					},
+					Class: TransactionErrorClassFailWriteWriteConflict,
+				},
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
 			})
 		}
 
-		err := t.checkForwardCompatability(ctx, key, agent.BucketName(), scopeName, collectionName, stage, meta.ForwardCompat, false)
+		err := t.checkForwardCompatability(ctx, key, bucketName, scopeName, collectionName, stage, meta.ForwardCompat, false)
 		if err != nil {
 			return err
 		}
@@ -669,7 +674,7 @@ func (t *transactionAttempt) writeWriteConflictPoll(
 
 		attempt, _, err := t.getTxnState(
 			ctx,
-			agent.BucketName(),
+			bucketName,
 			scopeName,
 			collectionName,
 			key,
@@ -704,4 +709,76 @@ func (t *transactionAttempt) writeWriteConflictPoll(
 			// handle the error from the context for us.
 		}
 	}
+}
+
+func (t *transactionAttempt) ensureCleanUpRequest() {
+	t.lock.Lock()
+
+	// TODO(brett19): We should probably make sure it's not in any of the pre-ATR states here.
+	// We cannot handle the case currently where we don't have an ATR Agent yet.
+
+	if t.state == TransactionAttemptStateCompleted || t.state == TransactionAttemptStateRolledBack {
+		t.lock.Unlock()
+		t.logger.Info("Attempt state completed or rolled back, will not add cleanup request")
+		return
+	}
+
+	if t.hasCleanupRequest {
+		t.lock.Unlock()
+		t.logger.Info("Attempt already created cleanup request, will not add cleanup request")
+		return
+	}
+
+	t.hasCleanupRequest = true
+
+	var inserts []TransactionCleanupDocRecord
+	var replaces []TransactionCleanupDocRecord
+	var removes []TransactionCleanupDocRecord
+	for _, staged := range t.stagedMutations {
+		dr := TransactionCleanupDocRecord{
+			CollectionName: staged.CollectionName,
+			ScopeName:      staged.ScopeName,
+			Agent:          staged.Agent,
+			OboUser:        staged.OboUser,
+			ID:             staged.Key,
+		}
+
+		switch staged.OpType {
+		case TransactionStagedMutationInsert:
+			inserts = append(inserts, dr)
+		case TransactionStagedMutationReplace:
+			replaces = append(replaces, dr)
+		case TransactionStagedMutationRemove:
+			removes = append(removes, dr)
+		}
+	}
+
+	cleanupState := t.state
+	if cleanupState == TransactionAttemptStateCommitting {
+		cleanupState = TransactionAttemptStatePending
+	}
+
+	req := &TransactionCleanupRequest{
+		AttemptID:         t.id,
+		AtrID:             t.atrKey,
+		AtrCollectionName: t.atrCollectionName,
+		AtrScopeName:      t.atrScopeName,
+		AtrAgent:          t.atrAgent,
+		AtrOboUser:        t.atrOboUser,
+		Inserts:           inserts,
+		Replaces:          replaces,
+		Removes:           removes,
+		State:             cleanupState,
+		ForwardCompat:     nil, // Let's just be explicit about this, it'll change in the future anyway.
+		DurabilityLevel:   t.durabilityLevel,
+		TxnStartTime:      t.txnStartTime,
+	}
+
+	t.lock.Unlock()
+
+	t.logger.Info("adding cleanup request",
+		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey),
+		zap.Stringer("state", cleanupState))
+
+	t.cleanupQueue.AddRequest(req)
 }

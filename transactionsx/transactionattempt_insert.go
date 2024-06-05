@@ -3,7 +3,6 @@ package transactionsx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
@@ -14,13 +13,10 @@ import (
 func (t *transactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
 	result, err := t.insert(ctx, opts)
 	if err != nil {
-		var e *TransactionOperationFailedError
-		if errors.As(err, &e) {
-			if e.shouldRaise == TransactionErrorReasonSuccess {
-				return nil, e.errorCause
-			} else if e.shouldNotRollback {
-				t.ensureCleanUpRequest()
-			}
+		t.logger.Info("Insert failed")
+
+		if !t.ShouldRollback() {
+			t.ensureCleanUpRequest()
 		}
 
 		return nil, err
@@ -82,7 +78,7 @@ func (t *transactionAttempt) insert(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): Correct error?
-					wrapError(memdx.ErrDocExists, "attempted to insert a document previously inserted in this transaction")),
+					wrapError(ErrDocExists, "attempted to insert a document previously inserted in this transaction")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
@@ -92,7 +88,7 @@ func (t *transactionAttempt) insert(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): Correct error?
-					wrapError(memdx.ErrDocExists, "attempted to insert a document previously replaced in this transaction")),
+					wrapError(ErrDocExists, "attempted to insert a document previously replaced in this transaction")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
@@ -109,7 +105,7 @@ func (t *transactionAttempt) insert(
 		}
 	}
 
-	err = t.confirmATRPending(ctx, agent, oboUser, scopeName, collectionName, key)
+	err = t.confirmATRPending(ctx, agent, oboUser, key)
 	if err != nil {
 		t.endOp()
 		return nil, err
@@ -140,14 +136,7 @@ func (t *transactionAttempt) resolveConflictedInsert(
 		// This doc isn't in a transaction
 		if !isTombstone {
 			// TODO(brett19): right error?  This breaks our TOF propagation...
-			//return nil, memdx.ErrDocExists
-
-			return nil, &TransactionOperationFailedError{
-				shouldNotRetry:    false,
-				shouldNotRollback: false,
-				errorCause:        memdx.ErrDocExists,
-				shouldRaise:       TransactionErrorReasonSuccess,
-			}
+			return nil, wrapError(ErrDocExists, "found non-tombstone doc during conflicted insert resolution")
 		}
 
 		// There wasn't actually a staged mutation there.
@@ -181,7 +170,7 @@ func (t *transactionAttempt) resolveConflictedInsert(
 		// TODO(brett19): correct error?
 		return nil, t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
-				wrapError(memdx.ErrDocExists, "found staged non-insert mutation")),
+				wrapError(ErrDocExists, "found staged non-insert mutation")),
 			ShouldNotRetry:    true,
 			ShouldNotRollback: false,
 			Reason:            TransactionErrorReasonTransactionFailed,
@@ -197,7 +186,7 @@ func (t *transactionAttempt) resolveConflictedInsert(
 	}
 
 	err = t.writeWriteConflictPoll(
-		ctx, forwardCompatStageWWCInserting, agent, oboUser, scopeName, collectionName, key, cas, meta, nil)
+		ctx, forwardCompatStageWWCInserting, agent.BucketName(), scopeName, collectionName, key, cas, meta, nil)
 	if err != nil {
 		return nil, err
 	}

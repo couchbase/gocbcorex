@@ -1,8 +1,11 @@
 package transactionsx
 
 import (
+	"context"
+	"errors"
 	"sync/atomic"
 
+	"github.com/couchbase/gocbcorex/memdx"
 	"go.uber.org/zap"
 )
 
@@ -128,42 +131,43 @@ func classifyHookError(err error) *classifiedError {
 func classifyError(err error) *classifiedError {
 	ec := TransactionErrorClassFailOther
 
-	// TODO(brett19): Error classification
-	/*
-		if errors.Is(err, ErrDocAlreadyInTransaction) || errors.Is(err, ErrWriteWriteConflict) {
-			ec = TransactionErrorClassFailWriteWriteConflict
-		} else if errors.Is(err, ErrHard) {
-			ec = TransactionErrorClassFailHard
-		} else if errors.Is(err, ErrAttemptExpired) {
-			ec = TransactionErrorClassFailExpiry
-		} else if errors.Is(err, ErrTransient) {
-			ec = TransactionErrorClassFailTransient
-		} else if errors.Is(err, ErrDocumentNotFound) {
-			ec = TransactionErrorClassFailDocNotFound
-		} else if errors.Is(err, ErrAmbiguous) {
-			ec = TransactionErrorClassFailAmbiguous
-		} else if errors.Is(err, ErrCasMismatch) {
-			ec = TransactionErrorClassFailCasMismatch
-		} else if errors.Is(err, ErrDocumentNotFound) {
-			ec = TransactionErrorClassFailDocNotFound
-		} else if errors.Is(err, ErrDocumentExists) {
-			ec = TransactionErrorClassFailDocAlreadyExists
-		} else if errors.Is(err, ErrPathExists) {
-			ec = TransactionErrorClassFailPathAlreadyExists
-		} else if errors.Is(err, ErrPathNotFound) {
-			ec = TransactionErrorClassFailPathNotFound
-		} else if errors.Is(err, ErrCasMismatch) {
-			ec = TransactionErrorClassFailCasMismatch
-		} else if errors.Is(err, ErrUnambiguousTimeout) {
-			ec = TransactionErrorClassFailTransient
-		} else if errors.Is(err, ErrDurabilityAmbiguous) ||
-			errors.Is(err, ErrAmbiguousTimeout) ||
-			errors.Is(err, ErrRequestCanceled) {
-			ec = TransactionErrorClassFailAmbiguous
-		} else if errors.Is(err, ErrMemdTooBig) || errors.Is(err, ErrValueTooLarge) {
-			ec = TransactionErrorClassFailOutOfSpace
-		}
-	*/
+	if errors.Is(err, memdx.ErrDocNotFound) {
+		ec = TransactionErrorClassFailDocNotFound
+	} else if errors.Is(err, memdx.ErrCasMismatch) {
+		ec = TransactionErrorClassFailCasMismatch
+	} else if errors.Is(err, memdx.ErrDocNotFound) {
+		ec = TransactionErrorClassFailDocNotFound
+	} else if errors.Is(err, memdx.ErrDocExists) {
+		ec = TransactionErrorClassFailDocAlreadyExists
+	} else if errors.Is(err, memdx.ErrSubDocPathExists) {
+		ec = TransactionErrorClassFailPathAlreadyExists
+	} else if errors.Is(err, memdx.ErrSubDocPathNotFound) {
+		ec = TransactionErrorClassFailPathNotFound
+	} else if errors.Is(err, memdx.ErrCasMismatch) {
+		ec = TransactionErrorClassFailCasMismatch
+	} else if errors.Is(err, memdx.ErrValueTooLarge) {
+		ec = TransactionErrorClassFailOutOfSpace
+	} else if errors.Is(err, memdx.ErrTmpFail) {
+		ec = TransactionErrorClassFailTransient
+	} else if errors.Is(err, memdx.ErrSyncWriteAmbiguous) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled) {
+		ec = TransactionErrorClassFailAmbiguous
+	}
+
+	if errors.Is(err, ErrAttemptExpired) {
+		ec = TransactionErrorClassFailExpiry
+	}
+
+	if errors.Is(err, ErrTestAmbiguous) {
+		ec = TransactionErrorClassFailAmbiguous
+	} else if errors.Is(err, ErrTestTransient) {
+		ec = TransactionErrorClassFailTransient
+	} else if errors.Is(err, ErrTestHard) {
+		ec = TransactionErrorClassFailHard
+	} else if errors.Is(err, ErrTestOther) {
+		ec = TransactionErrorClassFailOther
+	}
 
 	return &classifiedError{
 		Source: err,

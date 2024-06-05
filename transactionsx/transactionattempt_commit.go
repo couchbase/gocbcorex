@@ -3,6 +3,7 @@ package transactionsx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
@@ -267,7 +268,7 @@ func (t *transactionAttempt) fetchBeforeUnstage(
 	}
 
 	if jsonTxn.ID.Attempt != t.id {
-		return ecCb(classifyError(ErrOther))
+		return ecCb(classifyError(errors.New("transaction id mismatch during unstaging fetch")))
 	}
 
 	mutation.Cas = result.Cas

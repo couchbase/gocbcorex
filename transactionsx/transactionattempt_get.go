@@ -118,7 +118,7 @@ func (t *transactionAttempt) mavRead(
 	if doc.TxnMeta == nil {
 		if doc.Deleted {
 			// TODO(brett19): Check that this is the right error handling...
-			return nil, wrapError(memdx.ErrDocNotFound, "doc was a tombstone")
+			return nil, wrapError(ErrDocNotFound, "doc was a tombstone")
 		}
 
 		t.logger.Info("Txn meta is nil, returning result")
@@ -163,7 +163,7 @@ func (t *transactionAttempt) mavRead(
 			}, nil
 		case jsonMutationRemove:
 			// TODO(brett19): Check that this is the right error handling...
-			return nil, wrapError(memdx.ErrDocNotFound, "doc was a staged remove")
+			return nil, wrapError(ErrDocNotFound, "doc was a staged remove")
 		default:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -179,7 +179,7 @@ func (t *transactionAttempt) mavRead(
 	if doc.TxnMeta.ID.Attempt == resolvingATREntry {
 		if doc.Deleted {
 			// TODO(brett19): Consider if this is the right error...
-			return nil, wrapError(memdx.ErrDocNotFound, "doc was a staged tombstone during resolution")
+			return nil, wrapError(ErrDocNotFound, "doc was a staged tombstone during resolution")
 		}
 
 		t.logger.Info("Completed ATR resolution")
@@ -288,7 +288,7 @@ func (t *transactionAttempt) mavRead(
 			}, nil
 		case jsonMutationRemove:
 			// TODO(brett19): Consider if this is the right error
-			return nil, wrapError(memdx.ErrDocNotFound, "doc was a staged remove")
+			return nil, wrapError(ErrDocNotFound, "doc was a staged remove")
 		default:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -301,7 +301,7 @@ func (t *transactionAttempt) mavRead(
 
 	if doc.Deleted {
 		// TODO(brett19): More doc not found stuff...
-		return nil, wrapError(memdx.ErrDocNotFound, "doc was a tombstone")
+		return nil, wrapError(ErrDocNotFound, "doc was a tombstone")
 	}
 
 	return &TransactionGetResult{
@@ -333,7 +333,7 @@ func (t *transactionAttempt) fetchDocWithMeta(
 		switch cerr.Class {
 		case TransactionErrorClassFailDocNotFound:
 			// TODO(brett19): More doc not found
-			return nil, wrapError(memdx.ErrDocNotFound, "doc was not found")
+			return nil, wrapError(ErrDocNotFound, "doc was not found")
 		case TransactionErrorClassFailTransient:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,

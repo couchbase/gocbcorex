@@ -17,8 +17,6 @@ func (t *transactionAttempt) selectAtrExclusive(
 	ctx context.Context,
 	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
-	firstScopeName string,
-	firstCollectionName string,
 	firstKey []byte,
 ) *TransactionOperationFailedError {
 	crc := crc32.ChecksumIEEE(firstKey)
@@ -177,6 +175,8 @@ func (t *transactionAttempt) setATRPendingExclusive(
 	t.logger.Info("Setting ATR pending",
 		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey))
 
+	// DurabilityTimeout needs to be handled here...
+
 	result, err := t.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       t.atrScopeName,
 		CollectionName:  t.atrCollectionName,
@@ -201,8 +201,9 @@ func (t *transactionAttempt) setATRPendingExclusive(
 		return ecCb(classifyHookError(err))
 	}
 
-	// TODO(brett19): Lost Cleanup
-	//t.addLostCleanupLocation(t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName)
+	if t.lostCleanupSystem != nil {
+		t.lostCleanupSystem.AddLocation(t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName)
+	}
 
 	return nil
 }

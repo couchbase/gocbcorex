@@ -3,7 +3,6 @@ package transactionsx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
@@ -15,11 +14,8 @@ func (t *transactionAttempt) Replace(ctx context.Context, opts TransactionReplac
 	if err != nil {
 		t.logger.Info("Replace failed")
 
-		var e *TransactionOperationFailedError
-		if errors.As(err, &e) {
-			if e.shouldNotRollback {
-				t.ensureCleanUpRequest()
-			}
+		if !t.ShouldRollback() {
+			t.ensureCleanUpRequest()
 		}
 
 		return nil, err
@@ -89,7 +85,7 @@ func (t *transactionAttempt) replace(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): right error?
-					wrapError(memdx.ErrDocNotFound, "attempted to replace a document previously removed in this transaction")),
+					wrapError(ErrDocNotFound, "attempted to replace a document previously removed in this transaction")),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
@@ -109,7 +105,7 @@ func (t *transactionAttempt) replace(
 	err = t.writeWriteConflictPoll(
 		ctx,
 		forwardCompatStageWWCReplacing,
-		agent, oboUser, scopeName, collectionName, key, cas,
+		agent.BucketName(), scopeName, collectionName, key, cas,
 		meta,
 		existingMutation)
 	if err != nil {
@@ -117,7 +113,7 @@ func (t *transactionAttempt) replace(
 		return nil, err
 	}
 
-	err = t.confirmATRPending(ctx, agent, oboUser, scopeName, collectionName, key)
+	err = t.confirmATRPending(ctx, agent, oboUser, key)
 	if err != nil {
 		t.endOp()
 		return nil, err
@@ -157,7 +153,7 @@ func (t *transactionAttempt) stageReplace(
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
 					// TODO(brett19): right error?
-					wrapError(memdx.ErrDocNotFound, "document not found during staging")),
+					wrapError(ErrDocNotFound, "document not found during staging")),
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,

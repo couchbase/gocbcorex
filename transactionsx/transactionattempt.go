@@ -29,6 +29,10 @@ type transactionAttempt struct {
 	enableMutationCaching   bool
 	atrLocation             TransactionATRLocation
 	bucketAgentProvider     TransactionsBucketAgentProviderFn
+	cleanupQueue            *TransactionCleanupQueue
+	lostCleanupSystem       *TransactionsLostCleanupSystem
+
+	// TODO(brett19): cleanupQueue here should probably be a cleanup interface.
 
 	// mutable state
 	state             TransactionAttemptState
@@ -48,20 +52,12 @@ type transactionAttempt struct {
 
 	logger *zap.Logger
 
-	// TODO(brett19): Readd this
+	hasCleanupRequest bool
+
 	/*
-		hasCleanupRequest      bool
 		addCleanupRequest      addCleanupRequest
 		addLostCleanupLocation addLostCleanupLocation
-
-		logger *internalTransactionLogWrapper
-
-		recordResourceUnit resourceUnitCallback
 	*/
-}
-
-func (t *transactionAttempt) ensureCleanUpRequest() {
-	// TODO(brett19): cleanup
 }
 
 func (t *transactionAttempt) State() TransactionAttemptResult {
