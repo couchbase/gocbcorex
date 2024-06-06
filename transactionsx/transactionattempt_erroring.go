@@ -65,7 +65,7 @@ func (t *transactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) 
 			newStateBits = (newStateBits & transactionStateBitsMaskBits) | (errorBits << transactionStateBitsPositionFinalError)
 		}
 
-		t.logger.Info("Applying state bits",
+		t.logger.Info("applying state bits",
 			zap.Uint32("stateBits", stateBits),
 			zap.Uint32("errorBits", errorBits),
 			zap.Uint32("oldStateBits", oldStateBits),
@@ -88,7 +88,7 @@ func (t *transactionAttempt) contextFailed(err error) *TransactionOperationFaile
 }
 
 func (t *transactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationFailedError {
-	t.logger.Info("Operation failed",
+	t.logger.Info("operation failed",
 		zap.Bool("shouldNotRetry", def.ShouldNotRetry),
 		zap.Bool("shouldNotRollback", def.ShouldNotRollback),
 		zap.NamedError("cause", def.Cerr.Source),

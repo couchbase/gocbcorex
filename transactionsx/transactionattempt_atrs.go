@@ -172,7 +172,7 @@ func (t *transactionAttempt) setATRPendingExclusive(
 		return ecCb(classifyError(marshalErr))
 	}
 
-	t.logger.Info("Setting ATR pending",
+	t.logger.Info("setting atr pending",
 		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey))
 
 	// DurabilityTimeout needs to be handled here...

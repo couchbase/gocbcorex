@@ -13,7 +13,7 @@ import (
 func (t *transactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
 	result, err := t.insert(ctx, opts)
 	if err != nil {
-		t.logger.Info("Insert failed")
+		t.logger.Info("insert failed")
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -29,7 +29,7 @@ func (t *transactionAttempt) insert(
 	ctx context.Context,
 	opts TransactionInsertOptions,
 ) (*TransactionGetResult, error) {
-	t.logger.Info("Performing insert",
+	t.logger.Info("performing insert",
 		zaputils.FQDocID("key", opts.Agent.BucketName(), opts.ScopeName, opts.CollectionName, opts.Key))
 
 	t.lock.Lock()
@@ -68,7 +68,7 @@ func (t *transactionAttempt) insert(
 	if existingMutation != nil {
 		switch existingMutation.OpType {
 		case TransactionStagedMutationRemove:
-			t.logger.Info("Staged remove exists on doc, performing replace")
+			t.logger.Info("staged remove exists on doc, performing replace")
 			result, err := t.stageReplace(
 				ctx, agent, oboUser, scopeName, collectionName, key, value, existingMutation.Cas)
 			t.endOp()

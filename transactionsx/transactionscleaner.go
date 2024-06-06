@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
+	"go.uber.org/zap"
 )
 
 // TransactionCleanupDocRecord represents an individual document operation requiring cleanup.
@@ -40,23 +40,28 @@ type TransactionCleanupRequest struct {
 }
 
 type TransactionCleaner struct {
-	hooks TransactionCleanupHooks
+	logger *zap.Logger
+	hooks  TransactionCleanupHooks
 }
 
 func (c *TransactionCleaner) CleanupAttempt(
 	ctx context.Context,
 	req *TransactionCleanupRequest,
 ) error {
+	c.logger.Debug("cleaning up attempt",
+		zap.Any("req", req))
+
 	err := c.cleanupAttempt(ctx, req)
 	if err != nil {
-		// TODO(brett19): need to propagate stage information
-		stage := "unknown-stage"
-
-		log.Printf("WARN: Cleanup attempt %v with %p failed at %s check", req, c, stage)
+		c.logger.Warn("cleanup attempt failed",
+			zap.Error(err),
+			zap.Any("req", req))
 
 		txnAge := time.Since(req.TxnStartTime)
 		if txnAge > 2*time.Hour {
-			log.Printf("WARN: Cleanup request is %s old which could indicate a serious error - please raise with support.", txnAge)
+			c.logger.Warn("cleanup request failed and is very old - please raise with support",
+				zap.String("attemptID", req.AttemptID),
+				zap.Duration("txnAge", txnAge))
 		}
 
 		return err
@@ -69,8 +74,6 @@ func (c *TransactionCleaner) cleanupAttempt(
 	ctx context.Context,
 	req *TransactionCleanupRequest,
 ) error {
-	log.Printf("SCHED: Cleaning up attempt %s with %p", req.AttemptID, c)
-
 	err := c.checkForwardCompatability(forwardCompatStageGetsCleanupEntry, req.ForwardCompat)
 	if err != nil {
 		return err
@@ -207,8 +210,12 @@ func (c *TransactionCleaner) rollbackRepRemDoc(
 		OnBehalfOf:      oboUser,
 	})
 	if err != nil {
-		log.Printf("DEBUG: Failed to rollback for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-			doc.Agent.BucketName(), doc.CollectionName, doc.ScopeName, doc.ID, err)
+		c.logger.Debug("failed to rollback replace/remove",
+			zap.Error(err),
+			zap.String("bucket", doc.Agent.BucketName()),
+			zap.String("collection", doc.CollectionName),
+			zap.String("scope", doc.ScopeName),
+			zap.ByteString("id", doc.ID))
 		return ecCb(err)
 	}
 
@@ -259,8 +266,12 @@ func (c *TransactionCleaner) rollbackInsDoc(
 			OnBehalfOf:      oboUser,
 		})
 		if err != nil {
-			log.Printf("DEBUG: Failed to rollback for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-				doc.Agent.BucketName(), doc.CollectionName, doc.ScopeName, doc.ID, err)
+			c.logger.Debug("failed to rollback shadow insert",
+				zap.Error(err),
+				zap.String("bucket", doc.Agent.BucketName()),
+				zap.String("collection", doc.CollectionName),
+				zap.String("scope", doc.ScopeName),
+				zap.ByteString("id", doc.ID))
 			return ecCb(err)
 		}
 
@@ -275,8 +286,12 @@ func (c *TransactionCleaner) rollbackInsDoc(
 			OnBehalfOf:      oboUser,
 		})
 		if err != nil {
-			log.Printf("DEBUG: Failed to rollback for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-				doc.Agent.BucketName(), doc.CollectionName, doc.ScopeName, doc.ID, err)
+			c.logger.Debug("failed to rollback insert",
+				zap.Error(err),
+				zap.String("bucket", doc.Agent.BucketName()),
+				zap.String("collection", doc.CollectionName),
+				zap.String("scope", doc.ScopeName),
+				zap.ByteString("id", doc.ID))
 			return ecCb(err)
 		}
 	}
@@ -323,8 +338,12 @@ func (c *TransactionCleaner) commitRemDoc(
 		OnBehalfOf:      oboUser,
 	})
 	if err != nil {
-		log.Printf("DEBUG: Failed to commit for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-			doc.Agent.BucketName(), doc.CollectionName, doc.ScopeName, doc.ID, err)
+		c.logger.Debug("failed to commit replace/remove",
+			zap.Error(err),
+			zap.String("bucket", doc.Agent.BucketName()),
+			zap.String("collection", doc.CollectionName),
+			zap.String("scope", doc.ScopeName),
+			zap.ByteString("id", doc.ID))
 		return ecCb(err)
 	}
 
@@ -367,8 +386,12 @@ func (c *TransactionCleaner) commitInsRepDoc(
 			OnBehalfOf:      oboUser,
 		})
 		if err != nil {
-			log.Printf("DEBUG: Failed to commit for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-				doc.Agent.BucketName(), doc.CollectionName, doc.ScopeName, doc.ID, err)
+			c.logger.Debug("failed to commit shadow insert",
+				zap.Error(err),
+				zap.String("bucket", doc.Agent.BucketName()),
+				zap.String("collection", doc.CollectionName),
+				zap.String("scope", doc.ScopeName),
+				zap.ByteString("id", doc.ID))
 			return ecCb(err)
 		}
 
@@ -395,8 +418,12 @@ func (c *TransactionCleaner) commitInsRepDoc(
 			OnBehalfOf:      oboUser,
 		})
 		if err != nil {
-			log.Printf("DEBUG: Failed to commit for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-				doc.Agent.BucketName(), doc.CollectionName, doc.ScopeName, doc.ID, err)
+			c.logger.Debug("failed to commit insert",
+				zap.Error(err),
+				zap.String("bucket", doc.Agent.BucketName()),
+				zap.String("collection", doc.CollectionName),
+				zap.String("scope", doc.ScopeName),
+				zap.ByteString("id", doc.ID))
 			return ecCb(err)
 		}
 	}
@@ -460,8 +487,12 @@ func (c *TransactionCleaner) perDoc(
 			return zeroRes, nil
 		}
 
-		log.Printf("DEBUG: Failed to lookup doc for bucket: %s, collection: %s, scope: %s, id: %s, err: %v",
-			dr.Agent.BucketName(), dr.CollectionName, dr.ScopeName, dr.ID, err)
+		c.logger.Debug("failed to read document",
+			zap.Error(err),
+			zap.String("bucket", agent.BucketName()),
+			zap.String("collection", dr.CollectionName),
+			zap.String("scope", dr.ScopeName),
+			zap.ByteString("id", dr.ID))
 		return nil, ecCb(err)
 	}
 
@@ -520,7 +551,9 @@ func (c *TransactionCleaner) cleanupATR(
 			return nil
 		}
 
-		log.Printf("DEBUG: Failed to cleanup ATR for request: %+v, err: %v", req, err)
+		c.logger.Debug("failed to cleanup atr",
+			zap.Error(err),
+			zap.Any("req", req))
 
 		return err
 	}

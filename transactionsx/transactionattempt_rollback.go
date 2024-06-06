@@ -11,7 +11,7 @@ import (
 func (t *transactionAttempt) Rollback(ctx context.Context) error {
 	err := t.rollback(ctx)
 	if err != nil {
-		t.logger.Info("Rollback failed")
+		t.logger.Info("rollback failed")
 
 		t.ensureCleanUpRequest()
 		return err
@@ -24,7 +24,7 @@ func (t *transactionAttempt) Rollback(ctx context.Context) error {
 func (t *transactionAttempt) rollback(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
-	t.logger.Info("Rolling back")
+	t.logger.Info("rolling back")
 
 	t.lock.Lock()
 

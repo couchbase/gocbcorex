@@ -130,7 +130,7 @@ func (t *transactionAttempt) FinalErrorToRaise() TransactionErrorReason {
 }
 
 func (t *transactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
-	t.logger.Info("Updating state", zap.Stringer("opts", opts))
+	t.logger.Info("updating state", zap.Stringer("opts", opts))
 
 	stateBits := uint32(0)
 	if opts.ShouldNotCommit {
@@ -173,7 +173,7 @@ func (t *transactionAttempt) GetATRLocation() TransactionATRLocation {
 }
 
 func (t *transactionAttempt) SetATRLocation(location TransactionATRLocation) error {
-	t.logger.Info("Setting ATR location",
+	t.logger.Info("setting atr location",
 		zaputils.FQCollectionName("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName))
 
 	t.lock.Lock()

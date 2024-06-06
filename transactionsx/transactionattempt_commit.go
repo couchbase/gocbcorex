@@ -12,11 +12,11 @@ import (
 )
 
 func (t *transactionAttempt) Commit(ctx context.Context) error {
-	t.logger.Info("Committing")
+	t.logger.Info("committing")
 
 	err := t.commit(ctx)
 	if err != nil {
-		t.logger.Info("Commit failed", zap.Error(err))
+		t.logger.Info("commit failed", zap.Error(err))
 
 		if t.ShouldRollback() {
 			if !t.isExpiryOvertimeAtomic() {
@@ -25,7 +25,7 @@ func (t *transactionAttempt) Commit(ctx context.Context) error {
 
 			rerr := t.rollback(ctx)
 			if rerr != nil {
-				t.logger.Info("Rollback after commit failure failed",
+				t.logger.Info("rollback after commit failure failed",
 					zap.Error(rerr), zap.NamedError("commitError", err))
 			}
 

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
+	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
 
@@ -102,26 +102,22 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clien
 
 	recordOp := result.Ops[0]
 	if recordOp.Err != nil {
-		log.Printf("DEBUG: Failed to get records from client record for %s: %v", c.uuid, err)
 		return nil, recordOp.Err
 	}
 
 	hlcOp := result.Ops[1]
 	if hlcOp.Err != nil {
-		log.Printf("DEBUG: Failed to get hlc from client record for %s: %v", c.uuid, err)
 		return nil, hlcOp.Err
 	}
 
 	var records jsonClientRecords
 	err = json.Unmarshal(recordOp.Value, &records)
 	if err != nil {
-		log.Printf("DEBUG: Failed to unmarshal records from client record for %s: %v", c.uuid, err)
 		return nil, err
 	}
 
 	hlcNow, err := memdx.ParseHLCToTime(hlcOp.Value)
 	if err != nil {
-		log.Printf("DEBUG: Failed to parse hlc from client record for %s: %v", c.uuid, err)
 		return nil, err
 	}
 
@@ -203,7 +199,11 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clien
 }
 
 func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientUuidsToRemove []string) ([]string, error) {
-	log.Printf("SCHED: %s updating client record for %s.%s.%s", c.uuid, c.atrAgent.BucketName(), c.atrScopeName, c.atrCollectionName)
+	c.logger.Debug("updating client record",
+		zap.String("uuid", c.uuid),
+		zap.String("bucket", c.atrAgent.BucketName()),
+		zap.String("scope", c.atrScopeName),
+		zap.String("collection", c.atrCollectionName))
 
 	err := c.clientRecordHooks.BeforeUpdateRecord(ctx)
 	if err != nil {

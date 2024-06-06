@@ -2,10 +2,12 @@ package transactionsx
 
 import (
 	"context"
-	"log"
+
+	"go.uber.org/zap"
 )
 
 type TransactionCleanupQueue struct {
+	logger   *zap.Logger
 	cleaner  *TransactionCleaner
 	requests chan *TransactionCleanupRequest
 
@@ -13,10 +15,12 @@ type TransactionCleanupQueue struct {
 }
 
 func NewTransactionsCleanupQueue(
+	logger *zap.Logger,
 	cleaner *TransactionCleaner,
 	queueSize uint,
 ) *TransactionCleanupQueue {
 	q := &TransactionCleanupQueue{
+		logger:   logger,
 		cleaner:  cleaner,
 		requests: make(chan *TransactionCleanupRequest, queueSize),
 
@@ -33,8 +37,8 @@ func (q *TransactionCleanupQueue) AddRequest(req *TransactionCleanupRequest) {
 	case q.requests <- req:
 		// success!
 	default:
-		log.Printf("DEBUG: Not queueing request for: %+v, queue length limit reached",
-			req)
+		q.logger.Warn("not queueing request, queue limit reached",
+			zap.Any("req", req))
 	}
 }
 
@@ -42,11 +46,14 @@ func (q *TransactionCleanupQueue) runThread() {
 	ctx := context.Background()
 
 	for req := range q.requests {
-		log.Printf("SCHED: Running cleanup for request: %+v", req)
+		q.logger.Debug("cleanup queue running cleanup on request",
+			zap.Any("req", req))
+
 		err := q.cleaner.CleanupAttempt(ctx, req)
 		if err != nil {
-			log.Printf("DEBUG: Cleanup attempt failed for entry: %+v with error %s",
-				req, err)
+			q.logger.Debug("cleanup queue cleanup failed",
+				zap.Error(err),
+				zap.Any("req", req))
 		}
 	}
 

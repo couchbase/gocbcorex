@@ -12,7 +12,7 @@ import (
 func (t *transactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
 	result, err := t.replace(ctx, opts)
 	if err != nil {
-		t.logger.Info("Replace failed")
+		t.logger.Info("replace failed")
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -28,7 +28,7 @@ func (t *transactionAttempt) replace(
 	ctx context.Context,
 	opts TransactionReplaceOptions,
 ) (*TransactionGetResult, error) {
-	t.logger.Info("Performing replace",
+	t.logger.Info("performing replace",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
 	t.lock.Lock()
@@ -68,7 +68,7 @@ func (t *transactionAttempt) replace(
 	if existingMutation != nil {
 		switch existingMutation.OpType {
 		case TransactionStagedMutationInsert:
-			t.logger.Info("Staged insert exists on doc, performing insert")
+			t.logger.Info("staged insert exists on doc, performing insert")
 
 			result, err := t.stageInsert(
 				ctx, agent, oboUser, scopeName, collectionName, key, value, cas)
@@ -76,7 +76,7 @@ func (t *transactionAttempt) replace(
 			return result, err
 
 		case TransactionStagedMutationReplace:
-			t.logger.Info("Staged replace exists on doc, this is ok")
+			t.logger.Info("staged replace exists on doc, this is ok")
 
 			// We can overwrite other replaces without issue, any conflicts between the mutation
 			// the user passed to us and the existing mutation is caught by WriteWriteConflict.

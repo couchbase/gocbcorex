@@ -3,24 +3,31 @@ package transactionsx
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
+	"go.uber.org/zap"
 )
 
 func (c *LostTransactionCleaner) processAtr(ctx context.Context, atrId []byte) error {
 	cleanupReqs, err := c.fetchAtrExpiredAttempts(ctx, atrId)
 	if err != nil {
-		log.Printf("DEBUG: Failed to fetch atr for cleanup %s for %s: %v", atrId, c.uuid, err)
+		c.logger.Debug("failed to fetch atr for cleanup",
+			zap.Error(err),
+			zap.ByteString("atrId", atrId),
+			zap.String("uuid", c.uuid))
 		return nil
 	}
 
 	for _, req := range cleanupReqs {
 		err := c.cleaner.CleanupAttempt(ctx, req)
 		if err != nil {
-			log.Printf("DEBUG: Failed to cleanup attempt %s in %s for %s: %v", req.AttemptID, atrId, c.uuid, err)
+			c.logger.Debug("failed to cleanup attempt",
+				zap.Error(err),
+				zap.String("attemptId", req.AttemptID),
+				zap.ByteString("atrId", atrId),
+				zap.String("uuid", c.uuid))
 		}
 	}
 
@@ -73,7 +80,6 @@ func (c *LostTransactionCleaner) fetchAtrExpiredAttempts(ctx context.Context, at
 
 	hlcNow, err := memdx.ParseHLCToTime(hlcOp.Value)
 	if err != nil {
-		log.Printf("DEBUG: Failed to parse hlc from client record for %s: %v", c.uuid, err)
 		return nil, err
 	}
 

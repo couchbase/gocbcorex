@@ -2,14 +2,15 @@ package transactionsx
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type LostTransactionCleaner struct {
+	logger            *zap.Logger
 	uuid              string
 	atrAgent          *gocbcorex.Agent
 	atrOboUser        string
@@ -24,6 +25,7 @@ type LostTransactionCleaner struct {
 }
 
 type LostTransactionCleanerConfig struct {
+	Logger            *zap.Logger
 	AtrAgent          *gocbcorex.Agent
 	AtrOboUser        string
 	AtrScopeName      string
@@ -37,8 +39,11 @@ type LostTransactionCleanerConfig struct {
 }
 
 func NewLostTransactionCleaner(config *LostTransactionCleanerConfig) *LostTransactionCleaner {
+	cleanerUuid := uuid.New().String()
+
 	return &LostTransactionCleaner{
-		uuid:              uuid.New().String(),
+		logger:            config.Logger,
+		uuid:              cleanerUuid,
 		atrAgent:          config.AtrAgent,
 		atrOboUser:        config.AtrOboUser,
 		atrScopeName:      config.AtrScopeName,
@@ -56,7 +61,8 @@ func (c *LostTransactionCleaner) Run(ctx context.Context) error {
 	for ctx.Err() == nil {
 		err := c.cleanup(ctx)
 		if err != nil {
-			log.Printf("SCHED: Cleanup failed: %v", err)
+			c.logger.Debug("cleanup failed",
+				zap.Error(err))
 
 			// TODO(brett19): Need to propagate the collection no longer existing up to
 			// the manager thats running this, so that we can properly remove it from the
@@ -68,7 +74,10 @@ func (c *LostTransactionCleaner) Run(ctx context.Context) error {
 }
 
 func (c *LostTransactionCleaner) cleanup(ctx context.Context) error {
-	log.Printf("SCHED: Running cleanup %s on %s.%s.%s", c.uuid, c.atrAgent.BucketName(), c.atrScopeName, c.atrCollectionName)
+	c.logger.Debug("running cleanup", zap.String("uuid", c.uuid),
+		zap.String("bucket", c.atrAgent.BucketName()),
+		zap.String("scope", c.atrScopeName),
+		zap.String("collection", c.atrCollectionName))
 
 	atrsToProcess, err := c.processClient(ctx)
 	if err != nil {
@@ -79,11 +88,16 @@ func (c *LostTransactionCleaner) cleanup(ctx context.Context) error {
 	timePerAtr := c.cleanupWindow / time.Duration(len(atrsToProcess))
 
 	for _, atrId := range atrsToProcess {
-		log.Printf("SCHED: Processing ATR %s", atrId)
+		c.logger.Debug("processing atr",
+			zap.String("uuid", c.uuid),
+			zap.String("atrId", atrId))
 
 		err := c.processAtr(ctx, []byte(atrId))
 		if err != nil {
-			log.Printf("SCHED: Failed to process ATR %s: %s", atrId, err)
+			c.logger.Debug("failed to process atr",
+				zap.Error(err),
+				zap.String("uuid", c.uuid),
+				zap.String("atrId", atrId))
 		}
 
 		nextAtrTime = nextAtrTime.Add(timePerAtr)

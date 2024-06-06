@@ -13,7 +13,7 @@ import (
 func (t *transactionAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
 	result, err := t.get(ctx, opts)
 	if err != nil {
-		t.logger.Info("Get failed", zap.Error(err))
+		t.logger.Info("get failed", zap.Error(err))
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -31,7 +31,7 @@ func (t *transactionAttempt) get(
 ) (*TransactionGetResult, error) {
 	forceNonFatal := t.enableNonFatalGets
 
-	t.logger.Info("Performing get",
+	t.logger.Info("performing get",
 		zaputils.FQDocID("doc", opts.Agent.BucketName(), opts.ScopeName, opts.CollectionName, opts.Key),
 		zap.Bool("forceNonFatal", forceNonFatal))
 
@@ -106,7 +106,7 @@ func (t *transactionAttempt) mavRead(
 
 	if disableRYOW {
 		if doc.TxnMeta != nil && doc.TxnMeta.ID.Attempt == t.id {
-			t.logger.Info("RYOW disabled and tnx meta is not nil, resetting meta to nil")
+			t.logger.Info("ryow disabled and tnx meta is not nil, resetting meta to nil")
 
 			// This is going to be a RYOW, we can just clear the TxnMeta which
 			// will cause us to fall into the block below.
@@ -121,7 +121,7 @@ func (t *transactionAttempt) mavRead(
 			return nil, wrapError(ErrDocNotFound, "doc was a tombstone")
 		}
 
-		t.logger.Info("Txn meta is nil, returning result")
+		t.logger.Info("txn meta is nil, returning result")
 
 		return &TransactionGetResult{
 			agent:          agent,
@@ -138,7 +138,7 @@ func (t *transactionAttempt) mavRead(
 	if doc.TxnMeta.ID.Attempt == t.id {
 		switch doc.TxnMeta.Operation.Type {
 		case jsonMutationInsert:
-			t.logger.Info("Doc already in txn as insert, using staged value")
+			t.logger.Info("doc already in txn as insert, using staged value")
 
 			return &TransactionGetResult{
 				agent:          agent,
@@ -150,7 +150,7 @@ func (t *transactionAttempt) mavRead(
 				Cas:            doc.Cas,
 			}, nil
 		case jsonMutationReplace:
-			t.logger.Info("Doc already in txn as replace, using staged value")
+			t.logger.Info("doc already in txn as replace, using staged value")
 
 			return &TransactionGetResult{
 				agent:          agent,
@@ -182,7 +182,7 @@ func (t *transactionAttempt) mavRead(
 			return nil, wrapError(ErrDocNotFound, "doc was a staged tombstone during resolution")
 		}
 
-		t.logger.Info("Completed ATR resolution")
+		t.logger.Info("completed ATR resolution")
 
 		return &TransactionGetResult{
 			agent:          agent,
@@ -238,7 +238,7 @@ func (t *transactionAttempt) mavRead(
 	}
 
 	if attempt == nil {
-		t.logger.Info("ATR entry missing, rerunning mav read")
+		t.logger.Info("atr entry missing, rerunning mav read")
 
 		// The ATR entry is missing, it's likely that we just raced the other transaction
 		// cleaning up it's documents and then cleaning itself up.  Lets run ATR resolution.
@@ -261,7 +261,7 @@ func (t *transactionAttempt) mavRead(
 	if state == jsonAtrStateCommitted || state == jsonAtrStateCompleted {
 		switch doc.TxnMeta.Operation.Type {
 		case jsonMutationInsert:
-			t.logger.Info("Doc already in txn as insert, using staged value")
+			t.logger.Info("doc already in txn as insert, using staged value")
 
 			return &TransactionGetResult{
 				agent:          agent,
@@ -274,7 +274,7 @@ func (t *transactionAttempt) mavRead(
 				Meta:           docMeta,
 			}, nil
 		case jsonMutationReplace:
-			t.logger.Info("Doc already in txn as replace, using staged value")
+			t.logger.Info("doc already in txn as replace, using staged value")
 
 			return &TransactionGetResult{
 				agent:          agent,

@@ -12,7 +12,7 @@ import (
 func (t *transactionAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
 	result, err := t.remove(ctx, opts)
 	if err != nil {
-		t.logger.Info("Remove failed")
+		t.logger.Info("remove failed")
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -28,7 +28,7 @@ func (t *transactionAttempt) remove(
 	ctx context.Context,
 	opts TransactionRemoveOptions,
 ) (*TransactionGetResult, *TransactionOperationFailedError) {
-	t.logger.Info("Performing remove",
+	t.logger.Info("performing remove",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
 	t.lock.Lock()
@@ -67,14 +67,14 @@ func (t *transactionAttempt) remove(
 	if existingMutation != nil {
 		switch existingMutation.OpType {
 		case TransactionStagedMutationInsert:
-			t.logger.Info("Staged insert exists on doc, removing txn metadata")
+			t.logger.Info("staged insert exists on doc, removing txn metadata")
 
 			result, err := t.stageRemoveOfInsert(
 				ctx, agent, oboUser, scopeName, collectionName, key, cas)
 			t.endOp()
 			return result, err
 		case TransactionStagedMutationReplace:
-			t.logger.Info("Staged replace exists on doc, this is ok")
+			t.logger.Info("staged replace exists on doc, this is ok")
 
 			// We can overwrite other replaces without issue, any conflicts between the mutation
 			// the user passed to us and the existing mutation is caught by WriteWriteConflict.
