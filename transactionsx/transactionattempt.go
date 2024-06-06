@@ -30,7 +30,7 @@ type transactionAttempt struct {
 	atrLocation             TransactionATRLocation
 	bucketAgentProvider     TransactionsBucketAgentProviderFn
 	cleanupQueue            *TransactionCleanupQueue
-	lostCleanupSystem       *TransactionsLostCleanupSystem
+	lostCleanupSystem       *LostTransactionCleanerManager
 
 	// TODO(brett19): cleanupQueue here should probably be a cleanup interface.
 

@@ -202,7 +202,14 @@ func (t *transactionAttempt) setATRPendingExclusive(
 	}
 
 	if t.lostCleanupSystem != nil {
-		t.lostCleanupSystem.AddLocation(t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName)
+		t.lostCleanupSystem.AddLocation(LostCleanupLocation{
+			Agent:          t.atrAgent,
+			OboUser:        t.atrOboUser,
+			ScopeName:      t.atrScopeName,
+			CollectionName: t.atrCollectionName,
+			// TODO(brett19): This should not be hardcoded...
+			NumATRs: 1024,
+		})
 	}
 
 	return nil

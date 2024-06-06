@@ -11,17 +11,18 @@ import (
 
 type LostTransactionCleaner struct {
 	logger            *zap.Logger
-	uuid              string
 	atrAgent          *gocbcorex.Agent
 	atrOboUser        string
 	atrScopeName      string
 	atrCollectionName string
 	numAtrs           int
 	cleanupWindow     time.Duration
-	cleaner           TransactionCleaner
 	agentProvider     AgentProvider
 	cleanupHooks      TransactionCleanupHooks
 	clientRecordHooks TransactionClientRecordHooks
+
+	uuid    string
+	cleaner *TransactionCleaner
 }
 
 type LostTransactionCleanerConfig struct {
@@ -33,7 +34,6 @@ type LostTransactionCleanerConfig struct {
 	NumATRS           int
 	CleanupWindow     time.Duration
 	AgentProvider     AgentProvider
-	Cleaner           TransactionCleaner
 	CleanupHooks      TransactionCleanupHooks
 	ClientRecordHooks TransactionClientRecordHooks
 }
@@ -41,9 +41,13 @@ type LostTransactionCleanerConfig struct {
 func NewLostTransactionCleaner(config *LostTransactionCleanerConfig) *LostTransactionCleaner {
 	cleanerUuid := uuid.New().String()
 
+	cleaner := NewTransactionCleaner(&TransactionCleanerConfig{
+		Logger: config.Logger,
+		Hooks:  config.CleanupHooks,
+	})
+
 	return &LostTransactionCleaner{
 		logger:            config.Logger,
-		uuid:              cleanerUuid,
 		atrAgent:          config.AtrAgent,
 		atrOboUser:        config.AtrOboUser,
 		atrScopeName:      config.AtrScopeName,
@@ -51,9 +55,11 @@ func NewLostTransactionCleaner(config *LostTransactionCleanerConfig) *LostTransa
 		numAtrs:           config.NumATRS,
 		cleanupWindow:     config.CleanupWindow,
 		agentProvider:     config.AgentProvider,
-		cleaner:           config.Cleaner,
 		cleanupHooks:      config.CleanupHooks,
 		clientRecordHooks: config.ClientRecordHooks,
+
+		uuid:    cleanerUuid,
+		cleaner: cleaner,
 	}
 }
 

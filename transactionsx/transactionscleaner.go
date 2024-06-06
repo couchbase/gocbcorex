@@ -44,6 +44,18 @@ type TransactionCleaner struct {
 	hooks  TransactionCleanupHooks
 }
 
+type TransactionCleanerConfig struct {
+	Logger *zap.Logger
+	Hooks  TransactionCleanupHooks
+}
+
+func NewTransactionCleaner(config *TransactionCleanerConfig) *TransactionCleaner {
+	return &TransactionCleaner{
+		logger: config.Logger,
+		hooks:  config.Hooks,
+	}
+}
+
 func (c *TransactionCleaner) CleanupAttempt(
 	ctx context.Context,
 	req *TransactionCleanupRequest,

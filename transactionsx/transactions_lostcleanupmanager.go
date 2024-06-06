@@ -11,7 +11,8 @@ import (
 type AgentProvider func(ctx context.Context, bucketName string) (*gocbcorex.Agent, string, error)
 
 type LostCleanupLocation struct {
-	BucketName     string
+	Agent          *gocbcorex.Agent
+	OboUser        string
 	ScopeName      string
 	CollectionName string
 	NumATRs        int
@@ -20,32 +21,48 @@ type LostCleanupLocation struct {
 type lostCleanupCleaner struct {
 	location LostCleanupLocation
 	cleaner  *LostTransactionCleaner
-
-	bgCtx       context.Context
-	bgCtxCancel context.CancelFunc
 }
 
 type LostTransactionCleanerManager struct {
 	cleanupWindow     time.Duration
-	cleaner           TransactionCleaner
 	agentProvider     AgentProvider
 	cleanupHooks      TransactionCleanupHooks
 	clientRecordHooks TransactionClientRecordHooks
 
 	lock         sync.Mutex
 	closed       bool
+	bgCtx        context.Context
+	bgCtxCancel  context.CancelFunc
 	closeWaitGrp sync.WaitGroup
 	cleaners     []*lostCleanupCleaner
 }
 
 type LostTransactionCleanerManagerConfig struct {
 	ATRLocations      []LostCleanupLocation
-	NumATRS           int
 	CleanupWindow     time.Duration
 	AgentProvider     AgentProvider
-	Cleaner           TransactionCleaner
 	CleanupHooks      TransactionCleanupHooks
 	ClientRecordHooks TransactionClientRecordHooks
+}
+
+func NewLostTransactionCleanerManager(config *LostTransactionCleanerManagerConfig) *LostTransactionCleanerManager {
+	bgCtx, bgCtxCancel := context.WithCancel(context.Background())
+
+	manager := &LostTransactionCleanerManager{
+		cleanupWindow:     config.CleanupWindow,
+		agentProvider:     config.AgentProvider,
+		cleanupHooks:      config.CleanupHooks,
+		clientRecordHooks: config.ClientRecordHooks,
+
+		bgCtx:       bgCtx,
+		bgCtxCancel: bgCtxCancel,
+	}
+
+	for _, loc := range config.ATRLocations {
+		manager.AddLocation(loc)
+	}
+
+	return manager
 }
 
 func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
@@ -60,7 +77,8 @@ func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
 	for _, cleaner := range c.cleaners {
 		oloc := cleaner.location
 
-		if loc.BucketName == oloc.BucketName &&
+		if loc.Agent.BucketName() == oloc.Agent.BucketName() &&
+			loc.OboUser == oloc.OboUser &&
 			loc.ScopeName == oloc.ScopeName &&
 			loc.CollectionName == oloc.CollectionName {
 			c.lock.Unlock()
@@ -68,11 +86,22 @@ func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
 		}
 	}
 
-	bgCtx, bgCtxCancel := context.WithCancel(context.Background())
+	// create a new cleaner
+	cleaner := NewLostTransactionCleaner(&LostTransactionCleanerConfig{
+		AtrAgent:          loc.Agent,
+		AtrOboUser:        loc.OboUser,
+		AtrScopeName:      loc.ScopeName,
+		AtrCollectionName: loc.CollectionName,
+		NumATRS:           loc.NumATRs,
+		CleanupWindow:     c.cleanupWindow,
+		AgentProvider:     c.agentProvider,
+		CleanupHooks:      c.cleanupHooks,
+		ClientRecordHooks: c.clientRecordHooks,
+	})
+
 	cleanerEntry := &lostCleanupCleaner{
-		location:    loc,
-		bgCtx:       bgCtx,
-		bgCtxCancel: bgCtxCancel,
+		location: loc,
+		cleaner:  cleaner,
 	}
 
 	c.closeWaitGrp.Add(1)
@@ -83,32 +112,7 @@ func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
 	go func() {
 		defer c.closeWaitGrp.Done()
 
-		agent, oboUser, err := c.agentProvider(bgCtx, loc.BucketName)
-		if err != nil {
-			// TODO(brett19): Handle this error...
-			// failed to start lost cleanup thread
-			return
-		}
-
-		// create a new cleaner
-		newCleaner := NewLostTransactionCleaner(&LostTransactionCleanerConfig{
-			AtrAgent:          agent,
-			AtrOboUser:        oboUser,
-			AtrScopeName:      loc.ScopeName,
-			AtrCollectionName: loc.CollectionName,
-			NumATRS:           loc.NumATRs,
-			CleanupWindow:     c.cleanupWindow,
-			AgentProvider:     c.agentProvider,
-			Cleaner:           c.cleaner,
-			CleanupHooks:      c.cleanupHooks,
-			ClientRecordHooks: c.clientRecordHooks,
-		})
-
-		c.lock.Lock()
-		cleanerEntry.cleaner = newCleaner
-		c.lock.Unlock()
-
-		err = newCleaner.Run(bgCtx)
+		err := cleaner.Run(c.bgCtx)
 		if err != nil {
 			// TODO(brett19): handle this error
 			return
@@ -130,14 +134,10 @@ func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
 
 func (c *LostTransactionCleanerManager) Close() {
 	c.lock.Lock()
-
 	c.closed = true
-
-	for _, cleaner := range c.cleaners {
-		cleaner.bgCtxCancel()
-	}
-
 	c.lock.Unlock()
+
+	c.bgCtxCancel()
 
 	c.closeWaitGrp.Wait()
 }
