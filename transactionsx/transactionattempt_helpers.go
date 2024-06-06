@@ -558,7 +558,7 @@ func (t *transactionAttempt) getTxnState(
 		return ecCb(nil, time.Time{}, classifyError(err))
 	}
 
-	hlcExpiryTime := hlcStartTime.Add(time.Duration(txnAttempt.ExpiryTime))
+	hlcExpiryTime := hlcStartTime.Add(time.Duration(txnAttempt.ExpiryTimeNanos))
 
 	remainingExpiry := hlcExpiryTime.Sub(hlcNowTime)
 	expiryTime := time.Now().Add(remainingExpiry)

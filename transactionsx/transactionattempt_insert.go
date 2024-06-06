@@ -152,7 +152,7 @@ func (t *transactionAttempt) resolveConflictedInsert(
 			CollectionName: txnMeta.ATR.CollectionName,
 			DocID:          txnMeta.ATR.DocID,
 		},
-		ForwardCompat: jsonForwardCompatToForwardCompat(txnMeta.ForwardCompat),
+		ForwardCompat: forwardCompatFromJson(txnMeta.ForwardCompat),
 	}
 
 	err = t.checkForwardCompatability(
@@ -318,7 +318,7 @@ func (t *transactionAttempt) stageInsert(
 				Op:    memdx.MutateInOpTypeDictSet,
 				Path:  []byte("txn.op.crc32"),
 				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
-				Value: memdx.SubdocMacroCrc32c,
+				Value: memdx.SubdocMacroNewCrc32c,
 			},
 		},
 		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),

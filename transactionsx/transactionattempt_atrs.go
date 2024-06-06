@@ -160,7 +160,7 @@ func (t *transactionAttempt) setATRPendingExclusive(
 		atrFieldOp("tid", t.transactionID, memdx.SubdocOpFlagNone),
 		atrFieldOp("st", jsonAtrStatePending, memdx.SubdocOpFlagNone),
 		atrFieldOp("exp", time.Until(t.expiryTime)/time.Millisecond, memdx.SubdocOpFlagNone),
-		atrFieldOp("d", transactionsDurabilityLevelToShorthand(t.durabilityLevel), memdx.SubdocOpFlagNone),
+		atrFieldOp("d", transactionsDurabilityLevelToJson(t.durabilityLevel), memdx.SubdocOpFlagNone),
 		{
 			Op:    memdx.MutateInOpTypeSetDoc,
 			Flags: memdx.SubdocOpFlagNone,

@@ -120,25 +120,6 @@ var supportedforwardCompatExtensions = []forwardCompatExtension{
 	forwardCompatExtensionQueryContext,
 }
 
-func jsonForwardCompatToForwardCompat(fc map[string][]jsonForwardCompatibilityEntry) map[string][]TransactionForwardCompatibilityEntry {
-	if fc == nil {
-		return nil
-	}
-	forwardCompat := make(map[string][]TransactionForwardCompatibilityEntry)
-
-	for k, entries := range fc {
-		if _, ok := forwardCompat[k]; !ok {
-			forwardCompat[k] = make([]TransactionForwardCompatibilityEntry, len(entries))
-		}
-
-		for i, entry := range entries {
-			forwardCompat[k][i] = TransactionForwardCompatibilityEntry(entry)
-		}
-	}
-
-	return forwardCompat
-}
-
 func checkForwardCompatProtocol(protocolVersion string) (bool, error) {
 	if protocolVersion == "" {
 		return false, nil

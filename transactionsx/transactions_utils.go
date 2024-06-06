@@ -2,7 +2,29 @@ package transactionsx
 
 import (
 	"github.com/couchbase/gocbcorex/memdx"
+	"github.com/pkg/errors"
 )
+
+// TODO(brett19): We shouldn't be panicing here...
+
+func forwardCompatFromJson(fc map[string][]jsonForwardCompatibilityEntry) map[string][]TransactionForwardCompatibilityEntry {
+	if fc == nil {
+		return nil
+	}
+	forwardCompat := make(map[string][]TransactionForwardCompatibilityEntry)
+
+	for k, entries := range fc {
+		if _, ok := forwardCompat[k]; !ok {
+			forwardCompat[k] = make([]TransactionForwardCompatibilityEntry, len(entries))
+		}
+
+		for i, entry := range entries {
+			forwardCompat[k][i] = TransactionForwardCompatibilityEntry(entry)
+		}
+	}
+
+	return forwardCompat
+}
 
 func transactionsDurabilityLevelToMemdx(durabilityLevel TransactionDurabilityLevel) memdx.DurabilityLevel {
 	switch durabilityLevel {
@@ -21,35 +43,51 @@ func transactionsDurabilityLevelToMemdx(durabilityLevel TransactionDurabilityLev
 	}
 }
 
-func transactionsDurabilityLevelToShorthand(durabilityLevel TransactionDurabilityLevel) string {
+func transactionsDurabilityLevelToJson(durabilityLevel TransactionDurabilityLevel) jsonDurabilityLevel {
 	switch durabilityLevel {
 	case TransactionDurabilityLevelNone:
-		return "n"
+		return jsonDurabilityLevelNone
 	case TransactionDurabilityLevelMajority:
-		return "m"
+		return jsonDurabilityLevelMajority
 	case TransactionDurabilityLevelMajorityAndPersistToActive:
-		return "pa"
+		return jsonDurabilityLevelMajorityAndPersistToActive
 	case TransactionDurabilityLevelPersistToMajority:
-		return "pm"
+		return jsonDurabilityLevelPersistToMajority
 	default:
 		// If it's an unknown durability level, default to majority.
-		return "m"
+		return jsonDurabilityLevelMajority
 	}
 }
 
-// TODO(brett19): Use this when needed
-/*
-func transactionsDurabilityLevelFromShorthand(durabilityLevel string) TransactionDurabilityLevel {
+func transactionsDurabilityLevelFromJson(durabilityLevel jsonDurabilityLevel) TransactionDurabilityLevel {
 	switch durabilityLevel {
-	case "m":
+	case jsonDurabilityLevelNone:
+		return TransactionDurabilityLevelNone
+	case jsonDurabilityLevelMajority:
 		return TransactionDurabilityLevelMajority
-	case "pa":
+	case jsonDurabilityLevelMajorityAndPersistToActive:
 		return TransactionDurabilityLevelMajorityAndPersistToActive
-	case "pm":
+	case jsonDurabilityLevelPersistToMajority:
 		return TransactionDurabilityLevelPersistToMajority
 	default:
 		// If there is no durability level present or it's set to none then we'll set to majority.
 		return TransactionDurabilityLevelMajority
 	}
 }
-*/
+
+func transactionsStateFromJson(state jsonAtrState) (TransactionAttemptState, error) {
+	switch state {
+	case jsonAtrStateCommitted:
+		return TransactionAttemptStateCommitted, nil
+	case jsonAtrStateCompleted:
+		return TransactionAttemptStateCompleted, nil
+	case jsonAtrStatePending:
+		return TransactionAttemptStatePending, nil
+	case jsonAtrStateAborted:
+		return TransactionAttemptStateAborted, nil
+	case jsonAtrStateRolledBack:
+		return TransactionAttemptStateRolledBack, nil
+	}
+
+	return TransactionAttemptState(0), errors.New("unexpected transaction state value")
+}

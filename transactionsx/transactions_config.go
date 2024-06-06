@@ -134,7 +134,7 @@ type TransactionsConfig struct {
 	// Internal: This should never be used and is not supported.
 	Internal struct {
 		Hooks                   TransactionHooks
-		CleanUpHooks            TransactionCleanUpHooks
+		CleanUpHooks            TransactionCleanupHooks
 		ClientRecordHooks       TransactionClientRecordHooks
 		EnableNonFatalGets      bool
 		EnableParallelUnstaging bool

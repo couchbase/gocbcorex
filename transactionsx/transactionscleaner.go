@@ -22,23 +22,25 @@ type TransactionCleanupDocRecord struct {
 }
 
 type TransactionCleanupRequest struct {
-	AttemptID         string
-	AtrID             []byte
-	AtrCollectionName string
-	AtrScopeName      string
+	AttemptID string
+
 	AtrAgent          *gocbcorex.Agent
 	AtrOboUser        string
-	Inserts           []TransactionCleanupDocRecord
-	Replaces          []TransactionCleanupDocRecord
-	Removes           []TransactionCleanupDocRecord
-	State             TransactionAttemptState
-	ForwardCompat     map[string][]TransactionForwardCompatibilityEntry
-	DurabilityLevel   TransactionDurabilityLevel
-	TxnStartTime      time.Time
+	AtrScopeName      string
+	AtrCollectionName string
+	AtrID             []byte
+
+	Inserts         []TransactionCleanupDocRecord
+	Replaces        []TransactionCleanupDocRecord
+	Removes         []TransactionCleanupDocRecord
+	State           TransactionAttemptState
+	ForwardCompat   map[string][]TransactionForwardCompatibilityEntry
+	DurabilityLevel TransactionDurabilityLevel
+	TxnStartTime    time.Time
 }
 
 type TransactionCleaner struct {
-	hooks TransactionCleanUpHooks
+	hooks TransactionCleanupHooks
 }
 
 func (c *TransactionCleaner) CleanupAttempt(

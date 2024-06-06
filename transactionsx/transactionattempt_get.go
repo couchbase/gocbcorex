@@ -195,7 +195,7 @@ func (t *transactionAttempt) mavRead(
 		}, nil
 	}
 
-	docFc := jsonForwardCompatToForwardCompat(doc.TxnMeta.ForwardCompat)
+	docFc := forwardCompatFromJson(doc.TxnMeta.ForwardCompat)
 	docMeta := &TransactionMutableItemMeta{
 		TransactionID: doc.TxnMeta.ID.Transaction,
 		AttemptID:     doc.TxnMeta.ID.Attempt,
@@ -245,7 +245,7 @@ func (t *transactionAttempt) mavRead(
 		return t.mavRead(ctx, agent, oboUser, scopeName, collectionName, key, disableRYOW, doc.TxnMeta.ID.Attempt, forceNonFatal)
 	}
 
-	atmptFc := jsonForwardCompatToForwardCompat(attempt.ForwardCompat)
+	atmptFc := forwardCompatFromJson(attempt.ForwardCompat)
 	oerr = t.checkForwardCompatability(
 		ctx,
 		key,

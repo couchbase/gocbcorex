@@ -23,6 +23,15 @@ const (
 	jsonMutationRemove  = jsonMutationType("remove")
 )
 
+type jsonDurabilityLevel string
+
+const (
+	jsonDurabilityLevelNone                       = jsonDurabilityLevel("n")
+	jsonDurabilityLevelMajority                   = jsonDurabilityLevel("m")
+	jsonDurabilityLevelMajorityAndPersistToActive = jsonDurabilityLevel("pa")
+	jsonDurabilityLevelPersistToMajority          = jsonDurabilityLevel("pm")
+)
+
 type jsonAtrMutation struct {
 	BucketName     string `json:"bkt,omitempty"`
 	ScopeName      string `json:"scp,omitempty"`
@@ -31,9 +40,9 @@ type jsonAtrMutation struct {
 }
 
 type jsonAtrAttempt struct {
-	TransactionID string `json:"tid,omitempty"`
-	ExpiryTime    uint   `json:"exp,omitempty"`
-	State         string `json:"st,omitempty"`
+	TransactionID   string       `json:"tid,omitempty"`
+	ExpiryTimeNanos uint         `json:"exp,omitempty"`
+	State           jsonAtrState `json:"st,omitempty"`
 
 	PendingCAS    string `json:"tst,omitempty"`
 	CommitCAS     string `json:"tsc,omitempty"`
@@ -45,7 +54,7 @@ type jsonAtrAttempt struct {
 	Replaces []jsonAtrMutation `json:"rep,omitempty"`
 	Removes  []jsonAtrMutation `json:"rem,omitempty"`
 
-	DurabilityLevel string `json:"d,omitempty"`
+	DurabilityLevel jsonDurabilityLevel `json:"d,omitempty"`
 
 	ForwardCompat map[string][]jsonForwardCompatibilityEntry `json:"fc,omitempty"`
 }

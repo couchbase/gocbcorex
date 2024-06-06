@@ -44,9 +44,9 @@ type TransactionHooks interface {
 	HasExpiredClientSideHook(ctx context.Context, stage string, docID []byte) (bool, error)
 }
 
-// TransactionCleanUpHooks provides a number of internal hooks used for testing.
+// TransactionCleanupHooks provides a number of internal hooks used for testing.
 // Internal: This should never be used and is not supported.
-type TransactionCleanUpHooks interface {
+type TransactionCleanupHooks interface {
 	BeforeATRGet(ctx context.Context, id []byte) error
 	BeforeDocGet(ctx context.Context, id []byte) error
 	BeforeRemoveLinks(ctx context.Context, id []byte) error
