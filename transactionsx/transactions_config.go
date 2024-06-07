@@ -99,9 +99,6 @@ type TransactionsConfig struct {
 	// for all write operations performed by this TransactionsManager object.
 	DurabilityLevel TransactionDurabilityLevel
 
-	// KeyValueTimeout specifies the default timeout used for all KV writes.
-	KeyValueTimeout time.Duration
-
 	// CleanupWindow specifies how often to the cleanup process runs
 	// attempting to garbage collection transactions that have failed but
 	// were not cleaned up by the previous client.
@@ -156,9 +153,6 @@ type TransactionOptions struct {
 	// DurabilityLevel specifies the durability level that should be used
 	// for all write operations performed by this transaction.
 	DurabilityLevel TransactionDurabilityLevel
-
-	// KeyValueTimeout specifies the timeout used for all KV writes.
-	KeyValueTimeout time.Duration
 
 	// BucketAgentProvider provides a function which returns an agent for
 	// a particular bucket by name.

@@ -19,7 +19,6 @@ type transactionAttempt struct {
 	logger                  *zap.Logger
 	expiryTime              time.Time
 	txnStartTime            time.Time
-	keyValueTimeout         time.Duration
 	durabilityLevel         TransactionDurabilityLevel
 	transactionID           string
 	id                      string
@@ -243,9 +242,12 @@ func (t *transactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
 		res.ATR.ID = ""
 	}
 
-	res.Config.KeyValueTimeoutMs = int(t.keyValueTimeout / time.Millisecond)
 	res.Config.DurabilityLevel = transactionDurabilityLevelToString(t.durabilityLevel)
 	res.Config.NumAtrs = 1024
+
+	// we set a static timeout here to ensure that transactions work with older clients
+	// which still leverage this value, this isn't relevant for gocbcorex.
+	res.Config.KeyValueTimeoutMs = 2500
 
 	res.State.TimeLeftMs = int(t.TimeRemaining().Milliseconds())
 

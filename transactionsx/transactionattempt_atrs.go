@@ -187,8 +187,6 @@ func (t *transactionAttempt) setATRPendingExclusive(
 	t.logger.Info("setting atr pending",
 		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey))
 
-	// DurabilityTimeout needs to be handled here...
-
 	result, err := t.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       t.atrScopeName,
 		CollectionName:  t.atrCollectionName,

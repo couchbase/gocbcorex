@@ -36,7 +36,6 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 	defaultConfig := TransactionsConfig{
 		ExpirationTime:        10000 * time.Millisecond,
 		DurabilityLevel:       TransactionDurabilityLevelMajority,
-		KeyValueTimeout:       2500 * time.Millisecond,
 		CleanupWindow:         60000 * time.Millisecond,
 		CleanupClientAttempts: true,
 		CleanupLostAttempts:   true,
@@ -53,9 +52,6 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 
 		if resolvedConfig.ExpirationTime == 0 {
 			resolvedConfig.ExpirationTime = defaultConfig.ExpirationTime
-		}
-		if resolvedConfig.KeyValueTimeout == 0 {
-			resolvedConfig.KeyValueTimeout = defaultConfig.KeyValueTimeout
 		}
 		if resolvedConfig.CleanupWindow == 0 {
 			resolvedConfig.CleanupWindow = defaultConfig.CleanupWindow
@@ -134,7 +130,6 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 
 	expirationTime := t.config.ExpirationTime
 	durabilityLevel := t.config.DurabilityLevel
-	keyValueTimeout := t.config.KeyValueTimeout
 	customATRLocation := t.config.CustomATRLocation
 	bucketAgentProvider := t.config.BucketAgentProvider
 	hooks := t.config.Internal.Hooks
@@ -146,9 +141,6 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 		}
 		if perConfig.DurabilityLevel != TransactionDurabilityLevelUnknown {
 			durabilityLevel = perConfig.DurabilityLevel
-		}
-		if perConfig.KeyValueTimeout != 0 {
-			keyValueTimeout = perConfig.KeyValueTimeout
 		}
 		if perConfig.CustomATRLocation.Agent != nil {
 			customATRLocation = perConfig.CustomATRLocation
@@ -172,7 +164,6 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
 		transactionID:           transactionUUID,
-		keyValueTimeout:         keyValueTimeout,
 		atrLocation:             customATRLocation,
 		hooks:                   hooks,
 		enableNonFatalGets:      t.config.Internal.EnableNonFatalGets,
@@ -225,9 +216,6 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 	if txnData.State.TimeLeftMs <= 0 {
 		return nil, errors.New("invalid txn data - time left must be greater than 0")
 	}
-	if txnData.Config.KeyValueTimeoutMs <= 0 {
-		return nil, errors.New("invalid txn data - operation timeout must be greater than 0")
-	}
 	if txnData.Config.NumAtrs <= 0 || txnData.Config.NumAtrs > 1024 {
 		return nil, errors.New("invalid txn data - num atrs must be greater than 0 and less than 1024")
 	}
@@ -266,7 +254,6 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 	}
 
 	expirationTime := time.Duration(txnData.State.TimeLeftMs) * time.Millisecond
-	keyValueTimeout := time.Duration(txnData.Config.KeyValueTimeoutMs) * time.Millisecond
 
 	logger = logger.With(zap.String("tid", transactionUUID))
 
@@ -276,7 +263,6 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
 		transactionID:           transactionUUID,
-		keyValueTimeout:         keyValueTimeout,
 		atrLocation:             atrLocation,
 		hooks:                   t.config.Internal.Hooks,
 		enableNonFatalGets:      t.config.Internal.EnableNonFatalGets,
