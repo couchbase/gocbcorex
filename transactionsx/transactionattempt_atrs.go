@@ -13,22 +13,13 @@ import (
 	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) selectAtrExclusive(
+func (t *transactionAttempt) selectAtrKey(
 	ctx context.Context,
-	firstAgent *gocbcorex.Agent,
-	firstOboUser string,
 	firstKey []byte,
-) *TransactionOperationFailedError {
-	crc := crc32.ChecksumIEEE(firstKey)
-	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
-	firstKeyVbID := crcMidBits % uint16(1024)
-
-	atrID := int(firstKeyVbID)
-	atrKey := []byte(transactionAtrIDList[atrID])
-
+) ([]byte, *TransactionOperationFailedError) {
 	hookAtrID, err := t.hooks.RandomATRIDForVbucket(ctx)
 	if err != nil {
-		return t.operationFailed(operationFailedDef{
+		return nil, t.operationFailed(operationFailedDef{
 			Cerr:              classifyHookError(err),
 			ShouldNotRetry:    true,
 			ShouldNotRollback: true,
@@ -37,7 +28,28 @@ func (t *transactionAttempt) selectAtrExclusive(
 	}
 
 	if hookAtrID != "" {
-		atrKey = []byte(hookAtrID)
+		return []byte(hookAtrID), nil
+	}
+
+	crc := crc32.ChecksumIEEE(firstKey)
+	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
+	firstKeyVbID := crcMidBits % uint16(1024)
+
+	atrID := int(firstKeyVbID)
+	atrKey := []byte(transactionAtrIDList[atrID])
+
+	return atrKey, nil
+}
+
+func (t *transactionAttempt) selectAtrExclusive(
+	ctx context.Context,
+	firstAgent *gocbcorex.Agent,
+	firstOboUser string,
+	firstKey []byte,
+) *TransactionOperationFailedError {
+	atrKey, err := t.selectAtrKey(ctx, firstKey)
+	if err != nil {
+		return err
 	}
 
 	atrAgent := firstAgent
