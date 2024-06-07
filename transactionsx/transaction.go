@@ -251,9 +251,6 @@ type TransactionInsertOptions struct {
 	Value          json.RawMessage
 }
 
-// TransactionStoreCallback describes a callback for a completed Replace operation.
-type TransactionStoreCallback func(*TransactionGetResult, error)
-
 // Insert will attempt to insert a document.
 func (t *Transaction) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
 	if t.attempt == nil {
