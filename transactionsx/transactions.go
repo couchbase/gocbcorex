@@ -168,7 +168,6 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 
 	now := time.Now()
 	return &Transaction{
-		parent:                  t,
 		expiryTime:              now.Add(expirationTime),
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
@@ -273,7 +272,6 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 
 	now := time.Now()
 	txn := &Transaction{
-		parent:                  t,
 		expiryTime:              now.Add(expirationTime),
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,

@@ -16,6 +16,7 @@ import (
 
 type transactionAttempt struct {
 	// immutable state
+	logger                  *zap.Logger
 	expiryTime              time.Time
 	txnStartTime            time.Time
 	keyValueTimeout         time.Duration
@@ -43,21 +44,12 @@ type transactionAttempt struct {
 	atrScopeName      string
 	atrCollectionName string
 	atrKey            []byte
+	hasCleanupRequest bool
+	numPendingOps     uint32
+	atrWaitCh         chan struct{}
+	opsWaitCh         chan struct{}
 
 	lock sync.Mutex
-
-	atrWaitCh     chan struct{}
-	numPendingOps uint32
-	opsWaitCh     chan struct{}
-
-	logger *zap.Logger
-
-	hasCleanupRequest bool
-
-	/*
-		addCleanupRequest      addCleanupRequest
-		addLostCleanupLocation addLostCleanupLocation
-	*/
 }
 
 func (t *transactionAttempt) State() TransactionAttemptResult {

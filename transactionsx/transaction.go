@@ -16,8 +16,6 @@ import (
 // Transaction represents a single active transaction, it can be used to
 // stage mutations and finally commit them.
 type Transaction struct {
-	parent *TransactionsManager
-
 	expiryTime              time.Time
 	startTime               time.Time
 	keyValueTimeout         time.Duration
@@ -102,7 +100,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 			return errors.New("invalid atr data - no bucket")
 		}
 
-		foundAtrAgent, foundAtrOboUser, err := t.parent.config.BucketAgentProvider(txnData.ATR.Bucket)
+		foundAtrAgent, foundAtrOboUser, err := t.bucketAgentProvider(txnData.ATR.Bucket)
 		if err != nil {
 			return err
 		}
@@ -139,7 +137,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 			return errors.New("invalid staged mutation - no type")
 		}
 
-		agent, oboUser, err := t.parent.config.BucketAgentProvider(mutationData.Bucket)
+		agent, oboUser, err := t.bucketAgentProvider(mutationData.Bucket)
 		if err != nil {
 			return err
 		}
