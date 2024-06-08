@@ -28,6 +28,12 @@ func (t *TransactionAttempt) remove(
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
 	t.lock.Lock()
+
+	if t.isQueryMode {
+		t.lock.Unlock()
+		return t.queryRemove(ctx, opts)
+	}
+
 	t.beginOpLocked()
 
 	err := t.checkCanPerformOpLocked()

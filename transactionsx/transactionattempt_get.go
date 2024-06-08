@@ -31,6 +31,12 @@ func (t *TransactionAttempt) get(
 		zap.Bool("forceNonFatal", forceNonFatal))
 
 	t.lock.Lock()
+
+	if t.isQueryMode {
+		t.lock.Unlock()
+		return t.queryGet(ctx, opts)
+	}
+
 	t.beginOpLocked()
 
 	oerr := t.checkCanPerformOpLocked()

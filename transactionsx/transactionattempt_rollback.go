@@ -32,6 +32,11 @@ func (t *TransactionAttempt) rollback(
 
 	t.lock.Lock()
 
+	if t.isQueryMode {
+		t.lock.Unlock()
+		return t.queryRollback(ctx)
+	}
+
 	err := t.waitForOpsLocked(ctx)
 	if err != nil {
 		t.lock.Unlock()

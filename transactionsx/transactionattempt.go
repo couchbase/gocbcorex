@@ -37,6 +37,7 @@ type TransactionAttempt struct {
 	// mutable state
 	state             TransactionAttemptState
 	stateBits         uint32
+	isQueryMode       bool
 	stagedMutations   []*transactionStagedMutation
 	atrAgent          *gocbcorex.Agent
 	atrOboUser        string

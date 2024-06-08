@@ -64,6 +64,11 @@ func (t *TransactionAttempt) commit(
 ) *TransactionOperationStatus {
 	t.lock.Lock()
 
+	if t.isQueryMode {
+		t.lock.Unlock()
+		return t.queryCommit(ctx)
+	}
+
 	err := t.waitForOpsLocked(ctx)
 	if err != nil {
 		t.lock.Unlock()

@@ -29,6 +29,11 @@ func (t *TransactionAttempt) insert(
 		zaputils.FQDocID("key", opts.Agent.BucketName(), opts.ScopeName, opts.CollectionName, opts.Key))
 
 	t.lock.Lock()
+	if t.isQueryMode {
+		t.lock.Unlock()
+		return t.queryInsert(ctx, opts)
+	}
+
 	t.beginOpLocked()
 
 	err := t.checkCanPerformOpLocked()
