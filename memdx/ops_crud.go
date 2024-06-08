@@ -2033,6 +2033,7 @@ type MutateInResponse struct {
 	Cas           uint64
 	MutationToken MutationToken
 	Ops           []SubDocResult
+	DocIsDeleted  bool
 }
 
 func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInResponse, error)) (PendingOp, error) {
@@ -2208,7 +2209,13 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 				OpIndex: opIndex,
 			})
 			return false
-		} else if resp.Status != StatusSuccess {
+		}
+
+		var docIsDeleted bool
+		if resp.Status == StatusSubDocSuccessDeleted {
+			docIsDeleted = true
+			// considered a success still
+		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocMultiPathFailure {
 			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
 			return false
 		}
@@ -2249,6 +2256,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
 			Ops:           results,
+			DocIsDeleted:  docIsDeleted,
 			CrudResponseMeta: CrudResponseMeta{
 				ServerDuration: serverDuration,
 			},
