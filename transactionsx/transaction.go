@@ -27,7 +27,7 @@ type Transaction struct {
 	bucketAgentProvider     TransactionsBucketAgentProviderFn
 
 	transactionID string
-	attempt       *transactionAttempt
+	attempt       *TransactionAttempt
 	hooks         TransactionHooks
 	logger        *zap.Logger
 }
@@ -51,9 +51,9 @@ func (t *Transaction) NewAttempt() error {
 	attemptUUID := uuid.New().String()
 
 	logger := t.logger
-	logger = logger.With(zap.String("aid", attemptUUID))
+	logger = logger.With(zap.String("attemptId", attemptUUID))
 
-	t.attempt = &transactionAttempt{
+	t.attempt = &TransactionAttempt{
 		expiryTime:              t.expiryTime,
 		txnStartTime:            t.startTime,
 		durabilityLevel:         t.durabilityLevel,
@@ -162,7 +162,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 		}
 	}
 
-	t.attempt = &transactionAttempt{
+	t.attempt = &TransactionAttempt{
 		expiryTime:              t.expiryTime,
 		txnStartTime:            t.startTime,
 		durabilityLevel:         t.durabilityLevel,

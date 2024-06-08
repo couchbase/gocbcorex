@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type transactionAttempt struct {
+type TransactionAttempt struct {
 	// immutable state
 	logger                  *zap.Logger
 	expiryTime              time.Time
@@ -51,7 +51,7 @@ type transactionAttempt struct {
 	lock sync.Mutex
 }
 
-func (t *transactionAttempt) State() TransactionAttemptResult {
+func (t *TransactionAttempt) State() TransactionAttemptResult {
 	state := TransactionAttemptResult{}
 
 	t.lock.Lock()
@@ -96,31 +96,31 @@ func (t *transactionAttempt) State() TransactionAttemptResult {
 	return state
 }
 
-func (t *transactionAttempt) HasExpired() bool {
+func (t *TransactionAttempt) HasExpired() bool {
 	return t.isExpiryOvertimeAtomic()
 }
 
-func (t *transactionAttempt) CanCommit() bool {
+func (t *TransactionAttempt) CanCommit() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return (stateBits & transactionStateBitShouldNotCommit) == 0
 }
 
-func (t *transactionAttempt) ShouldRollback() bool {
+func (t *TransactionAttempt) ShouldRollback() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return (stateBits & transactionStateBitShouldNotRollback) == 0
 }
 
-func (t *transactionAttempt) ShouldRetry() bool {
+func (t *TransactionAttempt) ShouldRetry() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return (stateBits&transactionStateBitShouldNotRetry) == 0 && !t.isExpiryOvertimeAtomic()
 }
 
-func (t *transactionAttempt) FinalErrorToRaise() TransactionErrorReason {
+func (t *TransactionAttempt) FinalErrorToRaise() TransactionErrorReason {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return TransactionErrorReason((stateBits & transactionStateBitsMaskFinalError) >> transactionStateBitsPositionFinalError)
 }
 
-func (t *transactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
+func (t *TransactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
 	t.logger.Info("updating state", zap.Stringer("opts", opts))
 
 	stateBits := uint32(0)
@@ -145,7 +145,7 @@ func (t *transactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
 	t.lock.Unlock()
 }
 
-func (t *transactionAttempt) GetATRLocation() TransactionATRLocation {
+func (t *TransactionAttempt) GetATRLocation() TransactionATRLocation {
 	t.lock.Lock()
 
 	if t.atrAgent != nil {
@@ -163,7 +163,7 @@ func (t *transactionAttempt) GetATRLocation() TransactionATRLocation {
 	return t.atrLocation
 }
 
-func (t *transactionAttempt) SetATRLocation(location TransactionATRLocation) error {
+func (t *TransactionAttempt) SetATRLocation(location TransactionATRLocation) error {
 	t.logger.Info("setting atr location",
 		zaputils.FQCollectionName("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName))
 
@@ -184,7 +184,7 @@ func (t *transactionAttempt) SetATRLocation(location TransactionATRLocation) err
 	return nil
 }
 
-func (t *transactionAttempt) GetMutations() []TransactionStagedMutation {
+func (t *TransactionAttempt) GetMutations() []TransactionStagedMutation {
 	mutations := make([]TransactionStagedMutation, len(t.stagedMutations))
 
 	t.lock.Lock()
@@ -206,7 +206,7 @@ func (t *transactionAttempt) GetMutations() []TransactionStagedMutation {
 	return mutations
 }
 
-func (t *transactionAttempt) TimeRemaining() time.Duration {
+func (t *TransactionAttempt) TimeRemaining() time.Duration {
 	curTime := time.Now()
 
 	timeLeft := time.Duration(0)
@@ -217,7 +217,7 @@ func (t *transactionAttempt) TimeRemaining() time.Duration {
 	return timeLeft
 }
 
-func (t *transactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
+func (t *TransactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
 	var res jsonSerializedAttempt
 
 	t.lock.Lock()
@@ -270,7 +270,7 @@ func (t *transactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
 	return res, nil
 }
 
-func (t *transactionAttempt) Serialize(ctx context.Context) ([]byte, error) {
+func (t *TransactionAttempt) Serialize(ctx context.Context) ([]byte, error) {
 	res, err := t.toJsonObject()
 	if err != nil {
 		return nil, err

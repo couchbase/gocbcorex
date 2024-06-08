@@ -10,7 +10,7 @@ import (
 	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
 	result, err := t.insert(ctx, opts)
 	if err != nil {
 		t.logger.Info("insert failed")
@@ -25,7 +25,7 @@ func (t *transactionAttempt) Insert(ctx context.Context, opts TransactionInsertO
 	return result, nil
 }
 
-func (t *transactionAttempt) insert(
+func (t *TransactionAttempt) insert(
 	ctx context.Context,
 	opts TransactionInsertOptions,
 ) (*TransactionGetResult, error) {
@@ -118,7 +118,7 @@ func (t *transactionAttempt) insert(
 
 }
 
-func (t *transactionAttempt) resolveConflictedInsert(
+func (t *TransactionAttempt) resolveConflictedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,
@@ -199,7 +199,7 @@ func (t *transactionAttempt) resolveConflictedInsert(
 	return t.stageInsert(ctx, agent, oboUser, scopeName, collectionName, key, value, cas)
 }
 
-func (t *transactionAttempt) stageInsert(
+func (t *TransactionAttempt) stageInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,
@@ -350,7 +350,7 @@ func (t *transactionAttempt) stageInsert(
 	}, nil
 }
 
-func (t *transactionAttempt) getMetaForConflictedInsert(
+func (t *TransactionAttempt) getMetaForConflictedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,
@@ -421,7 +421,7 @@ func (t *transactionAttempt) getMetaForConflictedInsert(
 	return isTombstone, txnMeta, result.Cas, nil
 }
 
-func (t *transactionAttempt) cleanupStagedInsert(
+func (t *TransactionAttempt) cleanupStagedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,

@@ -13,7 +13,7 @@ import (
 	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) selectAtrKey(
+func (t *TransactionAttempt) selectAtrKey(
 	ctx context.Context,
 	firstKey []byte,
 ) ([]byte, *TransactionOperationFailedError) {
@@ -41,7 +41,7 @@ func (t *transactionAttempt) selectAtrKey(
 	return atrKey, nil
 }
 
-func (t *transactionAttempt) selectAtrExclusive(
+func (t *TransactionAttempt) selectAtrExclusive(
 	ctx context.Context,
 	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
@@ -85,7 +85,7 @@ func (t *transactionAttempt) selectAtrExclusive(
 	return nil
 }
 
-func (t *transactionAttempt) setATRPendingExclusive(
+func (t *TransactionAttempt) setATRPendingExclusive(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
@@ -225,7 +225,7 @@ func (t *transactionAttempt) setATRPendingExclusive(
 	return nil
 }
 
-func (t *transactionAttempt) fetchATRCommitConflictExclusive(
+func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 	ctx context.Context,
 ) (jsonAtrState, *TransactionOperationFailedError) {
 	ecCb := func(st jsonAtrState, cerr *classifiedError) (jsonAtrState, *TransactionOperationFailedError) {
@@ -321,7 +321,7 @@ func (t *transactionAttempt) fetchATRCommitConflictExclusive(
 	return st, nil
 }
 
-func (t *transactionAttempt) resolveATRCommitConflictExclusive(
+func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	st, err := t.fetchATRCommitConflictExclusive(ctx)
@@ -375,7 +375,7 @@ func (t *transactionAttempt) resolveATRCommitConflictExclusive(
 	}
 }
 
-func (t *transactionAttempt) setATRCommittedExclusive(
+func (t *TransactionAttempt) setATRCommittedExclusive(
 	ctx context.Context,
 	ambiguityResolution bool,
 ) *TransactionOperationFailedError {
@@ -567,7 +567,7 @@ func (t *transactionAttempt) setATRCommittedExclusive(
 	return nil
 }
 
-func (t *transactionAttempt) setATRCompletedExclusive(
+func (t *TransactionAttempt) setATRCompletedExclusive(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
@@ -672,7 +672,7 @@ func (t *transactionAttempt) setATRCompletedExclusive(
 	return nil
 }
 
-func (t *transactionAttempt) setATRAbortedExclusive(
+func (t *TransactionAttempt) setATRAbortedExclusive(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
@@ -825,7 +825,7 @@ func (t *transactionAttempt) setATRAbortedExclusive(
 	return nil
 }
 
-func (t *transactionAttempt) setATRRolledBackExclusive(
+func (t *TransactionAttempt) setATRRolledBackExclusive(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {

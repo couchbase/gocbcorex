@@ -9,7 +9,7 @@ import (
 	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
 	result, err := t.replace(ctx, opts)
 	if err != nil {
 		t.logger.Info("replace failed")
@@ -24,7 +24,7 @@ func (t *transactionAttempt) Replace(ctx context.Context, opts TransactionReplac
 	return result, err
 }
 
-func (t *transactionAttempt) replace(
+func (t *TransactionAttempt) replace(
 	ctx context.Context,
 	opts TransactionReplaceOptions,
 ) (*TransactionGetResult, error) {
@@ -125,7 +125,7 @@ func (t *transactionAttempt) replace(
 	return result, aerr
 }
 
-func (t *transactionAttempt) stageReplace(
+func (t *TransactionAttempt) stageReplace(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,

@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *transactionAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
 	result, err := t.get(ctx, opts)
 	if err != nil {
 		t.logger.Info("get failed", zap.Error(err))
@@ -25,7 +25,7 @@ func (t *transactionAttempt) Get(ctx context.Context, opts TransactionGetOptions
 	return result, nil
 }
 
-func (t *transactionAttempt) get(
+func (t *TransactionAttempt) get(
 	ctx context.Context,
 	opts TransactionGetOptions,
 ) (*TransactionGetResult, error) {
@@ -81,7 +81,7 @@ func (t *transactionAttempt) get(
 	return result, nil
 }
 
-func (t *transactionAttempt) mavRead(
+func (t *TransactionAttempt) mavRead(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,
@@ -316,7 +316,7 @@ func (t *transactionAttempt) mavRead(
 	}, nil
 }
 
-func (t *transactionAttempt) fetchDocWithMeta(
+func (t *TransactionAttempt) fetchDocWithMeta(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,

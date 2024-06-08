@@ -19,11 +19,11 @@ func transactionHasExpired(expiryTime time.Time) bool {
 	return time.Now().After(expiryTime)
 }
 
-func (t *transactionAttempt) beginOpLocked() {
+func (t *TransactionAttempt) beginOpLocked() {
 	t.numPendingOps++
 }
 
-func (t *transactionAttempt) endOp() {
+func (t *TransactionAttempt) endOp() {
 	t.lock.Lock()
 
 	t.numPendingOps--
@@ -43,7 +43,7 @@ func (t *transactionAttempt) endOp() {
 	}
 }
 
-func (t *transactionAttempt) waitForOpsLocked(ctx context.Context) *TransactionOperationFailedError {
+func (t *TransactionAttempt) waitForOpsLocked(ctx context.Context) *TransactionOperationFailedError {
 	for {
 		if t.numPendingOps == 0 {
 			return nil
@@ -77,7 +77,7 @@ func (t *transactionAttempt) waitForOpsLocked(ctx context.Context) *TransactionO
 	}
 }
 
-func (t *transactionAttempt) checkCanPerformOpLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanPerformOpLocked() *TransactionOperationFailedError {
 	switch t.state {
 	case TransactionAttemptStateNothingWritten:
 		fallthrough
@@ -135,7 +135,7 @@ func (t *transactionAttempt) checkCanPerformOpLocked() *TransactionOperationFail
 	return nil
 }
 
-func (t *transactionAttempt) checkCanCommitRollbackLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanCommitRollbackLocked() *TransactionOperationFailedError {
 	switch t.state {
 	case TransactionAttemptStateNothingWritten:
 		fallthrough
@@ -182,7 +182,7 @@ func (t *transactionAttempt) checkCanCommitRollbackLocked() *TransactionOperatio
 	return nil
 }
 
-func (t *transactionAttempt) checkCanCommitLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanCommitLocked() *TransactionOperationFailedError {
 	err := t.checkCanCommitRollbackLocked()
 	if err != nil {
 		return err
@@ -202,7 +202,7 @@ func (t *transactionAttempt) checkCanCommitLocked() *TransactionOperationFailedE
 	return nil
 }
 
-func (t *transactionAttempt) checkCanRollbackLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanRollbackLocked() *TransactionOperationFailedError {
 	err := t.checkCanCommitRollbackLocked()
 	if err != nil {
 		return err
@@ -222,18 +222,18 @@ func (t *transactionAttempt) checkCanRollbackLocked() *TransactionOperationFaile
 	return nil
 }
 
-func (t *transactionAttempt) setExpiryOvertimeAtomic() {
+func (t *TransactionAttempt) setExpiryOvertimeAtomic() {
 	t.logger.Info("entering expiry overtime")
 
 	t.applyStateBits(transactionStateBitHasExpired, 0)
 }
 
-func (t *transactionAttempt) isExpiryOvertimeAtomic() bool {
+func (t *TransactionAttempt) isExpiryOvertimeAtomic() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return (stateBits & transactionStateBitHasExpired) != 0
 }
 
-func (t *transactionAttempt) checkExpiredAtomic(ctx context.Context, stage string, id []byte, proceedInOvertime bool) *classifiedError {
+func (t *TransactionAttempt) checkExpiredAtomic(ctx context.Context, stage string, id []byte, proceedInOvertime bool) *classifiedError {
 	if proceedInOvertime && t.isExpiryOvertimeAtomic() {
 		return nil
 	}
@@ -252,7 +252,7 @@ func (t *transactionAttempt) checkExpiredAtomic(ctx context.Context, stage strin
 	return nil
 }
 
-func (t *transactionAttempt) confirmATRPending(
+func (t *TransactionAttempt) confirmATRPending(
 	ctx context.Context,
 	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
@@ -325,7 +325,7 @@ func (t *transactionAttempt) confirmATRPending(
 	return nil
 }
 
-func (t *transactionAttempt) getStagedMutationLocked(
+func (t *TransactionAttempt) getStagedMutationLocked(
 	bucketName, scopeName, collectionName string, key []byte,
 ) (int, *transactionStagedMutation) {
 	for i, mutation := range t.stagedMutations {
@@ -340,7 +340,7 @@ func (t *transactionAttempt) getStagedMutationLocked(
 	return -1, nil
 }
 
-func (t *transactionAttempt) removeStagedMutation(
+func (t *TransactionAttempt) removeStagedMutation(
 	bucketName, scopeName, collectionName string, key []byte,
 ) {
 	t.lock.Lock()
@@ -353,7 +353,7 @@ func (t *transactionAttempt) removeStagedMutation(
 	}
 }
 
-func (t *transactionAttempt) recordStagedMutation(
+func (t *TransactionAttempt) recordStagedMutation(
 	stagedInfo *transactionStagedMutation,
 ) {
 	t.lock.Lock()
@@ -375,7 +375,7 @@ func (t *transactionAttempt) recordStagedMutation(
 	}
 }
 
-func (t *transactionAttempt) checkForwardCompatability(
+func (t *TransactionAttempt) checkForwardCompatability(
 	ctx context.Context,
 	key []byte,
 	bucket, scope, collection string,
@@ -445,7 +445,7 @@ func (t *transactionAttempt) checkForwardCompatability(
 	})
 }
 
-func (t *transactionAttempt) getTxnState(
+func (t *TransactionAttempt) getTxnState(
 	ctx context.Context,
 	srcBucketName string,
 	srcScopeName string,
@@ -566,7 +566,7 @@ func (t *transactionAttempt) getTxnState(
 	return ecCb(txnAttempt, expiryTime, nil)
 }
 
-func (t *transactionAttempt) writeWriteConflictPoll(
+func (t *TransactionAttempt) writeWriteConflictPoll(
 	ctx context.Context,
 	stage forwardCompatStage,
 	bucketName string,
@@ -711,7 +711,7 @@ func (t *transactionAttempt) writeWriteConflictPoll(
 	}
 }
 
-func (t *transactionAttempt) ensureCleanUpRequest() {
+func (t *TransactionAttempt) ensureCleanUpRequest() {
 	t.lock.Lock()
 
 	// TODO(brett19): We should probably make sure it's not in any of the pre-ATR states here.

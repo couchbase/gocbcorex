@@ -56,7 +56,7 @@ type operationFailedDef struct {
 	Reason            TransactionErrorReason
 }
 
-func (t *transactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) {
+func (t *TransactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) {
 	// This is a bit dirty, but its maximum going to do one retry per bit.
 	for {
 		oldStateBits := atomic.LoadUint32(&t.stateBits)
@@ -78,7 +78,7 @@ func (t *transactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) 
 }
 
 // TODO(brett19): This is a hack for now
-func (t *transactionAttempt) contextFailed(err error) *TransactionOperationFailedError {
+func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationFailedError {
 	return t.operationFailed(operationFailedDef{
 		Cerr:              classifyError(err),
 		ShouldNotRetry:    true,
@@ -87,7 +87,7 @@ func (t *transactionAttempt) contextFailed(err error) *TransactionOperationFaile
 	})
 }
 
-func (t *transactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationFailedError {
+func (t *TransactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationFailedError {
 	t.logger.Info("operation failed",
 		zap.Bool("shouldNotRetry", def.ShouldNotRetry),
 		zap.Bool("shouldNotRollback", def.ShouldNotRollback),

@@ -9,7 +9,7 @@ import (
 	"github.com/couchbase/gocbcorex/zaputils"
 )
 
-func (t *transactionAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
 	result, err := t.remove(ctx, opts)
 	if err != nil {
 		t.logger.Info("remove failed")
@@ -24,7 +24,7 @@ func (t *transactionAttempt) Remove(ctx context.Context, opts TransactionRemoveO
 	return result, nil
 }
 
-func (t *transactionAttempt) remove(
+func (t *TransactionAttempt) remove(
 	ctx context.Context,
 	opts TransactionRemoveOptions,
 ) (*TransactionGetResult, *TransactionOperationFailedError) {
@@ -123,7 +123,7 @@ func (t *transactionAttempt) remove(
 	return result, err
 }
 
-func (t *transactionAttempt) stageRemove(
+func (t *TransactionAttempt) stageRemove(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,
@@ -302,7 +302,7 @@ func (t *transactionAttempt) stageRemove(
 	}, nil
 }
 
-func (t *transactionAttempt) stageRemoveOfInsert(
+func (t *TransactionAttempt) stageRemoveOfInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
 	oboUser string,

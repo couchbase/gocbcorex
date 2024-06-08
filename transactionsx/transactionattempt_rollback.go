@@ -8,7 +8,7 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
-func (t *transactionAttempt) Rollback(ctx context.Context) error {
+func (t *TransactionAttempt) Rollback(ctx context.Context) error {
 	err := t.rollback(ctx)
 	if err != nil {
 		t.logger.Info("rollback failed")
@@ -21,7 +21,7 @@ func (t *transactionAttempt) Rollback(ctx context.Context) error {
 	return nil
 }
 
-func (t *transactionAttempt) rollback(
+func (t *TransactionAttempt) rollback(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	t.logger.Info("rolling back")
@@ -124,7 +124,7 @@ func (t *transactionAttempt) rollback(
 	return nil
 }
 
-func (t *transactionAttempt) unstageStagedMutation(
+func (t *TransactionAttempt) unstageStagedMutation(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
 ) *TransactionOperationFailedError {
@@ -145,7 +145,7 @@ func (t *transactionAttempt) unstageStagedMutation(
 	}
 }
 
-func (t *transactionAttempt) unstageStagedInsert(
+func (t *TransactionAttempt) unstageStagedInsert(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 ) *TransactionOperationFailedError {
@@ -257,7 +257,7 @@ func (t *transactionAttempt) unstageStagedInsert(
 	return nil
 }
 
-func (t *transactionAttempt) unstageStagedRemoveReplace(
+func (t *TransactionAttempt) unstageStagedRemoveReplace(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 ) *TransactionOperationFailedError {

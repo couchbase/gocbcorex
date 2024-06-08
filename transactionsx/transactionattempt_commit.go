@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *transactionAttempt) Commit(ctx context.Context) error {
+func (t *TransactionAttempt) Commit(ctx context.Context) error {
 	t.logger.Info("committing")
 
 	err := t.commit(ctx)
@@ -43,7 +43,7 @@ func (t *transactionAttempt) Commit(ctx context.Context) error {
 	return nil
 }
 
-func (t *transactionAttempt) commit(
+func (t *TransactionAttempt) commit(
 	ctx context.Context,
 ) *TransactionOperationFailedError {
 	t.lock.Lock()
@@ -167,7 +167,7 @@ func (t *transactionAttempt) commit(
 	return nil
 }
 
-func (t *transactionAttempt) commitStagedMutation(
+func (t *TransactionAttempt) commitStagedMutation(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
 ) *TransactionOperationFailedError {
@@ -194,7 +194,7 @@ func (t *transactionAttempt) commitStagedMutation(
 	}
 }
 
-func (t *transactionAttempt) fetchBeforeUnstage(
+func (t *TransactionAttempt) fetchBeforeUnstage(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
 ) *TransactionOperationFailedError {
@@ -276,7 +276,7 @@ func (t *transactionAttempt) fetchBeforeUnstage(
 	return nil
 }
 
-func (t *transactionAttempt) commitStagedReplace(
+func (t *TransactionAttempt) commitStagedReplace(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 	forceWrite bool,
@@ -422,7 +422,7 @@ func (t *transactionAttempt) commitStagedReplace(
 	return nil
 }
 
-func (t *transactionAttempt) commitStagedInsert(
+func (t *TransactionAttempt) commitStagedInsert(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 	ambiguityResolution bool,
@@ -535,7 +535,7 @@ func (t *transactionAttempt) commitStagedInsert(
 	return nil
 }
 
-func (t *transactionAttempt) commitStagedRemove(
+func (t *TransactionAttempt) commitStagedRemove(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 	ambiguityResolution bool,
