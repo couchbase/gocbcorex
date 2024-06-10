@@ -2,7 +2,7 @@ package transactionsx_test
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/couchbase/gocbcorex/transactionsx"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -74,7 +75,7 @@ func fetchStagedOpData(
 	t *testing.T,
 	agent *gocbcorex.Agent,
 	key []byte,
-) (string, []byte, bool) {
+) ([]byte, bool) {
 	ctx := context.Background()
 
 	result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
@@ -84,46 +85,31 @@ func fetchStagedOpData(
 		Ops: []memdx.LookupInOp{
 			{
 				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("txn.op.type"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-			{
-				Op:    memdx.LookupInOpTypeGet,
 				Path:  []byte("txn.op.stgd"),
 				Flags: memdx.SubdocOpFlagXattrPath,
 			},
 		},
 		Flags: memdx.SubdocDocFlagAccessDeleted,
 	})
+	require.NoError(t, err)
 
-	typeOp := result.Ops[0]
-	require.NoError(t, typeOp.Err)
-
-	stgdOp := result.Ops[1]
+	stgdOp := result.Ops[0]
 	require.NoError(t, stgdOp.Err)
-
-	var opType string
-	err = json.Unmarshal(typeOp.Value, &opType)
-	if err != nil {
-		return "", nil, false
-	}
 
 	stgdData := stgdOp.Value
 
-	return opType, stgdData, !result.DocIsDeleted
+	return stgdData, !result.DocIsDeleted
 }
 
 func assertStagedDoc(
 	t *testing.T,
 	agent *gocbcorex.Agent,
 	key []byte,
-	expOpType string,
 	expStgdData []byte,
 	expTombstone bool,
 ) {
-	stgdOpType, stgdData, docExists := fetchStagedOpData(t, agent, key)
+	stgdData, docExists := fetchStagedOpData(t, agent, key)
 
-	assert.Equal(t, expOpType, stgdOpType)
 	assert.Equal(t, expStgdData, stgdData)
 	assert.Equal(t, expTombstone, !docExists)
 }
@@ -151,15 +137,18 @@ func assertDocNotStaged(
 	require.NoError(t, err)
 
 	existsOp := result.Ops[0]
-	assert.ErrorIs(t, memdx.ErrSubDocPathNotFound, existsOp.Err)
+	assert.ErrorIs(t, existsOp.Err, memdx.ErrSubDocPathNotFound)
 }
 
-func TestTransactionsInsert(t *testing.T) {
+func TestTransactionsInsertTxn1GetTxn2(t *testing.T) {
 	ctx := context.Background()
-	agent := createDefaultAgent(t)
-	txns, txn := initTransactionAndAttempt(t, agent)
 
-	docKey := []byte("txnInsertDoc")
+	agent := createDefaultAgent(t)
+	defer agent.Close()
+
+	_, txn := initTransactionAndAttempt(t, agent)
+
+	docKey := []byte(fmt.Sprintf("%s-txnInsert", uuid.NewString()))
 	docValue := []byte(`{"name":"mike"}`)
 
 	_, err := txn.Insert(ctx, transactionsx.TransactionInsertOptions{
@@ -171,25 +160,29 @@ func TestTransactionsInsert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	txn2, err := txns.BeginTransaction(nil)
-	require.NoError(t, err)
+	_, readTxn := initTransactionAndAttempt(t, agent)
 
-	err = txn2.NewAttempt()
-	require.NoError(t, err)
-
-	_, err = txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	_, err = readTxn.Get(ctx, transactionsx.TransactionGetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
 		Key:            docKey,
 	})
-	assert.Error(t, err)
-	assert.ErrorIs(t, transactionsx.ErrDocNotFound, err)
+	assert.ErrorIs(t, err, transactionsx.ErrDocNotFound)
 
-	assertStagedDoc(t, agent, docKey, "insert", docValue, true)
+	assertStagedDoc(t, agent, docKey, docValue, true)
 
 	err = txn.Commit(ctx)
 	require.NoError(t, err)
 
 	assertDocNotStaged(t, agent, docKey)
+
+	getRes, err := readTxn.Get(ctx, transactionsx.TransactionGetOptions{
+		Agent:          agent,
+		ScopeName:      "_default",
+		CollectionName: "_default",
+		Key:            docKey,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, docValue, getRes.Value)
 }

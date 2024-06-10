@@ -37,10 +37,10 @@ var (
 	ErrForwardCompatibilityFailure = errors.New("forward compatibility error")
 
 	// ErrDocNotFound indicates that a document was not found.
-	ErrDocNotFound = errors.New("document not found")
+	ErrDocNotFound = errors.New("document not found (txns)")
 
 	// ErrDocExists indicates that a document already exists.
-	ErrDocExists = errors.New("document exists")
+	ErrDocExists = errors.New("document exists (txns)")
 
 	// ErrTransient indicates a transient error occured which may succeed at a later point in time.
 	ErrTestTransient = errors.New("transient error")
