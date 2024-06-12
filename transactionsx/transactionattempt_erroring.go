@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func mergeOperationFailedErrors(errs []*TransactionOperationFailedError) *TransactionOperationFailedError {
+func mergeOperationFailedErrors(errs []*TransactionOperationStatus) *TransactionOperationStatus {
 	if len(errs) == 0 {
 		return nil
 	}
@@ -26,7 +26,7 @@ func mergeOperationFailedErrors(errs []*TransactionOperationFailedError) *Transa
 	for errIdx := 0; errIdx < len(errs); errIdx++ {
 		tErr := errs[errIdx]
 
-		aggCauses = append(aggCauses, tErr)
+		aggCauses = append(aggCauses, tErr.Err())
 
 		if tErr.shouldNotRetry {
 			shouldNotRetry = true
@@ -39,7 +39,7 @@ func mergeOperationFailedErrors(errs []*TransactionOperationFailedError) *Transa
 		}
 	}
 
-	return &TransactionOperationFailedError{
+	return &TransactionOperationStatus{
 		shouldNotRetry:    shouldNotRetry,
 		shouldNotRollback: shouldNotRollback,
 		errorCause:        aggCauses,
@@ -78,7 +78,7 @@ func (t *TransactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) 
 }
 
 // TODO(brett19): This is a hack for now
-func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationFailedError {
+func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationStatus {
 	return t.operationFailed(operationFailedDef{
 		Cerr:              classifyError(err),
 		ShouldNotRetry:    true,
@@ -87,7 +87,7 @@ func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationFaile
 	})
 }
 
-func (t *TransactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationFailedError {
+func (t *TransactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationStatus {
 	t.logger.Info("operation failed",
 		zap.Bool("shouldNotRetry", def.ShouldNotRetry),
 		zap.Bool("shouldNotRollback", def.ShouldNotRollback),
@@ -95,7 +95,7 @@ func (t *TransactionAttempt) operationFailed(def operationFailedDef) *Transactio
 		zap.Stringer("class", def.Cerr.Class),
 		zap.Stringer("shouldRaise", def.Reason))
 
-	err := &TransactionOperationFailedError{
+	err := &TransactionOperationStatus{
 		shouldNotRetry:    def.ShouldNotRetry,
 		shouldNotRollback: def.ShouldNotRollback,
 		errorCause:        def.Cerr.Source,
@@ -129,8 +129,15 @@ func classifyHookError(err error) *classifiedError {
 }
 
 func classifyError(err error) *classifiedError {
-	ec := TransactionErrorClassFailOther
+	var ece *ErrorClassError
+	if errors.As(err, &ece) {
+		return &classifiedError{
+			Source: err,
+			Class:  ece.Class,
+		}
+	}
 
+	ec := TransactionErrorClassFailOther
 	if errors.Is(err, memdx.ErrDocNotFound) {
 		ec = TransactionErrorClassFailDocNotFound
 	} else if errors.Is(err, memdx.ErrCasMismatch) {
@@ -157,16 +164,6 @@ func classifyError(err error) *classifiedError {
 
 	if errors.Is(err, ErrAttemptExpired) {
 		ec = TransactionErrorClassFailExpiry
-	}
-
-	if errors.Is(err, ErrTestAmbiguous) {
-		ec = TransactionErrorClassFailAmbiguous
-	} else if errors.Is(err, ErrTestTransient) {
-		ec = TransactionErrorClassFailTransient
-	} else if errors.Is(err, ErrTestHard) {
-		ec = TransactionErrorClassFailHard
-	} else if errors.Is(err, ErrTestOther) {
-		ec = TransactionErrorClassFailOther
 	}
 
 	return &classifiedError{

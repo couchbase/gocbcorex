@@ -2,7 +2,6 @@ package transactionsx
 
 import (
 	"context"
-	"errors"
 
 	"go.uber.org/zap"
 )
@@ -30,20 +29,22 @@ func (r *LambdaRunner) Run(ctx context.Context, perConfig *TransactionOptions, a
 
 		lambdaErr := attemptFn(ctx, txn.attempt)
 		if lambdaErr != nil {
-			var tofErr *TransactionOperationFailedError
-			if !errors.As(lambdaErr, &tofErr) {
-				// if this was a user-generated error, we should abort the transaction
+			/*
+				var tofErr *TransactionOperationStatus
+				if !errors.As(lambdaErr, &tofErr) {
+					// if this was a user-generated error, we should abort the transaction
 
-				if txn.ShouldRollback() {
-					// we intentionally ignore the error here since we are already in an error state,
-					// we also assume that the transaction itself has logged that something went
-					// wrong when performing the rollback.
-					_ = txn.Rollback(ctx)
+					if txn.ShouldRollback() {
+						// we intentionally ignore the error here since we are already in an error state,
+						// we also assume that the transaction itself has logged that something went
+						// wrong when performing the rollback.
+						_ = txn.Rollback(ctx)
+					}
+
+					finalErr = lambdaErr
+					break
 				}
-
-				finalErr = lambdaErr
-				break
-			}
+			*/
 		}
 
 		if txn.CanCommit() {

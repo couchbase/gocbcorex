@@ -7,12 +7,14 @@ import (
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/zaputils"
+	"go.uber.org/zap"
 )
 
 func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
-	result, err := t.replace(ctx, opts)
-	if err != nil {
-		t.logger.Info("replace failed")
+	result, oErr := t.replace(ctx, opts)
+	if oErr != nil {
+		err := oErr.Err()
+		t.logger.Info("replace failed", zap.Error(err))
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -21,13 +23,13 @@ func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplac
 		return nil, err
 	}
 
-	return result, err
+	return result, nil
 }
 
 func (t *TransactionAttempt) replace(
 	ctx context.Context,
 	opts TransactionReplaceOptions,
-) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
 	t.logger.Info("performing replace",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
@@ -134,8 +136,8 @@ func (t *TransactionAttempt) stageReplace(
 	key []byte,
 	value json.RawMessage,
 	cas uint64,
-) (*TransactionGetResult, error) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}

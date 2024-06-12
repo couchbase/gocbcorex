@@ -8,12 +8,14 @@ import (
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/zaputils"
+	"go.uber.org/zap"
 )
 
 func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
-	result, err := t.insert(ctx, opts)
-	if err != nil {
-		t.logger.Info("insert failed")
+	result, oErr := t.insert(ctx, opts)
+	if oErr != nil {
+		err := oErr.Err()
+		t.logger.Info("insert failed", zap.Error(err))
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -28,7 +30,7 @@ func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertO
 func (t *TransactionAttempt) insert(
 	ctx context.Context,
 	opts TransactionInsertOptions,
-) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
 	t.logger.Info("performing insert",
 		zaputils.FQDocID("key", opts.Agent.BucketName(), opts.ScopeName, opts.CollectionName, opts.Key))
 
@@ -126,7 +128,7 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 	collectionName string,
 	key []byte,
 	value json.RawMessage,
-) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
 	isTombstone, txnMeta, cas, err := t.getMetaForConflictedInsert(ctx, agent, oboUser, scopeName, collectionName, key)
 	if err != nil {
 		return nil, err
@@ -135,8 +137,17 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 	if txnMeta == nil {
 		// This doc isn't in a transaction
 		if !isTombstone {
-			// TODO(brett19): right error?  This breaks our TOF propagation...
-			return nil, wrapError(ErrDocExists, "found non-tombstone doc during conflicted insert resolution")
+			// TODO(brett19): Consider how this works
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: &classifiedError{
+					Class:  TransactionErrorClassFailOther,
+					Source: wrapError(ErrDocExists, "found non-tombstone doc during conflicted insert resolution"),
+				},
+				CanStillCommit:    true,
+				ShouldNotRetry:    false,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonSuccess,
+			})
 		}
 
 		// There wasn't actually a staged mutation there.
@@ -208,8 +219,8 @@ func (t *TransactionAttempt) stageInsert(
 	key []byte,
 	value json.RawMessage,
 	cas uint64,
-) (*TransactionGetResult, error) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -357,8 +368,8 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 	scopeName string,
 	collectionName string,
 	key []byte,
-) (bool, *jsonTxnXattr, uint64, *TransactionOperationFailedError) {
-	ecCb := func(isTombstone bool, meta *jsonTxnXattr, cas uint64, cerr *classifiedError) (bool, *jsonTxnXattr, uint64, *TransactionOperationFailedError) {
+) (bool, *jsonTxnXattr, uint64, *TransactionOperationStatus) {
+	ecCb := func(isTombstone bool, meta *jsonTxnXattr, cas uint64, cerr *classifiedError) (bool, *jsonTxnXattr, uint64, *TransactionOperationStatus) {
 		if cerr == nil {
 			return isTombstone, meta, cas, nil
 		}
@@ -430,8 +441,8 @@ func (t *TransactionAttempt) cleanupStagedInsert(
 	key []byte,
 	cas uint64,
 	isTombstone bool,
-) (uint64, *TransactionOperationFailedError) {
-	ecCb := func(cas uint64, cerr *classifiedError) (uint64, *TransactionOperationFailedError) {
+) (uint64, *TransactionOperationStatus) {
+	ecCb := func(cas uint64, cerr *classifiedError) (uint64, *TransactionOperationStatus) {
 		if cerr == nil {
 			return cas, nil
 		}

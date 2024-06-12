@@ -223,8 +223,8 @@ func (t *TransactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if err := t.checkCanCommitLocked(); err != nil {
-		return res, err
+	if oErr := t.checkCanCommitLocked(); oErr != nil {
+		return res, oErr.Err()
 	}
 
 	res.ID.Transaction = t.transactionID

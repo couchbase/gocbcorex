@@ -16,7 +16,7 @@ import (
 func (t *TransactionAttempt) selectAtrKey(
 	ctx context.Context,
 	firstKey []byte,
-) ([]byte, *TransactionOperationFailedError) {
+) ([]byte, *TransactionOperationStatus) {
 	hookAtrID, err := t.hooks.RandomATRIDForVbucket(ctx)
 	if err != nil {
 		return nil, t.operationFailed(operationFailedDef{
@@ -46,7 +46,7 @@ func (t *TransactionAttempt) selectAtrExclusive(
 	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
 	firstKey []byte,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	atrKey, err := t.selectAtrKey(ctx, firstKey)
 	if err != nil {
 		return err
@@ -87,8 +87,8 @@ func (t *TransactionAttempt) selectAtrExclusive(
 
 func (t *TransactionAttempt) setATRPendingExclusive(
 	ctx context.Context,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -227,8 +227,8 @@ func (t *TransactionAttempt) setATRPendingExclusive(
 
 func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 	ctx context.Context,
-) (jsonAtrState, *TransactionOperationFailedError) {
-	ecCb := func(st jsonAtrState, cerr *classifiedError) (jsonAtrState, *TransactionOperationFailedError) {
+) (jsonAtrState, *TransactionOperationStatus) {
+	ecCb := func(st jsonAtrState, cerr *classifiedError) (jsonAtrState, *TransactionOperationStatus) {
 		if cerr == nil {
 			return st, nil
 		}
@@ -323,7 +323,7 @@ func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 
 func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 	ctx context.Context,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	st, err := t.fetchATRCommitConflictExclusive(ctx)
 	if err != nil {
 		return err
@@ -378,8 +378,8 @@ func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 func (t *TransactionAttempt) setATRCommittedExclusive(
 	ctx context.Context,
 	ambiguityResolution bool,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -569,8 +569,8 @@ func (t *TransactionAttempt) setATRCommittedExclusive(
 
 func (t *TransactionAttempt) setATRCompletedExclusive(
 	ctx context.Context,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -674,8 +674,8 @@ func (t *TransactionAttempt) setATRCompletedExclusive(
 
 func (t *TransactionAttempt) setATRAbortedExclusive(
 	ctx context.Context,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -827,8 +827,8 @@ func (t *TransactionAttempt) setATRAbortedExclusive(
 
 func (t *TransactionAttempt) setATRRolledBackExclusive(
 	ctx context.Context,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}

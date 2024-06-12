@@ -41,18 +41,6 @@ var (
 
 	// ErrDocExists indicates that a document already exists.
 	ErrDocExists = errors.New("document exists (txns)")
-
-	// ErrTransient indicates a transient error occured which may succeed at a later point in time.
-	ErrTestTransient = errors.New("transient error")
-
-	// ErrHard indicates that an unrecoverable error occured.
-	ErrTestHard = errors.New("hard")
-
-	// ErrAmbiguous indicates that a failure occured but the outcome was not known.
-	ErrTestAmbiguous = errors.New("ambiguous error")
-
-	// ErrOther indicates an non-specific error has occured.
-	ErrTestOther = errors.New("other error")
 )
 
 type classifiedError struct {
@@ -70,9 +58,9 @@ func (ce classifiedError) Wrap(errType error) *classifiedError {
 	}
 }
 
-// TransactionOperationFailedError is used when a transaction operation fails.
+// TransactionOperationStatus is used when a transaction operation fails.
 // Internal: This should never be used and is not supported.
-type TransactionOperationFailedError struct {
+type TransactionOperationStatus struct {
 	shouldNotRetry    bool
 	shouldNotRollback bool
 	errorCause        error
@@ -80,58 +68,13 @@ type TransactionOperationFailedError struct {
 	errorClass        TransactionErrorClass
 }
 
-// MarshalJSON will marshal this error for the wire.
-func (tfe TransactionOperationFailedError) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Retry    bool            `json:"retry"`
-		Rollback bool            `json:"rollback"`
-		Raise    string          `json:"raise"`
-		Cause    json.RawMessage `json:"cause"`
-	}{
-		Retry:    !tfe.shouldNotRetry,
-		Rollback: !tfe.shouldNotRollback,
-		Raise:    tfe.shouldRaise.String(),
-		Cause:    marshalErrorToJSON(tfe.errorCause),
-	})
-}
-
-func (tfe TransactionOperationFailedError) Error() string {
-	errStr := "transaction operation failed"
-	errStr += " | " + fmt.Sprintf(
-		"shouldRetry:%v, shouldRollback:%v, shouldRaise:%d, class:%d",
-		!tfe.shouldNotRetry,
-		!tfe.shouldNotRollback,
-		tfe.shouldRaise,
-		tfe.errorClass)
-	if tfe.errorCause != nil {
-		errStr += " | " + tfe.errorCause.Error()
+func (s *TransactionOperationStatus) Err() error {
+	if s.shouldRaise == TransactionErrorReasonSuccess {
+		return s.errorCause
 	}
-	return errStr
-}
 
-// Retry signals whether a new attempt should be made at rollback.
-func (tfe TransactionOperationFailedError) Retry() bool {
-	return !tfe.shouldNotRetry
-}
-
-// Rollback signals whether the attempt should be auto-rolled back.
-func (tfe TransactionOperationFailedError) Rollback() bool {
-	return !tfe.shouldNotRollback
-}
-
-// ToRaise signals which error type should be raised to the application.
-func (tfe TransactionOperationFailedError) ToRaise() TransactionErrorReason {
-	return tfe.shouldRaise
-}
-
-// ErrorClass returns the class of error which caused this error.
-func (tfe TransactionOperationFailedError) ErrorClass() TransactionErrorClass {
-	return tfe.errorClass
-}
-
-// InternalUnwrap returns the underlying error for this error.
-func (tfe TransactionOperationFailedError) InternalUnwrap() error {
-	return tfe.errorCause
+	return fmt.Errorf("transaction operation failed (shouldNotRetry: %t, shouldNotRollback: %t, shouldRaise: %d, errorClass: %d): %w",
+		s.shouldNotRetry, s.shouldNotRollback, s.shouldRaise, s.errorClass, s.errorCause)
 }
 
 type aggregateError []error
@@ -287,4 +230,12 @@ func marshalErrorToJSON(err error) json.RawMessage {
 	// Marshalling a string cannot fail
 	data, _ := json.Marshal(err.Error())
 	return data
+}
+
+type ErrorClassError struct {
+	Class TransactionErrorClass
+}
+
+func (e ErrorClassError) Error() string {
+	return fmt.Sprintf("error class error - %d", e.Class)
 }

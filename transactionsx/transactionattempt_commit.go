@@ -14,8 +14,9 @@ import (
 func (t *TransactionAttempt) Commit(ctx context.Context) error {
 	t.logger.Info("committing")
 
-	err := t.commit(ctx)
-	if err != nil {
+	oErr := t.commit(ctx)
+	if oErr != nil {
+		err := oErr.Err()
 		t.logger.Info("commit failed", zap.Error(err))
 
 		if t.ShouldRollback() {
@@ -23,10 +24,13 @@ func (t *TransactionAttempt) Commit(ctx context.Context) error {
 				t.applyStateBits(transactionStateBitPreExpiryAutoRollback, 0)
 			}
 
-			rerr := t.rollback(ctx)
-			if rerr != nil {
+			roErr := t.rollback(ctx)
+			if roErr != nil {
+				// TODO(brett19): Improve propagation of rollback errors.
+				rErr := roErr.Err()
+
 				t.logger.Info("rollback after commit failure failed",
-					zap.Error(rerr), zap.NamedError("commitError", err))
+					zap.Error(rErr), zap.NamedError("commitError", err))
 			}
 
 			t.ensureCleanUpRequest()
@@ -45,7 +49,7 @@ func (t *TransactionAttempt) Commit(ctx context.Context) error {
 
 func (t *TransactionAttempt) commit(
 	ctx context.Context,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	t.lock.Lock()
 
 	err := t.waitForOpsLocked(ctx)
@@ -102,7 +106,7 @@ func (t *TransactionAttempt) commit(
 	t.state = TransactionAttemptStateCommitted
 	t.lock.Unlock()
 
-	var mutErrs []*TransactionOperationFailedError
+	var mutErrs []*TransactionOperationStatus
 	if !t.enableParallelUnstaging {
 		for _, mutation := range t.stagedMutations {
 			err := t.commitStagedMutation(ctx, mutation)
@@ -115,7 +119,7 @@ func (t *TransactionAttempt) commit(
 		numThreads := 32
 		numMutations := len(t.stagedMutations)
 		pendCh := make(chan *transactionStagedMutation, numThreads*2)
-		waitCh := make(chan *TransactionOperationFailedError, numMutations)
+		waitCh := make(chan *TransactionOperationStatus, numMutations)
 
 		// Start all our threads to process mutations
 		for threadIdx := 0; threadIdx < numThreads; threadIdx++ {
@@ -170,7 +174,7 @@ func (t *TransactionAttempt) commit(
 func (t *TransactionAttempt) commitStagedMutation(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	err := t.fetchBeforeUnstage(ctx, mutation)
 	if err != nil {
 		return err
@@ -197,8 +201,8 @@ func (t *TransactionAttempt) commitStagedMutation(
 func (t *TransactionAttempt) fetchBeforeUnstage(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -281,8 +285,8 @@ func (t *TransactionAttempt) commitStagedReplace(
 	mutation transactionStagedMutation,
 	forceWrite bool,
 	ambiguityResolution bool,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -426,8 +430,8 @@ func (t *TransactionAttempt) commitStagedInsert(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 	ambiguityResolution bool,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -539,8 +543,8 @@ func (t *TransactionAttempt) commitStagedRemove(
 	ctx context.Context,
 	mutation transactionStagedMutation,
 	ambiguityResolution bool,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}

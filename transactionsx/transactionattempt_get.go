@@ -11,8 +11,10 @@ import (
 )
 
 func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
-	result, err := t.get(ctx, opts)
-	if err != nil {
+	result, oErr := t.get(ctx, opts)
+	if oErr != nil {
+		err := oErr.Err()
+
 		t.logger.Info("get failed", zap.Error(err))
 
 		if !t.ShouldRollback() {
@@ -28,7 +30,7 @@ func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions
 func (t *TransactionAttempt) get(
 	ctx context.Context,
 	opts TransactionGetOptions,
-) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
 	forceNonFatal := t.enableNonFatalGets
 
 	t.logger.Info("performing get",
@@ -58,14 +60,14 @@ func (t *TransactionAttempt) get(
 		})
 	}
 
-	result, err := t.mavRead(ctx, opts.Agent, opts.OboUser, opts.ScopeName, opts.CollectionName, opts.Key, opts.NoRYOW,
+	result, oErr := t.mavRead(ctx, opts.Agent, opts.OboUser, opts.ScopeName, opts.CollectionName, opts.Key, opts.NoRYOW,
 		"", forceNonFatal)
-	if err != nil {
+	if oErr != nil {
 		t.endOp()
-		return nil, err
+		return nil, oErr
 	}
 
-	err = t.hooks.AfterGetComplete(ctx, opts.Key)
+	err := t.hooks.AfterGetComplete(ctx, opts.Key)
 	if err != nil {
 		t.endOp()
 		return nil, t.operationFailed(operationFailedDef{
@@ -91,7 +93,7 @@ func (t *TransactionAttempt) mavRead(
 	disableRYOW bool,
 	resolvingATREntry string,
 	forceNonFatal bool,
-) (*TransactionGetResult, error) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
 	doc, err := t.fetchDocWithMeta(
 		ctx,
 		agent,
@@ -117,8 +119,17 @@ func (t *TransactionAttempt) mavRead(
 	// Doc not involved in another transaction.
 	if doc.TxnMeta == nil {
 		if doc.Deleted {
-			// TODO(brett19): Check that this is the right error handling...
-			return nil, wrapError(ErrDocNotFound, "doc was a tombstone")
+			// TODO(brett19): Consider how this works
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: &classifiedError{
+					Class:  TransactionErrorClassFailOther,
+					Source: wrapError(ErrDocNotFound, "txn meta is nil, doc was a tombstone"),
+				},
+				CanStillCommit:    true,
+				ShouldNotRetry:    false,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonSuccess,
+			})
 		}
 
 		t.logger.Info("txn meta is nil, returning result")
@@ -162,8 +173,17 @@ func (t *TransactionAttempt) mavRead(
 				Cas:            doc.Cas,
 			}, nil
 		case jsonMutationRemove:
-			// TODO(brett19): Check that this is the right error handling...
-			return nil, wrapError(ErrDocNotFound, "doc was a staged remove")
+			// TODO(brett19): Consider how this works
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: &classifiedError{
+					Class:  TransactionErrorClassFailOther,
+					Source: wrapError(ErrDocNotFound, "doc was a staged remove"),
+				},
+				CanStillCommit:    true,
+				ShouldNotRetry:    false,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonSuccess,
+			})
 		default:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -178,8 +198,17 @@ func (t *TransactionAttempt) mavRead(
 
 	if doc.TxnMeta.ID.Attempt == resolvingATREntry {
 		if doc.Deleted {
-			// TODO(brett19): Consider if this is the right error...
-			return nil, wrapError(ErrDocNotFound, "doc was a staged tombstone during resolution")
+			// TODO(brett19): Consider how this works
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: &classifiedError{
+					Class:  TransactionErrorClassFailOther,
+					Source: wrapError(ErrDocNotFound, "doc was a staged tombstone during resolution"),
+				},
+				CanStillCommit:    true,
+				ShouldNotRetry:    false,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonSuccess,
+			})
 		}
 
 		t.logger.Info("completed ATR resolution")
@@ -287,8 +316,17 @@ func (t *TransactionAttempt) mavRead(
 				Meta:           docMeta,
 			}, nil
 		case jsonMutationRemove:
-			// TODO(brett19): Consider if this is the right error
-			return nil, wrapError(ErrDocNotFound, "doc was a staged remove")
+			// TODO(brett19): Consider how this works
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: &classifiedError{
+					Class:  TransactionErrorClassFailOther,
+					Source: wrapError(ErrDocNotFound, "doc was a staged remove"),
+				},
+				CanStillCommit:    true,
+				ShouldNotRetry:    false,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonSuccess,
+			})
 		default:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -300,8 +338,17 @@ func (t *TransactionAttempt) mavRead(
 	}
 
 	if doc.Deleted {
-		// TODO(brett19): More doc not found stuff...
-		return nil, wrapError(ErrDocNotFound, "doc was a tombstone")
+		// TODO(brett19): Consider how this works
+		return nil, t.operationFailed(operationFailedDef{
+			Cerr: &classifiedError{
+				Class:  TransactionErrorClassFailOther,
+				Source: wrapError(ErrDocNotFound, "doc was a tombstone"),
+			},
+			CanStillCommit:    true,
+			ShouldNotRetry:    false,
+			ShouldNotRollback: false,
+			Reason:            TransactionErrorReasonSuccess,
+		})
 	}
 
 	return &TransactionGetResult{
@@ -324,16 +371,25 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 	collectionName string,
 	key []byte,
 	forceNonFatal bool,
-) (*transactionGetDoc, error) {
-	ecCb := func(doc *transactionGetDoc, cerr *classifiedError) (*transactionGetDoc, error) {
+) (*transactionGetDoc, *TransactionOperationStatus) {
+	ecCb := func(doc *transactionGetDoc, cerr *classifiedError) (*transactionGetDoc, *TransactionOperationStatus) {
 		if cerr == nil {
 			return doc, nil
 		}
 
 		switch cerr.Class {
 		case TransactionErrorClassFailDocNotFound:
-			// TODO(brett19): More doc not found
-			return nil, wrapError(ErrDocNotFound, "doc was not found")
+			// TODO(brett19): Consider how this works
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr: &classifiedError{
+					Class:  TransactionErrorClassFailOther,
+					Source: wrapError(ErrDocNotFound, "doc was not found"),
+				},
+				CanStillCommit:    true,
+				ShouldNotRetry:    false,
+				ShouldNotRollback: false,
+				Reason:            TransactionErrorReasonSuccess,
+			})
 		case TransactionErrorClassFailTransient:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,

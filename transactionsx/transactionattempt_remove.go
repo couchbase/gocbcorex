@@ -7,12 +7,14 @@ import (
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/zaputils"
+	"go.uber.org/zap"
 )
 
 func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
-	result, err := t.remove(ctx, opts)
-	if err != nil {
-		t.logger.Info("remove failed")
+	result, oErr := t.remove(ctx, opts)
+	if oErr != nil {
+		err := oErr.Err()
+		t.logger.Info("remove failed", zap.Error(err))
 
 		if !t.ShouldRollback() {
 			t.ensureCleanUpRequest()
@@ -27,7 +29,7 @@ func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveO
 func (t *TransactionAttempt) remove(
 	ctx context.Context,
 	opts TransactionRemoveOptions,
-) (*TransactionGetResult, *TransactionOperationFailedError) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
 	t.logger.Info("performing remove",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
@@ -131,8 +133,8 @@ func (t *TransactionAttempt) stageRemove(
 	collectionName string,
 	key []byte,
 	cas uint64,
-) (*TransactionGetResult, *TransactionOperationFailedError) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationFailedError) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -310,8 +312,8 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 	collectionName string,
 	key []byte,
 	cas uint64,
-) (*TransactionGetResult, *TransactionOperationFailedError) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationFailedError) {
+) (*TransactionGetResult, *TransactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}

@@ -43,7 +43,7 @@ func (t *TransactionAttempt) endOp() {
 	}
 }
 
-func (t *TransactionAttempt) waitForOpsLocked(ctx context.Context) *TransactionOperationFailedError {
+func (t *TransactionAttempt) waitForOpsLocked(ctx context.Context) *TransactionOperationStatus {
 	for {
 		if t.numPendingOps == 0 {
 			return nil
@@ -77,7 +77,7 @@ func (t *TransactionAttempt) waitForOpsLocked(ctx context.Context) *TransactionO
 	}
 }
 
-func (t *TransactionAttempt) checkCanPerformOpLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanPerformOpLocked() *TransactionOperationStatus {
 	switch t.state {
 	case TransactionAttemptStateNothingWritten:
 		fallthrough
@@ -135,7 +135,7 @@ func (t *TransactionAttempt) checkCanPerformOpLocked() *TransactionOperationFail
 	return nil
 }
 
-func (t *TransactionAttempt) checkCanCommitRollbackLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanCommitRollbackLocked() *TransactionOperationStatus {
 	switch t.state {
 	case TransactionAttemptStateNothingWritten:
 		fallthrough
@@ -182,7 +182,7 @@ func (t *TransactionAttempt) checkCanCommitRollbackLocked() *TransactionOperatio
 	return nil
 }
 
-func (t *TransactionAttempt) checkCanCommitLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanCommitLocked() *TransactionOperationStatus {
 	err := t.checkCanCommitRollbackLocked()
 	if err != nil {
 		return err
@@ -202,7 +202,7 @@ func (t *TransactionAttempt) checkCanCommitLocked() *TransactionOperationFailedE
 	return nil
 }
 
-func (t *TransactionAttempt) checkCanRollbackLocked() *TransactionOperationFailedError {
+func (t *TransactionAttempt) checkCanRollbackLocked() *TransactionOperationStatus {
 	err := t.checkCanCommitRollbackLocked()
 	if err != nil {
 		return err
@@ -257,7 +257,7 @@ func (t *TransactionAttempt) confirmATRPending(
 	firstAgent *gocbcorex.Agent,
 	firstOboUser string,
 	firstKey []byte,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	t.lock.Lock()
 
 	for {
@@ -382,7 +382,7 @@ func (t *TransactionAttempt) checkForwardCompatability(
 	stage forwardCompatStage,
 	fc map[string][]TransactionForwardCompatibilityEntry,
 	forceNonFatal bool,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	t.logger.Info("checking forward compatibility")
 
 	isCompat, shouldRetry, retryWait, err := checkForwardCompatability(stage, fc)
@@ -457,8 +457,8 @@ func (t *TransactionAttempt) getTxnState(
 	atrDocID string,
 	attemptID string,
 	forceNonFatal bool,
-) (*jsonAtrAttempt, time.Time, *TransactionOperationFailedError) {
-	ecCb := func(res *jsonAtrAttempt, txnExp time.Time, cerr *classifiedError) (*jsonAtrAttempt, time.Time, *TransactionOperationFailedError) {
+) (*jsonAtrAttempt, time.Time, *TransactionOperationStatus) {
+	ecCb := func(res *jsonAtrAttempt, txnExp time.Time, cerr *classifiedError) (*jsonAtrAttempt, time.Time, *TransactionOperationStatus) {
 		if cerr == nil {
 			return res, txnExp, nil
 		}
@@ -576,7 +576,7 @@ func (t *TransactionAttempt) writeWriteConflictPoll(
 	cas uint64,
 	meta *TransactionMutableItemMeta,
 	existingMutation *transactionStagedMutation,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	if meta == nil {
 		t.logger.Info("meta is nil, no write-write conflict")
 

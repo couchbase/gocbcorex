@@ -6,12 +6,14 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
+	"go.uber.org/zap"
 )
 
 func (t *TransactionAttempt) Rollback(ctx context.Context) error {
-	err := t.rollback(ctx)
-	if err != nil {
-		t.logger.Info("rollback failed")
+	oErr := t.rollback(ctx)
+	if oErr != nil {
+		err := oErr.Err()
+		t.logger.Info("rollback failed", zap.Error(err))
 
 		t.ensureCleanUpRequest()
 		return err
@@ -23,7 +25,7 @@ func (t *TransactionAttempt) Rollback(ctx context.Context) error {
 
 func (t *TransactionAttempt) rollback(
 	ctx context.Context,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	t.logger.Info("rolling back")
 
 	t.lock.Lock()
@@ -63,7 +65,7 @@ func (t *TransactionAttempt) rollback(
 	t.state = TransactionAttemptStateAborted
 	t.lock.Unlock()
 
-	var mutErrs []*TransactionOperationFailedError
+	var mutErrs []*TransactionOperationStatus
 	if !t.enableParallelUnstaging {
 		for _, mutation := range t.stagedMutations {
 			err := t.unstageStagedMutation(ctx, mutation)
@@ -76,7 +78,7 @@ func (t *TransactionAttempt) rollback(
 		numThreads := 32
 		numMutations := len(t.stagedMutations)
 		pendCh := make(chan *transactionStagedMutation, numThreads*2)
-		waitCh := make(chan *TransactionOperationFailedError, numMutations)
+		waitCh := make(chan *TransactionOperationStatus, numMutations)
 
 		// Start all our threads to process mutations
 		for threadIdx := 0; threadIdx < numThreads; threadIdx++ {
@@ -127,7 +129,7 @@ func (t *TransactionAttempt) rollback(
 func (t *TransactionAttempt) unstageStagedMutation(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
-) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
 	switch mutation.OpType {
 	case TransactionStagedMutationInsert:
 		return t.unstageStagedInsert(ctx, *mutation)
@@ -148,8 +150,8 @@ func (t *TransactionAttempt) unstageStagedMutation(
 func (t *TransactionAttempt) unstageStagedInsert(
 	ctx context.Context,
 	mutation transactionStagedMutation,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -260,8 +262,8 @@ func (t *TransactionAttempt) unstageStagedInsert(
 func (t *TransactionAttempt) unstageStagedRemoveReplace(
 	ctx context.Context,
 	mutation transactionStagedMutation,
-) *TransactionOperationFailedError {
-	ecCb := func(cerr *classifiedError) *TransactionOperationFailedError {
+) *TransactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
