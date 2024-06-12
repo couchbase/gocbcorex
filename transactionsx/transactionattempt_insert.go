@@ -12,16 +12,10 @@ import (
 )
 
 func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
-	result, oErr := t.insert(ctx, opts)
-	if oErr != nil {
-		err := oErr.Err()
-		t.logger.Info("insert failed", zap.Error(err))
-
-		if !t.ShouldRollback() {
-			t.ensureCleanUpRequest()
-		}
-
-		return nil, err
+	result, errSt := t.insert(ctx, opts)
+	if errSt != nil {
+		t.logger.Info("insert failed", zap.Error(errSt.Err()))
+		return nil, t.processOpStatus(ctx, errSt)
 	}
 
 	return result, nil

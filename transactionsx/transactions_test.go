@@ -61,7 +61,7 @@ func TestTransactionsInsertTxn1GetTxn2(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, transactionsx.ErrDocNotFound)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -91,7 +91,7 @@ func TestTransactionsInsertTxn1InsertTxn2(t *testing.T) {
 	})
 	assert.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -134,7 +134,7 @@ func TestTransactionsReplaceTxn1GetTxn2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, TEST_VALUE_INITIAL, getRes2.Value)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -177,7 +177,7 @@ func TestTransactionsReplaceTxn1InsertTxn2(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -225,7 +225,7 @@ func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -272,7 +272,7 @@ func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -314,7 +314,7 @@ func TestTransactionsRemoveTxn1GetTxn2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, TEST_VALUE_INITIAL, getRes2.Value)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocMissing(t, agent, docKey)
@@ -355,7 +355,7 @@ func TestTransactionsRemoveTxn1InsertTxn2(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocMissing(t, agent, docKey)
@@ -402,7 +402,7 @@ func TestTransactionsRemoveTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocMissing(t, agent, docKey)
@@ -448,7 +448,7 @@ func TestTransactionsRemoveTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocMissing(t, agent, docKey)
@@ -477,7 +477,7 @@ func TestTransactionsInsertReplace(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocMissing(t, agent, docKey)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocValue(t, agent, docKey, TEST_VALUE)
@@ -505,7 +505,7 @@ func TestTransactionsInsertRemove(t *testing.T) {
 	assertDocNotStaged(t, agent, docKey)
 	assertDocMissing(t, agent, docKey)
 
-	err = txn1.Commit(ctx)
+	_, err = txn1.Commit(ctx)
 	require.NoError(t, err)
 	assertDocNotStaged(t, agent, docKey)
 	assertDocMissing(t, agent, docKey)

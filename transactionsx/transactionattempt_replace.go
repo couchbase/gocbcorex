@@ -11,16 +11,10 @@ import (
 )
 
 func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
-	result, oErr := t.replace(ctx, opts)
-	if oErr != nil {
-		err := oErr.Err()
-		t.logger.Info("replace failed", zap.Error(err))
-
-		if !t.ShouldRollback() {
-			t.ensureCleanUpRequest()
-		}
-
-		return nil, err
+	result, errSt := t.replace(ctx, opts)
+	if errSt != nil {
+		t.logger.Info("replace failed", zap.Error(errSt.Err()))
+		return nil, t.processOpStatus(ctx, errSt)
 	}
 
 	return result, nil

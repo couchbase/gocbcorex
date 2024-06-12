@@ -37,15 +37,6 @@ func (t *Transaction) ID() string {
 	return t.transactionID
 }
 
-// Attempt returns meta-data about the current attempt to complete the transaction.
-func (t *Transaction) Attempt() TransactionAttemptResult {
-	if t.attempt == nil {
-		return TransactionAttemptResult{}
-	}
-
-	return t.attempt.State()
-}
-
 // NewAttempt begins a new attempt with this transaction.
 func (t *Transaction) NewAttempt() error {
 	attemptUUID := uuid.New().String()
@@ -291,9 +282,9 @@ func (t *Transaction) Remove(ctx context.Context, opts TransactionRemoveOptions)
 
 // Commit will attempt to commit the transaction, rolling it back and cancelling
 // it if it is not capable of doing so.
-func (t *Transaction) Commit(ctx context.Context) error {
+func (t *Transaction) Commit(ctx context.Context) (*TransactionAttemptResult, error) {
 	if t.attempt == nil {
-		return ErrNoAttempt
+		return nil, ErrNoAttempt
 	}
 
 	return t.attempt.Commit(ctx)
@@ -326,15 +317,6 @@ func (t *Transaction) CanCommit() bool {
 	return t.attempt.CanCommit()
 }
 
-// ShouldRollback indicates if this attempt should be rolled back.
-func (t *Transaction) ShouldRollback() bool {
-	if t.attempt == nil {
-		return false
-	}
-
-	return t.attempt.ShouldRollback()
-}
-
 // ShouldRetry indicates if this attempt thinks we can retry.
 func (t *Transaction) ShouldRetry() bool {
 	if t.attempt == nil {
@@ -342,15 +324,6 @@ func (t *Transaction) ShouldRetry() bool {
 	}
 
 	return t.attempt.ShouldRetry()
-}
-
-// FinalErrorToRaise returns the TransactionErrorReason corresponding to the final state of the transaction.
-func (t *Transaction) FinalErrorToRaise() TransactionErrorReason {
-	if t.attempt == nil {
-		return 0
-	}
-
-	return t.attempt.FinalErrorToRaise()
 }
 
 func (t *Transaction) TimeRemaining() time.Duration {

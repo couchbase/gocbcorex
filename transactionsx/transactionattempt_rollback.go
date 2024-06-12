@@ -10,13 +10,15 @@ import (
 )
 
 func (t *TransactionAttempt) Rollback(ctx context.Context) error {
-	oErr := t.rollback(ctx)
-	if oErr != nil {
-		err := oErr.Err()
-		t.logger.Info("rollback failed", zap.Error(err))
+	errSt := t.rollback(ctx)
+	if errSt != nil {
+		t.logger.Info("rollback failed", zap.Error(errSt.Err()))
 
 		t.ensureCleanUpRequest()
-		return err
+		return &TransactionAttemptError{
+			Cause:  errSt.Err(),
+			Result: t.result(),
+		}
 	}
 
 	t.ensureCleanUpRequest()

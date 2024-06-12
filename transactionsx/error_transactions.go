@@ -58,9 +58,55 @@ func (ce classifiedError) Wrap(errType error) *classifiedError {
 	}
 }
 
+type TransactionAttemptError struct {
+	Cause  error
+	Result *TransactionAttemptResult
+}
+
+func (e *TransactionAttemptError) Error() string {
+	return fmt.Sprintf("transaction attempt error (result: %+v): %s",
+		e.Result, e.Cause)
+}
+
+func (e *TransactionAttemptError) Unwrap() error {
+	return e.Cause
+}
+
+type TransactionPostErrorRollbackError struct {
+	OriginalCause error
+	RollbackErr   error
+}
+
+func (e *TransactionPostErrorRollbackError) Error() string {
+	return fmt.Sprintf("post-failure rollback error (rollback error: %s): %s",
+		e.RollbackErr, e.OriginalCause)
+}
+
+func (e *TransactionPostErrorRollbackError) Unwrap() error {
+	return e.OriginalCause
+}
+
+type TransactionOperationError struct {
+	ShouldNotRetry bool
+	Cause          error
+	ShouldRaise    TransactionErrorReason
+	ErrorClass     TransactionErrorClass
+	Result         *TransactionAttemptResult
+}
+
+func (e *TransactionOperationError) Error() string {
+	return fmt.Sprintf("transaction operation error (shouldNotRetry: %t, shouldRaise: %d, errorClass: %d, result: ): %s",
+		e.ShouldNotRetry, e.ShouldRaise, e.ErrorClass, e.Cause)
+}
+
+func (e *TransactionOperationError) Unwrap() error {
+	return e.Cause
+}
+
 // TransactionOperationStatus is used when a transaction operation fails.
 // Internal: This should never be used and is not supported.
 type TransactionOperationStatus struct {
+	canStillCommit    bool
 	shouldNotRetry    bool
 	shouldNotRollback bool
 	errorCause        error
@@ -70,11 +116,17 @@ type TransactionOperationStatus struct {
 
 func (s *TransactionOperationStatus) Err() error {
 	if s.shouldRaise == TransactionErrorReasonSuccess {
+		// if the transaction error reason is still success, this means that the operation
+		// has not been fatal to the transaction, so we can just return the cause itself.
 		return s.errorCause
 	}
 
-	return fmt.Errorf("transaction operation failed (shouldNotRetry: %t, shouldNotRollback: %t, shouldRaise: %d, errorClass: %d): %w",
-		s.shouldNotRetry, s.shouldNotRollback, s.shouldRaise, s.errorClass, s.errorCause)
+	return &TransactionOperationError{
+		ShouldNotRetry: s.shouldNotRetry,
+		Cause:          s.errorCause,
+		ShouldRaise:    s.shouldRaise,
+		ErrorClass:     s.errorClass,
+	}
 }
 
 type aggregateError []error

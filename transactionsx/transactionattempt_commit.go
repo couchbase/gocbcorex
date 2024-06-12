@@ -11,40 +11,52 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *TransactionAttempt) Commit(ctx context.Context) error {
+func (t *TransactionAttempt) Commit(ctx context.Context) (*TransactionAttemptResult, error) {
 	t.logger.Info("committing")
 
-	oErr := t.commit(ctx)
-	if oErr != nil {
-		err := oErr.Err()
-		t.logger.Info("commit failed", zap.Error(err))
+	errSt := t.commit(ctx)
+	if errSt != nil {
+		t.logger.Info("commit failed", zap.Error(errSt.Err()))
 
-		if t.ShouldRollback() {
+		if t.shouldRollback() {
 			if !t.isExpiryOvertimeAtomic() {
 				t.applyStateBits(transactionStateBitPreExpiryAutoRollback, 0)
 			}
 
-			roErr := t.rollback(ctx)
-			if roErr != nil {
+			roErrSt := t.rollback(ctx)
+			if roErrSt != nil {
 				// TODO(brett19): Improve propagation of rollback errors.
-				rErr := roErr.Err()
-
 				t.logger.Info("rollback after commit failure failed",
-					zap.Error(rErr), zap.NamedError("commitError", err))
+					zap.Error(roErrSt.Err()), zap.NamedError("commitError", errSt.Err()))
+
+				t.ensureCleanUpRequest()
+				return nil, &TransactionAttemptError{
+					Cause: &TransactionPostErrorRollbackError{
+						OriginalCause: errSt.Err(),
+						RollbackErr:   roErrSt.Err(),
+					},
+					Result: t.result(),
+				}
 			}
 
 			t.ensureCleanUpRequest()
-			return err
+			return nil, &TransactionAttemptError{
+				Cause:  errSt.Err(),
+				Result: t.result(),
+			}
 		}
 
 		t.ensureCleanUpRequest()
-		return err
+		return nil, &TransactionAttemptError{
+			Cause:  errSt.Err(),
+			Result: t.result(),
+		}
 	}
 
 	t.applyStateBits(transactionStateBitShouldNotRetry|transactionStateBitShouldNotRollback, 0)
 
 	t.ensureCleanUpRequest()
-	return nil
+	return t.result(), nil
 }
 
 func (t *TransactionAttempt) commit(

@@ -51,51 +51,6 @@ type TransactionAttempt struct {
 	lock sync.Mutex
 }
 
-func (t *TransactionAttempt) State() TransactionAttemptResult {
-	state := TransactionAttemptResult{}
-
-	t.lock.Lock()
-
-	stateBits := atomic.LoadUint32(&t.stateBits)
-
-	state.State = t.state
-	state.ID = t.id
-
-	if stateBits&transactionStateBitHasExpired != 0 {
-		state.Expired = true
-	} else {
-		state.Expired = false
-	}
-
-	if stateBits&transactionStateBitPreExpiryAutoRollback != 0 {
-		state.PreExpiryAutoRollback = true
-	} else {
-		state.PreExpiryAutoRollback = false
-	}
-
-	if t.atrAgent != nil {
-		state.AtrBucketName = t.atrAgent.BucketName()
-		state.AtrScopeName = t.atrScopeName
-		state.AtrCollectionName = t.atrCollectionName
-		state.AtrID = t.atrKey
-	} else {
-		state.AtrBucketName = ""
-		state.AtrScopeName = ""
-		state.AtrCollectionName = ""
-		state.AtrID = nil
-	}
-
-	if t.state == TransactionAttemptStateCompleted {
-		state.UnstagingComplete = true
-	} else {
-		state.UnstagingComplete = false
-	}
-
-	t.lock.Unlock()
-
-	return state
-}
-
 func (t *TransactionAttempt) HasExpired() bool {
 	return t.isExpiryOvertimeAtomic()
 }
@@ -105,19 +60,14 @@ func (t *TransactionAttempt) CanCommit() bool {
 	return (stateBits & transactionStateBitShouldNotCommit) == 0
 }
 
-func (t *TransactionAttempt) ShouldRollback() bool {
-	stateBits := atomic.LoadUint32(&t.stateBits)
-	return (stateBits & transactionStateBitShouldNotRollback) == 0
-}
-
 func (t *TransactionAttempt) ShouldRetry() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return (stateBits&transactionStateBitShouldNotRetry) == 0 && !t.isExpiryOvertimeAtomic()
 }
 
-func (t *TransactionAttempt) FinalErrorToRaise() TransactionErrorReason {
+func (t *TransactionAttempt) shouldRollback() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
-	return TransactionErrorReason((stateBits & transactionStateBitsMaskFinalError) >> transactionStateBitsPositionFinalError)
+	return (stateBits & transactionStateBitShouldNotRollback) == 0
 }
 
 func (t *TransactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
@@ -223,8 +173,9 @@ func (t *TransactionAttempt) toJsonObject() (jsonSerializedAttempt, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
-	if oErr := t.checkCanCommitLocked(); oErr != nil {
-		return res, oErr.Err()
+	if errSt := t.checkCanCommitLocked(); errSt != nil {
+		// TODO(brett19): This emits the wrong error...
+		return res, errSt.Err()
 	}
 
 	res.ID.Transaction = t.transactionID

@@ -11,16 +11,10 @@ import (
 )
 
 func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
-	result, oErr := t.remove(ctx, opts)
-	if oErr != nil {
-		err := oErr.Err()
-		t.logger.Info("remove failed", zap.Error(err))
-
-		if !t.ShouldRollback() {
-			t.ensureCleanUpRequest()
-		}
-
-		return nil, err
+	result, errSt := t.remove(ctx, opts)
+	if errSt != nil {
+		t.logger.Info("remove failed", zap.Error(errSt.Err()))
+		return nil, t.processOpStatus(ctx, errSt)
 	}
 
 	return result, nil

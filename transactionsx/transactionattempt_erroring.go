@@ -26,6 +26,7 @@ func mergeOperationFailedErrors(errs []*TransactionOperationStatus) *Transaction
 	for errIdx := 0; errIdx < len(errs); errIdx++ {
 		tErr := errs[errIdx]
 
+		// TODO(brett19): Implement error aggregation
 		aggCauses = append(aggCauses, tErr.Err())
 
 		if tErr.shouldNotRetry {
@@ -89,6 +90,7 @@ func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationStatu
 
 func (t *TransactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationStatus {
 	t.logger.Info("operation failed",
+		zap.Bool("canStillCommit", def.CanStillCommit),
 		zap.Bool("shouldNotRetry", def.ShouldNotRetry),
 		zap.Bool("shouldNotRollback", def.ShouldNotRollback),
 		zap.NamedError("cause", def.Cerr.Source),
@@ -96,6 +98,7 @@ func (t *TransactionAttempt) operationFailed(def operationFailedDef) *Transactio
 		zap.Stringer("shouldRaise", def.Reason))
 
 	err := &TransactionOperationStatus{
+		canStillCommit:    def.CanStillCommit,
 		shouldNotRetry:    def.ShouldNotRetry,
 		shouldNotRollback: def.ShouldNotRollback,
 		errorCause:        def.Cerr.Source,
@@ -107,11 +110,11 @@ func (t *TransactionAttempt) operationFailed(def operationFailedDef) *Transactio
 	if !def.CanStillCommit {
 		stateBits |= transactionStateBitShouldNotCommit
 	}
-	if def.ShouldNotRollback {
-		stateBits |= transactionStateBitShouldNotRollback
-	}
 	if def.ShouldNotRetry {
 		stateBits |= transactionStateBitShouldNotRetry
+	}
+	if def.ShouldNotRollback {
+		stateBits |= transactionStateBitShouldNotRollback
 	}
 	if def.Reason == TransactionErrorReasonTransactionExpired {
 		stateBits |= transactionStateBitHasExpired

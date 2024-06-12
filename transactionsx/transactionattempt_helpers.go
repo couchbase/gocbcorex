@@ -717,6 +717,12 @@ func (t *TransactionAttempt) ensureCleanUpRequest() {
 	// TODO(brett19): We should probably make sure it's not in any of the pre-ATR states here.
 	// We cannot handle the case currently where we don't have an ATR Agent yet.
 
+	if t.state == TransactionAttemptStateNothingWritten {
+		t.lock.Unlock()
+		t.logger.Info("attempt state nothing written, will not add cleanup request")
+		return
+	}
+
 	if t.state == TransactionAttemptStateCompleted || t.state == TransactionAttemptStateRolledBack {
 		t.lock.Unlock()
 		t.logger.Info("attempt state completed or rolled back, will not add cleanup request")
@@ -781,4 +787,67 @@ func (t *TransactionAttempt) ensureCleanUpRequest() {
 		zap.Stringer("state", cleanupState))
 
 	t.cleanupQueue.AddRequest(req)
+}
+
+func (t *TransactionAttempt) result() *TransactionAttemptResult {
+	t.lock.Lock()
+	stateBits := atomic.LoadUint32(&t.stateBits)
+
+	if t.state == TransactionAttemptStateNothingWritten {
+		t.lock.Unlock()
+		return &TransactionAttemptResult{
+			State:                 t.state,
+			ID:                    t.id,
+			AtrBucketName:         "",
+			AtrScopeName:          "",
+			AtrCollectionName:     "",
+			AtrID:                 []byte(""),
+			UnstagingComplete:     true,
+			Expired:               false,
+			PreExpiryAutoRollback: false,
+		}
+	}
+
+	result := &TransactionAttemptResult{
+		State:                 t.state,
+		ID:                    t.id,
+		AtrBucketName:         t.atrAgent.BucketName(),
+		AtrScopeName:          t.atrScopeName,
+		AtrCollectionName:     t.atrCollectionName,
+		AtrID:                 t.atrKey,
+		UnstagingComplete:     t.state == TransactionAttemptStateCompleted || t.state == TransactionAttemptStateRolledBack,
+		Expired:               (stateBits & transactionStateBitHasExpired) != 0,
+		PreExpiryAutoRollback: (stateBits & transactionStateBitPreExpiryAutoRollback) != 0,
+	}
+	t.lock.Unlock()
+
+	return result
+}
+
+func (t *TransactionAttempt) processOpStatus(ctx context.Context, s *TransactionOperationStatus) error {
+	if s.canStillCommit {
+		// if we can still commit, we can just return the error directly
+		// rather than needing to wrap it in a failure of the attempt.
+		return s.Err()
+	}
+
+	if !s.shouldNotRollback {
+		rbErrSt := t.rollback(ctx)
+		if rbErrSt != nil {
+			t.ensureCleanUpRequest()
+			return &TransactionAttemptError{
+				Cause: &TransactionPostErrorRollbackError{
+					OriginalCause: s.Err(),
+					RollbackErr:   rbErrSt.Err(),
+				},
+				Result: t.result(),
+			}
+		}
+	}
+
+	t.ensureCleanUpRequest()
+	return &TransactionAttemptError{
+		Cause:  s.Err(),
+		Result: t.result(),
+	}
 }

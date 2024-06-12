@@ -11,17 +11,10 @@ import (
 )
 
 func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
-	result, oErr := t.get(ctx, opts)
-	if oErr != nil {
-		err := oErr.Err()
-
-		t.logger.Info("get failed", zap.Error(err))
-
-		if !t.ShouldRollback() {
-			t.ensureCleanUpRequest()
-		}
-
-		return nil, err
+	result, errSt := t.get(ctx, opts)
+	if errSt != nil {
+		t.logger.Info("get failed", zap.Error(errSt.Err()))
+		return nil, t.processOpStatus(ctx, errSt)
 	}
 
 	return result, nil
