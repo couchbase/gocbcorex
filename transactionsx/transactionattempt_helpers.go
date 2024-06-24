@@ -831,6 +831,10 @@ func (t *TransactionAttempt) processOpStatus(ctx context.Context, s *Transaction
 		return s.Err()
 	}
 
+	// TODO(brett19): Consider if we should be automatically rolling back.
+	// In query-style transactions which are functional, rather than lambda based
+	// we implicitly roll back, but we should consider how this fits into testing.
+
 	if !s.shouldNotRollback {
 		rbErrSt := t.rollback(ctx)
 		if rbErrSt != nil {

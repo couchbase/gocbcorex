@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+// TODO(brett19): Consider which of these errors shoudld actually be exposed.
+// For example, the ErrAttemptExpired is the only case where we actually use it
+// internally for classification purposes, but this ends up being a bit weird.
+
 var (
 	// ErrNoAttempt indicates no attempt was started before an operation was performed.
 	ErrNoAttempt = errors.New("attempt was not started")
