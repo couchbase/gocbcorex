@@ -27,7 +27,7 @@ func (t *TransactionAttempt) Rollback(ctx context.Context) (*TransactionAttemptR
 
 func (t *TransactionAttempt) rollback(
 	ctx context.Context,
-) *TransactionOperationStatus {
+) *transactionOperationStatus {
 	t.logger.Info("rolling back")
 
 	t.lock.Lock()
@@ -67,7 +67,7 @@ func (t *TransactionAttempt) rollback(
 	t.state = TransactionAttemptStateAborted
 	t.lock.Unlock()
 
-	var mutErrs []*TransactionOperationStatus
+	var mutErrs []*transactionOperationStatus
 	if !t.enableParallelUnstaging {
 		for _, mutation := range t.stagedMutations {
 			err := t.unstageStagedMutation(ctx, mutation)
@@ -80,7 +80,7 @@ func (t *TransactionAttempt) rollback(
 		numThreads := 32
 		numMutations := len(t.stagedMutations)
 		pendCh := make(chan *transactionStagedMutation, numThreads*2)
-		waitCh := make(chan *TransactionOperationStatus, numMutations)
+		waitCh := make(chan *transactionOperationStatus, numMutations)
 
 		// Start all our threads to process mutations
 		for threadIdx := 0; threadIdx < numThreads; threadIdx++ {
@@ -131,7 +131,7 @@ func (t *TransactionAttempt) rollback(
 func (t *TransactionAttempt) unstageStagedMutation(
 	ctx context.Context,
 	mutation *transactionStagedMutation,
-) *TransactionOperationStatus {
+) *transactionOperationStatus {
 	switch mutation.OpType {
 	case TransactionStagedMutationInsert:
 		return t.unstageStagedInsert(ctx, *mutation)
@@ -152,8 +152,8 @@ func (t *TransactionAttempt) unstageStagedMutation(
 func (t *TransactionAttempt) unstageStagedInsert(
 	ctx context.Context,
 	mutation transactionStagedMutation,
-) *TransactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
+) *transactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}
@@ -264,8 +264,8 @@ func (t *TransactionAttempt) unstageStagedInsert(
 func (t *TransactionAttempt) unstageStagedRemoveReplace(
 	ctx context.Context,
 	mutation transactionStagedMutation,
-) *TransactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *TransactionOperationStatus {
+) *transactionOperationStatus {
+	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
 		if cerr == nil {
 			return nil
 		}

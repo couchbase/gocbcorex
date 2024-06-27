@@ -24,7 +24,7 @@ func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertO
 func (t *TransactionAttempt) insert(
 	ctx context.Context,
 	opts TransactionInsertOptions,
-) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
 	t.logger.Info("performing insert",
 		zaputils.FQDocID("key", opts.Agent.BucketName(), opts.ScopeName, opts.CollectionName, opts.Key))
 
@@ -120,7 +120,7 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 	collectionName string,
 	key []byte,
 	value json.RawMessage,
-) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
 	isTombstone, txnMeta, cas, err := t.getMetaForConflictedInsert(ctx, agent, oboUser, scopeName, collectionName, key)
 	if err != nil {
 		return nil, err
@@ -209,8 +209,8 @@ func (t *TransactionAttempt) stageInsert(
 	key []byte,
 	value json.RawMessage,
 	cas uint64,
-) (*TransactionGetResult, *TransactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -358,8 +358,8 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 	scopeName string,
 	collectionName string,
 	key []byte,
-) (bool, *jsonTxnXattr, uint64, *TransactionOperationStatus) {
-	ecCb := func(isTombstone bool, meta *jsonTxnXattr, cas uint64, cerr *classifiedError) (bool, *jsonTxnXattr, uint64, *TransactionOperationStatus) {
+) (bool, *jsonTxnXattr, uint64, *transactionOperationStatus) {
+	ecCb := func(isTombstone bool, meta *jsonTxnXattr, cas uint64, cerr *classifiedError) (bool, *jsonTxnXattr, uint64, *transactionOperationStatus) {
 		if cerr == nil {
 			return isTombstone, meta, cas, nil
 		}
@@ -431,8 +431,8 @@ func (t *TransactionAttempt) cleanupStagedInsert(
 	key []byte,
 	cas uint64,
 	isTombstone bool,
-) (uint64, *TransactionOperationStatus) {
-	ecCb := func(cas uint64, cerr *classifiedError) (uint64, *TransactionOperationStatus) {
+) (uint64, *transactionOperationStatus) {
+	ecCb := func(cas uint64, cerr *classifiedError) (uint64, *transactionOperationStatus) {
 		if cerr == nil {
 			return cas, nil
 		}

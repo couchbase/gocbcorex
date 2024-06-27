@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func mergeOperationFailedErrors(errs []*TransactionOperationStatus) *TransactionOperationStatus {
+func mergeOperationFailedErrors(errs []*transactionOperationStatus) *transactionOperationStatus {
 	if len(errs) == 0 {
 		return nil
 	}
@@ -39,7 +39,7 @@ func mergeOperationFailedErrors(errs []*TransactionOperationStatus) *Transaction
 		}
 	}
 
-	return &TransactionOperationStatus{
+	return &transactionOperationStatus{
 		shouldNotRetry:    shouldNotRetry,
 		shouldNotRollback: shouldNotRollback,
 		errorCause:        aggCauses,
@@ -109,7 +109,7 @@ func (t *TransactionAttempt) applyStateBits(stateBits uint32, errorReason Transa
 	}
 }
 
-func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationStatus {
+func (t *TransactionAttempt) contextFailed(err error) *transactionOperationStatus {
 	return t.operationFailed(operationFailedDef{
 		Cerr:              classifyError(err),
 		ShouldNotRetry:    true,
@@ -118,7 +118,7 @@ func (t *TransactionAttempt) contextFailed(err error) *TransactionOperationStatu
 	})
 }
 
-func (t *TransactionAttempt) operationFailed(def operationFailedDef) *TransactionOperationStatus {
+func (t *TransactionAttempt) operationFailed(def operationFailedDef) *transactionOperationStatus {
 	t.logger.Info("operation failed",
 		zap.Bool("canStillCommit", def.CanStillCommit),
 		zap.Bool("shouldNotRetry", def.ShouldNotRetry),
@@ -127,7 +127,7 @@ func (t *TransactionAttempt) operationFailed(def operationFailedDef) *Transactio
 		zap.Stringer("class", def.Cerr.Class),
 		zap.Stringer("shouldRaise", def.Reason))
 
-	err := &TransactionOperationStatus{
+	err := &transactionOperationStatus{
 		canStillCommit:    def.CanStillCommit,
 		shouldNotRetry:    def.ShouldNotRetry,
 		shouldNotRollback: def.ShouldNotRollback,
