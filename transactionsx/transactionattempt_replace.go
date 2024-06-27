@@ -23,7 +23,7 @@ func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplac
 func (t *TransactionAttempt) replace(
 	ctx context.Context,
 	opts TransactionReplaceOptions,
-) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
 	t.logger.Info("performing replace",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
@@ -129,8 +129,8 @@ func (t *TransactionAttempt) stageReplace(
 	key []byte,
 	value json.RawMessage,
 	cas uint64,
-) (*TransactionGetResult, *TransactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}

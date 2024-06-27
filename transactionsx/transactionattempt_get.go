@@ -23,7 +23,7 @@ func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions
 func (t *TransactionAttempt) get(
 	ctx context.Context,
 	opts TransactionGetOptions,
-) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
 	forceNonFatal := t.enableNonFatalGets
 
 	t.logger.Info("performing get",
@@ -86,7 +86,7 @@ func (t *TransactionAttempt) mavRead(
 	disableRYOW bool,
 	resolvingATREntry string,
 	forceNonFatal bool,
-) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
 	doc, err := t.fetchDocWithMeta(
 		ctx,
 		agent,
@@ -359,8 +359,8 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 	collectionName string,
 	key []byte,
 	forceNonFatal bool,
-) (*transactionGetDoc, *TransactionOperationStatus) {
-	ecCb := func(doc *transactionGetDoc, cerr *classifiedError) (*transactionGetDoc, *TransactionOperationStatus) {
+) (*transactionGetDoc, *transactionOperationStatus) {
+	ecCb := func(doc *transactionGetDoc, cerr *classifiedError) (*transactionGetDoc, *transactionOperationStatus) {
 		if cerr == nil {
 			return doc, nil
 		}

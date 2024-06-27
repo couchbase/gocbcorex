@@ -103,9 +103,8 @@ func (e *TransactionOperationError) Unwrap() error {
 	return e.Cause
 }
 
-// TransactionOperationStatus is used when a transaction operation fails.
-// Internal: This should never be used and is not supported.
-type TransactionOperationStatus struct {
+// transactionOperationStatus is used when a transaction operation fails.
+type transactionOperationStatus struct {
 	canStillCommit    bool
 	shouldNotRetry    bool
 	shouldNotRollback bool
@@ -114,7 +113,7 @@ type TransactionOperationStatus struct {
 	errorClass        TransactionErrorClass
 }
 
-func (s *TransactionOperationStatus) Err() error {
+func (s *transactionOperationStatus) Err() error {
 	if s.shouldRaise == TransactionErrorReasonSuccess {
 		// if the transaction error reason is still success, this means that the operation
 		// has not been fatal to the transaction, so we can just return the cause itself.

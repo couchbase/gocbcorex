@@ -23,7 +23,7 @@ func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveO
 func (t *TransactionAttempt) remove(
 	ctx context.Context,
 	opts TransactionRemoveOptions,
-) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
 	t.logger.Info("performing remove",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
@@ -126,8 +126,8 @@ func (t *TransactionAttempt) stageRemove(
 	collectionName string,
 	key []byte,
 	cas uint64,
-) (*TransactionGetResult, *TransactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -304,8 +304,8 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 	collectionName string,
 	key []byte,
 	cas uint64,
-) (*TransactionGetResult, *TransactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *TransactionOperationStatus) {
+) (*TransactionGetResult, *transactionOperationStatus) {
+	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
