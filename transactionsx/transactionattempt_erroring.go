@@ -56,22 +56,54 @@ type operationFailedDef struct {
 	Reason            TransactionErrorReason
 }
 
-func (t *TransactionAttempt) applyStateBits(stateBits uint32, errorBits uint32) {
-	// This is a bit dirty, but its maximum going to do one retry per bit.
+func (t *TransactionAttempt) applyStateBits(stateBits uint32, errorReason TransactionErrorReason) {
+	errorBits := uint32(errorReason)
+
+	// if the error bits take too much space to store, we emit an error
+	// log message and saturate the error bits. note that a fully saturated
+	// error reason is not considered a valid possible value (>=).
+	if errorBits >= transactionStateBitsFinalErrorBits {
+		t.logger.DPanic("requested error reason was too large to store")
+		errorBits = transactionStateBitsFinalErrorBits
+	}
+
+	validStateBits := uint32(1<<transactionStateBitsFinalErrorPos) - 1
+	if stateBits > validStateBits {
+		// if we are trying to set state bits that overlap the error bits
+		// we should log an error and then truncate the state bits.
+		t.logger.DPanic("requested state bits were too large to store")
+		stateBits = stateBits & validStateBits
+	}
+
+	// this is a bit dirty, but its maximum going to do one retry per bit
+	// since state bits can only be set, not unset.  we only need to retry
+	// if we are trying to set a bit that wasn't set before, and would only
+	// conflict if someone else set it, meaning no more tries to set that
+	// particular bit are needed.
 	for {
 		oldStateBits := atomic.LoadUint32(&t.stateBits)
-		newStateBits := oldStateBits | stateBits
-		if errorBits > ((oldStateBits & transactionStateBitsMaskFinalError) >> transactionStateBitsPositionFinalError) {
-			newStateBits = (newStateBits & transactionStateBitsMaskBits) | (errorBits << transactionStateBitsPositionFinalError)
+		oldErrorBits := (oldStateBits & transactionStateBitsFinalErrorBits) >> transactionStateBitsFinalErrorPos
+
+		newStateBits := oldStateBits
+		newStateBits = newStateBits | stateBits
+		if errorBits > oldErrorBits {
+			newStateBits = newStateBits | (errorBits << transactionStateBitsFinalErrorPos)
 		}
 
-		t.logger.Info("applying state bits",
+		if oldStateBits == newStateBits {
+			// if we didn't actually change the state bits, then we don't need to do anything.
+			t.logger.Debug("state bits did not change, not applying")
+			break
+		}
+
+		t.logger.Info("attempting to apply state bits",
 			zap.Uint32("stateBits", stateBits),
 			zap.Uint32("errorBits", errorBits),
 			zap.Uint32("oldStateBits", oldStateBits),
 			zap.Uint32("newStateBits", newStateBits))
 
 		if atomic.CompareAndSwapUint32(&t.stateBits, oldStateBits, newStateBits) {
+			t.logger.Debug("failed to apply state bits, retrying")
 			break
 		}
 	}
@@ -117,7 +149,7 @@ func (t *TransactionAttempt) operationFailed(def operationFailedDef) *Transactio
 	if def.Reason == TransactionErrorReasonTransactionExpired {
 		stateBits |= transactionStateBitHasExpired
 	}
-	t.applyStateBits(stateBits, uint32(def.Reason))
+	t.applyStateBits(stateBits, def.Reason)
 
 	return err
 }

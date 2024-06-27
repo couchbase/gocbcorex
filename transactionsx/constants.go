@@ -62,19 +62,19 @@ type TransactionErrorReason uint8
 // precedence used when merging errors together is based on this.
 const (
 	// TransactionErrorReasonSuccess indicates the transaction succeeded and did not fail.
-	TransactionErrorReasonSuccess TransactionErrorReason = iota
+	TransactionErrorReasonSuccess TransactionErrorReason = TransactionErrorReason(0)
 
 	// TransactionErrorReasonTransactionFailed indicates the transaction should be failed because it failed.
-	TransactionErrorReasonTransactionFailed
+	TransactionErrorReasonTransactionFailed = TransactionErrorReason(1)
 
 	// TransactionErrorReasonTransactionExpired indicates the transaction should be failed because it expired.
-	TransactionErrorReasonTransactionExpired
+	TransactionErrorReasonTransactionExpired = TransactionErrorReason(2)
 
 	// TransactionErrorReasonTransactionCommitAmbiguous indicates the transaction should be failed and the commit was ambiguous.
-	TransactionErrorReasonTransactionCommitAmbiguous
+	TransactionErrorReasonTransactionCommitAmbiguous = TransactionErrorReason(3)
 
 	// TransactionErrorReasonTransactionFailedPostCommit indicates the transaction should be failed because it failed post commit.
-	TransactionErrorReasonTransactionFailedPostCommit
+	TransactionErrorReasonTransactionFailedPostCommit = TransactionErrorReason(4)
 )
 
 func (reason TransactionErrorReason) String() string {
@@ -171,10 +171,7 @@ const (
 	transactionStateBitShouldNotRetry        = 1 << 2
 	transactionStateBitHasExpired            = 1 << 3
 	transactionStateBitPreExpiryAutoRollback = 1 << 4
-)
 
-const (
-	transactionStateBitsMaskFinalError     = 0b1110000
-	transactionStateBitsMaskBits           = 0b0001111
-	transactionStateBitsPositionFinalError = 4
+	transactionStateBitsFinalErrorPos  = 5
+	transactionStateBitsFinalErrorBits = 0b111
 )
