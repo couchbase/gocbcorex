@@ -388,7 +388,6 @@ func (t *Transaction) Config() TransactionOptions {
 
 // TransactionUpdateStateOptions are the settings available to UpdateState.
 // This function must only be called once the transaction has entered query mode.
-// Internal: This should never be used and is not supported.
 type TransactionUpdateStateOptions struct {
 	ShouldNotCommit   bool
 	ShouldNotRollback bool
@@ -403,7 +402,6 @@ func (tuso TransactionUpdateStateOptions) String() string {
 }
 
 // UpdateState will update the internal state of the current attempt.
-// Internal: This should never be used and is not supported.
 func (t *Transaction) UpdateState(opts TransactionUpdateStateOptions) {
 	if t.attempt == nil {
 		return

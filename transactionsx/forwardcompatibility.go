@@ -91,7 +91,6 @@ const (
 )
 
 // TransactionForwardCompatibilityEntry represents a forward compatibility entry.
-// Internal: This should never be used and is not supported.
 type TransactionForwardCompatibilityEntry struct {
 	ProtocolVersion   string `json:"p,omitempty"`
 	ProtocolExtension string `json:"e,omitempty"`

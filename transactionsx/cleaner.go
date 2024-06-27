@@ -12,7 +12,6 @@ import (
 )
 
 // TransactionCleanupDocRecord represents an individual document operation requiring cleanup.
-// Internal: This should never be used and is not supported.
 type TransactionCleanupDocRecord struct {
 	Agent          *gocbcorex.Agent
 	OboUser        string

@@ -119,18 +119,29 @@ type TransactionsConfig struct {
 	// any transaction which does not specify its own logger.
 	Logger *zap.Logger
 
-	// Internal specifies a set of options for internal use.
-	// Internal: This should never be used and is not supported.
-	Internal struct {
-		Hooks                   TransactionHooks
-		CleanUpHooks            TransactionCleanupHooks
-		ClientRecordHooks       TransactionClientRecordHooks
-		EnableNonFatalGets      bool
-		EnableParallelUnstaging bool
-		EnableExplicitATRs      bool
-		EnableMutationCaching   bool
-		NumATRs                 int
-	}
+	// Hooks specifies hooks that can be configured to be invoked during execution.
+	Hooks TransactionHooks
+
+	// CleanupHooks specifies hooks related to the cleanup process.
+	CleanUpHooks TransactionCleanupHooks
+
+	// ClientRecordHooks specifies hooks related to client record management.
+	ClientRecordHooks TransactionClientRecordHooks
+
+	// EnableNonFatalGets controls whether non-fatal gets are enabled.
+	EnableNonFatalGets bool
+
+	// EnableParallelUnstaging controls whether parallel unstaging is enabled.
+	EnableParallelUnstaging bool
+
+	// EnableExplicitATRs controls whether explicit ATRs are required to be specified.
+	EnableExplicitATRs bool
+
+	// EnableMutationCaching controls whether mutation caching is enabled.
+	EnableMutationCaching bool
+
+	// NumATRs specifies the number of ATRs to use.
+	NumATRs int
 }
 
 // TransactionOptions specifies options which can be overridden on a per transaction basis.

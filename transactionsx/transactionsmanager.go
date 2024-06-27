@@ -59,20 +59,20 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 		if resolvedConfig.BucketAgentProvider == nil {
 			resolvedConfig.BucketAgentProvider = defaultConfig.BucketAgentProvider
 		}
-		if resolvedConfig.Internal.Hooks == nil {
-			resolvedConfig.Internal.Hooks = &TransactionDefaultHooks{}
+		if resolvedConfig.Hooks == nil {
+			resolvedConfig.Hooks = &TransactionDefaultHooks{}
 		}
-		if resolvedConfig.Internal.CleanUpHooks == nil {
-			resolvedConfig.Internal.CleanUpHooks = &TransactionDefaultCleanupHooks{}
+		if resolvedConfig.CleanUpHooks == nil {
+			resolvedConfig.CleanUpHooks = &TransactionDefaultCleanupHooks{}
 		}
-		if resolvedConfig.Internal.ClientRecordHooks == nil {
-			resolvedConfig.Internal.ClientRecordHooks = &TransactionDefaultClientRecordHooks{}
+		if resolvedConfig.ClientRecordHooks == nil {
+			resolvedConfig.ClientRecordHooks = &TransactionDefaultClientRecordHooks{}
 		}
 		if resolvedConfig.CleanupQueueSize == 0 {
 			resolvedConfig.CleanupQueueSize = 100000
 		}
-		if resolvedConfig.Internal.NumATRs == 0 {
-			resolvedConfig.Internal.NumATRs = 1024
+		if resolvedConfig.NumATRs == 0 {
+			resolvedConfig.NumATRs = 1024
 		}
 	}
 
@@ -110,7 +110,7 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 	durabilityLevel := t.config.DurabilityLevel
 	customATRLocation := t.config.CustomATRLocation
 	bucketAgentProvider := t.config.BucketAgentProvider
-	hooks := t.config.Internal.Hooks
+	hooks := t.config.Hooks
 	logger := t.config.Logger
 
 	if perConfig != nil {
@@ -144,10 +144,10 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 		transactionID:           transactionUUID,
 		atrLocation:             customATRLocation,
 		hooks:                   hooks,
-		enableNonFatalGets:      t.config.Internal.EnableNonFatalGets,
-		enableParallelUnstaging: t.config.Internal.EnableParallelUnstaging,
-		enableExplicitATRs:      t.config.Internal.EnableExplicitATRs,
-		enableMutationCaching:   t.config.Internal.EnableMutationCaching,
+		enableNonFatalGets:      t.config.EnableNonFatalGets,
+		enableParallelUnstaging: t.config.EnableParallelUnstaging,
+		enableExplicitATRs:      t.config.EnableExplicitATRs,
+		enableMutationCaching:   t.config.EnableMutationCaching,
 		bucketAgentProvider:     bucketAgentProvider,
 		logger:                  logger,
 	}, nil
@@ -242,11 +242,11 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 		durabilityLevel:         durabilityLevel,
 		transactionID:           transactionUUID,
 		atrLocation:             atrLocation,
-		hooks:                   t.config.Internal.Hooks,
-		enableNonFatalGets:      t.config.Internal.EnableNonFatalGets,
-		enableParallelUnstaging: t.config.Internal.EnableParallelUnstaging,
-		enableExplicitATRs:      t.config.Internal.EnableExplicitATRs,
-		enableMutationCaching:   t.config.Internal.EnableMutationCaching,
+		hooks:                   t.config.Hooks,
+		enableNonFatalGets:      t.config.EnableNonFatalGets,
+		enableParallelUnstaging: t.config.EnableParallelUnstaging,
+		enableExplicitATRs:      t.config.EnableExplicitATRs,
+		enableMutationCaching:   t.config.EnableMutationCaching,
 		bucketAgentProvider:     bucketAgentProvider,
 		logger:                  logger,
 	}
@@ -265,22 +265,8 @@ func (t *TransactionsManager) Close() error {
 	return nil
 }
 
-// TransactionsManagerInternal exposes internal methods that are useful for testing and/or
-// other forms of internal use.
-type TransactionsManagerInternal struct {
-	parent *TransactionsManager
-}
-
-// Internal returns an TransactionsManagerInternal object which can be used for specialized
-// internal use cases.
-func (t *TransactionsManager) Internal() *TransactionsManagerInternal {
-	return &TransactionsManagerInternal{
-		parent: t,
-	}
-}
-
-// TransactionCreateGetResultOptions exposes options for the Internal CreateGetResult method.
-type TransactionCreateGetResultOptions struct {
+// CreateGetResultOptions exposes options for the CreateGetResult method.
+type CreateGetResultOptions struct {
 	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
@@ -292,7 +278,7 @@ type TransactionCreateGetResultOptions struct {
 
 // CreateGetResult creates a false TransactionGetResult which can be used with Replace/Remove operations
 // where the original TransactionGetResult is no longer available.
-func (t *TransactionsManagerInternal) CreateGetResult(opts TransactionCreateGetResultOptions) *TransactionGetResult {
+func CreateGetResult(opts CreateGetResultOptions) *TransactionGetResult {
 	return &TransactionGetResult{
 		agent:          opts.Agent,
 		oboUser:        opts.OboUser,
