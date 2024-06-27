@@ -55,7 +55,6 @@ func (state TransactionAttemptState) String() string {
 }
 
 // TransactionErrorReason is the reason why a transaction should be failed.
-// Internal: This should never be used and is not supported.
 type TransactionErrorReason uint8
 
 // NOTE: The errors within this section are critically ordered, as the order of
@@ -93,7 +92,6 @@ func (reason TransactionErrorReason) String() string {
 }
 
 // TransactionErrorClass describes the reason that a transaction error occurred.
-// Internal: This should never be used and is not supported.
 type TransactionErrorClass uint8
 
 const (

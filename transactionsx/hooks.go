@@ -45,7 +45,6 @@ type TransactionHooks interface {
 }
 
 // TransactionCleanupHooks provides a number of internal hooks used for testing.
-// Internal: This should never be used and is not supported.
 type TransactionCleanupHooks interface {
 	BeforeATRGet(ctx context.Context, id []byte) error
 	BeforeDocGet(ctx context.Context, id []byte) error
@@ -57,7 +56,6 @@ type TransactionCleanupHooks interface {
 }
 
 // TransactionClientRecordHooks provides a number of internal hooks used for testing.
-// Internal: This should never be used and is not supported.
 type TransactionClientRecordHooks interface {
 	BeforeCreateRecord(ctx context.Context) error
 	BeforeRemoveClient(ctx context.Context) error
@@ -67,7 +65,6 @@ type TransactionClientRecordHooks interface {
 }
 
 // TransactionDefaultHooks is default set of noop hooks used within the library.
-// Internal: This should never be used and is not supported.
 type TransactionDefaultHooks struct {
 }
 
@@ -262,7 +259,6 @@ func (dh *TransactionDefaultHooks) HasExpiredClientSideHook(ctx context.Context,
 }
 
 // TransactionDefaultCleanupHooks is default set of noop hooks used within the library.
-// Internal: This should never be used and is not supported.
 type TransactionDefaultCleanupHooks struct {
 }
 
@@ -302,7 +298,6 @@ func (dh *TransactionDefaultCleanupHooks) BeforeATRRemove(ctx context.Context, i
 }
 
 // TransactionDefaultClientRecordHooks is default set of noop hooks used within the library.
-// Internal: This should never be used and is not supported.
 type TransactionDefaultClientRecordHooks struct {
 }
 
