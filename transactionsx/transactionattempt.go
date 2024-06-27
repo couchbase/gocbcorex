@@ -84,7 +84,7 @@ func (t *TransactionAttempt) UpdateState(opts TransactionUpdateStateOptions) {
 	if opts.Reason == TransactionErrorReasonTransactionExpired {
 		stateBits |= transactionStateBitHasExpired
 	}
-	t.applyStateBits(stateBits, uint32(opts.Reason))
+	t.applyStateBits(stateBits, opts.Reason)
 
 	t.lock.Lock()
 	if opts.State > 0 {
