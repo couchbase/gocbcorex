@@ -240,7 +240,7 @@ func (t *TransactionAttempt) mavRead(
 		return nil, oerr
 	}
 
-	attempt, _, oerr := t.getTxnState(
+	attempt, oerr := t.getTxnState(
 		ctx,
 		agent.BucketName(),
 		scopeName,
@@ -264,7 +264,7 @@ func (t *TransactionAttempt) mavRead(
 		return t.mavRead(ctx, agent, oboUser, scopeName, collectionName, key, disableRYOW, doc.TxnMeta.ID.Attempt, forceNonFatal)
 	}
 
-	atmptFc := forwardCompatFromJson(attempt.ForwardCompat)
+	atmptFc := forwardCompatFromJson(attempt.entry.ForwardCompat)
 	oerr = t.checkForwardCompatability(
 		ctx,
 		key,
@@ -276,7 +276,7 @@ func (t *TransactionAttempt) mavRead(
 		return nil, oerr
 	}
 
-	state := TxnStateJson(attempt.State)
+	state := TxnStateJson(attempt.entry.State)
 	if state == TxnStateJsonCommitted || state == TxnStateJsonCompleted {
 		switch doc.TxnMeta.Operation.Type {
 		case MutationTypeJsonInsert:

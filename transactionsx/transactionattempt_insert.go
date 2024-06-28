@@ -121,10 +121,14 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 	key []byte,
 	value json.RawMessage,
 ) (*GetResult, *transactionOperationStatus) {
-	isTombstone, txnMeta, cas, err := t.getMetaForConflictedInsert(ctx, agent, oboUser, scopeName, collectionName, key)
+	getRes, err := t.getMetaForConflictedInsert(ctx, agent, oboUser, scopeName, collectionName, key)
 	if err != nil {
 		return nil, err
 	}
+
+	isTombstone := getRes.IsTombstone
+	txnMeta := getRes.Xattr
+	cas := getRes.Cas
 
 	if txnMeta == nil {
 		// This doc isn't in a transaction
@@ -356,6 +360,12 @@ func (t *TransactionAttempt) stageInsert(
 	}, nil
 }
 
+type conflictedInsertMeta struct {
+	IsTombstone bool
+	Xattr       *TxnXattrJson
+	Cas         uint64
+}
+
 func (t *TransactionAttempt) getMetaForConflictedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
@@ -363,10 +373,10 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 	scopeName string,
 	collectionName string,
 	key []byte,
-) (bool, *TxnXattrJson, uint64, *transactionOperationStatus) {
-	ecCb := func(isTombstone bool, meta *TxnXattrJson, cas uint64, cerr *classifiedError) (bool, *TxnXattrJson, uint64, *transactionOperationStatus) {
+) (*conflictedInsertMeta, *transactionOperationStatus) {
+	ecCb := func(res *conflictedInsertMeta, cerr *classifiedError) (*conflictedInsertMeta, *transactionOperationStatus) {
 		if cerr == nil {
-			return isTombstone, meta, cas, nil
+			return res, nil
 		}
 
 		switch cerr.Class {
@@ -375,14 +385,14 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 		case TransactionErrorClassFailPathNotFound:
 			fallthrough
 		case TransactionErrorClassFailTransient:
-			return isTombstone, nil, 0, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    false,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
 			})
 		default:
-			return isTombstone, nil, 0, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
@@ -393,7 +403,7 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 
 	err := t.hooks.BeforeGetDocInExistsDuringStagedInsert(ctx, key)
 	if err != nil {
-		return ecCb(false, nil, 0, classifyHookError(err))
+		return ecCb(nil, classifyHookError(err))
 	}
 
 	result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
@@ -411,20 +421,23 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 		OnBehalfOf: oboUser,
 	})
 	if err != nil {
-		return ecCb(false, nil, 0, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	var txnMeta *TxnXattrJson
 	if result.Ops[0].Err == nil {
 		var txnMetaVal TxnXattrJson
 		if err := json.Unmarshal(result.Ops[0].Value, &txnMetaVal); err != nil {
-			return ecCb(false, nil, 0, classifyError(err))
+			return ecCb(nil, classifyError(err))
 		}
 		txnMeta = &txnMetaVal
 	}
 
-	isTombstone := result.DocIsDeleted
-	return isTombstone, txnMeta, result.Cas, nil
+	return &conflictedInsertMeta{
+		IsTombstone: result.DocIsDeleted,
+		Xattr:       txnMeta,
+		Cas:         result.Cas,
+	}, nil
 }
 
 func (t *TransactionAttempt) cleanupStagedInsert(
