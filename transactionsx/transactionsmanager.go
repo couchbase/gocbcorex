@@ -35,7 +35,7 @@ type TransactionsManager struct {
 func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) {
 	defaultConfig := TransactionsConfig{
 		ExpirationTime:        10000 * time.Millisecond,
-		DurabilityLevel:       TransactionDurabilityLevelMajority,
+		DurabilityLevel:       DurabilityLevelMajority,
 		CleanupWindow:         60000 * time.Millisecond,
 		CleanupClientAttempts: true,
 		CleanupLostAttempts:   true,
@@ -100,10 +100,10 @@ func (t *TransactionsManager) Config() TransactionsConfig {
 // BeginTransaction will begin a new transaction.  The returned object can be used
 // to begin a new attempt and subsequently perform operations before finally committing.
 func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*Transaction, error) {
-	transactionUUID := uuid.New().String()
+	transactionID := uuid.New().String()
 
 	t.config.Logger.Info("Beginning transaction",
-		zap.String("tid", transactionUUID),
+		zap.String("tid", transactionID),
 		zap.Any("config", perConfig))
 
 	expirationTime := t.config.ExpirationTime
@@ -117,7 +117,7 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 		if perConfig.ExpirationTime != 0 {
 			expirationTime = perConfig.ExpirationTime
 		}
-		if perConfig.DurabilityLevel != TransactionDurabilityLevelUnknown {
+		if perConfig.DurabilityLevel != DurabilityLevelUnknown {
 			durabilityLevel = perConfig.DurabilityLevel
 		}
 		if perConfig.CustomATRLocation.Agent != nil {
@@ -134,14 +134,14 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 		}
 	}
 
-	logger = logger.With(zap.String("tid", transactionUUID))
+	logger = logger.With(zap.String("tid", transactionID))
 
 	now := time.Now()
 	return &Transaction{
 		expiryTime:              now.Add(expirationTime),
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
-		transactionID:           transactionUUID,
+		transactionID:           transactionID,
 		atrLocation:             customATRLocation,
 		hooks:                   hooks,
 		enableNonFatalGets:      t.config.EnableNonFatalGets,
@@ -179,7 +179,7 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 		}
 	}
 
-	var txnData jsonSerializedAttempt
+	var txnData SerializedAttemptJson
 	err := json.Unmarshal(txnBytes, &txnData)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 		return nil, errors.New("invalid txn data - num atrs must be greater than 0 and less than 1024")
 	}
 
-	var atrLocation TransactionATRLocation
+	var atrLocation ATRLocation
 	if txnData.ATR.Bucket != "" && txnData.ATR.ID == "" {
 		// ATR references the specific ATR for this transaction.
 
@@ -207,7 +207,7 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 			return nil, err
 		}
 
-		atrLocation = TransactionATRLocation{
+		atrLocation = ATRLocation{
 			Agent:          foundAtrAgent,
 			OboUser:        foundAtrOboUser,
 			ScopeName:      txnData.ATR.Scope,
@@ -216,7 +216,7 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 	} else {
 		// No ATR information means its pending with no custom.
 
-		atrLocation = TransactionATRLocation{
+		atrLocation = ATRLocation{
 			Agent:          nil,
 			OboUser:        "",
 			ScopeName:      "",
@@ -224,23 +224,23 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 		}
 	}
 
-	transactionUUID := txnData.ID.Transaction
+	transactionID := txnData.ID.Transaction
 
-	durabilityLevel, err := transactionDurabilityLevelFromString(txnData.Config.DurabilityLevel)
+	durabilityLevel, err := durabilityLevelFromString(txnData.Config.DurabilityLevel)
 	if err != nil {
 		return nil, err
 	}
 
 	expirationTime := time.Duration(txnData.State.TimeLeftMs) * time.Millisecond
 
-	logger = logger.With(zap.String("tid", transactionUUID))
+	logger = logger.With(zap.String("tid", transactionID))
 
 	now := time.Now()
 	txn := &Transaction{
 		expiryTime:              now.Add(expirationTime),
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
-		transactionID:           transactionUUID,
+		transactionID:           transactionID,
 		atrLocation:             atrLocation,
 		hooks:                   t.config.Hooks,
 		enableNonFatalGets:      t.config.EnableNonFatalGets,
@@ -273,13 +273,13 @@ type CreateGetResultOptions struct {
 	CollectionName string
 	Key            []byte
 	Cas            uint64
-	Meta           *TransactionMutableItemMeta
+	Meta           *MutableItemMeta
 }
 
 // CreateGetResult creates a false TransactionGetResult which can be used with Replace/Remove operations
 // where the original TransactionGetResult is no longer available.
-func CreateGetResult(opts CreateGetResultOptions) *TransactionGetResult {
-	return &TransactionGetResult{
+func CreateGetResult(opts CreateGetResultOptions) *GetResult {
+	return &GetResult{
 		agent:          opts.Agent,
 		oboUser:        opts.OboUser,
 		scopeName:      opts.ScopeName,

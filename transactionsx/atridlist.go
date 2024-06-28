@@ -1,6 +1,6 @@
 package transactionsx
 
-var transactionAtrIDList = []string{
+var AtrIDList = []string{
 	"_txn:atr-0-#14",
 	"_txn:atr-1-#10b6",
 	"_txn:atr-2-#cc8",

@@ -5,85 +5,85 @@ import (
 	"github.com/pkg/errors"
 )
 
-func forwardCompatFromJson(fc map[string][]jsonForwardCompatibilityEntry) map[string][]TransactionForwardCompatibilityEntry {
+func forwardCompatFromJson(fc map[string][]ForwardCompatEntryJson) map[string][]ForwardCompatEntry {
 	if fc == nil {
 		return nil
 	}
-	forwardCompat := make(map[string][]TransactionForwardCompatibilityEntry)
+	forwardCompat := make(map[string][]ForwardCompatEntry)
 
 	for k, entries := range fc {
 		if _, ok := forwardCompat[k]; !ok {
-			forwardCompat[k] = make([]TransactionForwardCompatibilityEntry, len(entries))
+			forwardCompat[k] = make([]ForwardCompatEntry, len(entries))
 		}
 
 		for i, entry := range entries {
-			forwardCompat[k][i] = TransactionForwardCompatibilityEntry(entry)
+			forwardCompat[k][i] = ForwardCompatEntry(entry)
 		}
 	}
 
 	return forwardCompat
 }
 
-func transactionsDurabilityLevelToMemdx(durabilityLevel TransactionDurabilityLevel) memdx.DurabilityLevel {
+func durabilityLevelToMemdx(durabilityLevel DurabilityLevel) memdx.DurabilityLevel {
 	switch durabilityLevel {
-	case TransactionDurabilityLevelNone:
+	case DurabilityLevelNone:
 		return memdx.DurabilityLevel(0)
-	case TransactionDurabilityLevelMajority:
+	case DurabilityLevelMajority:
 		return memdx.DurabilityLevelMajority
-	case TransactionDurabilityLevelMajorityAndPersistToActive:
+	case DurabilityLevelMajorityAndPersistToActive:
 		return memdx.DurabilityLevelMajorityAndPersistToActive
-	case TransactionDurabilityLevelPersistToMajority:
+	case DurabilityLevelPersistToMajority:
 		return memdx.DurabilityLevelPersistToMajority
-	case TransactionDurabilityLevelUnknown:
+	case DurabilityLevelUnknown:
 		panic("unexpected unset durability level")
 	default:
 		panic("unexpected durability level")
 	}
 }
 
-func transactionsDurabilityLevelToJson(durabilityLevel TransactionDurabilityLevel) jsonDurabilityLevel {
+func durabilityLevelToJson(durabilityLevel DurabilityLevel) DurabilityLevelJson {
 	switch durabilityLevel {
-	case TransactionDurabilityLevelNone:
-		return jsonDurabilityLevelNone
-	case TransactionDurabilityLevelMajority:
-		return jsonDurabilityLevelMajority
-	case TransactionDurabilityLevelMajorityAndPersistToActive:
-		return jsonDurabilityLevelMajorityAndPersistToActive
-	case TransactionDurabilityLevelPersistToMajority:
-		return jsonDurabilityLevelPersistToMajority
+	case DurabilityLevelNone:
+		return DurabilityLevelJsonNone
+	case DurabilityLevelMajority:
+		return DurabilityLevelJsonMajority
+	case DurabilityLevelMajorityAndPersistToActive:
+		return DurabilityLevelJsonMajorityAndPersistToActive
+	case DurabilityLevelPersistToMajority:
+		return DurabilityLevelJsonPersistToMajority
 	default:
 		// If it's an unknown durability level, default to majority.
-		return jsonDurabilityLevelMajority
+		return DurabilityLevelJsonMajority
 	}
 }
 
-func transactionsDurabilityLevelFromJson(durabilityLevel jsonDurabilityLevel) TransactionDurabilityLevel {
+func durabilityLevelFromJson(durabilityLevel DurabilityLevelJson) DurabilityLevel {
 	switch durabilityLevel {
-	case jsonDurabilityLevelNone:
-		return TransactionDurabilityLevelNone
-	case jsonDurabilityLevelMajority:
-		return TransactionDurabilityLevelMajority
-	case jsonDurabilityLevelMajorityAndPersistToActive:
-		return TransactionDurabilityLevelMajorityAndPersistToActive
-	case jsonDurabilityLevelPersistToMajority:
-		return TransactionDurabilityLevelPersistToMajority
+	case DurabilityLevelJsonNone:
+		return DurabilityLevelNone
+	case DurabilityLevelJsonMajority:
+		return DurabilityLevelMajority
+	case DurabilityLevelJsonMajorityAndPersistToActive:
+		return DurabilityLevelMajorityAndPersistToActive
+	case DurabilityLevelJsonPersistToMajority:
+		return DurabilityLevelPersistToMajority
 	default:
 		// If there is no durability level present or it's set to none then we'll set to majority.
-		return TransactionDurabilityLevelMajority
+		return DurabilityLevelMajority
 	}
 }
 
-func transactionsStateFromJson(state jsonAtrState) (TransactionAttemptState, error) {
+func txnStateFromJson(state TxnStateJson) (TransactionAttemptState, error) {
 	switch state {
-	case jsonAtrStateCommitted:
+	case TxnStateJsonCommitted:
 		return TransactionAttemptStateCommitted, nil
-	case jsonAtrStateCompleted:
+	case TxnStateJsonCompleted:
 		return TransactionAttemptStateCompleted, nil
-	case jsonAtrStatePending:
+	case TxnStateJsonPending:
 		return TransactionAttemptStatePending, nil
-	case jsonAtrStateAborted:
+	case TxnStateJsonAborted:
 		return TransactionAttemptStateAborted, nil
-	case jsonAtrStateRolledBack:
+	case TxnStateJsonRolledBack:
 		return TransactionAttemptStateRolledBack, nil
 	}
 

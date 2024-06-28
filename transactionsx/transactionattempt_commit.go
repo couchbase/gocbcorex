@@ -129,7 +129,7 @@ func (t *TransactionAttempt) commit(
 	} else {
 		numThreads := 32
 		numMutations := len(t.stagedMutations)
-		pendCh := make(chan *transactionStagedMutation, numThreads*2)
+		pendCh := make(chan *stagedMutation, numThreads*2)
 		waitCh := make(chan *transactionOperationStatus, numMutations)
 
 		// Start all our threads to process mutations
@@ -184,7 +184,7 @@ func (t *TransactionAttempt) commit(
 
 func (t *TransactionAttempt) commitStagedMutation(
 	ctx context.Context,
-	mutation *transactionStagedMutation,
+	mutation *stagedMutation,
 ) *transactionOperationStatus {
 	err := t.fetchBeforeUnstage(ctx, mutation)
 	if err != nil {
@@ -192,11 +192,11 @@ func (t *TransactionAttempt) commitStagedMutation(
 	}
 
 	switch mutation.OpType {
-	case TransactionStagedMutationInsert:
+	case StagedMutationInsert:
 		return t.commitStagedInsert(ctx, *mutation, false)
-	case TransactionStagedMutationReplace:
+	case StagedMutationReplace:
 		return t.commitStagedReplace(ctx, *mutation, false, false)
-	case TransactionStagedMutationRemove:
+	case StagedMutationRemove:
 		return t.commitStagedRemove(ctx, *mutation, false)
 	default:
 		return t.operationFailed(operationFailedDef{
@@ -211,7 +211,7 @@ func (t *TransactionAttempt) commitStagedMutation(
 
 func (t *TransactionAttempt) fetchBeforeUnstage(
 	ctx context.Context,
-	mutation *transactionStagedMutation,
+	mutation *stagedMutation,
 ) *transactionOperationStatus {
 	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
 		if cerr == nil {
@@ -236,7 +236,7 @@ func (t *TransactionAttempt) fetchBeforeUnstage(
 		})
 	}
 
-	if mutation.OpType != TransactionStagedMutationInsert && mutation.OpType != TransactionStagedMutationReplace {
+	if mutation.OpType != StagedMutationInsert && mutation.OpType != StagedMutationReplace {
 		return ecCb(nil)
 	}
 
@@ -250,7 +250,7 @@ func (t *TransactionAttempt) fetchBeforeUnstage(
 	}
 
 	var flags memdx.SubdocDocFlag
-	if mutation.OpType == TransactionStagedMutationInsert {
+	if mutation.OpType == StagedMutationInsert {
 		flags = memdx.SubdocDocFlagAccessDeleted
 	}
 
@@ -276,7 +276,7 @@ func (t *TransactionAttempt) fetchBeforeUnstage(
 		return ecCb(classifyError(result.Ops[0].Err))
 	}
 
-	var jsonTxn jsonTxnXattr
+	var jsonTxn TxnXattrJson
 	err = json.Unmarshal(result.Ops[0].Value, &jsonTxn)
 	if err != nil {
 		return ecCb(classifyError(err))
@@ -293,7 +293,7 @@ func (t *TransactionAttempt) fetchBeforeUnstage(
 
 func (t *TransactionAttempt) commitStagedReplace(
 	ctx context.Context,
-	mutation transactionStagedMutation,
+	mutation stagedMutation,
 	forceWrite bool,
 	ambiguityResolution bool,
 ) *transactionOperationStatus {
@@ -411,7 +411,7 @@ func (t *TransactionAttempt) commitStagedReplace(
 				Value: mutation.Staged,
 			},
 		},
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      mutation.OboUser,
 	})
 	if err != nil {
@@ -439,7 +439,7 @@ func (t *TransactionAttempt) commitStagedReplace(
 
 func (t *TransactionAttempt) commitStagedInsert(
 	ctx context.Context,
-	mutation transactionStagedMutation,
+	mutation stagedMutation,
 	ambiguityResolution bool,
 ) *transactionOperationStatus {
 	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
@@ -530,7 +530,7 @@ func (t *TransactionAttempt) commitStagedInsert(
 		CollectionName:  mutation.CollectionName,
 		Key:             mutation.Key,
 		Value:           mutation.Staged,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      mutation.OboUser,
 	})
 	if err != nil {
@@ -552,7 +552,7 @@ func (t *TransactionAttempt) commitStagedInsert(
 
 func (t *TransactionAttempt) commitStagedRemove(
 	ctx context.Context,
-	mutation transactionStagedMutation,
+	mutation stagedMutation,
 	ambiguityResolution bool,
 ) *transactionOperationStatus {
 	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
@@ -629,7 +629,7 @@ func (t *TransactionAttempt) commitStagedRemove(
 		CollectionName:  mutation.CollectionName,
 		Key:             mutation.Key,
 		Cas:             0,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      mutation.OboUser,
 	})
 	if err != nil {

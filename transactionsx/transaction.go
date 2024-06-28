@@ -18,12 +18,12 @@ import (
 type Transaction struct {
 	expiryTime              time.Time
 	startTime               time.Time
-	durabilityLevel         TransactionDurabilityLevel
+	durabilityLevel         DurabilityLevel
 	enableParallelUnstaging bool
 	enableNonFatalGets      bool
 	enableExplicitATRs      bool
 	enableMutationCaching   bool
-	atrLocation             TransactionATRLocation
+	atrLocation             ATRLocation
 	bucketAgentProvider     TransactionsBucketAgentProviderFn
 
 	transactionID string
@@ -70,7 +70,7 @@ func (t *Transaction) NewAttempt() error {
 	return nil
 }
 
-func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
+func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
 	if txnData.ID.Attempt == "" {
 		return errors.New("invalid txn data - no attempt id")
 	}
@@ -111,7 +111,7 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 		atrKey = nil
 	}
 
-	stagedMutations := make([]*transactionStagedMutation, len(txnData.Mutations))
+	stagedMutations := make([]*stagedMutation, len(txnData.Mutations))
 	for mutationIdx, mutationData := range txnData.Mutations {
 		if mutationData.Bucket == "" {
 			return errors.New("invalid staged mutation - no bucket")
@@ -136,12 +136,12 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 			return err
 		}
 
-		opType, err := transactionStagedMutationTypeFromString(mutationData.Type)
+		opType, err := stagedMutationTypeFromString(mutationData.Type)
 		if err != nil {
 			return err
 		}
 
-		stagedMutations[mutationIdx] = &transactionStagedMutation{
+		stagedMutations[mutationIdx] = &stagedMutation{
 			OpType:         opType,
 			Agent:          agent,
 			OboUser:        oboUser,
@@ -179,8 +179,8 @@ func (t *Transaction) resumeAttempt(txnData *jsonSerializedAttempt) error {
 	return nil
 }
 
-// TransactionGetOptions provides options for a Get operation.
-type TransactionGetOptions struct {
+// GetOptions provides options for a Get operation.
+type GetOptions struct {
 	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
@@ -193,38 +193,38 @@ type TransactionGetOptions struct {
 	NoRYOW bool
 }
 
-// TransactionMutableItemMetaATR represents the ATR for meta.
-type TransactionMutableItemMetaATR struct {
+// MutableItemMetaATR represents the ATR for meta.
+type MutableItemMetaATR struct {
 	BucketName     string `json:"bkt"`
 	ScopeName      string `json:"scp"`
 	CollectionName string `json:"coll"`
 	DocID          string `json:"key"`
 }
 
-// TransactionMutableItemMeta represents all the meta-data for a fetched
+// MutableItemMeta represents all the meta-data for a fetched
 // item.  Most of this is used for later mutation operations.
-type TransactionMutableItemMeta struct {
-	TransactionID string                                            `json:"txn"`
-	AttemptID     string                                            `json:"atmpt"`
-	ATR           TransactionMutableItemMetaATR                     `json:"atr"`
-	ForwardCompat map[string][]TransactionForwardCompatibilityEntry `json:"fc,omitempty"`
+type MutableItemMeta struct {
+	TransactionID string                          `json:"txn"`
+	AttemptID     string                          `json:"atmpt"`
+	ATR           MutableItemMetaATR              `json:"atr"`
+	ForwardCompat map[string][]ForwardCompatEntry `json:"fc,omitempty"`
 }
 
-// TransactionGetResult represents the result of a Get or GetOptional operation.
-type TransactionGetResult struct {
+// GetResult represents the result of a Get or GetOptional operation.
+type GetResult struct {
 	agent          *gocbcorex.Agent
 	oboUser        string
 	scopeName      string
 	collectionName string
 	key            []byte
 
-	Meta  *TransactionMutableItemMeta
+	Meta  *MutableItemMeta
 	Value []byte
 	Cas   uint64
 }
 
 // Get will attempt to fetch a document, and fail the transaction if it does not exist.
-func (t *Transaction) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
+func (t *Transaction) Get(ctx context.Context, opts GetOptions) (*GetResult, error) {
 	if t.attempt == nil {
 		return nil, ErrNoAttempt
 	}
@@ -232,8 +232,8 @@ func (t *Transaction) Get(ctx context.Context, opts TransactionGetOptions) (*Tra
 	return t.attempt.Get(ctx, opts)
 }
 
-// TransactionInsertOptions provides options for a Insert operation.
-type TransactionInsertOptions struct {
+// InsertOptions provides options for a Insert operation.
+type InsertOptions struct {
 	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
@@ -243,7 +243,7 @@ type TransactionInsertOptions struct {
 }
 
 // Insert will attempt to insert a document.
-func (t *Transaction) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
+func (t *Transaction) Insert(ctx context.Context, opts InsertOptions) (*GetResult, error) {
 	if t.attempt == nil {
 		return nil, ErrNoAttempt
 	}
@@ -251,14 +251,14 @@ func (t *Transaction) Insert(ctx context.Context, opts TransactionInsertOptions)
 	return t.attempt.Insert(ctx, opts)
 }
 
-// TransactionReplaceOptions provides options for a Replace operation.
-type TransactionReplaceOptions struct {
-	Document *TransactionGetResult
+// ReplaceOptions provides options for a Replace operation.
+type ReplaceOptions struct {
+	Document *GetResult
 	Value    json.RawMessage
 }
 
 // Replace will attempt to replace an existing document.
-func (t *Transaction) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
+func (t *Transaction) Replace(ctx context.Context, opts ReplaceOptions) (*GetResult, error) {
 	if t.attempt == nil {
 		return nil, ErrNoAttempt
 	}
@@ -266,13 +266,13 @@ func (t *Transaction) Replace(ctx context.Context, opts TransactionReplaceOption
 	return t.attempt.Replace(ctx, opts)
 }
 
-// TransactionRemoveOptions provides options for a Remove operation.
-type TransactionRemoveOptions struct {
-	Document *TransactionGetResult
+// RemoveOptions provides options for a Remove operation.
+type RemoveOptions struct {
+	Document *GetResult
 }
 
 // Remove will attempt to remove a previously fetched document.
-func (t *Transaction) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
+func (t *Transaction) Remove(ctx context.Context, opts RemoveOptions) (*GetResult, error) {
 	if t.attempt == nil {
 		return nil, ErrNoAttempt
 	}
@@ -344,7 +344,7 @@ func (t *Transaction) SerializeAttempt(ctx context.Context) ([]byte, error) {
 
 // GetMutations returns a list of all the current mutations that have been performed
 // under this transaction.
-func (t *Transaction) GetMutations() []TransactionStagedMutation {
+func (t *Transaction) GetMutations() []StagedMutation {
 	if t.attempt == nil {
 		return nil
 	}
@@ -355,7 +355,7 @@ func (t *Transaction) GetMutations() []TransactionStagedMutation {
 // GetATRLocation returns the ATR location for the current attempt, either by
 // identifying where it was placed, or where it will be based on custom atr
 // configurations.
-func (t *Transaction) GetATRLocation() TransactionATRLocation {
+func (t *Transaction) GetATRLocation() ATRLocation {
 	if t.attempt != nil {
 		return t.attempt.GetATRLocation()
 	}
@@ -366,7 +366,7 @@ func (t *Transaction) GetATRLocation() TransactionATRLocation {
 // SetATRLocation forces the ATR location for the current attempt to a specific
 // location.  Note that this cannot be called if it has already been set.  This
 // is currently only safe to call before any mutations have occurred.
-func (t *Transaction) SetATRLocation(location TransactionATRLocation) error {
+func (t *Transaction) SetATRLocation(location ATRLocation) error {
 	if t.attempt == nil {
 		return errors.New("cannot set ATR location without an active attempt")
 	}
@@ -386,9 +386,9 @@ func (t *Transaction) Config() TransactionOptions {
 	}
 }
 
-// TransactionUpdateStateOptions are the settings available to UpdateState.
+// UpdateStateOptions are the settings available to UpdateState.
 // This function must only be called once the transaction has entered query mode.
-type TransactionUpdateStateOptions struct {
+type UpdateStateOptions struct {
 	ShouldNotCommit   bool
 	ShouldNotRollback bool
 	ShouldNotRetry    bool
@@ -396,13 +396,13 @@ type TransactionUpdateStateOptions struct {
 	Reason            TransactionErrorReason
 }
 
-func (tuso TransactionUpdateStateOptions) String() string {
+func (tuso UpdateStateOptions) String() string {
 	return fmt.Sprintf("Should not commit: %t, should not rollback: %t, should not retry: %t, state: %s, reason: %s",
 		tuso.ShouldNotCommit, tuso.ShouldNotRollback, tuso.ShouldNotRetry, tuso.State, tuso.Reason)
 }
 
 // UpdateState will update the internal state of the current attempt.
-func (t *Transaction) UpdateState(opts TransactionUpdateStateOptions) {
+func (t *Transaction) UpdateState(opts UpdateStateOptions) {
 	if t.attempt == nil {
 		return
 	}

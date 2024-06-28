@@ -79,7 +79,7 @@ func (t *TransactionAttempt) rollback(
 	} else {
 		numThreads := 32
 		numMutations := len(t.stagedMutations)
-		pendCh := make(chan *transactionStagedMutation, numThreads*2)
+		pendCh := make(chan *stagedMutation, numThreads*2)
 		waitCh := make(chan *transactionOperationStatus, numMutations)
 
 		// Start all our threads to process mutations
@@ -130,14 +130,14 @@ func (t *TransactionAttempt) rollback(
 
 func (t *TransactionAttempt) unstageStagedMutation(
 	ctx context.Context,
-	mutation *transactionStagedMutation,
+	mutation *stagedMutation,
 ) *transactionOperationStatus {
 	switch mutation.OpType {
-	case TransactionStagedMutationInsert:
+	case StagedMutationInsert:
 		return t.unstageStagedInsert(ctx, *mutation)
-	case TransactionStagedMutationReplace:
+	case StagedMutationReplace:
 		fallthrough
-	case TransactionStagedMutationRemove:
+	case StagedMutationRemove:
 		return t.unstageStagedRemoveReplace(ctx, *mutation)
 	default:
 		return t.operationFailed(operationFailedDef{
@@ -151,7 +151,7 @@ func (t *TransactionAttempt) unstageStagedMutation(
 
 func (t *TransactionAttempt) unstageStagedInsert(
 	ctx context.Context,
-	mutation transactionStagedMutation,
+	mutation stagedMutation,
 ) *transactionOperationStatus {
 	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
 		if cerr == nil {
@@ -263,7 +263,7 @@ func (t *TransactionAttempt) unstageStagedInsert(
 
 func (t *TransactionAttempt) unstageStagedRemoveReplace(
 	ctx context.Context,
-	mutation transactionStagedMutation,
+	mutation stagedMutation,
 ) *transactionOperationStatus {
 	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
 		if cerr == nil {

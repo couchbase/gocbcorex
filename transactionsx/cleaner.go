@@ -33,8 +33,8 @@ type TransactionCleanupRequest struct {
 	Replaces        []TransactionCleanupDocRecord
 	Removes         []TransactionCleanupDocRecord
 	State           TransactionAttemptState
-	ForwardCompat   map[string][]TransactionForwardCompatibilityEntry
-	DurabilityLevel TransactionDurabilityLevel
+	ForwardCompat   map[string][]ForwardCompatEntry
+	DurabilityLevel DurabilityLevel
 	TxnStartTime    time.Time
 }
 
@@ -108,10 +108,10 @@ func (c *TransactionCleaner) cleanupDocs(
 	req *TransactionCleanupRequest,
 ) error {
 	var memdDuraLevel memdx.DurabilityLevel
-	if req.DurabilityLevel > TransactionDurabilityLevelUnknown {
+	if req.DurabilityLevel > DurabilityLevelUnknown {
 		// We want to ensure that we don't panic here, if the durability level is unknown then we'll just not set
 		// a durability level.
-		memdDuraLevel = transactionsDurabilityLevelToMemdx(req.DurabilityLevel)
+		memdDuraLevel = durabilityLevelToMemdx(req.DurabilityLevel)
 	}
 
 	switch req.State {
@@ -190,7 +190,7 @@ func (c *TransactionCleaner) rollbackRepRemDoc(
 
 	agent, oboUser := doc.Agent, doc.OboUser
 
-	getRes, err := c.perDoc(ctx, false, attemptID, doc, agent, oboUser)
+	getRes, err := c.fetchDoc(ctx, false, attemptID, doc, agent, oboUser)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (c *TransactionCleaner) rollbackInsDoc(
 
 	agent, oboUser := doc.Agent, doc.OboUser
 
-	getRes, err := c.perDoc(ctx, false, attemptID, doc, agent, oboUser)
+	getRes, err := c.fetchDoc(ctx, false, attemptID, doc, agent, oboUser)
 	if err != nil {
 		return err
 	}
@@ -322,7 +322,7 @@ func (c *TransactionCleaner) commitRemDoc(
 
 	agent, oboUser := doc.Agent, doc.OboUser
 
-	getRes, err := c.perDoc(ctx, true, attemptID, doc, agent, oboUser)
+	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
 	if err != nil {
 		return err
 	}
@@ -332,7 +332,7 @@ func (c *TransactionCleaner) commitRemDoc(
 		return ecCb(err)
 	}
 
-	if getRes.TxnMeta.Operation.Type != jsonMutationRemove {
+	if getRes.TxnMeta.Operation.Type != MutationTypeJsonRemove {
 		return nil
 	}
 
@@ -373,7 +373,7 @@ func (c *TransactionCleaner) commitInsRepDoc(
 
 	agent, oboUser := doc.Agent, doc.OboUser
 
-	getRes, err := c.perDoc(ctx, true, attemptID, doc, agent, oboUser)
+	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
 	if err != nil {
 		return err
 	}
@@ -438,14 +438,22 @@ func (c *TransactionCleaner) commitInsRepDoc(
 	return nil
 }
 
-func (c *TransactionCleaner) perDoc(
+type fetchDocResult struct {
+	Body    []byte
+	TxnMeta *TxnXattrJson
+	DocMeta *TxnXattrDocMetaJson
+	Cas     uint64
+	Deleted bool
+}
+
+func (c *TransactionCleaner) fetchDoc(
 	ctx context.Context,
 	crc32MatchStaging bool,
 	attemptID string,
 	dr TransactionCleanupDocRecord,
 	agent *gocbcorex.Agent,
 	oboUser string,
-) (*transactionGetDoc, error) {
+) (*fetchDocResult, error) {
 	ecCb := func(err error) error {
 		if err == nil {
 			return nil
@@ -454,10 +462,10 @@ func (c *TransactionCleaner) perDoc(
 		return err
 	}
 
-	zeroRes := &transactionGetDoc{
+	zeroRes := &fetchDocResult{
 		Body:    nil,
 		TxnMeta: nil,
-		DocMeta: &transactionDocMeta{},
+		DocMeta: &TxnXattrDocMetaJson{},
 		Cas:     0,
 		Deleted: true,
 	}
@@ -511,7 +519,7 @@ func (c *TransactionCleaner) perDoc(
 		return zeroRes, nil
 	}
 
-	var txnMetaVal *jsonTxnXattr
+	var txnMetaVal *TxnXattrJson
 	if err := json.Unmarshal(result.Ops[1].Value, &txnMetaVal); err != nil {
 		return nil, ecCb(err)
 	}
@@ -521,7 +529,7 @@ func (c *TransactionCleaner) perDoc(
 		return zeroRes, nil
 	}
 
-	var meta *transactionDocMeta
+	var meta *TxnXattrDocMetaJson
 	if err := json.Unmarshal(result.Ops[0].Value, &meta); err != nil {
 		return nil, ecCb(err)
 	}
@@ -533,7 +541,7 @@ func (c *TransactionCleaner) perDoc(
 		}
 	}
 
-	return &transactionGetDoc{
+	return &fetchDocResult{
 		Body:    txnMetaVal.Operation.Staged,
 		DocMeta: meta,
 		Cas:     result.Cas,
@@ -586,8 +594,8 @@ func (c *TransactionCleaner) cleanupATR(
 	})
 
 	var memdDuraLevel memdx.DurabilityLevel
-	if req.DurabilityLevel > TransactionDurabilityLevelUnknown {
-		memdDuraLevel = transactionsDurabilityLevelToMemdx(req.DurabilityLevel)
+	if req.DurabilityLevel > DurabilityLevelUnknown {
+		memdDuraLevel = durabilityLevelToMemdx(req.DurabilityLevel)
 	}
 
 	_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
@@ -607,7 +615,7 @@ func (c *TransactionCleaner) cleanupATR(
 
 func (c *TransactionCleaner) checkForwardCompatability(
 	stage forwardCompatStage,
-	fc map[string][]TransactionForwardCompatibilityEntry,
+	fc map[string][]ForwardCompatEntry,
 ) error {
 	isCompat, _, _, err := checkForwardCompatability(stage, fc)
 	if err != nil {

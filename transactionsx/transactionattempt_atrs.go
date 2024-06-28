@@ -36,7 +36,7 @@ func (t *TransactionAttempt) selectAtrKey(
 	firstKeyVbID := crcMidBits % uint16(1024)
 
 	atrID := int(firstKeyVbID)
-	atrKey := []byte(transactionAtrIDList[atrID])
+	atrKey := []byte(AtrIDList[atrID])
 
 	return atrKey, nil
 }
@@ -170,9 +170,9 @@ func (t *TransactionAttempt) setATRPendingExclusive(
 	atrOps := []memdx.MutateInOp{
 		atrFieldOp("tst", "${Mutation.CAS}", memdx.SubdocOpFlagExpandMacros),
 		atrFieldOp("tid", t.transactionID, memdx.SubdocOpFlagNone),
-		atrFieldOp("st", jsonAtrStatePending, memdx.SubdocOpFlagNone),
+		atrFieldOp("st", TxnStateJsonPending, memdx.SubdocOpFlagNone),
 		atrFieldOp("exp", time.Until(t.expiryTime)/time.Millisecond, memdx.SubdocOpFlagNone),
-		atrFieldOp("d", transactionsDurabilityLevelToJson(t.durabilityLevel), memdx.SubdocOpFlagNone),
+		atrFieldOp("d", durabilityLevelToJson(t.durabilityLevel), memdx.SubdocOpFlagNone),
 		{
 			Op:    memdx.MutateInOpTypeSetDoc,
 			Flags: memdx.SubdocOpFlagNone,
@@ -193,7 +193,7 @@ func (t *TransactionAttempt) setATRPendingExclusive(
 		Key:             t.atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagMkDoc,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      t.atrOboUser,
 	})
 	if err != nil {
@@ -226,8 +226,8 @@ func (t *TransactionAttempt) setATRPendingExclusive(
 
 func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 	ctx context.Context,
-) (jsonAtrState, *transactionOperationStatus) {
-	ecCb := func(st jsonAtrState, cerr *classifiedError) (jsonAtrState, *transactionOperationStatus) {
+) (TxnStateJson, *transactionOperationStatus) {
+	ecCb := func(st TxnStateJson, cerr *classifiedError) (TxnStateJson, *transactionOperationStatus) {
 		if cerr == nil {
 			return st, nil
 		}
@@ -240,38 +240,38 @@ func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 			case <-time.After(3 * time.Millisecond):
 				return t.fetchATRCommitConflictExclusive(ctx)
 			case <-ctx.Done():
-				return jsonAtrStateUnknown, t.contextFailed(ctx.Err())
+				return TxnStateJsonUnknown, t.contextFailed(ctx.Err())
 			}
 		case TransactionErrorClassFailDocNotFound:
-			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return TxnStateJsonUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
 			})
 		case TransactionErrorClassFailPathNotFound:
-			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return TxnStateJsonUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr.Wrap(ErrAtrEntryNotFound),
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
 			})
 		case TransactionErrorClassFailExpiry:
-			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return TxnStateJsonUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
 			})
 		case TransactionErrorClassFailHard:
-			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return TxnStateJsonUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionCommitAmbiguous,
 			})
 		default:
-			return jsonAtrStateUnknown, t.operationFailed(operationFailedDef{
+			return TxnStateJsonUnknown, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
 				ShouldNotRetry:    true,
 				ShouldNotRollback: true,
@@ -282,12 +282,12 @@ func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 
 	cerr := t.checkExpiredAtomic(ctx, hookATRCommitAmbiguityResolution, nil, false)
 	if cerr != nil {
-		return ecCb(jsonAtrStateUnknown, cerr)
+		return ecCb(TxnStateJsonUnknown, cerr)
 	}
 
 	err := t.hooks.BeforeATRCommitAmbiguityResolution(ctx)
 	if err != nil {
-		return ecCb(jsonAtrStateUnknown, classifyHookError(err))
+		return ecCb(TxnStateJsonUnknown, classifyHookError(err))
 	}
 
 	result, err := t.atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
@@ -305,16 +305,16 @@ func (t *TransactionAttempt) fetchATRCommitConflictExclusive(
 		OnBehalfOf: t.atrOboUser,
 	})
 	if err != nil {
-		return ecCb(jsonAtrStateUnknown, classifyError(err))
+		return ecCb(TxnStateJsonUnknown, classifyError(err))
 	}
 
 	if result.Ops[0].Err != nil {
-		return ecCb(jsonAtrStateUnknown, classifyError(err))
+		return ecCb(TxnStateJsonUnknown, classifyError(err))
 	}
 
-	var st jsonAtrState
+	var st TxnStateJson
 	if err := json.Unmarshal(result.Ops[0].Value, &st); err != nil {
-		return ecCb(jsonAtrStateUnknown, classifyError(err))
+		return ecCb(TxnStateJsonUnknown, classifyError(err))
 	}
 
 	return st, nil
@@ -329,7 +329,7 @@ func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 	}
 
 	switch st {
-	case jsonAtrStatePending:
+	case TxnStateJsonPending:
 		return t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
 				wrapError(ErrIllegalState, "transaction still pending even with p set during commit")),
@@ -337,9 +337,9 @@ func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 			ShouldNotRollback: true,
 			Reason:            TransactionErrorReasonTransactionFailed,
 		})
-	case jsonAtrStateCommitted:
+	case TxnStateJsonCommitted:
 		return nil
-	case jsonAtrStateCompleted:
+	case TxnStateJsonCompleted:
 		return t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
 				wrapError(ErrIllegalState, "transaction already completed during commit")),
@@ -347,7 +347,7 @@ func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 			ShouldNotRollback: true,
 			Reason:            TransactionErrorReasonTransactionFailed,
 		})
-	case jsonAtrStateAborted:
+	case TxnStateJsonAborted:
 		return t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
 				wrapError(ErrIllegalState, "transaction already aborted during commit")),
@@ -355,7 +355,7 @@ func (t *TransactionAttempt) resolveATRCommitConflictExclusive(
 			ShouldNotRollback: false,
 			Reason:            TransactionErrorReasonTransactionFailed,
 		})
-	case jsonAtrStateRolledBack:
+	case TxnStateJsonRolledBack:
 		return t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
 				wrapError(ErrIllegalState, "transaction already rolled back during commit")),
@@ -479,23 +479,23 @@ func (t *TransactionAttempt) setATRCommittedExclusive(
 	atrKey := t.atrKey
 	atrCollectionName := t.atrCollectionName
 
-	insMutations := []jsonAtrMutation{}
-	repMutations := []jsonAtrMutation{}
-	remMutations := []jsonAtrMutation{}
+	insMutations := []AtrMutationJson{}
+	repMutations := []AtrMutationJson{}
+	remMutations := []AtrMutationJson{}
 
 	for _, mutation := range t.stagedMutations {
-		jsonMutation := jsonAtrMutation{
+		jsonMutation := AtrMutationJson{
 			BucketName:     mutation.Agent.BucketName(),
 			ScopeName:      mutation.ScopeName,
 			CollectionName: mutation.CollectionName,
 			DocID:          string(mutation.Key),
 		}
 
-		if mutation.OpType == TransactionStagedMutationInsert {
+		if mutation.OpType == StagedMutationInsert {
 			insMutations = append(insMutations, jsonMutation)
-		} else if mutation.OpType == TransactionStagedMutationReplace {
+		} else if mutation.OpType == StagedMutationReplace {
 			repMutations = append(repMutations, jsonMutation)
-		} else if mutation.OpType == TransactionStagedMutationRemove {
+		} else if mutation.OpType == StagedMutationRemove {
 			remMutations = append(remMutations, jsonMutation)
 		} else {
 			return ecCb(classifyError(wrapError(ErrIllegalState, "unexpected staged mutation type")))
@@ -528,7 +528,7 @@ func (t *TransactionAttempt) setATRCommittedExclusive(
 	}
 
 	atrOps := []memdx.MutateInOp{
-		atrFieldOp("st", jsonAtrStateCommitted, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
+		atrFieldOp("st", TxnStateJsonCommitted, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
 		atrFieldOp("tsc", "${Mutation.CAS}", memdx.SubdocOpFlagExpandMacros, memdx.MutateInOpTypeDictSet),
 		atrFieldOp("p", 0, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictAdd),
 		atrFieldOp("ins", insMutations, memdx.SubdocOpFlagNone, memdx.MutateInOpTypeDictSet),
@@ -545,7 +545,7 @@ func (t *TransactionAttempt) setATRCommittedExclusive(
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
@@ -650,7 +650,7 @@ func (t *TransactionAttempt) setATRCompletedExclusive(
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
@@ -738,23 +738,23 @@ func (t *TransactionAttempt) setATRAbortedExclusive(
 	atrKey := t.atrKey
 	atrCollectionName := t.atrCollectionName
 
-	insMutations := []jsonAtrMutation{}
-	repMutations := []jsonAtrMutation{}
-	remMutations := []jsonAtrMutation{}
+	insMutations := []AtrMutationJson{}
+	repMutations := []AtrMutationJson{}
+	remMutations := []AtrMutationJson{}
 
 	for _, mutation := range t.stagedMutations {
-		jsonMutation := jsonAtrMutation{
+		jsonMutation := AtrMutationJson{
 			BucketName:     mutation.Agent.BucketName(),
 			ScopeName:      mutation.ScopeName,
 			CollectionName: mutation.CollectionName,
 			DocID:          string(mutation.Key),
 		}
 
-		if mutation.OpType == TransactionStagedMutationInsert {
+		if mutation.OpType == StagedMutationInsert {
 			insMutations = append(insMutations, jsonMutation)
-		} else if mutation.OpType == TransactionStagedMutationReplace {
+		} else if mutation.OpType == StagedMutationReplace {
 			repMutations = append(repMutations, jsonMutation)
-		} else if mutation.OpType == TransactionStagedMutationRemove {
+		} else if mutation.OpType == StagedMutationRemove {
 			remMutations = append(remMutations, jsonMutation)
 		} else {
 			return ecCb(classifyError(wrapError(ErrIllegalState, "unexpected staged mutation type")))
@@ -787,7 +787,7 @@ func (t *TransactionAttempt) setATRAbortedExclusive(
 	}
 
 	atrOps := []memdx.MutateInOp{
-		atrFieldOp("st", jsonAtrStateAborted, memdx.SubdocOpFlagNone),
+		atrFieldOp("st", TxnStateJsonAborted, memdx.SubdocOpFlagNone),
 		atrFieldOp("tsrs", "${Mutation.CAS}", memdx.SubdocOpFlagExpandMacros),
 		atrFieldOp("ins", insMutations, memdx.SubdocOpFlagNone),
 		atrFieldOp("rep", repMutations, memdx.SubdocOpFlagNone),
@@ -803,7 +803,7 @@ func (t *TransactionAttempt) setATRAbortedExclusive(
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
@@ -899,7 +899,7 @@ func (t *TransactionAttempt) setATRRolledBackExclusive(
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {

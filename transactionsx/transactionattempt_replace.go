@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Replace(ctx context.Context, opts ReplaceOptions) (*GetResult, error) {
 	result, errSt := t.replace(ctx, opts)
 	if errSt != nil {
 		t.logger.Info("replace failed", zap.Error(errSt.Err()))
@@ -22,8 +22,8 @@ func (t *TransactionAttempt) Replace(ctx context.Context, opts TransactionReplac
 
 func (t *TransactionAttempt) replace(
 	ctx context.Context,
-	opts TransactionReplaceOptions,
-) (*TransactionGetResult, *transactionOperationStatus) {
+	opts ReplaceOptions,
+) (*GetResult, *transactionOperationStatus) {
 	t.logger.Info("performing replace",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
@@ -63,7 +63,7 @@ func (t *TransactionAttempt) replace(
 
 	if existingMutation != nil {
 		switch existingMutation.OpType {
-		case TransactionStagedMutationInsert:
+		case StagedMutationInsert:
 			t.logger.Info("staged insert exists on doc, performing insert")
 
 			result, err := t.stageInsert(
@@ -71,12 +71,12 @@ func (t *TransactionAttempt) replace(
 			t.endOp()
 			return result, err
 
-		case TransactionStagedMutationReplace:
+		case StagedMutationReplace:
 			t.logger.Info("staged replace exists on doc, this is ok")
 
 			// We can overwrite other replaces without issue, any conflicts between the mutation
 			// the user passed to us and the existing mutation is caught by WriteWriteConflict.
-		case TransactionStagedMutationRemove:
+		case StagedMutationRemove:
 			t.endOp()
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -129,8 +129,8 @@ func (t *TransactionAttempt) stageReplace(
 	key []byte,
 	value json.RawMessage,
 	cas uint64,
-) (*TransactionGetResult, *transactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
+) (*GetResult, *transactionOperationStatus) {
+	ecCb := func(result *GetResult, cerr *classifiedError) (*GetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -203,8 +203,8 @@ func (t *TransactionAttempt) stageReplace(
 		return ecCb(nil, classifyHookError(err))
 	}
 
-	stagedInfo := &transactionStagedMutation{
-		OpType:         TransactionStagedMutationReplace,
+	stagedInfo := &stagedMutation{
+		OpType:         StagedMutationReplace,
 		Agent:          agent,
 		OboUser:        oboUser,
 		ScopeName:      scopeName,
@@ -213,16 +213,16 @@ func (t *TransactionAttempt) stageReplace(
 		Staged:         value,
 	}
 
-	var txnMeta jsonTxnXattr
+	var txnMeta TxnXattrJson
 	txnMeta.ID.Transaction = t.transactionID
 	txnMeta.ID.Attempt = t.id
 	txnMeta.ATR.CollectionName = t.atrCollectionName
 	txnMeta.ATR.ScopeName = t.atrScopeName
 	txnMeta.ATR.BucketName = t.atrAgent.BucketName()
 	txnMeta.ATR.DocID = string(t.atrKey)
-	txnMeta.Operation.Type = jsonMutationReplace
+	txnMeta.Operation.Type = MutationTypeJsonReplace
 	txnMeta.Operation.Staged = stagedInfo.Staged
-	txnMeta.Restore = &jsonTxnXattrRestore{
+	txnMeta.Restore = &TxnXattrRestoreJson{
 		OriginalCAS: "",
 		ExpiryTime:  0,
 		RevID:       "",
@@ -271,7 +271,7 @@ func (t *TransactionAttempt) stageReplace(
 			},
 		},
 		Flags:           memdx.SubdocDocFlagAccessDeleted,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      stagedInfo.OboUser,
 	})
 	if err != nil {
@@ -287,7 +287,7 @@ func (t *TransactionAttempt) stageReplace(
 
 	t.recordStagedMutation(stagedInfo)
 
-	return &TransactionGetResult{
+	return &GetResult{
 		agent:          stagedInfo.Agent,
 		oboUser:        stagedInfo.OboUser,
 		scopeName:      stagedInfo.ScopeName,

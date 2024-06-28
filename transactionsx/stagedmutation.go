@@ -7,52 +7,52 @@ import (
 	"github.com/couchbase/gocbcorex"
 )
 
-// TransactionStagedMutationType represents the type of a mutation performed in a transaction.
-type TransactionStagedMutationType int
+// StagedMutationType represents the type of a mutation performed in a transaction.
+type StagedMutationType int
 
 const (
-	// TransactionStagedMutationUnknown indicates an error has occured.
-	TransactionStagedMutationUnknown = TransactionStagedMutationType(0)
+	// StagedMutationUnknown indicates an error has occured.
+	StagedMutationUnknown = StagedMutationType(0)
 
-	// TransactionStagedMutationInsert indicates the staged mutation was an insert operation.
-	TransactionStagedMutationInsert = TransactionStagedMutationType(1)
+	// StagedMutationInsert indicates the staged mutation was an insert operation.
+	StagedMutationInsert = StagedMutationType(1)
 
-	// TransactionStagedMutationReplace indicates the staged mutation was an replace operation.
-	TransactionStagedMutationReplace = TransactionStagedMutationType(2)
+	// StagedMutationReplace indicates the staged mutation was an replace operation.
+	StagedMutationReplace = StagedMutationType(2)
 
-	// TransactionStagedMutationRemove indicates the staged mutation was an remove operation.
-	TransactionStagedMutationRemove = TransactionStagedMutationType(3)
+	// StagedMutationRemove indicates the staged mutation was an remove operation.
+	StagedMutationRemove = StagedMutationType(3)
 )
 
-func transactionStagedMutationTypeToString(mtype TransactionStagedMutationType) string {
+func stagedMutationTypeToString(mtype StagedMutationType) string {
 	switch mtype {
-	case TransactionStagedMutationInsert:
+	case StagedMutationInsert:
 		return "INSERT"
-	case TransactionStagedMutationReplace:
+	case StagedMutationReplace:
 		return "REPLACE"
-	case TransactionStagedMutationRemove:
+	case StagedMutationRemove:
 		return "REMOVE"
 	}
 	return ""
 }
 
-func transactionStagedMutationTypeFromString(mtype string) (TransactionStagedMutationType, error) {
+func stagedMutationTypeFromString(mtype string) (StagedMutationType, error) {
 	switch mtype {
 	case "INSERT":
-		return TransactionStagedMutationInsert, nil
+		return StagedMutationInsert, nil
 	case "REPLACE":
-		return TransactionStagedMutationReplace, nil
+		return StagedMutationReplace, nil
 	case "REMOVE":
-		return TransactionStagedMutationRemove, nil
+		return StagedMutationRemove, nil
 	}
-	return TransactionStagedMutationUnknown, errors.New("invalid mutation type string")
+	return StagedMutationUnknown, errors.New("invalid mutation type string")
 }
 
-// TransactionStagedMutation wraps all of the information about a mutation which has been staged
+// StagedMutation wraps all of the information about a mutation which has been staged
 // as part of the transaction and which should later be unstaged when the transaction
 // has been committed.
-type TransactionStagedMutation struct {
-	OpType         TransactionStagedMutationType
+type StagedMutation struct {
+	OpType         StagedMutationType
 	BucketName     string
 	ScopeName      string
 	CollectionName string
@@ -61,8 +61,8 @@ type TransactionStagedMutation struct {
 	Staged         json.RawMessage
 }
 
-type transactionStagedMutation struct {
-	OpType         TransactionStagedMutationType
+type stagedMutation struct {
+	OpType         StagedMutationType
 	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string

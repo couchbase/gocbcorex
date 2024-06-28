@@ -1,6 +1,6 @@
 package transactionsx
 
-type jsonSerializedMutation struct {
+type SerializedMutationJson struct {
 	Bucket     string `json:"bkt"`
 	Scope      string `json:"scp"`
 	Collection string `json:"coll"`
@@ -9,7 +9,7 @@ type jsonSerializedMutation struct {
 	Type       string `json:"type"`
 }
 
-type jsonSerializedAttempt struct {
+type SerializedAttemptJson struct {
 	ID struct {
 		Transaction string `json:"txn"`
 		Attempt     string `json:"atmpt"`
@@ -28,5 +28,5 @@ type jsonSerializedAttempt struct {
 	State struct {
 		TimeLeftMs int `json:"timeLeftMs"`
 	} `json:"state"`
-	Mutations []jsonSerializedMutation `json:"mutations"`
+	Mutations []SerializedMutationJson `json:"mutations"`
 }

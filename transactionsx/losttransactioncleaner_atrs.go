@@ -72,7 +72,7 @@ func (c *LostTransactionCleaner) fetchAtrExpiredAttempts(ctx context.Context, at
 		return nil, hlcOp.Err
 	}
 
-	var attempts map[string]jsonAtrAttempt
+	var attempts map[string]AtrAttemptJson
 	err = json.Unmarshal(attemptsOp.Value, &attempts)
 	if err != nil {
 		return nil, err
@@ -101,14 +101,14 @@ func (c *LostTransactionCleaner) fetchAtrExpiredAttempts(ctx context.Context, at
 			continue
 		}
 
-		state, err := transactionsStateFromJson(attempt.State)
+		state, err := txnStateFromJson(attempt.State)
 		if err != nil {
 			return nil, err
 		}
 
-		durabilityLevel := transactionsDurabilityLevelFromJson(attempt.DurabilityLevel)
+		durabilityLevel := durabilityLevelFromJson(attempt.DurabilityLevel)
 
-		parseAtrMutation := func(staged jsonAtrMutation) (TransactionCleanupDocRecord, error) {
+		parseAtrMutation := func(staged AtrMutationJson) (TransactionCleanupDocRecord, error) {
 			agent, oboUser, err := c.agentProvider(ctx, staged.BucketName)
 			if err != nil {
 				return TransactionCleanupDocRecord{}, err

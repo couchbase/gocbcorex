@@ -41,7 +41,7 @@ func TestTransactionsInsertTxn1GetTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
 	defer agent.Close()
 
-	_, err := txn1.Insert(ctx, transactionsx.TransactionInsertOptions{
+	_, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -52,7 +52,7 @@ func TestTransactionsInsertTxn1GetTxn2(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocMissing(t, agent, docKey)
 
-	_, err = txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	_, err = txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -71,7 +71,7 @@ func TestTransactionsInsertTxn1InsertTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
 	defer agent.Close()
 
-	_, err := txn1.Insert(ctx, transactionsx.TransactionInsertOptions{
+	_, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -82,7 +82,7 @@ func TestTransactionsInsertTxn1InsertTxn2(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocMissing(t, agent, docKey)
 
-	_, err = txn2.Insert(ctx, transactionsx.TransactionInsertOptions{
+	_, err = txn2.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -109,7 +109,7 @@ func TestTransactionsReplaceTxn1GetTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -117,7 +117,7 @@ func TestTransactionsReplaceTxn1GetTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn1.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: getRes,
 		Value:    TEST_VALUE,
 	})
@@ -125,7 +125,7 @@ func TestTransactionsReplaceTxn1GetTxn2(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	getRes2, err := txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes2, err := txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -152,7 +152,7 @@ func TestTransactionsReplaceTxn1InsertTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -160,7 +160,7 @@ func TestTransactionsReplaceTxn1InsertTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn1.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: getRes,
 		Value:    TEST_VALUE,
 	})
@@ -168,7 +168,7 @@ func TestTransactionsReplaceTxn1InsertTxn2(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	_, err = txn2.Insert(ctx, transactionsx.TransactionInsertOptions{
+	_, err = txn2.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -195,7 +195,7 @@ func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -203,7 +203,7 @@ func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn1.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: getRes,
 		Value:    TEST_VALUE,
 	})
@@ -211,7 +211,7 @@ func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	getRes2, err := txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes2, err := txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -219,7 +219,7 @@ func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn2.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn2.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: getRes2,
 		Value:    TEST_VALUE,
 	})
@@ -243,7 +243,7 @@ func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -251,7 +251,7 @@ func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn1.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: getRes,
 		Value:    TEST_VALUE,
 	})
@@ -259,7 +259,7 @@ func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	getRes2, err := txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes2, err := txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -267,7 +267,7 @@ func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn2.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn2.Remove(ctx, transactionsx.RemoveOptions{
 		Document: getRes2,
 	})
 	require.Error(t, err)
@@ -290,7 +290,7 @@ func TestTransactionsRemoveTxn1GetTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -298,14 +298,14 @@ func TestTransactionsRemoveTxn1GetTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn1.Remove(ctx, transactionsx.RemoveOptions{
 		Document: getRes,
 	})
 	require.NoError(t, err)
 	assertStagedDoc(t, agent, docKey, nil)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	getRes2, err := txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes2, err := txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -332,7 +332,7 @@ func TestTransactionsRemoveTxn1InsertTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -340,14 +340,14 @@ func TestTransactionsRemoveTxn1InsertTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn1.Remove(ctx, transactionsx.RemoveOptions{
 		Document: getRes,
 	})
 	require.NoError(t, err)
 	assertStagedDoc(t, agent, docKey, nil)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	_, err = txn2.Insert(ctx, transactionsx.TransactionInsertOptions{
+	_, err = txn2.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -373,7 +373,7 @@ func TestTransactionsRemoveTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -381,14 +381,14 @@ func TestTransactionsRemoveTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn1.Remove(ctx, transactionsx.RemoveOptions{
 		Document: getRes,
 	})
 	require.NoError(t, err)
 	assertStagedDoc(t, agent, docKey, nil)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	getRes2, err := txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes2, err := txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -396,7 +396,7 @@ func TestTransactionsRemoveTxn1ReplaceTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn2.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn2.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: getRes2,
 		Value:    TEST_VALUE,
 	})
@@ -420,7 +420,7 @@ func TestTransactionsRemoveTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	getRes, err := txn1.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes, err := txn1.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -428,14 +428,14 @@ func TestTransactionsRemoveTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn1.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn1.Remove(ctx, transactionsx.RemoveOptions{
 		Document: getRes,
 	})
 	require.NoError(t, err)
 	assertStagedDoc(t, agent, docKey, nil)
 	assertDocValue(t, agent, docKey, TEST_VALUE_INITIAL)
 
-	getRes2, err := txn2.Get(ctx, transactionsx.TransactionGetOptions{
+	getRes2, err := txn2.Get(ctx, transactionsx.GetOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -443,7 +443,7 @@ func TestTransactionsRemoveTxn1RemoveTxn2(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = txn2.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn2.Remove(ctx, transactionsx.RemoveOptions{
 		Document: getRes2,
 	})
 	require.Error(t, err)
@@ -458,7 +458,7 @@ func TestTransactionsInsertReplace(t *testing.T) {
 	ctx, agent, _, txn1, _, docKey := helperSetupBasicTest(t)
 	defer agent.Close()
 
-	insertRes, err := txn1.Insert(ctx, transactionsx.TransactionInsertOptions{
+	insertRes, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -469,7 +469,7 @@ func TestTransactionsInsertReplace(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE_INITIAL)
 	assertDocMissing(t, agent, docKey)
 
-	_, err = txn1.Replace(ctx, transactionsx.TransactionReplaceOptions{
+	_, err = txn1.Replace(ctx, transactionsx.ReplaceOptions{
 		Document: insertRes,
 		Value:    TEST_VALUE,
 	})
@@ -487,7 +487,7 @@ func TestTransactionsInsertRemove(t *testing.T) {
 	ctx, agent, _, txn1, _, docKey := helperSetupBasicTest(t)
 	defer agent.Close()
 
-	insertRes, err := txn1.Insert(ctx, transactionsx.TransactionInsertOptions{
+	insertRes, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
 		ScopeName:      "_default",
 		CollectionName: "_default",
@@ -498,7 +498,7 @@ func TestTransactionsInsertRemove(t *testing.T) {
 	assertStagedDoc(t, agent, docKey, TEST_VALUE_INITIAL)
 	assertDocMissing(t, agent, docKey)
 
-	_, err = txn1.Remove(ctx, transactionsx.TransactionRemoveOptions{
+	_, err = txn1.Remove(ctx, transactionsx.RemoveOptions{
 		Document: insertRes,
 	})
 	require.NoError(t, err)

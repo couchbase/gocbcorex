@@ -14,7 +14,7 @@ type TransactionLambdaAttempt struct {
 	lock   sync.Mutex
 }
 
-func (a *TransactionLambdaAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
+func (a *TransactionLambdaAttempt) Get(ctx context.Context, opts GetOptions) (*GetResult, error) {
 	result, err := a.txn.Get(ctx, opts)
 	if err != nil {
 		a.storeTxnErr(err)
@@ -24,7 +24,7 @@ func (a *TransactionLambdaAttempt) Get(ctx context.Context, opts TransactionGetO
 	return result, err
 }
 
-func (a *TransactionLambdaAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
+func (a *TransactionLambdaAttempt) Insert(ctx context.Context, opts InsertOptions) (*GetResult, error) {
 	result, err := a.txn.Insert(ctx, opts)
 	if err != nil {
 		a.storeTxnErr(err)
@@ -34,7 +34,7 @@ func (a *TransactionLambdaAttempt) Insert(ctx context.Context, opts TransactionI
 	return result, err
 }
 
-func (a *TransactionLambdaAttempt) Replace(ctx context.Context, opts TransactionReplaceOptions) (*TransactionGetResult, error) {
+func (a *TransactionLambdaAttempt) Replace(ctx context.Context, opts ReplaceOptions) (*GetResult, error) {
 	result, err := a.txn.Replace(ctx, opts)
 	if err != nil {
 		a.storeTxnErr(err)
@@ -44,7 +44,7 @@ func (a *TransactionLambdaAttempt) Replace(ctx context.Context, opts Transaction
 	return result, err
 }
 
-func (a *TransactionLambdaAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
+func (a *TransactionLambdaAttempt) Remove(ctx context.Context, opts RemoveOptions) (*GetResult, error) {
 	result, err := a.txn.Remove(ctx, opts)
 	if err != nil {
 		a.storeTxnErr(err)

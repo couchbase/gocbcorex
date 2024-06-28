@@ -49,7 +49,7 @@ func initTransactionAndAttempt(
 	agent *gocbcorex.Agent,
 ) (*transactionsx.TransactionsManager, *transactionsx.Transaction) {
 	txns, err := transactionsx.InitTransactions(&transactionsx.TransactionsConfig{
-		DurabilityLevel: transactionsx.TransactionDurabilityLevelNone,
+		DurabilityLevel: transactionsx.DurabilityLevelNone,
 		BucketAgentProvider: func(bucketName string) (*gocbcorex.Agent, string, error) {
 			// We can always return just this one agent as we only actually
 			// use a single bucket for this entire test.

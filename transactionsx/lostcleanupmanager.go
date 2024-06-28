@@ -24,7 +24,7 @@ type lostCleanupCleaner struct {
 	cleaner  *LostTransactionCleaner
 }
 
-type LostTransactionCleanerManager struct {
+type LostCleanupManager struct {
 	logger            *zap.Logger
 	cleanupWindow     time.Duration
 	agentProvider     AgentProvider
@@ -39,7 +39,7 @@ type LostTransactionCleanerManager struct {
 	cleaners     []*lostCleanupCleaner
 }
 
-type LostTransactionCleanerManagerConfig struct {
+type LostCleanupManagerConfig struct {
 	Logger            *zap.Logger
 	ATRLocations      []LostCleanupLocation
 	CleanupWindow     time.Duration
@@ -48,10 +48,10 @@ type LostTransactionCleanerManagerConfig struct {
 	ClientRecordHooks TransactionClientRecordHooks
 }
 
-func NewLostTransactionCleanerManager(config *LostTransactionCleanerManagerConfig) *LostTransactionCleanerManager {
+func NewLostCleanupManager(config *LostCleanupManagerConfig) *LostCleanupManager {
 	bgCtx, bgCtxCancel := context.WithCancel(context.Background())
 
-	manager := &LostTransactionCleanerManager{
+	manager := &LostCleanupManager{
 		logger:            config.Logger,
 		cleanupWindow:     config.CleanupWindow,
 		agentProvider:     config.AgentProvider,
@@ -69,7 +69,7 @@ func NewLostTransactionCleanerManager(config *LostTransactionCleanerManagerConfi
 	return manager
 }
 
-func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
+func (c *LostCleanupManager) AddLocation(loc LostCleanupLocation) {
 	c.lock.Lock()
 
 	c.logger.Debug("adding cleanup location",
@@ -146,7 +146,7 @@ func (c *LostTransactionCleanerManager) AddLocation(loc LostCleanupLocation) {
 	}()
 }
 
-func (c *LostTransactionCleanerManager) Close() {
+func (c *LostCleanupManager) Close() {
 	c.lock.Lock()
 	c.closed = true
 	c.lock.Unlock()

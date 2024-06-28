@@ -184,7 +184,7 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clien
 	numAtrs := c.numAtrs
 
 	var atrsToHandle []string
-	allAtrs := transactionAtrIDList[:numAtrs]
+	allAtrs := AtrIDList[:numAtrs]
 	for atrIdx := 0; atrIdx < len(allAtrs); atrIdx += numActiveClients {
 		atrsToHandle = append(atrsToHandle, allAtrs[atrIdx])
 	}

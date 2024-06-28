@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// TransactionsProtocolVersion returns the protocol version that this library supports.
-func TransactionsProtocolVersion() string {
+// ProtocolVersion returns the protocol version that this library supports.
+func ProtocolVersion() string {
 	return "2.1"
 }
 
-// TransactionsProtocolExtensions returns a list strings representing the various features
+// ProtocolExtensions returns a list strings representing the various features
 // that this specific version of the library supports within its protocol version.
-func TransactionsProtocolExtensions() []string {
+func ProtocolExtensions() []string {
 	return []string{
 		"EXT_TRANSACTION_ID",
 		"EXT_MEMORY_OPT_UNSTAGING",
@@ -90,8 +90,8 @@ const (
 	protocolMinor = 0
 )
 
-// TransactionForwardCompatibilityEntry represents a forward compatibility entry.
-type TransactionForwardCompatibilityEntry struct {
+// ForwardCompatEntry represents a forward compatibility entry.
+type ForwardCompatEntry struct {
 	ProtocolVersion   string `json:"p,omitempty"`
 	ProtocolExtension string `json:"e,omitempty"`
 	Behaviour         string `json:"b,omitempty"`
@@ -164,7 +164,7 @@ func checkForwardCompatExtension(extension string) bool {
 
 func checkForwardCompatability(
 	stage forwardCompatStage,
-	fc map[string][]TransactionForwardCompatibilityEntry,
+	fc map[string][]ForwardCompatEntry,
 ) (isCompatOut bool, shouldRetryOut bool, retryWaitOut time.Duration, errOut error) {
 	if len(fc) == 0 {
 		return true, false, 0, nil
