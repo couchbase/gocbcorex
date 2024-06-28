@@ -2,9 +2,11 @@ package transactionsx
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -67,8 +69,15 @@ func (c *LostTransactionCleaner) Run(ctx context.Context) error {
 	for ctx.Err() == nil {
 		err := c.cleanup(ctx)
 		if err != nil {
-			c.logger.Debug("cleanup failed",
+			if errors.Is(err, memdx.ErrUnknownCollectionName) {
+				c.logger.Debug("cleanup failed due to unknown collection name, stopping",
+					zap.Error(err))
+				break
+			}
+
+			c.logger.Debug("cleanup failed, trying again",
 				zap.Error(err))
+			continue
 		}
 	}
 
