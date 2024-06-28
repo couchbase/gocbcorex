@@ -303,6 +303,11 @@ func (t *TransactionAttempt) stageInsert(
 		txnOp = memdx.MutateInOpTypeDictSet
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(nil, classifyError(err))
+	}
+
 	result, err := stagedInfo.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:      stagedInfo.ScopeName,
 		CollectionName: stagedInfo.CollectionName,
@@ -322,7 +327,7 @@ func (t *TransactionAttempt) stageInsert(
 				Value: memdx.SubdocMacroNewCrc32c,
 			},
 		},
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		Flags:           flags,
 		OnBehalfOf:      stagedInfo.OboUser,
 	})

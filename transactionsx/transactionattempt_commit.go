@@ -388,6 +388,11 @@ func (t *TransactionAttempt) commitStagedReplace(
 			wrapError(ErrIllegalState, "staged content is missing")))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:      mutation.ScopeName,
 		CollectionName: mutation.CollectionName,
@@ -411,7 +416,7 @@ func (t *TransactionAttempt) commitStagedReplace(
 				Value: mutation.Staged,
 			},
 		},
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      mutation.OboUser,
 	})
 	if err != nil {
@@ -525,12 +530,17 @@ func (t *TransactionAttempt) commitStagedInsert(
 			wrapError(ErrIllegalState, "staged content is missing")))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	_, err = mutation.Agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:       mutation.ScopeName,
 		CollectionName:  mutation.CollectionName,
 		Key:             mutation.Key,
 		Value:           mutation.Staged,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      mutation.OboUser,
 	})
 	if err != nil {
@@ -624,12 +634,17 @@ func (t *TransactionAttempt) commitStagedRemove(
 		return ecCb(classifyHookError(err))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	_, err = mutation.Agent.Delete(ctx, &gocbcorex.DeleteOptions{
 		ScopeName:       mutation.ScopeName,
 		CollectionName:  mutation.CollectionName,
 		Key:             mutation.Key,
 		Cas:             0,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      mutation.OboUser,
 	})
 	if err != nil {

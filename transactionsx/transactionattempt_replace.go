@@ -233,6 +233,11 @@ func (t *TransactionAttempt) stageReplace(
 		return ecCb(nil, classifyError(err))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(nil, classifyError(err))
+	}
+
 	result, err := stagedInfo.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:      stagedInfo.ScopeName,
 		CollectionName: stagedInfo.CollectionName,
@@ -271,7 +276,7 @@ func (t *TransactionAttempt) stageReplace(
 			},
 		},
 		Flags:           memdx.SubdocDocFlagAccessDeleted,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      stagedInfo.OboUser,
 	})
 	if err != nil {

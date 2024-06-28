@@ -4,6 +4,9 @@ package memdx
 type DurabilityLevel uint8
 
 const (
+	// DurabilityLevelNone indicates the operation does not require any durability guarantees.
+	DurabilityLevelNone = DurabilityLevel(0)
+
 	// DurabilityLevelMajority indicates the operation must be replicated to the majority.
 	DurabilityLevelMajority = DurabilityLevel(1)
 

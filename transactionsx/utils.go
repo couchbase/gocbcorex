@@ -24,20 +24,20 @@ func forwardCompatFromJson(fc map[string][]ForwardCompatEntryJson) map[string][]
 	return forwardCompat
 }
 
-func durabilityLevelToMemdx(durabilityLevel DurabilityLevel) memdx.DurabilityLevel {
+func durabilityLevelToMemdx(durabilityLevel DurabilityLevel) (memdx.DurabilityLevel, error) {
 	switch durabilityLevel {
 	case DurabilityLevelNone:
-		return memdx.DurabilityLevel(0)
+		return memdx.DurabilityLevelNone, nil
 	case DurabilityLevelMajority:
-		return memdx.DurabilityLevelMajority
+		return memdx.DurabilityLevelMajority, nil
 	case DurabilityLevelMajorityAndPersistToActive:
-		return memdx.DurabilityLevelMajorityAndPersistToActive
+		return memdx.DurabilityLevelMajorityAndPersistToActive, nil
 	case DurabilityLevelPersistToMajority:
-		return memdx.DurabilityLevelPersistToMajority
+		return memdx.DurabilityLevelPersistToMajority, nil
 	case DurabilityLevelUnknown:
-		panic("unexpected unset durability level")
+		return memdx.DurabilityLevel(0), errors.New("cannot convert unknown durability level to memdx")
 	default:
-		panic("unexpected durability level")
+		return memdx.DurabilityLevel(0), errors.New("cannot convert unexpected durability level to memdx")
 	}
 }
 

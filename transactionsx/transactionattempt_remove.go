@@ -230,6 +230,11 @@ func (t *TransactionAttempt) stageRemove(
 
 	flags := memdx.SubdocDocFlagAccessDeleted
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(nil, classifyError(err))
+	}
+
 	result, err := stagedInfo.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:      stagedInfo.ScopeName,
 		CollectionName: stagedInfo.CollectionName,
@@ -268,7 +273,7 @@ func (t *TransactionAttempt) stageRemove(
 			},
 		},
 		Flags:           flags,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      stagedInfo.OboUser,
 	})
 	if err != nil {
@@ -377,6 +382,11 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 		return ecCb(nil, classifyHookError(err))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(nil, classifyError(err))
+	}
+
 	result, err := agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:      scopeName,
 		CollectionName: collectionName,
@@ -390,7 +400,7 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 				Flags: memdx.SubdocOpFlagXattrPath,
 			},
 		},
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      oboUser,
 	})
 	if err != nil {
