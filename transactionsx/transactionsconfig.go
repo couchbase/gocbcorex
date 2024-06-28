@@ -112,5 +112,5 @@ type TransactionOptions struct {
 
 	// Hooks specifies hooks that can be configured to be invoked during
 	// transaction execution
-	Hooks TransactionHooks
+	Hooks *TransactionHooks
 }

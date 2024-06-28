@@ -233,23 +233,23 @@ func (t *TransactionAttempt) isExpiryOvertimeAtomic() bool {
 	return (stateBits & transactionStateBitHasExpired) != 0
 }
 
-func (t *TransactionAttempt) checkExpiredAtomic(ctx context.Context, stage string, id []byte, proceedInOvertime bool) *classifiedError {
+func (t *TransactionAttempt) checkExpiredAtomic(ctx context.Context, stage string, id []byte, proceedInOvertime bool) bool {
 	if proceedInOvertime && t.isExpiryOvertimeAtomic() {
-		return nil
+		return false
 	}
 
-	expired, err := t.hooks.HasExpiredClientSideHook(ctx, stage, id)
-	if err != nil {
-		return classifyError(wrapError(err, "HasExpired hook returned an unexpected error"))
+	if t.hooks.HasExpiredClientSideHook != nil {
+		expired := t.hooks.HasExpiredClientSideHook(ctx, stage, id)
+		if expired {
+			return true
+		}
 	}
 
-	if expired {
-		return classifyError(wrapError(ErrAttemptExpired, "a hook has marked this attempt expired"))
-	} else if transactionHasExpired(t.expiryTime) {
-		return classifyError(wrapError(ErrAttemptExpired, "the expiry for the attempt was reached"))
+	if transactionHasExpired(t.expiryTime) {
+		return true
 	}
 
-	return nil
+	return false
 }
 
 func (t *TransactionAttempt) confirmATRPending(
@@ -463,11 +463,75 @@ func (t *TransactionAttempt) getTxnState(
 	attemptID string,
 	forceNonFatal bool,
 ) (*txnState, *transactionOperationStatus) {
-	ecCb := func(res *txnState, cerr *classifiedError) (*txnState, *transactionOperationStatus) {
-		if cerr == nil {
-			return res, nil
+	t.logger.Info("getting txn state")
+
+	res, err := invokeHookWithDocID(ctx, t.hooks.CheckATREntryForBlockingDoc, []byte(atrDocID), func() (*txnState, error) {
+		atrAgent, atrOboUser, err := t.bucketAgentProvider(atrBucketName)
+		if err != nil {
+			t.logger.Info("failed to get atr agent")
+			return nil, err
 		}
 
+		result, err := atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
+			ScopeName:      atrScopeName,
+			CollectionName: atrCollectionName,
+			Key:            []byte(atrDocID),
+			Ops: []memdx.LookupInOp{
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("attempts." + attemptID),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  memdx.SubdocXattrPathHLC,
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+			},
+			OnBehalfOf: atrOboUser,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, op := range result.Ops {
+			if op.Err != nil {
+				return nil, op.Err
+			}
+		}
+
+		var txnAttempt *AtrAttemptJson
+		if err := json.Unmarshal(result.Ops[0].Value, &txnAttempt); err != nil {
+			return nil, err
+		}
+
+		hlcNowTime, err := memdx.ParseHLCToTime(result.Ops[1].Value)
+		if err != nil {
+			return nil, err
+		}
+
+		pendingCas, err := memdx.ParseMacroCasToCas([]byte(txnAttempt.PendingCAS))
+		if err != nil {
+			return nil, err
+		}
+
+		hlcStartTime, err := memdx.ParseCasToTime(pendingCas)
+		if err != nil {
+			return nil, err
+		}
+
+		hlcExpiryTime := hlcStartTime.Add(time.Duration(txnAttempt.ExpiryTimeNanos))
+
+		remainingExpiry := hlcExpiryTime.Sub(hlcNowTime)
+		expiryTime := time.Now().Add(remainingExpiry)
+
+		return &txnState{
+			entry:      *txnAttempt,
+			expiryTime: expiryTime,
+		}, nil
+	})
+	if err != nil {
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailPathNotFound:
 			t.logger.Info("attempt entry not found")
@@ -501,77 +565,7 @@ func (t *TransactionAttempt) getTxnState(
 		}
 	}
 
-	t.logger.Info("getting txn state")
-
-	atrAgent, atrOboUser, err := t.bucketAgentProvider(atrBucketName)
-	if err != nil {
-		t.logger.Info("failed to get atr agent")
-
-		return ecCb(nil, classifyError(err))
-	}
-
-	err = t.hooks.BeforeCheckATREntryForBlockingDoc(ctx, []byte(atrDocID))
-	if err != nil {
-		return ecCb(nil, classifyHookError(err))
-	}
-
-	result, err := atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
-		ScopeName:      atrScopeName,
-		CollectionName: atrCollectionName,
-		Key:            []byte(atrDocID),
-		Ops: []memdx.LookupInOp{
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("attempts." + attemptID),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  memdx.SubdocXattrPathHLC,
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		OnBehalfOf: atrOboUser,
-	})
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	for _, op := range result.Ops {
-		if op.Err != nil {
-			return ecCb(nil, classifyError(op.Err))
-		}
-	}
-
-	var txnAttempt AtrAttemptJson
-	if err := json.Unmarshal(result.Ops[0].Value, &txnAttempt); err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	hlcNowTime, err := memdx.ParseHLCToTime(result.Ops[1].Value)
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	pendingCas, err := memdx.ParseMacroCasToCas([]byte(txnAttempt.PendingCAS))
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	hlcStartTime, err := memdx.ParseCasToTime(pendingCas)
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	hlcExpiryTime := hlcStartTime.Add(time.Duration(txnAttempt.ExpiryTimeNanos))
-
-	remainingExpiry := hlcExpiryTime.Sub(hlcNowTime)
-	expiryTime := time.Now().Add(remainingExpiry)
-
-	return ecCb(&txnState{
-		entry:      txnAttempt,
-		expiryTime: expiryTime,
-	}, nil)
+	return res, nil
 }
 
 func (t *TransactionAttempt) writeWriteConflictPoll(
@@ -669,10 +663,13 @@ func (t *TransactionAttempt) writeWriteConflictPoll(
 			return err
 		}
 
-		cerr := t.checkExpiredAtomic(ctx, hookWWC, key, false)
-		if cerr != nil {
+		expired := t.checkExpiredAtomic(ctx, hookStageWWC, key, false)
+		if expired {
 			return t.operationFailed(operationFailedDef{
-				Cerr:              cerr,
+				Cerr: &classifiedError{
+					Source: ErrAttemptExpired,
+					Class:  TransactionErrorClassFailExpiry,
+				},
 				ShouldNotRetry:    true,
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionExpired,

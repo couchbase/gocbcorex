@@ -42,11 +42,14 @@ func (t *TransactionAttempt) get(
 
 	t.lock.Unlock()
 
-	cerr := t.checkExpiredAtomic(ctx, hookGet, opts.Key, false)
-	if cerr != nil {
+	expired := t.checkExpiredAtomic(ctx, hookStageGet, opts.Key, false)
+	if expired {
 		t.endOp()
 		return nil, t.operationFailed(operationFailedDef{
-			Cerr:              cerr,
+			Cerr: &classifiedError{
+				Source: ErrAttemptExpired,
+				Class:  TransactionErrorClassFailExpiry,
+			},
 			ShouldNotRetry:    true,
 			ShouldNotRollback: false,
 			Reason:            TransactionErrorReasonTransactionExpired,
@@ -60,16 +63,18 @@ func (t *TransactionAttempt) get(
 		return nil, oErr
 	}
 
-	err := t.hooks.AfterGetComplete(ctx, opts.Key)
-	if err != nil {
-		t.endOp()
-		return nil, t.operationFailed(operationFailedDef{
-			Cerr:              classifyHookError(err),
-			CanStillCommit:    forceNonFatal,
-			ShouldNotRetry:    true,
-			ShouldNotRollback: true,
-			Reason:            TransactionErrorReasonTransactionFailed,
-		})
+	if t.hooks.AfterGetComplete != nil {
+		err := t.hooks.AfterGetComplete(ctx, opts.Key)
+		if err != nil {
+			t.endOp()
+			return nil, t.operationFailed(operationFailedDef{
+				Cerr:              classifyHookError(err),
+				CanStillCommit:    forceNonFatal,
+				ShouldNotRetry:    true,
+				ShouldNotRollback: true,
+				Reason:            TransactionErrorReasonTransactionFailed,
+			})
+		}
 	}
 
 	t.endOp()
@@ -368,11 +373,70 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 	key []byte,
 	forceNonFatal bool,
 ) (*docWithMeta, *transactionOperationStatus) {
-	ecCb := func(doc *docWithMeta, cerr *classifiedError) (*docWithMeta, *transactionOperationStatus) {
-		if cerr == nil {
-			return doc, nil
+	res, err := invokeHookWithDocID(ctx, t.hooks.DocGet, key, func() (*docWithMeta, error) {
+		result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
+			ScopeName:      scopeName,
+			CollectionName: collectionName,
+			Key:            key,
+			Ops: []memdx.LookupInOp{
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("$document"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.LookupInOpTypeGetDoc,
+					Path:  nil,
+					Flags: memdx.SubdocOpFlagNone,
+				},
+			},
+			Flags:      memdx.SubdocDocFlagAccessDeleted,
+			OnBehalfOf: oboUser,
+		})
+		if err != nil {
+			return nil, err
 		}
 
+		if result.Ops[0].Err != nil {
+			return nil, result.Ops[0].Err
+		}
+
+		var meta *TxnXattrDocMetaJson
+		if err := json.Unmarshal(result.Ops[0].Value, &meta); err != nil {
+			return nil, err
+		}
+
+		var txnMeta *TxnXattrJson
+		if result.Ops[1].Err == nil {
+			// Doc is currently in a txn.
+			var txnMetaVal TxnXattrJson
+			if err := json.Unmarshal(result.Ops[1].Value, &txnMetaVal); err != nil {
+				return nil, err
+			}
+
+			txnMeta = &txnMetaVal
+		}
+
+		var docBody []byte
+		if result.Ops[2].Err == nil {
+			docBody = result.Ops[2].Value
+		}
+
+		return &docWithMeta{
+			Body:    docBody,
+			TxnMeta: txnMeta,
+			DocMeta: meta,
+			Cas:     result.Cas,
+			Deleted: result.DocIsDeleted,
+		}, nil
+	})
+	if err != nil {
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailDocNotFound:
 			return nil, t.operationFailed(operationFailedDef{
@@ -410,72 +474,7 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 				Reason:            TransactionErrorReasonTransactionFailed,
 			})
 		}
-
 	}
 
-	err := t.hooks.BeforeDocGet(ctx, key)
-	if err != nil {
-		return ecCb(nil, classifyHookError(err))
-	}
-
-	result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
-		ScopeName:      scopeName,
-		CollectionName: collectionName,
-		Key:            key,
-		Ops: []memdx.LookupInOp{
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("$document"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-			{
-				Op:    memdx.LookupInOpTypeGetDoc,
-				Path:  nil,
-				Flags: memdx.SubdocOpFlagNone,
-			},
-		},
-		Flags:      memdx.SubdocDocFlagAccessDeleted,
-		OnBehalfOf: oboUser,
-	})
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	if result.Ops[0].Err != nil {
-		return ecCb(nil, classifyError(result.Ops[0].Err))
-	}
-
-	var meta *TxnXattrDocMetaJson
-	if err := json.Unmarshal(result.Ops[0].Value, &meta); err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	var txnMeta *TxnXattrJson
-	if result.Ops[1].Err == nil {
-		// Doc is currently in a txn.
-		var txnMetaVal TxnXattrJson
-		if err := json.Unmarshal(result.Ops[1].Value, &txnMetaVal); err != nil {
-			return ecCb(nil, classifyError(err))
-		}
-
-		txnMeta = &txnMetaVal
-	}
-
-	var docBody []byte
-	if result.Ops[2].Err == nil {
-		docBody = result.Ops[2].Value
-	}
-
-	return &docWithMeta{
-		Body:    docBody,
-		TxnMeta: txnMeta,
-		DocMeta: meta,
-		Cas:     result.Cas,
-		Deleted: result.DocIsDeleted,
-	}, nil
+	return res, nil
 }
