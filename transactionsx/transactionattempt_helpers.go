@@ -445,6 +445,11 @@ func (t *TransactionAttempt) checkForwardCompatability(
 	})
 }
 
+type txnState struct {
+	entry      AtrAttemptJson
+	expiryTime time.Time
+}
+
 func (t *TransactionAttempt) getTxnState(
 	ctx context.Context,
 	srcBucketName string,
@@ -457,10 +462,10 @@ func (t *TransactionAttempt) getTxnState(
 	atrDocID string,
 	attemptID string,
 	forceNonFatal bool,
-) (*AtrAttemptJson, time.Time, *transactionOperationStatus) {
-	ecCb := func(res *AtrAttemptJson, txnExp time.Time, cerr *classifiedError) (*AtrAttemptJson, time.Time, *transactionOperationStatus) {
+) (*txnState, *transactionOperationStatus) {
+	ecCb := func(res *txnState, cerr *classifiedError) (*txnState, *transactionOperationStatus) {
 		if cerr == nil {
-			return res, txnExp, nil
+			return res, nil
 		}
 
 		switch cerr.Class {
@@ -469,15 +474,15 @@ func (t *TransactionAttempt) getTxnState(
 
 			// If the path is not found, we just return as if there was no
 			// entry data available for that atr entry.
-			return nil, time.Time{}, nil
+			return nil, nil
 		case TransactionErrorClassFailDocNotFound:
 			t.logger.Info("atr doc not found")
 
 			// If the ATR is not found, we just return as if there was no
 			// entry data available for that atr entry.
-			return nil, time.Time{}, nil
+			return nil, nil
 		default:
-			return nil, time.Time{}, t.operationFailed(operationFailedDef{
+			return nil, t.operationFailed(operationFailedDef{
 				Cerr: &classifiedError{
 					Source: &writeWriteConflictError{
 						Source:         cerr.Source,
@@ -502,12 +507,12 @@ func (t *TransactionAttempt) getTxnState(
 	if err != nil {
 		t.logger.Info("failed to get atr agent")
 
-		return ecCb(nil, time.Time{}, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	err = t.hooks.BeforeCheckATREntryForBlockingDoc(ctx, []byte(atrDocID))
 	if err != nil {
-		return ecCb(nil, time.Time{}, classifyHookError(err))
+		return ecCb(nil, classifyHookError(err))
 	}
 
 	result, err := atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
@@ -529,33 +534,33 @@ func (t *TransactionAttempt) getTxnState(
 		OnBehalfOf: atrOboUser,
 	})
 	if err != nil {
-		return ecCb(nil, time.Time{}, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	for _, op := range result.Ops {
 		if op.Err != nil {
-			return ecCb(nil, time.Time{}, classifyError(op.Err))
+			return ecCb(nil, classifyError(op.Err))
 		}
 	}
 
-	var txnAttempt *AtrAttemptJson
+	var txnAttempt AtrAttemptJson
 	if err := json.Unmarshal(result.Ops[0].Value, &txnAttempt); err != nil {
-		return ecCb(nil, time.Time{}, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	hlcNowTime, err := memdx.ParseHLCToTime(result.Ops[1].Value)
 	if err != nil {
-		return ecCb(nil, time.Time{}, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	pendingCas, err := memdx.ParseMacroCasToCas([]byte(txnAttempt.PendingCAS))
 	if err != nil {
-		return ecCb(nil, time.Time{}, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	hlcStartTime, err := memdx.ParseCasToTime(pendingCas)
 	if err != nil {
-		return ecCb(nil, time.Time{}, classifyError(err))
+		return ecCb(nil, classifyError(err))
 	}
 
 	hlcExpiryTime := hlcStartTime.Add(time.Duration(txnAttempt.ExpiryTimeNanos))
@@ -563,7 +568,10 @@ func (t *TransactionAttempt) getTxnState(
 	remainingExpiry := hlcExpiryTime.Sub(hlcNowTime)
 	expiryTime := time.Now().Add(remainingExpiry)
 
-	return ecCb(txnAttempt, expiryTime, nil)
+	return ecCb(&txnState{
+		entry:      txnAttempt,
+		expiryTime: expiryTime,
+	}, nil)
 }
 
 func (t *TransactionAttempt) writeWriteConflictPoll(
@@ -671,7 +679,7 @@ func (t *TransactionAttempt) writeWriteConflictPoll(
 			})
 		}
 
-		attempt, _, err := t.getTxnState(
+		attempt, err := t.getTxnState(
 			ctx,
 			bucketName,
 			scopeName,
@@ -692,7 +700,7 @@ func (t *TransactionAttempt) writeWriteConflictPoll(
 			return nil
 		}
 
-		state := TxnStateJson(attempt.State)
+		state := TxnStateJson(attempt.entry.State)
 		if state == TxnStateJsonCompleted || state == TxnStateJsonRolledBack {
 			t.logger.Info("attempt state finished, completing write-write conflict poll",
 				zap.String("state", string(state)))
