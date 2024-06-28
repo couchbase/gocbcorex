@@ -23,6 +23,7 @@ type TransactionAttempt struct {
 	transactionID           string
 	id                      string
 	hooks                   TransactionHooks
+	numAtrs                 int
 	enableNonFatalGets      bool
 	enableParallelUnstaging bool
 	enableExplicitATRs      bool
