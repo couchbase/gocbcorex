@@ -107,11 +107,13 @@ func (c *TransactionCleaner) cleanupDocs(
 	ctx context.Context,
 	req *TransactionCleanupRequest,
 ) error {
-	var memdDuraLevel memdx.DurabilityLevel
-	if req.DurabilityLevel > DurabilityLevelUnknown {
-		// We want to ensure that we don't panic here, if the durability level is unknown then we'll just not set
-		// a durability level.
-		memdDuraLevel = durabilityLevelToMemdx(req.DurabilityLevel)
+	duraLevel := req.DurabilityLevel
+	if duraLevel == DurabilityLevelUnknown {
+		duraLevel = DurabilityLevelNone
+	}
+	memdDuraLevel, err := durabilityLevelToMemdx(duraLevel)
+	if err != nil {
+		return err
 	}
 
 	switch req.State {
@@ -593,9 +595,13 @@ func (c *TransactionCleaner) cleanupATR(
 		Flags: memdx.SubdocOpFlagXattrPath,
 	})
 
-	var memdDuraLevel memdx.DurabilityLevel
-	if req.DurabilityLevel > DurabilityLevelUnknown {
-		memdDuraLevel = durabilityLevelToMemdx(req.DurabilityLevel)
+	duraLevel := req.DurabilityLevel
+	if duraLevel == DurabilityLevelUnknown {
+		duraLevel = DurabilityLevelNone
+	}
+	memdDuraLevel, err := durabilityLevelToMemdx(duraLevel)
+	if err != nil {
+		return err
 	}
 
 	_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{

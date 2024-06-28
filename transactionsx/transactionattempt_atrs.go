@@ -187,13 +187,18 @@ func (t *TransactionAttempt) setATRPendingExclusive(
 	t.logger.Info("setting atr pending",
 		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey))
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	result, err := t.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       t.atrScopeName,
 		CollectionName:  t.atrCollectionName,
 		Key:             t.atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagMkDoc,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      t.atrOboUser,
 	})
 	if err != nil {
@@ -539,13 +544,18 @@ func (t *TransactionAttempt) setATRCommittedExclusive(
 		return ecCb(classifyError(marshalErr))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       atrScopeName,
 		CollectionName:  atrCollectionName,
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
@@ -644,13 +654,18 @@ func (t *TransactionAttempt) setATRCompletedExclusive(
 		},
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       atrScopeName,
 		CollectionName:  atrCollectionName,
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
@@ -797,13 +812,18 @@ func (t *TransactionAttempt) setATRAbortedExclusive(
 		return ecCb(classifyError(marshalErr))
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       atrScopeName,
 		CollectionName:  atrCollectionName,
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
@@ -893,13 +913,18 @@ func (t *TransactionAttempt) setATRRolledBackExclusive(
 		},
 	}
 
+	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+	if err != nil {
+		return ecCb(classifyError(err))
+	}
+
 	result, err := atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 		ScopeName:       atrScopeName,
 		CollectionName:  atrCollectionName,
 		Key:             atrKey,
 		Ops:             atrOps,
 		Flags:           memdx.SubdocDocFlagNone,
-		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: memdDuraLevel,
 		OnBehalfOf:      atrOboUser,
 	})
 	if err != nil {
