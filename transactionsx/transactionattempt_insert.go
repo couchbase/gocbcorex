@@ -45,13 +45,16 @@ func (t *TransactionAttempt) insert(
 	key := opts.Key
 	value := opts.Value
 
-	cerr := t.checkExpiredAtomic(ctx, hookInsert, key, false)
-	if cerr != nil {
+	expired := t.checkExpiredAtomic(ctx, hookStageInsert, key, false)
+	if expired {
 		t.lock.Unlock()
 		t.endOp()
 
 		return nil, t.operationFailed(operationFailedDef{
-			Cerr:              cerr,
+			Cerr: &classifiedError{
+				Source: ErrAttemptExpired,
+				Class:  TransactionErrorClassFailExpiry,
+			},
 			ShouldNotRetry:    true,
 			ShouldNotRollback: false,
 			Reason:            TransactionErrorReasonTransactionExpired,
@@ -214,11 +217,93 @@ func (t *TransactionAttempt) stageInsert(
 	value json.RawMessage,
 	cas uint64,
 ) (*GetResult, *transactionOperationStatus) {
-	ecCb := func(result *GetResult, cerr *classifiedError) (*GetResult, *transactionOperationStatus) {
-		if cerr == nil {
-			return result, nil
+	expired := t.checkExpiredAtomic(ctx, hookStageInsert, key, false)
+	if expired {
+		t.setExpiryOvertimeAtomic()
+		return nil, t.operationFailed(operationFailedDef{
+			Cerr: &classifiedError{
+				Source: ErrAttemptExpired,
+				Class:  TransactionErrorClassFailExpiry,
+			},
+			ShouldNotRetry:    true,
+			ShouldNotRollback: false,
+			Reason:            TransactionErrorReasonTransactionExpired,
+		})
+	}
+
+	stagedInfo, err := invokeHookWithDocID(ctx, t.hooks.StagedInsert, key, func() (*stagedMutation, error) {
+		stagedInfo := &stagedMutation{
+			OpType:         StagedMutationInsert,
+			Agent:          agent,
+			OboUser:        oboUser,
+			ScopeName:      scopeName,
+			CollectionName: collectionName,
+			Key:            key,
+			Staged:         value,
 		}
 
+		var txnMeta TxnXattrJson
+		txnMeta.ID.Transaction = t.transactionID
+		txnMeta.ID.Attempt = t.id
+		txnMeta.ATR.CollectionName = t.atrCollectionName
+		txnMeta.ATR.ScopeName = t.atrScopeName
+		txnMeta.ATR.BucketName = t.atrAgent.BucketName()
+		txnMeta.ATR.DocID = string(t.atrKey)
+		txnMeta.Operation.Type = MutationTypeJsonInsert
+		txnMeta.Operation.Staged = stagedInfo.Staged
+
+		txnMetaBytes, err := json.Marshal(txnMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		flags := memdx.SubdocDocFlagCreateAsDeleted | memdx.SubdocDocFlagAccessDeleted
+		var txnOp memdx.MutateInOpType
+		if cas == 0 {
+			flags |= memdx.SubdocDocFlagAddDoc
+			txnOp = memdx.MutateInOpTypeDictAdd
+		} else {
+			txnOp = memdx.MutateInOpTypeDictSet
+		}
+
+		memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := stagedInfo.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			ScopeName:      stagedInfo.ScopeName,
+			CollectionName: stagedInfo.CollectionName,
+			Key:            stagedInfo.Key,
+			Cas:            cas,
+			Ops: []memdx.MutateInOp{
+				{
+					Op:    txnOp,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagMkDirP | memdx.SubdocOpFlagXattrPath,
+					Value: txnMetaBytes,
+				},
+				{
+					Op:    memdx.MutateInOpTypeDictSet,
+					Path:  []byte("txn.op.crc32"),
+					Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
+					Value: memdx.SubdocMacroNewCrc32c,
+				},
+			},
+			DurabilityLevel: memdDuraLevel,
+			Flags:           flags,
+			OnBehalfOf:      stagedInfo.OboUser,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		stagedInfo.Cas = result.Cas
+
+		return stagedInfo, nil
+	})
+	if err != nil {
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
 			select {
@@ -227,14 +312,6 @@ func (t *TransactionAttempt) stageInsert(
 			case <-ctx.Done():
 				return nil, t.contextFailed(ctx.Err())
 			}
-		case TransactionErrorClassFailExpiry:
-			t.setExpiryOvertimeAtomic()
-			return nil, t.operationFailed(operationFailedDef{
-				Cerr:              cerr,
-				ShouldNotRetry:    true,
-				ShouldNotRollback: false,
-				Reason:            TransactionErrorReasonTransactionExpired,
-			})
 		case TransactionErrorClassFailTransient:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
@@ -261,89 +338,6 @@ func (t *TransactionAttempt) stageInsert(
 				Reason:            TransactionErrorReasonTransactionFailed,
 			})
 		}
-	}
-
-	cerr := t.checkExpiredAtomic(ctx, hookInsert, key, false)
-	if cerr != nil {
-		return ecCb(nil, cerr)
-	}
-
-	err := t.hooks.BeforeStagedInsert(ctx, key)
-	if err != nil {
-		return ecCb(nil, classifyHookError(err))
-	}
-
-	stagedInfo := &stagedMutation{
-		OpType:         StagedMutationInsert,
-		Agent:          agent,
-		OboUser:        oboUser,
-		ScopeName:      scopeName,
-		CollectionName: collectionName,
-		Key:            key,
-		Staged:         value,
-	}
-
-	var txnMeta TxnXattrJson
-	txnMeta.ID.Transaction = t.transactionID
-	txnMeta.ID.Attempt = t.id
-	txnMeta.ATR.CollectionName = t.atrCollectionName
-	txnMeta.ATR.ScopeName = t.atrScopeName
-	txnMeta.ATR.BucketName = t.atrAgent.BucketName()
-	txnMeta.ATR.DocID = string(t.atrKey)
-	txnMeta.Operation.Type = MutationTypeJsonInsert
-	txnMeta.Operation.Staged = stagedInfo.Staged
-
-	txnMetaBytes, err := json.Marshal(txnMeta)
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	flags := memdx.SubdocDocFlagCreateAsDeleted | memdx.SubdocDocFlagAccessDeleted
-	var txnOp memdx.MutateInOpType
-	if cas == 0 {
-		flags |= memdx.SubdocDocFlagAddDoc
-		txnOp = memdx.MutateInOpTypeDictAdd
-	} else {
-		txnOp = memdx.MutateInOpTypeDictSet
-	}
-
-	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	result, err := stagedInfo.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		ScopeName:      stagedInfo.ScopeName,
-		CollectionName: stagedInfo.CollectionName,
-		Key:            stagedInfo.Key,
-		Cas:            cas,
-		Ops: []memdx.MutateInOp{
-			{
-				Op:    txnOp,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagMkDirP | memdx.SubdocOpFlagXattrPath,
-				Value: txnMetaBytes,
-			},
-			{
-				Op:    memdx.MutateInOpTypeDictSet,
-				Path:  []byte("txn.op.crc32"),
-				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagExpandMacros,
-				Value: memdx.SubdocMacroNewCrc32c,
-			},
-		},
-		DurabilityLevel: memdDuraLevel,
-		Flags:           flags,
-		OnBehalfOf:      stagedInfo.OboUser,
-	})
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	stagedInfo.Cas = result.Cas
-
-	err = t.hooks.AfterStagedInsertComplete(ctx, key)
-	if err != nil {
-		return ecCb(nil, classifyHookError(err))
 	}
 
 	t.recordStagedMutation(stagedInfo)
@@ -374,11 +368,42 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 	collectionName string,
 	key []byte,
 ) (*conflictedInsertMeta, *transactionOperationStatus) {
-	ecCb := func(res *conflictedInsertMeta, cerr *classifiedError) (*conflictedInsertMeta, *transactionOperationStatus) {
-		if cerr == nil {
-			return res, nil
+	meta, err := invokeHookWithDocID(ctx, t.hooks.GetDocInExistsDuringStagedInsert, key, func() (*conflictedInsertMeta, error) {
+		result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
+			ScopeName:      scopeName,
+			CollectionName: collectionName,
+			Key:            key,
+			Ops: []memdx.LookupInOp{
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+			},
+			Flags:      memdx.SubdocDocFlagAccessDeleted,
+			OnBehalfOf: oboUser,
+		})
+		if err != nil {
+			return nil, err
 		}
 
+		var txnMeta *TxnXattrJson
+		if result.Ops[0].Err == nil {
+			var txnMetaVal TxnXattrJson
+			if err := json.Unmarshal(result.Ops[0].Value, &txnMetaVal); err != nil {
+				return nil, err
+			}
+			txnMeta = &txnMetaVal
+		}
+
+		return &conflictedInsertMeta{
+			IsTombstone: result.DocIsDeleted,
+			Xattr:       txnMeta,
+			Cas:         result.Cas,
+		}, nil
+	})
+	if err != nil {
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailDocNotFound:
 			fallthrough
@@ -401,43 +426,7 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 		}
 	}
 
-	err := t.hooks.BeforeGetDocInExistsDuringStagedInsert(ctx, key)
-	if err != nil {
-		return ecCb(nil, classifyHookError(err))
-	}
-
-	result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
-		ScopeName:      scopeName,
-		CollectionName: collectionName,
-		Key:            key,
-		Ops: []memdx.LookupInOp{
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		Flags:      memdx.SubdocDocFlagAccessDeleted,
-		OnBehalfOf: oboUser,
-	})
-	if err != nil {
-		return ecCb(nil, classifyError(err))
-	}
-
-	var txnMeta *TxnXattrJson
-	if result.Ops[0].Err == nil {
-		var txnMetaVal TxnXattrJson
-		if err := json.Unmarshal(result.Ops[0].Value, &txnMetaVal); err != nil {
-			return ecCb(nil, classifyError(err))
-		}
-		txnMeta = &txnMetaVal
-	}
-
-	return &conflictedInsertMeta{
-		IsTombstone: result.DocIsDeleted,
-		Xattr:       txnMeta,
-		Cas:         result.Cas,
-	}, nil
+	return meta, nil
 }
 
 func (t *TransactionAttempt) cleanupStagedInsert(
@@ -450,11 +439,26 @@ func (t *TransactionAttempt) cleanupStagedInsert(
 	cas uint64,
 	isTombstone bool,
 ) (uint64, *transactionOperationStatus) {
-	ecCb := func(cas uint64, cerr *classifiedError) (uint64, *transactionOperationStatus) {
-		if cerr == nil {
-			return cas, nil
+	if isTombstone {
+		// This is already a tombstone, so we can just proceed.
+		return cas, nil
+	}
+
+	cas, err := invokeHookWithDocID(ctx, t.hooks.RemovingDocDuringStagedInsert, key, func() (uint64, error) {
+		result, err := agent.Delete(ctx, &gocbcorex.DeleteOptions{
+			ScopeName:      scopeName,
+			CollectionName: collectionName,
+			Key:            key,
+			OnBehalfOf:     oboUser,
+		})
+		if err != nil {
+			return 0, err
 		}
 
+		return result.Cas, nil
+	})
+	if err != nil {
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailDocNotFound:
 			fallthrough
@@ -477,25 +481,5 @@ func (t *TransactionAttempt) cleanupStagedInsert(
 		}
 	}
 
-	if isTombstone {
-		// This is already a tombstone, so we can just proceed.
-		return cas, nil
-	}
-
-	err := t.hooks.BeforeRemovingDocDuringStagedInsert(ctx, key)
-	if err != nil {
-		return ecCb(0, classifyHookError(err))
-	}
-
-	result, err := agent.Delete(ctx, &gocbcorex.DeleteOptions{
-		ScopeName:      scopeName,
-		CollectionName: collectionName,
-		Key:            key,
-		OnBehalfOf:     oboUser,
-	})
-	if err != nil {
-		return ecCb(0, classifyError(err))
-	}
-
-	return result.Cas, nil
+	return cas, nil
 }

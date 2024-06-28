@@ -82,11 +82,14 @@ func (t *TransactionAttempt) commit(
 		return nil
 	}
 
-	cerr := t.checkExpiredAtomic(ctx, hookCommit, nil, false)
-	if cerr != nil {
+	expired := t.checkExpiredAtomic(ctx, hookStageCommit, nil, false)
+	if expired {
 		t.lock.Unlock()
 		return t.operationFailed(operationFailedDef{
-			Cerr:              cerr,
+			Cerr: &classifiedError{
+				Source: ErrAttemptExpired,
+				Class:  TransactionErrorClassFailExpiry,
+			},
 			ShouldNotRetry:    true,
 			ShouldNotRollback: false,
 			Reason:            TransactionErrorReasonTransactionExpired,
@@ -244,8 +247,8 @@ func (t *TransactionAttempt) fetchBeforeUnstage(
 		return ecCb(nil)
 	}
 
-	cerr := t.checkExpiredAtomic(ctx, hookCommitDoc, mutation.Key, false)
-	if cerr != nil {
+	expired := t.checkExpiredAtomic(ctx, hookStageCommitDoc, mutation.Key, false)
+	if expired {
 		t.setExpiryOvertimeAtomic()
 	}
 
@@ -297,11 +300,65 @@ func (t *TransactionAttempt) commitStagedReplace(
 	forceWrite bool,
 	ambiguityResolution bool,
 ) *transactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
-		if cerr == nil {
-			return nil
+	expired := t.checkExpiredAtomic(ctx, hookStageCommitDoc, mutation.Key, false)
+	if expired {
+		t.setExpiryOvertimeAtomic()
+	}
+
+	err := invokeNoResHookWithDocID(ctx, t.hooks.DocCommitted, mutation.Key, func() error {
+		cas := mutation.Cas
+		if forceWrite {
+			cas = 0
 		}
 
+		if mutation.Staged == nil {
+			return wrapError(ErrIllegalState, "staged content is missing")
+		}
+
+		memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+		if err != nil {
+			return err
+		}
+
+		result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			ScopeName:      mutation.ScopeName,
+			CollectionName: mutation.CollectionName,
+			Key:            mutation.Key,
+			Cas:            cas,
+			Ops: []memdx.MutateInOp{
+				{
+					Op:    memdx.MutateInOpTypeDictSet,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+					Value: []byte("null"),
+				},
+				{
+					Op:    memdx.MutateInOpTypeDelete,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.MutateInOpTypeSetDoc,
+					Path:  nil,
+					Value: mutation.Staged,
+				},
+			},
+			DurabilityLevel: memdDuraLevel,
+			OnBehalfOf:      mutation.OboUser,
+		})
+		if err != nil {
+			return err
+		}
+
+		for _, op := range result.Ops {
+			if op.Err != nil {
+				return op.Err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
 		if t.isExpiryOvertimeAtomic() {
 			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -312,6 +369,7 @@ func (t *TransactionAttempt) commitStagedReplace(
 			})
 		}
 
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
 			select {
@@ -343,14 +401,6 @@ func (t *TransactionAttempt) commitStagedReplace(
 			})
 		case TransactionErrorClassFailDocNotFound:
 			return t.commitStagedInsert(ctx, mutation, ambiguityResolution)
-		case TransactionErrorClassFailExpiry:
-			t.setExpiryOvertimeAtomic()
-			select {
-			case <-time.After(3 * time.Millisecond):
-				return t.commitStagedReplace(ctx, mutation, forceWrite, ambiguityResolution)
-			case <-ctx.Done():
-				return t.contextFailed(ctx.Err())
-			}
 		case TransactionErrorClassFailHard:
 			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
@@ -368,77 +418,6 @@ func (t *TransactionAttempt) commitStagedReplace(
 		}
 	}
 
-	cerr := t.checkExpiredAtomic(ctx, hookCommitDoc, mutation.Key, false)
-	if cerr != nil {
-		t.setExpiryOvertimeAtomic()
-	}
-
-	err := t.hooks.BeforeDocCommitted(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	cas := mutation.Cas
-	if forceWrite {
-		cas = 0
-	}
-
-	if mutation.Staged == nil {
-		return ecCb(classifyError(
-			wrapError(ErrIllegalState, "staged content is missing")))
-	}
-
-	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		ScopeName:      mutation.ScopeName,
-		CollectionName: mutation.CollectionName,
-		Key:            mutation.Key,
-		Cas:            cas,
-		Ops: []memdx.MutateInOp{
-			{
-				Op:    memdx.MutateInOpTypeDictSet,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-				Value: []byte("null"),
-			},
-			{
-				Op:    memdx.MutateInOpTypeDelete,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-			{
-				Op:    memdx.MutateInOpTypeSetDoc,
-				Path:  nil,
-				Value: mutation.Staged,
-			},
-		},
-		DurabilityLevel: memdDuraLevel,
-		OnBehalfOf:      mutation.OboUser,
-	})
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	for _, op := range result.Ops {
-		if op.Err != nil {
-			return ecCb(classifyError(op.Err))
-		}
-	}
-
-	err = t.hooks.AfterDocCommittedBeforeSavingCAS(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	err = t.hooks.AfterDocCommitted(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
 	return nil
 }
 
@@ -447,11 +426,36 @@ func (t *TransactionAttempt) commitStagedInsert(
 	mutation stagedMutation,
 	ambiguityResolution bool,
 ) *transactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
-		if cerr == nil {
-			return nil
+	expired := t.checkExpiredAtomic(ctx, hookStageCommitDoc, mutation.Key, false)
+	if expired {
+		t.setExpiryOvertimeAtomic()
+	}
+
+	err := invokeNoResHookWithDocID(ctx, t.hooks.DocCommitted, mutation.Key, func() error {
+		if mutation.Staged == nil {
+			return wrapError(ErrIllegalState, "staged content is missing")
 		}
 
+		memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+		if err != nil {
+			return err
+		}
+
+		_, err = mutation.Agent.Add(ctx, &gocbcorex.AddOptions{
+			ScopeName:       mutation.ScopeName,
+			CollectionName:  mutation.CollectionName,
+			Key:             mutation.Key,
+			Value:           mutation.Staged,
+			DurabilityLevel: memdDuraLevel,
+			OnBehalfOf:      mutation.OboUser,
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		if t.isExpiryOvertimeAtomic() {
 			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -462,6 +466,7 @@ func (t *TransactionAttempt) commitStagedInsert(
 			})
 		}
 
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
 			select {
@@ -490,14 +495,6 @@ func (t *TransactionAttempt) commitStagedInsert(
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
 			})
-		case TransactionErrorClassFailExpiry:
-			t.setExpiryOvertimeAtomic()
-			select {
-			case <-time.After(3 * time.Millisecond):
-				return t.commitStagedInsert(ctx, mutation, ambiguityResolution)
-			case <-ctx.Done():
-				return t.contextFailed(ctx.Err())
-			}
 		case TransactionErrorClassFailHard:
 			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
@@ -515,48 +512,6 @@ func (t *TransactionAttempt) commitStagedInsert(
 		}
 	}
 
-	cerr := t.checkExpiredAtomic(ctx, hookCommitDoc, mutation.Key, false)
-	if cerr != nil {
-		t.setExpiryOvertimeAtomic()
-	}
-
-	err := t.hooks.BeforeDocCommitted(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	if mutation.Staged == nil {
-		return ecCb(classifyError(
-			wrapError(ErrIllegalState, "staged content is missing")))
-	}
-
-	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	_, err = mutation.Agent.Add(ctx, &gocbcorex.AddOptions{
-		ScopeName:       mutation.ScopeName,
-		CollectionName:  mutation.CollectionName,
-		Key:             mutation.Key,
-		Value:           mutation.Staged,
-		DurabilityLevel: memdDuraLevel,
-		OnBehalfOf:      mutation.OboUser,
-	})
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	err = t.hooks.AfterDocCommittedBeforeSavingCAS(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	err = t.hooks.AfterDocCommitted(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
 	return nil
 }
 
@@ -564,11 +519,32 @@ func (t *TransactionAttempt) commitStagedRemove(
 	ctx context.Context,
 	mutation stagedMutation,
 ) *transactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
-		if cerr == nil {
-			return nil
+	expired := t.checkExpiredAtomic(ctx, hookStageCommitDoc, mutation.Key, false)
+	if expired {
+		t.setExpiryOvertimeAtomic()
+	}
+
+	err := invokeNoResHookWithDocID(ctx, t.hooks.DocRemoved, mutation.Key, func() error {
+		memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
+		if err != nil {
+			return err
 		}
 
+		_, err = mutation.Agent.Delete(ctx, &gocbcorex.DeleteOptions{
+			ScopeName:       mutation.ScopeName,
+			CollectionName:  mutation.CollectionName,
+			Key:             mutation.Key,
+			Cas:             0,
+			DurabilityLevel: memdDuraLevel,
+			OnBehalfOf:      mutation.OboUser,
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
 		if t.isExpiryOvertimeAtomic() {
 			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -579,6 +555,7 @@ func (t *TransactionAttempt) commitStagedRemove(
 			})
 		}
 
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
 			select {
@@ -597,14 +574,6 @@ func (t *TransactionAttempt) commitStagedRemove(
 				ShouldNotRollback: true,
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
 			})
-		case TransactionErrorClassFailExpiry:
-			t.setExpiryOvertimeAtomic()
-			select {
-			case <-time.After(3 * time.Millisecond):
-				return t.commitStagedRemove(ctx, mutation)
-			case <-ctx.Done():
-				return t.contextFailed(ctx.Err())
-			}
 		case TransactionErrorClassFailHard:
 			return t.operationFailed(operationFailedDef{
 				Cerr:              cerr,
@@ -620,43 +589,6 @@ func (t *TransactionAttempt) commitStagedRemove(
 				Reason:            TransactionErrorReasonTransactionFailedPostCommit,
 			})
 		}
-	}
-
-	cerr := t.checkExpiredAtomic(ctx, hookCommitDoc, mutation.Key, false)
-	if cerr != nil {
-		t.setExpiryOvertimeAtomic()
-	}
-
-	err := t.hooks.BeforeDocRemoved(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	memdDuraLevel, err := durabilityLevelToMemdx(t.durabilityLevel)
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	_, err = mutation.Agent.Delete(ctx, &gocbcorex.DeleteOptions{
-		ScopeName:       mutation.ScopeName,
-		CollectionName:  mutation.CollectionName,
-		Key:             mutation.Key,
-		Cas:             0,
-		DurabilityLevel: memdDuraLevel,
-		OnBehalfOf:      mutation.OboUser,
-	})
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	err = t.hooks.AfterDocRemovedPreRetry(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	err = t.hooks.AfterDocRemovedPostRetry(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
 	}
 
 	return nil
