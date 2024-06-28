@@ -142,6 +142,7 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
 		transactionID:           transactionID,
+		numAtrs:                 t.config.NumATRs,
 		atrLocation:             customATRLocation,
 		hooks:                   hooks,
 		enableNonFatalGets:      t.config.EnableNonFatalGets,

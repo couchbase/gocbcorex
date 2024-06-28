@@ -33,10 +33,9 @@ func (t *TransactionAttempt) selectAtrKey(
 
 	crc := crc32.ChecksumIEEE(firstKey)
 	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
-	firstKeyVbID := crcMidBits % uint16(1024)
+	atrIdx := int(crcMidBits % uint16(t.numAtrs))
 
-	atrID := int(firstKeyVbID)
-	atrKey := []byte(AtrIDList[atrID])
+	atrKey := []byte(AtrIDList[atrIdx])
 
 	return atrKey, nil
 }

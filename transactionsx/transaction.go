@@ -19,6 +19,7 @@ type Transaction struct {
 	expiryTime              time.Time
 	startTime               time.Time
 	durabilityLevel         DurabilityLevel
+	numAtrs                 int
 	enableParallelUnstaging bool
 	enableNonFatalGets      bool
 	enableExplicitATRs      bool
@@ -49,6 +50,7 @@ func (t *Transaction) NewAttempt() error {
 		txnStartTime:            t.startTime,
 		durabilityLevel:         t.durabilityLevel,
 		transactionID:           t.transactionID,
+		numAtrs:                 t.numAtrs,
 		enableNonFatalGets:      t.enableNonFatalGets,
 		enableParallelUnstaging: t.enableParallelUnstaging,
 		enableMutationCaching:   t.enableMutationCaching,
@@ -158,6 +160,7 @@ func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
 		txnStartTime:            t.startTime,
 		durabilityLevel:         t.durabilityLevel,
 		transactionID:           t.transactionID,
+		numAtrs:                 t.numAtrs,
 		enableNonFatalGets:      t.enableNonFatalGets,
 		enableParallelUnstaging: t.enableParallelUnstaging,
 		enableMutationCaching:   t.enableMutationCaching,
