@@ -1,6 +1,9 @@
 package memdx
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 type multiPendingOp struct {
 	ops       []PendingOp
@@ -10,7 +13,7 @@ type multiPendingOp struct {
 
 func (op *multiPendingOp) Cancel(err error) {
 	if err == nil {
-		panic("must specify a cancellation error")
+		err = errors.New("unspecified cancellation error")
 	}
 
 	op.lock.Lock()
