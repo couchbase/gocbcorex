@@ -51,8 +51,8 @@ func (t *TransactionAttempt) rollback(
 		return nil
 	}
 
-	cerr := t.checkExpiredAtomic(ctx, hookRollback, nil, true)
-	if cerr != nil {
+	expired := t.checkExpiredAtomic(ctx, hookStageRollback, nil, true)
+	if expired {
 		t.setExpiryOvertimeAtomic()
 	}
 
@@ -153,11 +153,46 @@ func (t *TransactionAttempt) unstageStagedInsert(
 	ctx context.Context,
 	mutation stagedMutation,
 ) *transactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
-		if cerr == nil {
-			return nil
+	expired := t.checkExpiredAtomic(ctx, hookStageDeleteInserted, mutation.Key, true)
+	if expired {
+		t.setExpiryOvertimeAtomic()
+	}
+
+	err := invokeNoResHookWithDocID(ctx, t.hooks.RollbackDeleteInserted, mutation.Key, func() error {
+		result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			ScopeName:      mutation.ScopeName,
+			CollectionName: mutation.CollectionName,
+			Key:            mutation.Key,
+			Cas:            mutation.Cas,
+			Flags:          memdx.SubdocDocFlagAccessDeleted,
+			Ops: []memdx.MutateInOp{
+				{
+					Op:    memdx.MutateInOpType(memdx.LookupInOpTypeGet),
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+					Value: []byte("null"),
+				},
+				{
+					Op:    memdx.MutateInOpTypeDelete,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+			},
+			OnBehalfOf: mutation.OboUser,
+		})
+		if err != nil {
+			return err
 		}
 
+		for _, op := range result.Ops {
+			if op.Err != nil {
+				return op.Err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
 		if t.isExpiryOvertimeAtomic() {
 			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -167,16 +202,9 @@ func (t *TransactionAttempt) unstageStagedInsert(
 			})
 		}
 
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
-			select {
-			case <-time.After(3 * time.Millisecond):
-				return t.unstageStagedInsert(ctx, mutation)
-			case <-ctx.Done():
-				return t.contextFailed(ctx.Err())
-			}
-		case TransactionErrorClassFailExpiry:
-			t.setExpiryOvertimeAtomic()
 			select {
 			case <-time.After(3 * time.Millisecond):
 				return t.unstageStagedInsert(ctx, mutation)
@@ -210,52 +238,6 @@ func (t *TransactionAttempt) unstageStagedInsert(
 				return t.contextFailed(ctx.Err())
 			}
 		}
-	}
-
-	cerr := t.checkExpiredAtomic(ctx, hookDeleteInserted, mutation.Key, true)
-	if cerr != nil {
-		return ecCb(cerr)
-	}
-
-	err := t.hooks.BeforeRollbackDeleteInserted(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		ScopeName:      mutation.ScopeName,
-		CollectionName: mutation.CollectionName,
-		Key:            mutation.Key,
-		Cas:            mutation.Cas,
-		Flags:          memdx.SubdocDocFlagAccessDeleted,
-		Ops: []memdx.MutateInOp{
-			{
-				Op:    memdx.MutateInOpType(memdx.LookupInOpTypeGet),
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-				Value: []byte("null"),
-			},
-			{
-				Op:    memdx.MutateInOpTypeDelete,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		OnBehalfOf: mutation.OboUser,
-	})
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	for _, op := range result.Ops {
-		if op.Err != nil {
-			return ecCb(classifyError(op.Err))
-		}
-	}
-
-	err = t.hooks.AfterRollbackDeleteInserted(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
 	}
 
 	return nil
@@ -265,11 +247,45 @@ func (t *TransactionAttempt) unstageStagedRemoveReplace(
 	ctx context.Context,
 	mutation stagedMutation,
 ) *transactionOperationStatus {
-	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
-		if cerr == nil {
-			return nil
+	expired := t.checkExpiredAtomic(ctx, hookStageRollbackDoc, mutation.Key, true)
+	if expired {
+		t.setExpiryOvertimeAtomic()
+	}
+
+	err := invokeNoResHookWithDocID(ctx, t.hooks.DocRolledBack, mutation.Key, func() error {
+		result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			ScopeName:      mutation.ScopeName,
+			CollectionName: mutation.CollectionName,
+			Key:            mutation.Key,
+			Cas:            mutation.Cas,
+			Ops: []memdx.MutateInOp{
+				{
+					Op:    memdx.MutateInOpTypeDictSet,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+					Value: []byte("null"),
+				},
+				{
+					Op:    memdx.MutateInOpTypeDelete,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+			},
+			OnBehalfOf: mutation.OboUser,
+		})
+		if err != nil {
+			return err
 		}
 
+		for _, op := range result.Ops {
+			if op.Err != nil {
+				return op.Err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
 		if t.isExpiryOvertimeAtomic() {
 			return t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -279,16 +295,9 @@ func (t *TransactionAttempt) unstageStagedRemoveReplace(
 			})
 		}
 
+		cerr := classifyError(err)
 		switch cerr.Class {
 		case TransactionErrorClassFailAmbiguous:
-			select {
-			case <-time.After(3 * time.Millisecond):
-				return t.unstageStagedRemoveReplace(ctx, mutation)
-			case <-ctx.Done():
-				return t.contextFailed(ctx.Err())
-			}
-		case TransactionErrorClassFailExpiry:
-			t.setExpiryOvertimeAtomic()
 			select {
 			case <-time.After(3 * time.Millisecond):
 				return t.unstageStagedRemoveReplace(ctx, mutation)
@@ -326,51 +335,6 @@ func (t *TransactionAttempt) unstageStagedRemoveReplace(
 				return t.contextFailed(ctx.Err())
 			}
 		}
-	}
-
-	cerr := t.checkExpiredAtomic(ctx, hookRollbackDoc, mutation.Key, true)
-	if cerr != nil {
-		return ecCb(cerr)
-	}
-
-	err := t.hooks.BeforeDocRolledBack(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
-	}
-
-	result, err := mutation.Agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		ScopeName:      mutation.ScopeName,
-		CollectionName: mutation.CollectionName,
-		Key:            mutation.Key,
-		Cas:            mutation.Cas,
-		Ops: []memdx.MutateInOp{
-			{
-				Op:    memdx.MutateInOpTypeDictSet,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-				Value: []byte("null"),
-			},
-			{
-				Op:    memdx.MutateInOpTypeDelete,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		OnBehalfOf: mutation.OboUser,
-	})
-	if err != nil {
-		return ecCb(classifyError(err))
-	}
-
-	for _, op := range result.Ops {
-		if op.Err != nil {
-			return ecCb(classifyError(op.Err))
-		}
-	}
-
-	err = t.hooks.AfterRollbackReplaceOrRemove(ctx, mutation.Key)
-	if err != nil {
-		return ecCb(classifyHookError(err))
 	}
 
 	return nil

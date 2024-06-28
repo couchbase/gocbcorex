@@ -182,14 +182,6 @@ func (c *TransactionCleaner) rollbackRepRemDoc(
 	doc TransactionCleanupDocRecord,
 	durability memdx.DurabilityLevel,
 ) error {
-	ecCb := func(err error) error {
-		if err == nil {
-			return nil
-		}
-
-		return err
-	}
-
 	agent, oboUser := doc.Agent, doc.OboUser
 
 	getRes, err := c.fetchDoc(ctx, false, attemptID, doc, agent, oboUser)
@@ -197,68 +189,8 @@ func (c *TransactionCleaner) rollbackRepRemDoc(
 		return err
 	}
 
-	err = c.hooks.BeforeRemoveLinks(ctx, doc.ID)
-	if err != nil {
-		return ecCb(err)
-	}
-
-	_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		Key:            doc.ID,
-		ScopeName:      doc.ScopeName,
-		CollectionName: doc.CollectionName,
-		Cas:            getRes.Cas,
-		Ops: []memdx.MutateInOp{
-			{
-				Op:    memdx.MutateInOpTypeDelete,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		Flags:           memdx.SubdocDocFlagAccessDeleted,
-		DurabilityLevel: durability,
-		OnBehalfOf:      oboUser,
-	})
-	if err != nil {
-		c.logger.Debug("failed to rollback replace/remove",
-			zap.Error(err),
-			zap.String("bucket", doc.Agent.BucketName()),
-			zap.String("collection", doc.CollectionName),
-			zap.String("scope", doc.ScopeName),
-			zap.ByteString("id", doc.ID))
-		return ecCb(err)
-	}
-
-	return nil
-}
-
-func (c *TransactionCleaner) rollbackInsDoc(
-	ctx context.Context,
-	attemptID string,
-	doc TransactionCleanupDocRecord,
-	durability memdx.DurabilityLevel,
-) error {
-	ecCb := func(err error) error {
-		if err == nil {
-			return nil
-		}
-
-		return err
-	}
-
-	agent, oboUser := doc.Agent, doc.OboUser
-
-	getRes, err := c.fetchDoc(ctx, false, attemptID, doc, agent, oboUser)
-	if err != nil {
-		return err
-	}
-
-	err = c.hooks.BeforeRemoveDoc(ctx, doc.ID)
-	if err != nil {
-		return ecCb(err)
-	}
-
-	if getRes.Deleted {
-		_, err := agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+	err = invokeNoResHookWithDocID(ctx, c.hooks.RemoveLinks, doc.ID, func() error {
+		_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 			Key:            doc.ID,
 			ScopeName:      doc.ScopeName,
 			CollectionName: doc.CollectionName,
@@ -275,24 +207,50 @@ func (c *TransactionCleaner) rollbackInsDoc(
 			OnBehalfOf:      oboUser,
 		})
 		if err != nil {
-			c.logger.Debug("failed to rollback shadow insert",
-				zap.Error(err),
-				zap.String("bucket", doc.Agent.BucketName()),
-				zap.String("collection", doc.CollectionName),
-				zap.String("scope", doc.ScopeName),
-				zap.ByteString("id", doc.ID))
-			return ecCb(err)
+			return err
 		}
 
 		return nil
-	} else {
-		_, err := agent.Delete(ctx, &gocbcorex.DeleteOptions{
-			Key:             doc.ID,
-			ScopeName:       doc.ScopeName,
-			CollectionName:  doc.CollectionName,
-			Cas:             getRes.Cas,
-			DurabilityLevel: durability,
-			OnBehalfOf:      oboUser,
+	})
+	if err != nil {
+		c.logger.Debug("failed to rollback replace/remove",
+			zap.Error(err),
+			zap.String("bucket", doc.Agent.BucketName()),
+			zap.String("collection", doc.CollectionName),
+			zap.String("scope", doc.ScopeName),
+			zap.ByteString("id", doc.ID))
+
+		return err
+	}
+
+	return nil
+}
+
+func (c *TransactionCleaner) rollbackInsDoc(
+	ctx context.Context,
+	attemptID string,
+	doc TransactionCleanupDocRecord,
+	durability memdx.DurabilityLevel,
+) error {
+	agent, oboUser := doc.Agent, doc.OboUser
+
+	getRes, err := c.fetchDoc(ctx, false, attemptID, doc, agent, oboUser)
+	if err != nil {
+		return err
+	}
+
+	if !getRes.Deleted {
+		// legacy version that doesn't use shadow documents
+		err = invokeNoResHookWithDocID(ctx, c.hooks.RemoveDoc, doc.ID, func() error {
+			_, err := agent.Delete(ctx, &gocbcorex.DeleteOptions{
+				Key:             doc.ID,
+				ScopeName:       doc.ScopeName,
+				CollectionName:  doc.CollectionName,
+				Cas:             getRes.Cas,
+				DurabilityLevel: durability,
+				OnBehalfOf:      oboUser,
+			})
+			return err
 		})
 		if err != nil {
 			c.logger.Debug("failed to rollback insert",
@@ -301,111 +259,13 @@ func (c *TransactionCleaner) rollbackInsDoc(
 				zap.String("collection", doc.CollectionName),
 				zap.String("scope", doc.ScopeName),
 				zap.ByteString("id", doc.ID))
-			return ecCb(err)
-		}
-	}
-
-	return nil
-}
-
-func (c *TransactionCleaner) commitRemDoc(
-	ctx context.Context,
-	attemptID string,
-	doc TransactionCleanupDocRecord,
-	durability memdx.DurabilityLevel,
-) error {
-	ecCb := func(err error) error {
-		if err == nil {
-			return nil
-		}
-
-		return err
-	}
-
-	agent, oboUser := doc.Agent, doc.OboUser
-
-	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
-	if err != nil {
-		return err
-	}
-
-	err = c.hooks.BeforeRemoveDocStagedForRemoval(ctx, doc.ID)
-	if err != nil {
-		return ecCb(err)
-	}
-
-	if getRes.TxnMeta.Operation.Type != MutationTypeJsonRemove {
-		return nil
-	}
-
-	_, err = agent.Delete(ctx, &gocbcorex.DeleteOptions{
-		Key:             doc.ID,
-		ScopeName:       doc.ScopeName,
-		CollectionName:  doc.CollectionName,
-		Cas:             getRes.Cas,
-		DurabilityLevel: durability,
-		OnBehalfOf:      oboUser,
-	})
-	if err != nil {
-		c.logger.Debug("failed to commit replace/remove",
-			zap.Error(err),
-			zap.String("bucket", doc.Agent.BucketName()),
-			zap.String("collection", doc.CollectionName),
-			zap.String("scope", doc.ScopeName),
-			zap.ByteString("id", doc.ID))
-		return ecCb(err)
-	}
-
-	return nil
-}
-
-func (c *TransactionCleaner) commitInsRepDoc(
-	ctx context.Context,
-	attemptID string,
-	doc TransactionCleanupDocRecord,
-	durability memdx.DurabilityLevel,
-) error {
-	ecCb := func(err error) error {
-		if err == nil {
-			return nil
-		}
-
-		return err
-	}
-
-	agent, oboUser := doc.Agent, doc.OboUser
-
-	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
-	if err != nil {
-		return err
-	}
-
-	err = c.hooks.BeforeCommitDoc(ctx, doc.ID)
-	if err != nil {
-		return ecCb(err)
-	}
-
-	if getRes.Deleted {
-		_, err := agent.Add(ctx, &gocbcorex.AddOptions{
-			Value:           getRes.Body,
-			Key:             doc.ID,
-			ScopeName:       doc.ScopeName,
-			CollectionName:  doc.CollectionName,
-			DurabilityLevel: durability,
-			OnBehalfOf:      oboUser,
-		})
-		if err != nil {
-			c.logger.Debug("failed to commit shadow insert",
-				zap.Error(err),
-				zap.String("bucket", doc.Agent.BucketName()),
-				zap.String("collection", doc.CollectionName),
-				zap.String("scope", doc.ScopeName),
-				zap.ByteString("id", doc.ID))
-			return ecCb(err)
+			return err
 		}
 
 		return nil
-	} else {
+	}
+
+	err = invokeNoResHookWithDocID(ctx, c.hooks.RemoveDoc, doc.ID, func() error {
 		_, err := agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 			Key:            doc.ID,
 			ScopeName:      doc.ScopeName,
@@ -417,14 +277,104 @@ func (c *TransactionCleaner) commitInsRepDoc(
 					Path:  []byte("txn"),
 					Flags: memdx.SubdocOpFlagXattrPath,
 				},
-				{
-					Op:    memdx.MutateInOpTypeSetDoc,
-					Path:  nil,
-					Value: getRes.Body,
-				},
 			},
+			Flags:           memdx.SubdocDocFlagAccessDeleted,
 			DurabilityLevel: durability,
 			OnBehalfOf:      oboUser,
+		})
+		return err
+	})
+	if err != nil {
+		c.logger.Debug("failed to rollback shadow insert",
+			zap.Error(err),
+			zap.String("bucket", doc.Agent.BucketName()),
+			zap.String("collection", doc.CollectionName),
+			zap.String("scope", doc.ScopeName),
+			zap.ByteString("id", doc.ID))
+		return err
+	}
+
+	return nil
+}
+
+func (c *TransactionCleaner) commitRemDoc(
+	ctx context.Context,
+	attemptID string,
+	doc TransactionCleanupDocRecord,
+	durability memdx.DurabilityLevel,
+) error {
+	agent, oboUser := doc.Agent, doc.OboUser
+
+	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
+	if err != nil {
+		return err
+	}
+
+	if getRes.TxnMeta.Operation.Type != MutationTypeJsonRemove {
+		return nil
+	}
+
+	err = invokeNoResHookWithDocID(ctx, c.hooks.RemoveDocStagedForRemoval, doc.ID, func() error {
+		_, err = agent.Delete(ctx, &gocbcorex.DeleteOptions{
+			Key:             doc.ID,
+			ScopeName:       doc.ScopeName,
+			CollectionName:  doc.CollectionName,
+			Cas:             getRes.Cas,
+			DurabilityLevel: durability,
+			OnBehalfOf:      oboUser,
+		})
+		return err
+	})
+	if err != nil {
+		c.logger.Debug("failed to commit replace/remove",
+			zap.Error(err),
+			zap.String("bucket", doc.Agent.BucketName()),
+			zap.String("collection", doc.CollectionName),
+			zap.String("scope", doc.ScopeName),
+			zap.ByteString("id", doc.ID))
+		return err
+	}
+
+	return nil
+}
+
+func (c *TransactionCleaner) commitInsRepDoc(
+	ctx context.Context,
+	attemptID string,
+	doc TransactionCleanupDocRecord,
+	durability memdx.DurabilityLevel,
+) error {
+	agent, oboUser := doc.Agent, doc.OboUser
+
+	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
+	if err != nil {
+		return err
+	}
+
+	if !getRes.Deleted {
+		// legacy version that doesn't use shadow documents
+		err = invokeNoResHookWithDocID(ctx, c.hooks.CommitDoc, doc.ID, func() error {
+			_, err := agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+				Key:            doc.ID,
+				ScopeName:      doc.ScopeName,
+				CollectionName: doc.CollectionName,
+				Cas:            getRes.Cas,
+				Ops: []memdx.MutateInOp{
+					{
+						Op:    memdx.MutateInOpTypeDelete,
+						Path:  []byte("txn"),
+						Flags: memdx.SubdocOpFlagXattrPath,
+					},
+					{
+						Op:    memdx.MutateInOpTypeSetDoc,
+						Path:  nil,
+						Value: getRes.Body,
+					},
+				},
+				DurabilityLevel: durability,
+				OnBehalfOf:      oboUser,
+			})
+			return err
 		})
 		if err != nil {
 			c.logger.Debug("failed to commit insert",
@@ -433,8 +383,29 @@ func (c *TransactionCleaner) commitInsRepDoc(
 				zap.String("collection", doc.CollectionName),
 				zap.String("scope", doc.ScopeName),
 				zap.ByteString("id", doc.ID))
-			return ecCb(err)
+			return err
 		}
+	}
+
+	err = invokeNoResHookWithDocID(ctx, c.hooks.CommitDoc, doc.ID, func() error {
+		_, err := agent.Add(ctx, &gocbcorex.AddOptions{
+			Value:           getRes.Body,
+			Key:             doc.ID,
+			ScopeName:       doc.ScopeName,
+			CollectionName:  doc.CollectionName,
+			DurabilityLevel: durability,
+			OnBehalfOf:      oboUser,
+		})
+		return err
+	})
+	if err != nil {
+		c.logger.Debug("failed to commit shadow insert",
+			zap.Error(err),
+			zap.String("bucket", doc.Agent.BucketName()),
+			zap.String("collection", doc.CollectionName),
+			zap.String("scope", doc.ScopeName),
+			zap.ByteString("id", doc.ID))
+		return err
 	}
 
 	return nil
@@ -456,14 +427,6 @@ func (c *TransactionCleaner) fetchDoc(
 	agent *gocbcorex.Agent,
 	oboUser string,
 ) (*fetchDocResult, error) {
-	ecCb := func(err error) error {
-		if err == nil {
-			return nil
-		}
-
-		return err
-	}
-
 	zeroRes := &fetchDocResult{
 		Body:    nil,
 		TxnMeta: nil,
@@ -472,96 +435,135 @@ func (c *TransactionCleaner) fetchDoc(
 		Deleted: true,
 	}
 
-	err := c.hooks.BeforeDocGet(ctx, dr.ID)
-	if err != nil {
-		return nil, ecCb(err)
-	}
+	res, err := invokeHookWithDocID(ctx, c.hooks.DocGet, dr.ID, func() (*fetchDocResult, error) {
+		result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
+			ScopeName:      dr.ScopeName,
+			CollectionName: dr.CollectionName,
+			Key:            dr.ID,
+			Ops: []memdx.LookupInOp{
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("$document"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("txn"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+			},
+			Flags:      memdx.SubdocDocFlagAccessDeleted,
+			OnBehalfOf: oboUser,
+		})
+		if err != nil {
+			if errors.Is(err, memdx.ErrDocNotFound) {
+				// We can consider this success.
+				return zeroRes, nil
+			}
 
-	result, err := agent.LookupIn(ctx, &gocbcorex.LookupInOptions{
-		ScopeName:      dr.ScopeName,
-		CollectionName: dr.CollectionName,
-		Key:            dr.ID,
-		Ops: []memdx.LookupInOp{
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("$document"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("txn"),
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		Flags:      memdx.SubdocDocFlagAccessDeleted,
-		OnBehalfOf: oboUser,
-	})
-	if err != nil {
-		if errors.Is(err, memdx.ErrDocNotFound) {
-			// We can consider this success.
+			return nil, err
+		}
+
+		if result.Ops[0].Err != nil {
+			// This is not so good.
+			return nil, result.Ops[0].Err
+		}
+
+		if result.Ops[1].Err != nil {
+			// Txn probably committed so this is success.
 			return zeroRes, nil
 		}
 
+		var txnMetaVal *TxnXattrJson
+		if err := json.Unmarshal(result.Ops[1].Value, &txnMetaVal); err != nil {
+			return nil, err
+		}
+
+		if attemptID != txnMetaVal.ID.Attempt {
+			// Document involved in another txn, was probably committed, this is success.
+			return zeroRes, nil
+		}
+
+		var meta *TxnXattrDocMetaJson
+		if err := json.Unmarshal(result.Ops[0].Value, &meta); err != nil {
+			return nil, err
+		}
+
+		if crc32MatchStaging {
+			if meta.CRC32 != txnMetaVal.Operation.CRC32 {
+				// This document is a part of this txn but its body has changed, we'll continue as success.
+				return zeroRes, nil
+			}
+		}
+
+		return &fetchDocResult{
+			Body:    txnMetaVal.Operation.Staged,
+			DocMeta: meta,
+			Cas:     result.Cas,
+			Deleted: result.DocIsDeleted,
+			TxnMeta: txnMetaVal,
+		}, nil
+	})
+	if err != nil {
 		c.logger.Debug("failed to read document",
 			zap.Error(err),
 			zap.String("bucket", agent.BucketName()),
 			zap.String("collection", dr.CollectionName),
 			zap.String("scope", dr.ScopeName),
 			zap.ByteString("id", dr.ID))
-		return nil, ecCb(err)
+
+		return nil, err
 	}
 
-	if result.Ops[0].Err != nil {
-		// This is not so good.
-		return nil, ecCb(result.Ops[0].Err)
-	}
-
-	if result.Ops[1].Err != nil {
-		// Txn probably committed so this is success.
-		return zeroRes, nil
-	}
-
-	var txnMetaVal *TxnXattrJson
-	if err := json.Unmarshal(result.Ops[1].Value, &txnMetaVal); err != nil {
-		return nil, ecCb(err)
-	}
-
-	if attemptID != txnMetaVal.ID.Attempt {
-		// Document involved in another txn, was probably committed, this is success.
-		return zeroRes, nil
-	}
-
-	var meta *TxnXattrDocMetaJson
-	if err := json.Unmarshal(result.Ops[0].Value, &meta); err != nil {
-		return nil, ecCb(err)
-	}
-
-	if crc32MatchStaging {
-		if meta.CRC32 != txnMetaVal.Operation.CRC32 {
-			// This document is a part of this txn but its body has changed, we'll continue as success.
-			return zeroRes, nil
-		}
-	}
-
-	return &fetchDocResult{
-		Body:    txnMetaVal.Operation.Staged,
-		DocMeta: meta,
-		Cas:     result.Cas,
-		Deleted: result.DocIsDeleted,
-		TxnMeta: txnMetaVal,
-	}, nil
+	return res, nil
 }
 
 func (c *TransactionCleaner) cleanupATR(
 	ctx context.Context,
 	req *TransactionCleanupRequest,
 ) error {
-	ecCb := func(err error) error {
-		if err == nil {
-			return nil
+	agent, oboUser := req.AtrAgent, req.AtrOboUser
+
+	err := invokeNoResHookWithDocID(ctx, c.hooks.ATRRemove, req.AtrID, func() error {
+		var specs []memdx.MutateInOp
+		if req.State == TransactionAttemptStatePending {
+			specs = append(specs, memdx.MutateInOp{
+				Op:    memdx.MutateInOpTypeDictAdd,
+				Value: []byte("null"),
+				Path:  []byte("attempts." + req.AttemptID + ".p"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			})
 		}
 
+		specs = append(specs, memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeDelete,
+			Path:  []byte("attempts." + req.AttemptID),
+			Flags: memdx.SubdocOpFlagXattrPath,
+		})
+
+		duraLevel := req.DurabilityLevel
+		if duraLevel == DurabilityLevelUnknown {
+			duraLevel = DurabilityLevelNone
+		}
+		memdDuraLevel, err := durabilityLevelToMemdx(duraLevel)
+		if err != nil {
+			return err
+		}
+
+		_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			Key:             req.AtrID,
+			ScopeName:       req.AtrScopeName,
+			CollectionName:  req.AtrCollectionName,
+			Ops:             specs,
+			DurabilityLevel: memdDuraLevel,
+			OnBehalfOf:      oboUser,
+		})
+		return err
+	})
+	if err != nil {
 		if errors.Is(err, memdx.ErrSubDocPathNotFound) {
+			// if we can't find the ATR, we can assume it was already
+			// cleaned up by someone else
 			return nil
 		}
 
@@ -570,50 +572,6 @@ func (c *TransactionCleaner) cleanupATR(
 			zap.Any("req", req))
 
 		return err
-	}
-
-	agent, oboUser := req.AtrAgent, req.AtrOboUser
-
-	err := c.hooks.BeforeATRRemove(ctx, req.AtrID)
-	if err != nil {
-		return ecCb(err)
-	}
-
-	var specs []memdx.MutateInOp
-	if req.State == TransactionAttemptStatePending {
-		specs = append(specs, memdx.MutateInOp{
-			Op:    memdx.MutateInOpTypeDictAdd,
-			Value: []byte("null"),
-			Path:  []byte("attempts." + req.AttemptID + ".p"),
-			Flags: memdx.SubdocOpFlagXattrPath,
-		})
-	}
-
-	specs = append(specs, memdx.MutateInOp{
-		Op:    memdx.MutateInOpTypeDelete,
-		Path:  []byte("attempts." + req.AttemptID),
-		Flags: memdx.SubdocOpFlagXattrPath,
-	})
-
-	duraLevel := req.DurabilityLevel
-	if duraLevel == DurabilityLevelUnknown {
-		duraLevel = DurabilityLevelNone
-	}
-	memdDuraLevel, err := durabilityLevelToMemdx(duraLevel)
-	if err != nil {
-		return err
-	}
-
-	_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		Key:             req.AtrID,
-		ScopeName:       req.AtrScopeName,
-		CollectionName:  req.AtrCollectionName,
-		Ops:             specs,
-		DurabilityLevel: memdDuraLevel,
-		OnBehalfOf:      oboUser,
-	})
-	if err != nil {
-		return ecCb(err)
 	}
 
 	return nil
