@@ -327,7 +327,7 @@ func (t *TransactionAttempt) confirmATRPending(
 
 func (t *TransactionAttempt) getStagedMutationLocked(
 	bucketName, scopeName, collectionName string, key []byte,
-) (int, *transactionStagedMutation) {
+) (int, *stagedMutation) {
 	for i, mutation := range t.stagedMutations {
 		if mutation.Agent.BucketName() == bucketName &&
 			mutation.ScopeName == scopeName &&
@@ -354,7 +354,7 @@ func (t *TransactionAttempt) removeStagedMutation(
 }
 
 func (t *TransactionAttempt) recordStagedMutation(
-	stagedInfo *transactionStagedMutation,
+	stagedInfo *stagedMutation,
 ) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
@@ -380,7 +380,7 @@ func (t *TransactionAttempt) checkForwardCompatability(
 	key []byte,
 	bucket, scope, collection string,
 	stage forwardCompatStage,
-	fc map[string][]TransactionForwardCompatibilityEntry,
+	fc map[string][]ForwardCompatEntry,
 	forceNonFatal bool,
 ) *transactionOperationStatus {
 	t.logger.Info("checking forward compatibility")
@@ -457,8 +457,8 @@ func (t *TransactionAttempt) getTxnState(
 	atrDocID string,
 	attemptID string,
 	forceNonFatal bool,
-) (*jsonAtrAttempt, time.Time, *transactionOperationStatus) {
-	ecCb := func(res *jsonAtrAttempt, txnExp time.Time, cerr *classifiedError) (*jsonAtrAttempt, time.Time, *transactionOperationStatus) {
+) (*AtrAttemptJson, time.Time, *transactionOperationStatus) {
+	ecCb := func(res *AtrAttemptJson, txnExp time.Time, cerr *classifiedError) (*AtrAttemptJson, time.Time, *transactionOperationStatus) {
 		if cerr == nil {
 			return res, txnExp, nil
 		}
@@ -538,7 +538,7 @@ func (t *TransactionAttempt) getTxnState(
 		}
 	}
 
-	var txnAttempt *jsonAtrAttempt
+	var txnAttempt *AtrAttemptJson
 	if err := json.Unmarshal(result.Ops[0].Value, &txnAttempt); err != nil {
 		return ecCb(nil, time.Time{}, classifyError(err))
 	}
@@ -574,8 +574,8 @@ func (t *TransactionAttempt) writeWriteConflictPoll(
 	collectionName string,
 	key []byte,
 	cas uint64,
-	meta *TransactionMutableItemMeta,
-	existingMutation *transactionStagedMutation,
+	meta *MutableItemMeta,
+	existingMutation *stagedMutation,
 ) *transactionOperationStatus {
 	if meta == nil {
 		t.logger.Info("meta is nil, no write-write conflict")
@@ -692,8 +692,8 @@ func (t *TransactionAttempt) writeWriteConflictPoll(
 			return nil
 		}
 
-		state := jsonAtrState(attempt.State)
-		if state == jsonAtrStateCompleted || state == jsonAtrStateRolledBack {
+		state := TxnStateJson(attempt.State)
+		if state == TxnStateJsonCompleted || state == TxnStateJsonRolledBack {
 			t.logger.Info("attempt state finished, completing write-write conflict poll",
 				zap.String("state", string(state)))
 			// If we have progressed enough to continue, let's do that.
@@ -748,11 +748,11 @@ func (t *TransactionAttempt) ensureCleanUpRequest() {
 		}
 
 		switch staged.OpType {
-		case TransactionStagedMutationInsert:
+		case StagedMutationInsert:
 			inserts = append(inserts, dr)
-		case TransactionStagedMutationReplace:
+		case StagedMutationReplace:
 			replaces = append(replaces, dr)
-		case TransactionStagedMutationRemove:
+		case StagedMutationRemove:
 			removes = append(removes, dr)
 		}
 	}

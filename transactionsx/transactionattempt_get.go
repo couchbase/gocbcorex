@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Get(ctx context.Context, opts GetOptions) (*GetResult, error) {
 	result, errSt := t.get(ctx, opts)
 	if errSt != nil {
 		t.logger.Info("get failed", zap.Error(errSt.Err()))
@@ -22,8 +22,8 @@ func (t *TransactionAttempt) Get(ctx context.Context, opts TransactionGetOptions
 
 func (t *TransactionAttempt) get(
 	ctx context.Context,
-	opts TransactionGetOptions,
-) (*TransactionGetResult, *transactionOperationStatus) {
+	opts GetOptions,
+) (*GetResult, *transactionOperationStatus) {
 	forceNonFatal := t.enableNonFatalGets
 
 	t.logger.Info("performing get",
@@ -86,7 +86,7 @@ func (t *TransactionAttempt) mavRead(
 	disableRYOW bool,
 	resolvingATREntry string,
 	forceNonFatal bool,
-) (*TransactionGetResult, *transactionOperationStatus) {
+) (*GetResult, *transactionOperationStatus) {
 	doc, err := t.fetchDocWithMeta(
 		ctx,
 		agent,
@@ -126,7 +126,7 @@ func (t *TransactionAttempt) mavRead(
 
 		t.logger.Info("txn meta is nil, returning result")
 
-		return &TransactionGetResult{
+		return &GetResult{
 			agent:          agent,
 			oboUser:        oboUser,
 			scopeName:      scopeName,
@@ -140,10 +140,10 @@ func (t *TransactionAttempt) mavRead(
 
 	if doc.TxnMeta.ID.Attempt == t.id {
 		switch doc.TxnMeta.Operation.Type {
-		case jsonMutationInsert:
+		case MutationTypeJsonInsert:
 			t.logger.Info("doc already in txn as insert, using staged value")
 
-			return &TransactionGetResult{
+			return &GetResult{
 				agent:          agent,
 				oboUser:        oboUser,
 				scopeName:      scopeName,
@@ -152,10 +152,10 @@ func (t *TransactionAttempt) mavRead(
 				Value:          doc.TxnMeta.Operation.Staged,
 				Cas:            doc.Cas,
 			}, nil
-		case jsonMutationReplace:
+		case MutationTypeJsonReplace:
 			t.logger.Info("doc already in txn as replace, using staged value")
 
-			return &TransactionGetResult{
+			return &GetResult{
 				agent:          agent,
 				oboUser:        oboUser,
 				scopeName:      scopeName,
@@ -164,7 +164,7 @@ func (t *TransactionAttempt) mavRead(
 				Value:          doc.TxnMeta.Operation.Staged,
 				Cas:            doc.Cas,
 			}, nil
-		case jsonMutationRemove:
+		case MutationTypeJsonRemove:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: &classifiedError{
 					Class:  TransactionErrorClassFailOther,
@@ -203,7 +203,7 @@ func (t *TransactionAttempt) mavRead(
 
 		t.logger.Info("completed ATR resolution")
 
-		return &TransactionGetResult{
+		return &GetResult{
 			agent:          agent,
 			oboUser:        oboUser,
 			scopeName:      scopeName,
@@ -215,10 +215,10 @@ func (t *TransactionAttempt) mavRead(
 	}
 
 	docFc := forwardCompatFromJson(doc.TxnMeta.ForwardCompat)
-	docMeta := &TransactionMutableItemMeta{
+	docMeta := &MutableItemMeta{
 		TransactionID: doc.TxnMeta.ID.Transaction,
 		AttemptID:     doc.TxnMeta.ID.Attempt,
-		ATR: TransactionMutableItemMetaATR{
+		ATR: MutableItemMetaATR{
 			BucketName:     doc.TxnMeta.ATR.BucketName,
 			ScopeName:      doc.TxnMeta.ATR.ScopeName,
 			CollectionName: doc.TxnMeta.ATR.CollectionName,
@@ -276,13 +276,13 @@ func (t *TransactionAttempt) mavRead(
 		return nil, oerr
 	}
 
-	state := jsonAtrState(attempt.State)
-	if state == jsonAtrStateCommitted || state == jsonAtrStateCompleted {
+	state := TxnStateJson(attempt.State)
+	if state == TxnStateJsonCommitted || state == TxnStateJsonCompleted {
 		switch doc.TxnMeta.Operation.Type {
-		case jsonMutationInsert:
+		case MutationTypeJsonInsert:
 			t.logger.Info("doc already in txn as insert, using staged value")
 
-			return &TransactionGetResult{
+			return &GetResult{
 				agent:          agent,
 				oboUser:        oboUser,
 				scopeName:      scopeName,
@@ -292,10 +292,10 @@ func (t *TransactionAttempt) mavRead(
 				Cas:            doc.Cas,
 				Meta:           docMeta,
 			}, nil
-		case jsonMutationReplace:
+		case MutationTypeJsonReplace:
 			t.logger.Info("doc already in txn as replace, using staged value")
 
-			return &TransactionGetResult{
+			return &GetResult{
 				agent:          agent,
 				oboUser:        oboUser,
 				scopeName:      scopeName,
@@ -305,7 +305,7 @@ func (t *TransactionAttempt) mavRead(
 				Cas:            doc.Cas,
 				Meta:           docMeta,
 			}, nil
-		case jsonMutationRemove:
+		case MutationTypeJsonRemove:
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: &classifiedError{
 					Class:  TransactionErrorClassFailOther,
@@ -339,7 +339,7 @@ func (t *TransactionAttempt) mavRead(
 		})
 	}
 
-	return &TransactionGetResult{
+	return &GetResult{
 		agent:          agent,
 		oboUser:        oboUser,
 		scopeName:      scopeName,
@@ -351,6 +351,14 @@ func (t *TransactionAttempt) mavRead(
 	}, nil
 }
 
+type docWithMeta struct {
+	Body    []byte
+	TxnMeta *TxnXattrJson
+	DocMeta *TxnXattrDocMetaJson
+	Cas     uint64
+	Deleted bool
+}
+
 func (t *TransactionAttempt) fetchDocWithMeta(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
@@ -359,8 +367,8 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 	collectionName string,
 	key []byte,
 	forceNonFatal bool,
-) (*transactionGetDoc, *transactionOperationStatus) {
-	ecCb := func(doc *transactionGetDoc, cerr *classifiedError) (*transactionGetDoc, *transactionOperationStatus) {
+) (*docWithMeta, *transactionOperationStatus) {
+	ecCb := func(doc *docWithMeta, cerr *classifiedError) (*docWithMeta, *transactionOperationStatus) {
 		if cerr == nil {
 			return doc, nil
 		}
@@ -442,15 +450,15 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 		return ecCb(nil, classifyError(result.Ops[0].Err))
 	}
 
-	var meta *transactionDocMeta
+	var meta *TxnXattrDocMetaJson
 	if err := json.Unmarshal(result.Ops[0].Value, &meta); err != nil {
 		return ecCb(nil, classifyError(err))
 	}
 
-	var txnMeta *jsonTxnXattr
+	var txnMeta *TxnXattrJson
 	if result.Ops[1].Err == nil {
 		// Doc is currently in a txn.
-		var txnMetaVal jsonTxnXattr
+		var txnMetaVal TxnXattrJson
 		if err := json.Unmarshal(result.Ops[1].Value, &txnMetaVal); err != nil {
 			return ecCb(nil, classifyError(err))
 		}
@@ -463,7 +471,7 @@ func (t *TransactionAttempt) fetchDocWithMeta(
 		docBody = result.Ops[2].Value
 	}
 
-	return &transactionGetDoc{
+	return &docWithMeta{
 		Body:    docBody,
 		TxnMeta: txnMeta,
 		DocMeta: meta,

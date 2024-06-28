@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Insert(ctx context.Context, opts InsertOptions) (*GetResult, error) {
 	result, errSt := t.insert(ctx, opts)
 	if errSt != nil {
 		t.logger.Info("insert failed", zap.Error(errSt.Err()))
@@ -23,8 +23,8 @@ func (t *TransactionAttempt) Insert(ctx context.Context, opts TransactionInsertO
 
 func (t *TransactionAttempt) insert(
 	ctx context.Context,
-	opts TransactionInsertOptions,
-) (*TransactionGetResult, *transactionOperationStatus) {
+	opts InsertOptions,
+) (*GetResult, *transactionOperationStatus) {
 	t.logger.Info("performing insert",
 		zaputils.FQDocID("key", opts.Agent.BucketName(), opts.ScopeName, opts.CollectionName, opts.Key))
 
@@ -63,13 +63,13 @@ func (t *TransactionAttempt) insert(
 
 	if existingMutation != nil {
 		switch existingMutation.OpType {
-		case TransactionStagedMutationRemove:
+		case StagedMutationRemove:
 			t.logger.Info("staged remove exists on doc, performing replace")
 			result, err := t.stageReplace(
 				ctx, agent, oboUser, scopeName, collectionName, key, value, existingMutation.Cas)
 			t.endOp()
 			return result, err
-		case TransactionStagedMutationInsert:
+		case StagedMutationInsert:
 			t.endOp()
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -78,7 +78,7 @@ func (t *TransactionAttempt) insert(
 				ShouldNotRollback: false,
 				Reason:            TransactionErrorReasonTransactionFailed,
 			})
-		case TransactionStagedMutationReplace:
+		case StagedMutationReplace:
 			t.endOp()
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -120,7 +120,7 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 	collectionName string,
 	key []byte,
 	value json.RawMessage,
-) (*TransactionGetResult, *transactionOperationStatus) {
+) (*GetResult, *transactionOperationStatus) {
 	isTombstone, txnMeta, cas, err := t.getMetaForConflictedInsert(ctx, agent, oboUser, scopeName, collectionName, key)
 	if err != nil {
 		return nil, err
@@ -145,10 +145,10 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 		return t.stageInsert(ctx, agent, oboUser, scopeName, collectionName, key, value, cas)
 	}
 
-	meta := &TransactionMutableItemMeta{
+	meta := &MutableItemMeta{
 		TransactionID: txnMeta.ID.Transaction,
 		AttemptID:     txnMeta.ID.Attempt,
-		ATR: TransactionMutableItemMetaATR{
+		ATR: MutableItemMetaATR{
 			BucketName:     txnMeta.ATR.BucketName,
 			ScopeName:      txnMeta.ATR.ScopeName,
 			CollectionName: txnMeta.ATR.CollectionName,
@@ -168,7 +168,7 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 		return nil, err
 	}
 
-	if txnMeta.Operation.Type != jsonMutationInsert {
+	if txnMeta.Operation.Type != MutationTypeJsonInsert {
 		return nil, t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
 				wrapError(ErrDocExists, "found staged non-insert mutation")),
@@ -209,8 +209,8 @@ func (t *TransactionAttempt) stageInsert(
 	key []byte,
 	value json.RawMessage,
 	cas uint64,
-) (*TransactionGetResult, *transactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
+) (*GetResult, *transactionOperationStatus) {
+	ecCb := func(result *GetResult, cerr *classifiedError) (*GetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -269,8 +269,8 @@ func (t *TransactionAttempt) stageInsert(
 		return ecCb(nil, classifyHookError(err))
 	}
 
-	stagedInfo := &transactionStagedMutation{
-		OpType:         TransactionStagedMutationInsert,
+	stagedInfo := &stagedMutation{
+		OpType:         StagedMutationInsert,
 		Agent:          agent,
 		OboUser:        oboUser,
 		ScopeName:      scopeName,
@@ -279,14 +279,14 @@ func (t *TransactionAttempt) stageInsert(
 		Staged:         value,
 	}
 
-	var txnMeta jsonTxnXattr
+	var txnMeta TxnXattrJson
 	txnMeta.ID.Transaction = t.transactionID
 	txnMeta.ID.Attempt = t.id
 	txnMeta.ATR.CollectionName = t.atrCollectionName
 	txnMeta.ATR.ScopeName = t.atrScopeName
 	txnMeta.ATR.BucketName = t.atrAgent.BucketName()
 	txnMeta.ATR.DocID = string(t.atrKey)
-	txnMeta.Operation.Type = jsonMutationInsert
+	txnMeta.Operation.Type = MutationTypeJsonInsert
 	txnMeta.Operation.Staged = stagedInfo.Staged
 
 	txnMetaBytes, err := json.Marshal(txnMeta)
@@ -322,7 +322,7 @@ func (t *TransactionAttempt) stageInsert(
 				Value: memdx.SubdocMacroNewCrc32c,
 			},
 		},
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		Flags:           flags,
 		OnBehalfOf:      stagedInfo.OboUser,
 	})
@@ -339,7 +339,7 @@ func (t *TransactionAttempt) stageInsert(
 
 	t.recordStagedMutation(stagedInfo)
 
-	return &TransactionGetResult{
+	return &GetResult{
 		agent:          stagedInfo.Agent,
 		oboUser:        stagedInfo.OboUser,
 		scopeName:      stagedInfo.ScopeName,
@@ -358,8 +358,8 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 	scopeName string,
 	collectionName string,
 	key []byte,
-) (bool, *jsonTxnXattr, uint64, *transactionOperationStatus) {
-	ecCb := func(isTombstone bool, meta *jsonTxnXattr, cas uint64, cerr *classifiedError) (bool, *jsonTxnXattr, uint64, *transactionOperationStatus) {
+) (bool, *TxnXattrJson, uint64, *transactionOperationStatus) {
+	ecCb := func(isTombstone bool, meta *TxnXattrJson, cas uint64, cerr *classifiedError) (bool, *TxnXattrJson, uint64, *transactionOperationStatus) {
 		if cerr == nil {
 			return isTombstone, meta, cas, nil
 		}
@@ -409,9 +409,9 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 		return ecCb(false, nil, 0, classifyError(err))
 	}
 
-	var txnMeta *jsonTxnXattr
+	var txnMeta *TxnXattrJson
 	if result.Ops[0].Err == nil {
-		var txnMetaVal jsonTxnXattr
+		var txnMetaVal TxnXattrJson
 		if err := json.Unmarshal(result.Ops[0].Value, &txnMetaVal); err != nil {
 			return ecCb(false, nil, 0, classifyError(err))
 		}

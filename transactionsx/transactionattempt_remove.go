@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveOptions) (*TransactionGetResult, error) {
+func (t *TransactionAttempt) Remove(ctx context.Context, opts RemoveOptions) (*GetResult, error) {
 	result, errSt := t.remove(ctx, opts)
 	if errSt != nil {
 		t.logger.Info("remove failed", zap.Error(errSt.Err()))
@@ -22,8 +22,8 @@ func (t *TransactionAttempt) Remove(ctx context.Context, opts TransactionRemoveO
 
 func (t *TransactionAttempt) remove(
 	ctx context.Context,
-	opts TransactionRemoveOptions,
-) (*TransactionGetResult, *transactionOperationStatus) {
+	opts RemoveOptions,
+) (*GetResult, *transactionOperationStatus) {
 	t.logger.Info("performing remove",
 		zaputils.FQDocID("key", opts.Document.agent.BucketName(), opts.Document.scopeName, opts.Document.collectionName, opts.Document.key))
 
@@ -62,19 +62,19 @@ func (t *TransactionAttempt) remove(
 
 	if existingMutation != nil {
 		switch existingMutation.OpType {
-		case TransactionStagedMutationInsert:
+		case StagedMutationInsert:
 			t.logger.Info("staged insert exists on doc, removing txn metadata")
 
 			result, err := t.stageRemoveOfInsert(
 				ctx, agent, oboUser, scopeName, collectionName, key, cas)
 			t.endOp()
 			return result, err
-		case TransactionStagedMutationReplace:
+		case StagedMutationReplace:
 			t.logger.Info("staged replace exists on doc, this is ok")
 
 			// We can overwrite other replaces without issue, any conflicts between the mutation
 			// the user passed to us and the existing mutation is caught by WriteWriteConflict.
-		case TransactionStagedMutationRemove:
+		case StagedMutationRemove:
 			t.endOp()
 			return nil, t.operationFailed(operationFailedDef{
 				Cerr: classifyError(
@@ -126,8 +126,8 @@ func (t *TransactionAttempt) stageRemove(
 	collectionName string,
 	key []byte,
 	cas uint64,
-) (*TransactionGetResult, *transactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
+) (*GetResult, *transactionOperationStatus) {
+	ecCb := func(result *GetResult, cerr *classifiedError) (*GetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -200,8 +200,8 @@ func (t *TransactionAttempt) stageRemove(
 		return ecCb(nil, classifyHookError(err))
 	}
 
-	stagedInfo := &transactionStagedMutation{
-		OpType:         TransactionStagedMutationRemove,
+	stagedInfo := &stagedMutation{
+		OpType:         StagedMutationRemove,
 		Agent:          agent,
 		OboUser:        oboUser,
 		ScopeName:      scopeName,
@@ -209,15 +209,15 @@ func (t *TransactionAttempt) stageRemove(
 		Key:            key,
 	}
 
-	var txnMeta jsonTxnXattr
+	var txnMeta TxnXattrJson
 	txnMeta.ID.Transaction = t.transactionID
 	txnMeta.ID.Attempt = t.id
 	txnMeta.ATR.CollectionName = t.atrCollectionName
 	txnMeta.ATR.ScopeName = t.atrScopeName
 	txnMeta.ATR.BucketName = t.atrAgent.BucketName()
 	txnMeta.ATR.DocID = string(t.atrKey)
-	txnMeta.Operation.Type = jsonMutationRemove
-	txnMeta.Restore = &jsonTxnXattrRestore{
+	txnMeta.Operation.Type = MutationTypeJsonRemove
+	txnMeta.Restore = &TxnXattrRestoreJson{
 		OriginalCAS: "",
 		ExpiryTime:  0,
 		RevID:       "",
@@ -268,7 +268,7 @@ func (t *TransactionAttempt) stageRemove(
 			},
 		},
 		Flags:           flags,
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      stagedInfo.OboUser,
 	})
 	if err != nil {
@@ -284,7 +284,7 @@ func (t *TransactionAttempt) stageRemove(
 
 	t.recordStagedMutation(stagedInfo)
 
-	return &TransactionGetResult{
+	return &GetResult{
 		agent:          stagedInfo.Agent,
 		oboUser:        stagedInfo.OboUser,
 		scopeName:      stagedInfo.ScopeName,
@@ -304,8 +304,8 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 	collectionName string,
 	key []byte,
 	cas uint64,
-) (*TransactionGetResult, *transactionOperationStatus) {
-	ecCb := func(result *TransactionGetResult, cerr *classifiedError) (*TransactionGetResult, *transactionOperationStatus) {
+) (*GetResult, *transactionOperationStatus) {
+	ecCb := func(result *GetResult, cerr *classifiedError) (*GetResult, *transactionOperationStatus) {
 		if cerr == nil {
 			return result, nil
 		}
@@ -390,7 +390,7 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 				Flags: memdx.SubdocOpFlagXattrPath,
 			},
 		},
-		DurabilityLevel: transactionsDurabilityLevelToMemdx(t.durabilityLevel),
+		DurabilityLevel: durabilityLevelToMemdx(t.durabilityLevel),
 		OnBehalfOf:      oboUser,
 	})
 	if err != nil {
@@ -404,7 +404,7 @@ func (t *TransactionAttempt) stageRemoveOfInsert(
 
 	t.removeStagedMutation(agent.BucketName(), scopeName, collectionName, key)
 
-	return &TransactionGetResult{
+	return &GetResult{
 		agent:          agent,
 		oboUser:        oboUser,
 		scopeName:      scopeName,

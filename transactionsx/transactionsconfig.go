@@ -1,78 +1,24 @@
 package transactionsx
 
 import (
-	"errors"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"go.uber.org/zap"
 )
 
-// TransactionDurabilityLevel specifies the durability level to use for a mutation.
-type TransactionDurabilityLevel int
-
-const (
-	// TransactionDurabilityLevelUnknown indicates to use the default level.
-	TransactionDurabilityLevelUnknown = TransactionDurabilityLevel(0)
-
-	// TransactionDurabilityLevelNone indicates that no durability is needed.
-	TransactionDurabilityLevelNone = TransactionDurabilityLevel(1)
-
-	// TransactionDurabilityLevelMajority indicates the operation must be replicated to the majority.
-	TransactionDurabilityLevelMajority = TransactionDurabilityLevel(2)
-
-	// TransactionDurabilityLevelMajorityAndPersistToActive indicates the operation must be replicated
-	// to the majority and persisted to the active server.
-	TransactionDurabilityLevelMajorityAndPersistToActive = TransactionDurabilityLevel(3)
-
-	// TransactionDurabilityLevelPersistToMajority indicates the operation must be persisted to the active server.
-	TransactionDurabilityLevelPersistToMajority = TransactionDurabilityLevel(4)
-)
-
-func transactionDurabilityLevelToString(level TransactionDurabilityLevel) string {
-	switch level {
-	case TransactionDurabilityLevelUnknown:
-		return "UNSET"
-	case TransactionDurabilityLevelNone:
-		return "NONE"
-	case TransactionDurabilityLevelMajority:
-		return "MAJORITY"
-	case TransactionDurabilityLevelMajorityAndPersistToActive:
-		return "MAJORITY_AND_PERSIST_TO_ACTIVE"
-	case TransactionDurabilityLevelPersistToMajority:
-		return "PERSIST_TO_MAJORITY"
-	}
-	return ""
-}
-
-func transactionDurabilityLevelFromString(level string) (TransactionDurabilityLevel, error) {
-	switch level {
-	case "UNSET":
-		return TransactionDurabilityLevelUnknown, nil
-	case "NONE":
-		return TransactionDurabilityLevelNone, nil
-	case "MAJORITY":
-		return TransactionDurabilityLevelMajority, nil
-	case "MAJORITY_AND_PERSIST_TO_ACTIVE":
-		return TransactionDurabilityLevelMajorityAndPersistToActive, nil
-	case "PERSIST_TO_MAJORITY":
-		return TransactionDurabilityLevelPersistToMajority, nil
-	}
-	return TransactionDurabilityLevelUnknown, errors.New("invalid durability level string")
-}
-
-// TransactionATRLocation specifies a specific location where ATR entries should be
+// ATRLocation specifies a specific location where ATR entries should be
 // placed when performing transactions.
-type TransactionATRLocation struct {
+type ATRLocation struct {
 	Agent          *gocbcorex.Agent
 	OboUser        string
 	ScopeName      string
 	CollectionName string
 }
 
-// TransactionLostATRLocation specifies a specific location where lost transactions should
+// LostATRLocation specifies a specific location where lost transactions should
 // attempt cleanup.
-type TransactionLostATRLocation struct {
+type LostATRLocation struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
@@ -85,7 +31,7 @@ type TransactionsBucketAgentProviderFn func(bucketName string) (*gocbcorex.Agent
 // TransactionsConfig specifies various tunable options related to transactions.
 type TransactionsConfig struct {
 	// CustomATRLocation specifies a specific location to place meta-data.
-	CustomATRLocation TransactionATRLocation
+	CustomATRLocation ATRLocation
 
 	// ExpirationTime sets the maximum time that transactions created
 	// by this TransactionsManager object can run for, before expiring.
@@ -93,7 +39,7 @@ type TransactionsConfig struct {
 
 	// DurabilityLevel specifies the durability level that should be used
 	// for all write operations performed by this TransactionsManager object.
-	DurabilityLevel TransactionDurabilityLevel
+	DurabilityLevel DurabilityLevel
 
 	// CleanupWindow specifies how often to the cleanup process runs
 	// attempting to garbage collection transactions that have failed but
@@ -147,7 +93,7 @@ type TransactionsConfig struct {
 // TransactionOptions specifies options which can be overridden on a per transaction basis.
 type TransactionOptions struct {
 	// CustomATRLocation specifies a specific location to place meta-data.
-	CustomATRLocation TransactionATRLocation
+	CustomATRLocation ATRLocation
 
 	// ExpirationTime sets the maximum time that this transaction will
 	// run for, before expiring.
@@ -155,7 +101,7 @@ type TransactionOptions struct {
 
 	// DurabilityLevel specifies the durability level that should be used
 	// for all write operations performed by this transaction.
-	DurabilityLevel TransactionDurabilityLevel
+	DurabilityLevel DurabilityLevel
 
 	// BucketAgentProvider provides a function which returns an agent for
 	// a particular bucket by name.
