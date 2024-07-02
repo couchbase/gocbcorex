@@ -59,15 +59,6 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 		if resolvedConfig.BucketAgentProvider == nil {
 			resolvedConfig.BucketAgentProvider = defaultConfig.BucketAgentProvider
 		}
-		if resolvedConfig.Hooks == nil {
-			resolvedConfig.Hooks = &TransactionDefaultHooks{}
-		}
-		if resolvedConfig.CleanUpHooks == nil {
-			resolvedConfig.CleanUpHooks = &TransactionDefaultCleanupHooks{}
-		}
-		if resolvedConfig.ClientRecordHooks == nil {
-			resolvedConfig.ClientRecordHooks = &TransactionDefaultClientRecordHooks{}
-		}
 		if resolvedConfig.CleanupQueueSize == 0 {
 			resolvedConfig.CleanupQueueSize = 100000
 		}
@@ -127,7 +118,7 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 			bucketAgentProvider = perConfig.BucketAgentProvider
 		}
 		if perConfig.Hooks != nil {
-			hooks = perConfig.Hooks
+			hooks = *perConfig.Hooks
 		}
 		if perConfig.Logger != nil {
 			logger = perConfig.Logger

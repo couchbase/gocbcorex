@@ -41,161 +41,151 @@ type clientRecordDetails struct {
 }
 
 func (c *LostTransactionCleaner) createClientRecord(ctx context.Context) error {
-	err := c.clientRecordHooks.BeforeCreateRecord(ctx)
-	if err != nil {
+	return invokeNoResHook(ctx, c.clientRecordHooks.CreateRecord, func() error {
+		_, err := c.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			Key: clientRecordKey,
+			Ops: []memdx.MutateInOp{
+				{
+					Op:    memdx.MutateInOpTypeDictAdd,
+					Path:  []byte("records.clients"),
+					Value: []byte("{}"),
+					Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
+				},
+				{
+					Op:    memdx.MutateInOpTypeSetDoc,
+					Value: []byte{0},
+				},
+			},
+			Flags:          memdx.SubdocDocFlagAddDoc,
+			CollectionName: c.atrCollectionName,
+			ScopeName:      c.atrScopeName,
+			OnBehalfOf:     c.atrOboUser,
+		})
 		return err
-	}
-
-	_, err = c.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		Key: clientRecordKey,
-		Ops: []memdx.MutateInOp{
-			{
-				Op:    memdx.MutateInOpTypeDictAdd,
-				Path:  []byte("records.clients"),
-				Value: []byte("{}"),
-				Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
-			},
-			{
-				Op:    memdx.MutateInOpTypeSetDoc,
-				Value: []byte{0},
-			},
-		},
-		Flags:          memdx.SubdocDocFlagAddDoc,
-		CollectionName: c.atrCollectionName,
-		ScopeName:      c.atrScopeName,
-		OnBehalfOf:     c.atrOboUser,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clientRecordDetails, error) {
-	err := c.clientRecordHooks.BeforeGetRecord(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := c.atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
-		Key: clientRecordKey,
-		Ops: []memdx.LookupInOp{
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  []byte("records"),
-				Flags: memdx.SubdocOpFlagXattrPath,
+	return invokeHook(ctx, c.clientRecordHooks.GetRecord, func() (*clientRecordDetails, error) {
+		result, err := c.atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
+			Key: clientRecordKey,
+			Ops: []memdx.LookupInOp{
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  []byte("records"),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.LookupInOpTypeGet,
+					Path:  memdx.SubdocXattrPathHLC,
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
 			},
-			{
-				Op:    memdx.LookupInOpTypeGet,
-				Path:  memdx.SubdocXattrPathHLC,
-				Flags: memdx.SubdocOpFlagXattrPath,
-			},
-		},
-		CollectionName: c.atrCollectionName,
-		ScopeName:      c.atrScopeName,
-		OnBehalfOf:     c.atrOboUser,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	recordOp := result.Ops[0]
-	if recordOp.Err != nil {
-		return nil, recordOp.Err
-	}
-
-	hlcOp := result.Ops[1]
-	if hlcOp.Err != nil {
-		return nil, hlcOp.Err
-	}
-
-	var records jsonClientRecords
-	err = json.Unmarshal(recordOp.Value, &records)
-	if err != nil {
-		return nil, err
-	}
-
-	hlcNow, err := memdx.ParseHLCToTime(hlcOp.Value)
-	if err != nil {
-		return nil, err
-	}
-
-	var hasThisClient bool
-	var activeClientIds []string
-	var expiredClientIds []string
-
-	for clientUuid, client := range records.Clients {
-		if clientUuid == c.uuid {
-			// we don't check the heartbeat against ourselves
-			activeClientIds = append(activeClientIds, clientUuid)
-			hasThisClient = true
-			continue
-		}
-
-		heartbeatCas, err := memdx.ParseMacroCasToCas([]byte(client.HeartbeatCas))
+			CollectionName: c.atrCollectionName,
+			ScopeName:      c.atrScopeName,
+			OnBehalfOf:     c.atrOboUser,
+		})
 		if err != nil {
-			return nil, wrapError(err, "failed to parse client record heartbeat cas")
+			return nil, err
 		}
 
-		heartbeatTime, err := memdx.ParseCasToTime(heartbeatCas)
+		recordOp := result.Ops[0]
+		if recordOp.Err != nil {
+			return nil, recordOp.Err
+		}
+
+		hlcOp := result.Ops[1]
+		if hlcOp.Err != nil {
+			return nil, hlcOp.Err
+		}
+
+		var records jsonClientRecords
+		err = json.Unmarshal(recordOp.Value, &records)
 		if err != nil {
-			return nil, wrapError(err, "failed to parse client record heartbeat time")
+			return nil, err
 		}
 
-		heartbeatAge := hlcNow.Sub(heartbeatTime)
-		if heartbeatAge >= time.Duration(client.ExpiresMS)*time.Millisecond {
-			expiredClientIds = append(expiredClientIds, clientUuid)
-		} else {
-			activeClientIds = append(activeClientIds, clientUuid)
+		hlcNow, err := memdx.ParseHLCToTime(hlcOp.Value)
+		if err != nil {
+			return nil, err
 		}
-	}
 
-	// if our own client is missing, add it
-	if !hasThisClient {
-		activeClientIds = append(activeClientIds, c.uuid)
-	}
+		var hasThisClient bool
+		var activeClientIds []string
+		var expiredClientIds []string
 
-	// sort the active client ids by their uuid
-	sort.Strings(activeClientIds)
+		for clientUuid, client := range records.Clients {
+			if clientUuid == c.uuid {
+				// we don't check the heartbeat against ourselves
+				activeClientIds = append(activeClientIds, clientUuid)
+				hasThisClient = true
+				continue
+			}
 
-	thisClientIdx := -1
-	for clientIdx, clientUuid := range activeClientIds {
-		if clientUuid == c.uuid {
-			thisClientIdx = clientIdx
-		}
-	}
-	if thisClientIdx == -1 {
-		// this should never be possible, since we add it ourselves, but just in case...
-		return nil, errors.New("this client uuid was missing from the active ids list")
-	}
+			heartbeatCas, err := memdx.ParseMacroCasToCas([]byte(client.HeartbeatCas))
+			if err != nil {
+				return nil, wrapError(err, "failed to parse client record heartbeat cas")
+			}
 
-	var overrideActive bool
-	if records.Override != nil {
-		if records.Override.Enabled {
-			overrideExpiryTime := time.Unix(0, records.Override.ExpiresNanos)
-			if overrideExpiryTime.Before(hlcNow) {
-				overrideActive = true
+			heartbeatTime, err := memdx.ParseCasToTime(heartbeatCas)
+			if err != nil {
+				return nil, wrapError(err, "failed to parse client record heartbeat time")
+			}
+
+			heartbeatAge := hlcNow.Sub(heartbeatTime)
+			if heartbeatAge >= time.Duration(client.ExpiresMS)*time.Millisecond {
+				expiredClientIds = append(expiredClientIds, clientUuid)
+			} else {
+				activeClientIds = append(activeClientIds, clientUuid)
 			}
 		}
-	}
 
-	numActiveClients := len(activeClientIds)
-	numAtrs := c.numAtrs
+		// if our own client is missing, add it
+		if !hasThisClient {
+			activeClientIds = append(activeClientIds, c.uuid)
+		}
 
-	var atrsToHandle []string
-	allAtrs := AtrIDList[:numAtrs]
-	for atrIdx := 0; atrIdx < len(allAtrs); atrIdx += numActiveClients {
-		atrsToHandle = append(atrsToHandle, allAtrs[atrIdx])
-	}
+		// sort the active client ids by their uuid
+		sort.Strings(activeClientIds)
 
-	return &clientRecordDetails{
-		OverrideActive:    overrideActive,
-		IndexOfThisClient: thisClientIdx,
-		ActiveClientIds:   activeClientIds,
-		ExpiredClientIDs:  expiredClientIds,
-		ThisClientAtrs:    atrsToHandle,
-	}, nil
+		thisClientIdx := -1
+		for clientIdx, clientUuid := range activeClientIds {
+			if clientUuid == c.uuid {
+				thisClientIdx = clientIdx
+			}
+		}
+		if thisClientIdx == -1 {
+			// this should never be possible, since we add it ourselves, but just in case...
+			return nil, errors.New("this client uuid was missing from the active ids list")
+		}
+
+		var overrideActive bool
+		if records.Override != nil {
+			if records.Override.Enabled {
+				overrideExpiryTime := time.Unix(0, records.Override.ExpiresNanos)
+				if overrideExpiryTime.Before(hlcNow) {
+					overrideActive = true
+				}
+			}
+		}
+
+		numActiveClients := len(activeClientIds)
+		numAtrs := c.numAtrs
+
+		var atrsToHandle []string
+		allAtrs := AtrIDList[:numAtrs]
+		for atrIdx := 0; atrIdx < len(allAtrs); atrIdx += numActiveClients {
+			atrsToHandle = append(atrsToHandle, allAtrs[atrIdx])
+		}
+
+		return &clientRecordDetails{
+			OverrideActive:    overrideActive,
+			IndexOfThisClient: thisClientIdx,
+			ActiveClientIds:   activeClientIds,
+			ExpiredClientIDs:  expiredClientIds,
+			ThisClientAtrs:    atrsToHandle,
+		}, nil
+	})
 }
 
 func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientUuidsToRemove []string) ([]string, error) {
@@ -205,66 +195,63 @@ func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientU
 		zap.String("scope", c.atrScopeName),
 		zap.String("collection", c.atrCollectionName))
 
-	err := c.clientRecordHooks.BeforeUpdateRecord(ctx)
-	if err != nil {
-		return nil, err
-	}
+	return invokeHook(ctx, c.clientRecordHooks.UpdateRecord, func() ([]string, error) {
+		clientExpiryMs := (c.cleanupWindow + 20000*time.Millisecond).Milliseconds()
 
-	clientExpiryMs := (c.cleanupWindow + 20000*time.Millisecond).Milliseconds()
-
-	var ops []memdx.MutateInOp
-	ops = append(ops, memdx.MutateInOp{
-		Op:    memdx.MutateInOpTypeDictSet,
-		Path:  []byte(fmt.Sprintf("records.clients.%s.heartbeat_ms", c.uuid)),
-		Value: memdx.SubdocMacroNewCas,
-		Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP | memdx.SubdocOpFlagExpandMacros,
-	})
-	ops = append(ops, memdx.MutateInOp{
-		Op:    memdx.MutateInOpTypeDictSet,
-		Path:  []byte(fmt.Sprintf("records.clients.%s.expires_ms", c.uuid)),
-		Value: []byte(fmt.Sprintf("%d", clientExpiryMs)),
-		Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
-	})
-	ops = append(ops, memdx.MutateInOp{
-		Op:    memdx.MutateInOpTypeDictSet,
-		Path:  []byte(fmt.Sprintf("records.clients.%s.num_atrs", c.uuid)),
-		Value: []byte(fmt.Sprintf("%d", c.numAtrs)),
-		Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
-	})
-	ops = append(ops, memdx.MutateInOp{
-		Op:    memdx.MutateInOpTypeSetDoc,
-		Value: []byte{0},
-	})
-
-	// fill up our remaining operations with expired client removals
-	var removedClientUuids []string
-	for _, clientUuid := range clientUuidsToRemove {
-		if len(ops) >= 16 {
-			// once we have 16 ops, we can't add anymore
-			break
-		}
-
+		var ops []memdx.MutateInOp
 		ops = append(ops, memdx.MutateInOp{
-			Op:    memdx.MutateInOpTypeDelete,
-			Path:  []byte(fmt.Sprintf("records.clients.%s", clientUuid)),
-			Flags: memdx.SubdocOpFlagXattrPath,
+			Op:    memdx.MutateInOpTypeDictSet,
+			Path:  []byte(fmt.Sprintf("records.clients.%s.heartbeat_ms", c.uuid)),
+			Value: memdx.SubdocMacroNewCas,
+			Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP | memdx.SubdocOpFlagExpandMacros,
+		})
+		ops = append(ops, memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeDictSet,
+			Path:  []byte(fmt.Sprintf("records.clients.%s.expires_ms", c.uuid)),
+			Value: []byte(fmt.Sprintf("%d", clientExpiryMs)),
+			Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
+		})
+		ops = append(ops, memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeDictSet,
+			Path:  []byte(fmt.Sprintf("records.clients.%s.num_atrs", c.uuid)),
+			Value: []byte(fmt.Sprintf("%d", c.numAtrs)),
+			Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
+		})
+		ops = append(ops, memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeSetDoc,
+			Value: []byte{0},
 		})
 
-		removedClientUuids = append(removedClientUuids, clientUuid)
-	}
+		// fill up our remaining operations with expired client removals
+		var removedClientUuids []string
+		for _, clientUuid := range clientUuidsToRemove {
+			if len(ops) >= 16 {
+				// once we have 16 ops, we can't add anymore
+				break
+			}
 
-	_, err = c.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
-		Key:            clientRecordKey,
-		Ops:            ops,
-		CollectionName: c.atrCollectionName,
-		ScopeName:      c.atrScopeName,
-		OnBehalfOf:     c.atrOboUser,
+			ops = append(ops, memdx.MutateInOp{
+				Op:    memdx.MutateInOpTypeDelete,
+				Path:  []byte(fmt.Sprintf("records.clients.%s", clientUuid)),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			})
+
+			removedClientUuids = append(removedClientUuids, clientUuid)
+		}
+
+		_, err := c.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			Key:            clientRecordKey,
+			Ops:            ops,
+			CollectionName: c.atrCollectionName,
+			ScopeName:      c.atrScopeName,
+			OnBehalfOf:     c.atrOboUser,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return removedClientUuids, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return removedClientUuids, nil
 }
 
 func (c *LostTransactionCleaner) processClient(ctx context.Context) ([]string, error) {
