@@ -197,7 +197,7 @@ func (t *TransactionAttempt) commitStagedMutation(
 	case StagedMutationReplace:
 		return t.commitStagedReplace(ctx, *mutation, false, false)
 	case StagedMutationRemove:
-		return t.commitStagedRemove(ctx, *mutation, false)
+		return t.commitStagedRemove(ctx, *mutation)
 	default:
 		return t.operationFailed(operationFailedDef{
 			Cerr: classifyError(
@@ -563,7 +563,6 @@ func (t *TransactionAttempt) commitStagedInsert(
 func (t *TransactionAttempt) commitStagedRemove(
 	ctx context.Context,
 	mutation stagedMutation,
-	ambiguityResolution bool,
 ) *transactionOperationStatus {
 	ecCb := func(cerr *classifiedError) *transactionOperationStatus {
 		if cerr == nil {
@@ -584,8 +583,7 @@ func (t *TransactionAttempt) commitStagedRemove(
 		case TransactionErrorClassFailAmbiguous:
 			select {
 			case <-time.After(3 * time.Millisecond):
-				ambiguityResolution = true
-				return t.commitStagedRemove(ctx, mutation, ambiguityResolution)
+				return t.commitStagedRemove(ctx, mutation)
 			case <-ctx.Done():
 				return t.contextFailed(ctx.Err())
 			}
@@ -603,7 +601,7 @@ func (t *TransactionAttempt) commitStagedRemove(
 			t.setExpiryOvertimeAtomic()
 			select {
 			case <-time.After(3 * time.Millisecond):
-				return t.commitStagedRemove(ctx, mutation, ambiguityResolution)
+				return t.commitStagedRemove(ctx, mutation)
 			case <-ctx.Done():
 				return t.contextFailed(ctx.Err())
 			}
