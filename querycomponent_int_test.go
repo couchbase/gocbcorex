@@ -514,3 +514,40 @@ func TestQueryMgmtDeferredIndex(t *testing.T) {
 		return false
 	}, 30*time.Second, 500*time.Millisecond)
 }
+
+// TestQueryNodePinning tests that the same node is used for multiple queries when the endpoint is pinned.
+// We do this by performing one query to get an endpoint ID, then do another 10 queries and ensure that the
+// same endpoint keeps being used.
+func TestQueryNodePinning(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	res, err := agent.Query(ctx, &gocbcorex.QueryOptions{
+		Statement: "SELECT 1=1",
+		Endpoint:  "",
+	})
+	require.NoError(t, err)
+
+	firstEndpoint := res.Endpoint()
+	require.NotEmpty(t, firstEndpoint)
+	require.Regexp(t, `^quep-(.*)`, firstEndpoint)
+
+	for i := 0; i < 10; i++ {
+		res, err := agent.Query(ctx, &gocbcorex.QueryOptions{
+			Statement: "SELECT 1=1",
+			Endpoint:  firstEndpoint,
+		})
+		require.NoError(t, err)
+
+		endpoint := res.Endpoint()
+		require.Equal(t, firstEndpoint, endpoint)
+	}
+}
