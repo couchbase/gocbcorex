@@ -39,11 +39,11 @@ const (
 type DurabilityLevel string
 
 const (
-	DurabilityLevelUnset                    DurabilityLevel = ""
-	DurabilityLevelNone                     DurabilityLevel = "none"
-	DurabilityLevelMajority                 DurabilityLevel = "majority"
-	DurabilityLevelMajorityAndPersistActive DurabilityLevel = "majorityAndPersistActive"
-	DurabilityLevelPersistToMajority        DurabilityLevel = "persistToMajority"
+	DurabilityLevelUnset                      DurabilityLevel = ""
+	DurabilityLevelNone                       DurabilityLevel = "none"
+	DurabilityLevelMajority                   DurabilityLevel = "majority"
+	DurabilityLevelMajorityAndPersistToActive DurabilityLevel = "majorityAndPersistActive"
+	DurabilityLevelPersistToMajority          DurabilityLevel = "persistToMajority"
 )
 
 type Encoding string
