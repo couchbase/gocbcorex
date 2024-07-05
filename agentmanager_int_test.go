@@ -7,6 +7,7 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/cbqueryx"
 
 	"github.com/stretchr/testify/assert"
 
@@ -66,7 +67,9 @@ func TestOnDemandAgentManagerClose(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = agent.Query(context.Background(), &gocbcorex.QueryOptions{
-		Statement: "SELECT 1=1",
+		QueryOptions: cbqueryx.QueryOptions{
+			Statement: "SELECT 1=1",
+		},
 	})
 	require.NoError(t, err)
 
@@ -101,7 +104,9 @@ func TestBucketsTrackingAgentManagerClose(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = agent.Query(context.Background(), &gocbcorex.QueryOptions{
-		Statement: "SELECT 1=1",
+		QueryOptions: cbqueryx.QueryOptions{
+			Statement: "SELECT 1=1",
+		},
 	})
 	require.NoError(t, err)
 

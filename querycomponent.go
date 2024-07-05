@@ -11,8 +11,16 @@ import (
 	"go.uber.org/zap"
 )
 
-type QueryOptions = cbqueryx.QueryOptions
-type QueryResultStream = cbqueryx.ResultStream
+type QueryOptions struct {
+	cbqueryx.QueryOptions
+	Endpoint string
+}
+
+type QueryResultStream interface {
+	cbqueryx.ResultStream
+	Endpoint() string
+}
+
 type PreparedStatementCache = cbqueryx.PreparedStatementCache
 
 type QueryComponent struct {
@@ -37,9 +45,20 @@ type QueryComponentOptions struct {
 func OrchestrateQueryEndpoint[RespT any](
 	ctx context.Context,
 	w *QueryComponent,
-	fn func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error),
+	endpointId string,
+	fn func(roundTripper http.RoundTripper, endpointId, endpoint, username, password string) (RespT, error),
 ) (RespT, error) {
-	roundTripper, _, endpoint, username, password, err := w.SelectEndpoint(nil)
+	if endpointId != "" {
+		roundTripper, endpoint, username, password, err := w.SelectSpecificEndpoint(endpointId)
+		if err != nil {
+			var emptyResp RespT
+			return emptyResp, err
+		}
+
+		return fn(roundTripper, endpointId, endpoint, username, password)
+	}
+
+	roundTripper, endpointId, endpoint, username, password, err := w.SelectEndpoint(nil)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
@@ -50,7 +69,7 @@ func OrchestrateQueryEndpoint[RespT any](
 		return emptyResp, serviceNotAvailableError{Service: ServiceTypeQuery}
 	}
 
-	return fn(roundTripper, endpoint, username, password)
+	return fn(roundTripper, endpointId, endpoint, username, password)
 }
 
 func OrchestrateQueryMgmtCall[OptsT any, RespT any](
@@ -60,8 +79,8 @@ func OrchestrateQueryMgmtCall[OptsT any, RespT any](
 	opts OptsT,
 ) (RespT, error) {
 	return OrchestrateRetries(ctx, w.retries, func() (RespT, error) {
-		return OrchestrateQueryEndpoint(ctx, w,
-			func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error) {
+		return OrchestrateQueryEndpoint(ctx, w, "",
+			func(roundTripper http.RoundTripper, _, endpoint, username, password string) (RespT, error) {
 				return execFn(cbqueryx.Query{
 					Logger:    w.logger,
 					UserAgent: w.userAgent,
@@ -81,8 +100,8 @@ func OrchestrateNoResQueryMgmtCall[OptsT any](
 	opts OptsT,
 ) error {
 	return OrchestrateNoResponseRetries(ctx, w.retries, func() error {
-		_, err := OrchestrateQueryEndpoint(ctx, w,
-			func(roundTripper http.RoundTripper, endpoint, username, password string) (interface{}, error) {
+		_, err := OrchestrateQueryEndpoint(ctx, w, "",
+			func(roundTripper http.RoundTripper, _, endpoint, username, password string) (interface{}, error) {
 				return nil, execFn(cbqueryx.Query{
 					Logger:    w.logger,
 					UserAgent: w.userAgent,
@@ -122,27 +141,44 @@ func (w *QueryComponent) Reconfigure(config *QueryComponentConfig) error {
 	return nil
 }
 
+type queryResultStream struct {
+	cbqueryx.ResultStream
+	endpoint string
+}
+
+func (s *queryResultStream) Endpoint() string {
+	return s.endpoint
+}
+
 func (w *QueryComponent) Query(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
 	return OrchestrateRetries(ctx, w.retries, func() (QueryResultStream, error) {
-		return OrchestrateQueryEndpoint(ctx, w,
-			func(roundTripper http.RoundTripper, endpoint, username, password string) (QueryResultStream, error) {
-				return cbqueryx.Query{
+		return OrchestrateQueryEndpoint(ctx, w, opts.Endpoint,
+			func(roundTripper http.RoundTripper, endpointId, endpoint, username, password string) (QueryResultStream, error) {
+				res, err := cbqueryx.Query{
 					Logger:    w.logger,
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
 					Username:  username,
 					Password:  password,
-				}.Query(ctx, opts)
+				}.Query(ctx, &opts.QueryOptions)
+				if err != nil {
+					return nil, err
+				}
+
+				return &queryResultStream{
+					ResultStream: res,
+					endpoint:     endpointId,
+				}, nil
 			})
 	})
 }
 
 func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) (QueryResultStream, error) {
 	return OrchestrateRetries(ctx, w.retries, func() (QueryResultStream, error) {
-		return OrchestrateQueryEndpoint(ctx, w,
-			func(roundTripper http.RoundTripper, endpoint, username, password string) (QueryResultStream, error) {
-				return cbqueryx.PreparedQuery{
+		return OrchestrateQueryEndpoint(ctx, w, opts.Endpoint,
+			func(roundTripper http.RoundTripper, endpointId, endpoint, username, password string) (QueryResultStream, error) {
+				res, err := cbqueryx.PreparedQuery{
 					Executor: cbqueryx.Query{
 						Logger:    w.logger,
 						UserAgent: w.userAgent,
@@ -152,7 +188,15 @@ func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) 
 						Password:  password,
 					},
 					Cache: w.preparedCache,
-				}.PreparedQuery(ctx, opts)
+				}.PreparedQuery(ctx, &opts.QueryOptions)
+				if err != nil {
+					return nil, err
+				}
+
+				return &queryResultStream{
+					ResultStream: res,
+					endpoint:     endpointId,
+				}, nil
 			})
 	})
 }
