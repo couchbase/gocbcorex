@@ -10,6 +10,7 @@ import (
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/cbqueryx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
+	"golang.org/x/exp/slices"
 )
 
 type baseHttpComponent struct {
@@ -22,14 +23,15 @@ type baseHttpComponent struct {
 
 type baseHttpComponentState struct {
 	httpRoundTripper http.RoundTripper
-	endpoints        []string
+	endpoints        map[string]string
 	authenticator    Authenticator
 }
 
 type baseHttpTarget struct {
-	Endpoint string
-	Username string
-	Password string
+	EndpointId string
+	Endpoint   string
+	Username   string
+	Password   string
 }
 
 func (c *baseHttpComponent) updateState(newState baseHttpComponentState) {
@@ -38,16 +40,21 @@ func (c *baseHttpComponent) updateState(newState baseHttpComponentState) {
 	c.lock.Unlock()
 }
 
-func (c *baseHttpComponent) GetAllTargets(ignoredEndpoints []string) (http.RoundTripper, []baseHttpTarget, error) {
+func (c *baseHttpComponent) GetAllTargets(endpointIdsToIgnore []string) (http.RoundTripper, []baseHttpTarget, error) {
 	c.lock.RLock()
 	state := *c.state
 	c.lock.RUnlock()
 
 	// remove all the endpoints we've already tried
-	remainingEndpoints := filterStringsOut(state.endpoints, ignoredEndpoints)
+	remainingEndpoints := make(map[string]string, len(state.endpoints))
+	for epId, endpoint := range state.endpoints {
+		if !slices.Contains(endpointIdsToIgnore, epId) {
+			remainingEndpoints[epId] = endpoint
+		}
+	}
 
-	targets := make([]baseHttpTarget, len(remainingEndpoints))
-	for endpointIdx, endpoint := range remainingEndpoints {
+	targets := make([]baseHttpTarget, 0, len(remainingEndpoints))
+	for epId, endpoint := range remainingEndpoints {
 		host, err := getHostFromUri(endpoint)
 		if err != nil {
 			return nil, []baseHttpTarget{}, err
@@ -58,48 +65,58 @@ func (c *baseHttpComponent) GetAllTargets(ignoredEndpoints []string) (http.Round
 			return nil, []baseHttpTarget{}, err
 		}
 
-		targets[endpointIdx] = baseHttpTarget{
-			Endpoint: endpoint,
-			Username: username,
-			Password: password,
-		}
+		targets = append(targets, baseHttpTarget{
+			EndpointId: epId,
+			Endpoint:   endpoint,
+			Username:   username,
+			Password:   password,
+		})
 	}
 
 	return state.httpRoundTripper, targets, nil
 }
 
-func (c *baseHttpComponent) SelectEndpoint(ignoredEndpoints []string) (http.RoundTripper, string, string, string, error) {
+func (c *baseHttpComponent) SelectEndpoint(endpointIdsToIgnore []string) (http.RoundTripper, string, string, string, string, error) {
 	c.lock.RLock()
 	state := *c.state
 	c.lock.RUnlock()
 
 	// if there are no endpoints to query, we can't proceed
 	if len(state.endpoints) == 0 {
-		return nil, "", "", "", nil
+		return nil, "", "", "", "", nil
 	}
 
 	// remove all the endpoints we've already tried
-	remainingEndpoints := filterStringsOut(state.endpoints, ignoredEndpoints)
+	remainingEndpoints := make(map[string]string, len(state.endpoints))
+	endpointIds := make([]string, 0, len(state.endpoints))
+	for epId, endpoint := range state.endpoints {
+		if !slices.Contains(endpointIdsToIgnore, epId) {
+			remainingEndpoints[epId] = endpoint
+			endpointIds = append(endpointIds, epId)
+		}
+	}
 
 	// if there are no more endpoints to try, we can't proceed
 	if len(remainingEndpoints) == 0 {
-		return nil, "", "", "", nil
+		return nil, "", "", "", "", nil
 	}
 
 	// pick a random endpoint to attempt
-	endpoint := remainingEndpoints[rand.Intn(len(remainingEndpoints))]
+	endpointIdx := rand.Intn(len(remainingEndpoints))
+	endpointId := endpointIds[endpointIdx]
+	endpoint := remainingEndpoints[endpointId]
 
 	host, err := getHostFromUri(endpoint)
 	if err != nil {
-		return nil, "", "", "", err
+		return nil, "", "", "", "", err
 	}
 
 	username, password, err := state.authenticator.GetCredentials(c.serviceType, host)
 	if err != nil {
-		return nil, "", "", "", err
+		return nil, "", "", "", "", err
 	}
 
-	return state.httpRoundTripper, endpoint, username, password, nil
+	return state.httpRoundTripper, endpointId, endpoint, username, password, nil
 }
 
 type baseHttpTargets []baseHttpTarget

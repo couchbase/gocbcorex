@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -191,17 +192,16 @@ func (m *BucketsTrackingAgentManager) startWatchers() {
 }
 
 func (m *BucketsTrackingAgentManager) mgmtEndpointsLocked(cfg *ParsedConfig) []string {
-	bootstrapHosts := cfg.AddressesGroupForNetworkType(m.networkType)
+	netInfo := cfg.AddressesGroupForNetworkType(m.networkType)
 
 	var mgmtEndpoints []string
 	tlsConfig := m.state.tlsConfig
-	if tlsConfig == nil {
-		for _, host := range bootstrapHosts.NonSSL.Mgmt {
-			mgmtEndpoints = append(mgmtEndpoints, "http://"+host)
-		}
-	} else {
-		for _, host := range bootstrapHosts.SSL.Mgmt {
-			mgmtEndpoints = append(mgmtEndpoints, "https://"+host)
+
+	for _, node := range netInfo.Nodes {
+		if tlsConfig == nil {
+			mgmtEndpoints = append(mgmtEndpoints, fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Mgmt))
+		} else {
+			mgmtEndpoints = append(mgmtEndpoints, fmt.Sprintf("http://%s:%d", node.Hostname, node.SSLPorts.Mgmt))
 		}
 	}
 
@@ -246,18 +246,26 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 	defer m.stateLock.Unlock()
 
 	cfg := m.state.latestConfig.Load()
-	bootstrapHosts := cfg.AddressesGroupForNetworkType(m.networkType)
+	netInfo := cfg.AddressesGroupForNetworkType(m.networkType)
 
 	var kvDataHosts []string
 	var mgmtEndpoints []string
 
 	tlsConfig := m.state.tlsConfig
-	if tlsConfig == nil {
-		kvDataHosts = bootstrapHosts.NonSSL.KvData
-		mgmtEndpoints = bootstrapHosts.NonSSL.Mgmt
-	} else {
-		kvDataHosts = bootstrapHosts.SSL.KvData
-		mgmtEndpoints = bootstrapHosts.SSL.Mgmt
+	for _, node := range netInfo.Nodes {
+		if tlsConfig == nil {
+			if node.HasData {
+				kvDataHosts = append(kvDataHosts, fmt.Sprintf("%s:%d", node.Hostname, node.NonSSLPorts.Kv))
+			}
+
+			mgmtEndpoints = append(mgmtEndpoints, fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Mgmt))
+		} else {
+			if node.HasData {
+				kvDataHosts = append(kvDataHosts, fmt.Sprintf("%s:%d", node.Hostname, node.SSLPorts.Kv))
+			}
+
+			mgmtEndpoints = append(mgmtEndpoints, fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Mgmt))
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, m.createAgentTimeout)

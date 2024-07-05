@@ -21,7 +21,7 @@ func newSearchIndexName() string {
 	return indexName
 }
 
-func getSearchEndpoints(t *testing.T) []string {
+func getSearchEndpoints(t *testing.T) map[string]string {
 	config, err := cbmgmtx.Management{
 		Transport: http.DefaultTransport,
 		UserAgent: "useragent",
@@ -33,10 +33,11 @@ func getSearchEndpoints(t *testing.T) []string {
 	})
 	require.NoError(t, err)
 
-	var endpoints []string
-	for _, nodeExt := range config.NodesExt {
+	endpoints := make(map[string]string)
+	for nodeIdx, nodeExt := range config.NodesExt {
 		if nodeExt.Services.Fts > 0 {
-			endpoints = append(endpoints, fmt.Sprintf("http://%s:%d", nodeExt.Hostname, nodeExt.Services.Fts))
+			epId := fmt.Sprintf("ep-%d", nodeIdx)
+			endpoints[epId] = fmt.Sprintf("http://%s:%d", nodeExt.Hostname, nodeExt.Services.Fts)
 		}
 	}
 
