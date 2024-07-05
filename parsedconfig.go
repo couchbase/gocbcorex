@@ -1,5 +1,7 @@
 package gocbcorex
 
+import "fmt"
+
 type BucketType int
 
 const (
@@ -9,19 +11,25 @@ const (
 	bktTypeMemcached
 )
 
-type ParsedConfigServiceAddresses struct {
-	Kv        []string
-	KvData    []string
-	Mgmt      []string
-	Views     []string
-	Query     []string
-	Search    []string
-	Analytics []string
+type ParsedConfigServicePorts struct {
+	Kv        int
+	Mgmt      int
+	Views     int
+	Query     int
+	Search    int
+	Analytics int
 }
 
 type ParsedConfigAddresses struct {
-	NonSSL ParsedConfigServiceAddresses
-	SSL    ParsedConfigServiceAddresses
+	Hostname    string
+	NonSSLPorts ParsedConfigServicePorts
+	SSLPorts    ParsedConfigServicePorts
+}
+
+type ParsedConfigNode struct {
+	HasData      bool
+	Addresses    ParsedConfigAddresses
+	AltAddresses map[string]ParsedConfigAddresses
 }
 
 type ParsedConfigFeatures struct {
@@ -37,8 +45,7 @@ type ParsedConfig struct {
 	BucketType BucketType
 	VbucketMap *VbucketMap
 
-	Addresses          *ParsedConfigAddresses
-	AlternateAddresses map[string]*ParsedConfigAddresses
+	Nodes []ParsedConfigNode
 
 	Features ParsedConfigFeatures
 }
@@ -67,16 +74,46 @@ func (config *ParsedConfig) Compare(oconfig *ParsedConfig) int {
 	return 0
 }
 
-func (config *ParsedConfig) AddressesGroupForNetworkType(networkType string) *ParsedConfigAddresses {
-	if networkType == "default" {
-		return config.Addresses
+type NetworkConfigNode struct {
+	NodeID      string
+	Hostname    string
+	HasData     bool
+	NonSSLPorts ParsedConfigServicePorts
+	SSLPorts    ParsedConfigServicePorts
+}
+
+type NetworkConfig struct {
+	Nodes []NetworkConfigNode
+}
+
+func (config *ParsedConfig) AddressesGroupForNetworkType(networkType string) *NetworkConfig {
+	nodes := make([]NetworkConfigNode, 0, len(config.Nodes))
+
+	for _, node := range config.Nodes {
+		nodeInfo := NetworkConfigNode{
+			NodeID:  fmt.Sprintf("ep-%s-%d", node.Addresses.Hostname, node.Addresses.NonSSLPorts.Mgmt),
+			HasData: node.HasData,
+		}
+
+		if networkType == "default" {
+			nodeInfo.Hostname = node.Addresses.Hostname
+			nodeInfo.NonSSLPorts = node.Addresses.NonSSLPorts
+			nodeInfo.SSLPorts = node.Addresses.SSLPorts
+		} else {
+			if altInfo, ok := node.AltAddresses[networkType]; ok {
+				nodeInfo.Hostname = altInfo.Hostname
+				nodeInfo.NonSSLPorts = altInfo.NonSSLPorts
+				nodeInfo.SSLPorts = altInfo.SSLPorts
+			} else {
+				// explicitly indicate these fields will be blank
+				nodeInfo.Hostname = ""
+				nodeInfo.NonSSLPorts = ParsedConfigServicePorts{}
+				nodeInfo.SSLPorts = ParsedConfigServicePorts{}
+			}
+		}
+
+		nodes = append(nodes, nodeInfo)
 	}
 
-	addresses, ok := config.AlternateAddresses[networkType]
-	if !ok {
-		// if this network type does not exist, we return a blank list of endpoints
-		return &ParsedConfigAddresses{}
-	}
-
-	return addresses
+	return &NetworkConfig{Nodes: nodes}
 }

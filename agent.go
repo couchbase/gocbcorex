@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -312,52 +311,64 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 	clientName := fmt.Sprintf("gocbcorex/%s", buildVersion)
 
 	latestConfig := agent.state.latestConfig
-	bootstrapHosts := latestConfig.AddressesGroupForNetworkType(agent.networkType)
+	netInfo := latestConfig.AddressesGroupForNetworkType(agent.networkType)
 
-	var kvDataHosts []string
-	var mgmtEndpoints []string
-	var queryEndpoints []string
-	var searchEndpoints []string
-	var analyticsEndpoints []string
+	kvDataNodeIds := make([]string, 0, len(netInfo.Nodes))
+	kvDataHosts := make(map[string]string, len(netInfo.Nodes))
+	mgmtEndpoints := make(map[string]string, len(netInfo.Nodes))
+	queryEndpoints := make(map[string]string, len(netInfo.Nodes))
+	searchEndpoints := make(map[string]string, len(netInfo.Nodes))
+	analyticsEndpoints := make(map[string]string, len(netInfo.Nodes))
 
 	tlsConfig := agent.state.tlsConfig
-	if tlsConfig == nil {
-		kvDataHosts = bootstrapHosts.NonSSL.KvData
-		for _, host := range bootstrapHosts.NonSSL.Mgmt {
-			mgmtEndpoints = append(mgmtEndpoints, "http://"+host)
+	for _, node := range netInfo.Nodes {
+		kvEpId := "kv" + node.NodeID
+		mgmtEpId := "mg" + node.NodeID
+		queryEpId := "qu" + node.NodeID
+		searchEpId := "se" + node.NodeID
+		analyticsEpId := "an" + node.NodeID
+
+		if node.HasData {
+			kvDataNodeIds = append(kvDataNodeIds, kvEpId)
 		}
-		for _, host := range bootstrapHosts.NonSSL.Query {
-			queryEndpoints = append(queryEndpoints, "http://"+host)
+
+		if tlsConfig == nil {
+			if node.NonSSLPorts.Kv > 0 {
+				kvDataHosts[kvEpId] = fmt.Sprintf("%s:%d", node.Hostname, node.NonSSLPorts.Kv)
+			}
+			if node.NonSSLPorts.Mgmt > 0 {
+				mgmtEndpoints[mgmtEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Mgmt)
+			}
+			if node.NonSSLPorts.Query > 0 {
+				queryEndpoints[queryEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Query)
+			}
+			if node.NonSSLPorts.Search > 0 {
+				searchEndpoints[searchEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Search)
+			}
+			if node.NonSSLPorts.Analytics > 0 {
+				analyticsEndpoints[analyticsEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Analytics)
+			}
+		} else {
+			if node.SSLPorts.Kv > 0 {
+				kvDataHosts[kvEpId] = fmt.Sprintf("%s:%d", node.Hostname, node.SSLPorts.Kv)
+			}
+			if node.SSLPorts.Mgmt > 0 {
+				mgmtEndpoints[mgmtEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Mgmt)
+			}
+			if node.SSLPorts.Query > 0 {
+				queryEndpoints[queryEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Query)
+			}
+			if node.SSLPorts.Search > 0 {
+				searchEndpoints[searchEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Search)
+			}
+			if node.SSLPorts.Analytics > 0 {
+				analyticsEndpoints[analyticsEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Analytics)
+			}
 		}
-		for _, host := range bootstrapHosts.NonSSL.Search {
-			searchEndpoints = append(searchEndpoints, "http://"+host)
-		}
-		for _, host := range bootstrapHosts.NonSSL.Analytics {
-			analyticsEndpoints = append(analyticsEndpoints, "http://"+host)
-		}
-	} else {
-		kvDataHosts = bootstrapHosts.SSL.KvData
-		for _, host := range bootstrapHosts.SSL.Mgmt {
-			mgmtEndpoints = append(mgmtEndpoints, "https://"+host)
-		}
-		for _, host := range bootstrapHosts.SSL.Query {
-			queryEndpoints = append(queryEndpoints, "https://"+host)
-		}
-		for _, host := range bootstrapHosts.SSL.Search {
-			searchEndpoints = append(searchEndpoints, "https://"+host)
-		}
-		for _, host := range bootstrapHosts.SSL.Analytics {
-			analyticsEndpoints = append(analyticsEndpoints, "https://"+host)
-		}
-	}
-	kvDataNodeIds := make([]string, len(bootstrapHosts.NonSSL.KvData))
-	for i, hostPort := range bootstrapHosts.NonSSL.KvData {
-		kvDataNodeIds[i] = "ep-" + strings.Replace(hostPort, ":", "-", -1)
 	}
 
 	clients := make(map[string]*KvClientConfig)
-	for addrIdx, addr := range kvDataHosts {
-		nodeId := kvDataNodeIds[addrIdx]
+	for nodeId, addr := range kvDataHosts {
 		clients[nodeId] = &KvClientConfig{
 			Address:        addr,
 			TlsConfig:      tlsConfig,
@@ -367,10 +378,15 @@ func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
 		}
 	}
 
+	mgmtEndpointsList := make([]string, 0, len(mgmtEndpoints))
+	for _, ep := range mgmtEndpoints {
+		mgmtEndpointsList = append(mgmtEndpointsList, ep)
+	}
+
 	return &agentComponentConfigs{
 		ConfigWatcherHttpConfig: ConfigWatcherHttpConfig{
 			HttpRoundTripper: agent.state.httpTransport,
-			Endpoints:        mgmtEndpoints,
+			Endpoints:        mgmtEndpointsList,
 			UserAgent:        clientName,
 			Authenticator:    agent.state.authenticator,
 			BucketName:       agent.state.bucket,

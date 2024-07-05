@@ -2,7 +2,6 @@ package gocbcorex
 
 import (
 	"encoding/json"
-	"log"
 	"testing"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
@@ -38,27 +37,135 @@ func TestConfigParserAltAddresses(t *testing.T) {
 	assert.Equal(t, cfg.BucketType, bktTypeCouchbase)
 	assert.NotNil(t, cfg.VbucketMap)
 
-	assert.NotNil(t, cfg.Addresses)
-	assert.ElementsMatch(t, cfg.Addresses.NonSSL.Kv,
-		[]string{"172.17.0.2:11210", "172.17.0.3:11210", "172.17.0.4:11210"})
-	assert.ElementsMatch(t, cfg.Addresses.SSL.Kv,
-		[]string{"172.17.0.2:11207", "172.17.0.3:11207", "172.17.0.4:11207"})
-	assert.ElementsMatch(t, cfg.Addresses.NonSSL.KvData,
-		[]string{"172.17.0.2:11210", "172.17.0.3:11210", "172.17.0.4:11210"})
-	assert.ElementsMatch(t, cfg.Addresses.SSL.KvData,
-		[]string{"172.17.0.2:11207", "172.17.0.3:11207", "172.17.0.4:11207"})
-
-	assert.Len(t, cfg.AlternateAddresses, 1)
-	assert.NotNil(t, cfg.AlternateAddresses["external"])
-	assert.ElementsMatch(t, cfg.AlternateAddresses["external"].NonSSL.Kv,
-		[]string{"192.168.132.234:32775", "192.168.132.234:32799", "192.168.132.234:32823"})
-	assert.ElementsMatch(t, cfg.AlternateAddresses["external"].SSL.KvData,
-		[]string{"192.168.132.234:32776", "192.168.132.234:32800", "192.168.132.234:32824"})
-	assert.ElementsMatch(t, cfg.AlternateAddresses["external"].NonSSL.KvData,
-		[]string{"192.168.132.234:32775", "192.168.132.234:32799", "192.168.132.234:32823"})
-	assert.ElementsMatch(t, cfg.AlternateAddresses["external"].SSL.KvData,
-		[]string{"192.168.132.234:32776", "192.168.132.234:32800", "192.168.132.234:32824"})
-
-	log.Printf("Addresses: %+v", cfg.Addresses)
-	log.Printf("AltAddresses: %+v", cfg.AlternateAddresses["external"])
+	assert.ElementsMatch(t, cfg.Nodes, []ParsedConfigNode{
+		{
+			HasData: true,
+			Addresses: ParsedConfigAddresses{
+				Hostname: "172.17.0.2",
+				NonSSLPorts: ParsedConfigServicePorts{
+					Kv:        11210,
+					Mgmt:      8091,
+					Views:     8092,
+					Query:     8093,
+					Search:    8094,
+					Analytics: 0,
+				},
+				SSLPorts: ParsedConfigServicePorts{
+					Kv:        11207,
+					Mgmt:      18091,
+					Views:     18092,
+					Query:     18093,
+					Search:    18094,
+					Analytics: 0,
+				},
+			},
+			AltAddresses: map[string]ParsedConfigAddresses{
+				"external": {
+					Hostname: "192.168.132.234",
+					NonSSLPorts: ParsedConfigServicePorts{
+						Kv:        32775,
+						Mgmt:      32790,
+						Views:     32789,
+						Query:     32788,
+						Search:    32787,
+						Analytics: 0,
+					},
+					SSLPorts: ParsedConfigServicePorts{
+						Kv:        32776,
+						Mgmt:      32773,
+						Views:     32772,
+						Query:     32771,
+						Search:    32770,
+						Analytics: 0,
+					},
+				},
+			},
+		},
+		{
+			HasData: true,
+			Addresses: ParsedConfigAddresses{
+				Hostname: "172.17.0.3",
+				NonSSLPorts: ParsedConfigServicePorts{
+					Kv:        11210,
+					Mgmt:      8091,
+					Views:     8092,
+					Query:     8093,
+					Search:    8094,
+					Analytics: 0,
+				},
+				SSLPorts: ParsedConfigServicePorts{
+					Kv:        11207,
+					Mgmt:      18091,
+					Views:     18092,
+					Query:     18093,
+					Search:    18094,
+					Analytics: 0,
+				},
+			},
+			AltAddresses: map[string]ParsedConfigAddresses{
+				"external": {
+					Hostname: "192.168.132.234",
+					NonSSLPorts: ParsedConfigServicePorts{
+						Kv:        32799,
+						Mgmt:      32814,
+						Views:     32813,
+						Query:     32812,
+						Search:    32811,
+						Analytics: 0,
+					},
+					SSLPorts: ParsedConfigServicePorts{
+						Kv:        32800,
+						Mgmt:      32797,
+						Views:     32796,
+						Query:     32795,
+						Search:    32794,
+						Analytics: 0,
+					},
+				},
+			},
+		},
+		{
+			HasData: true,
+			Addresses: ParsedConfigAddresses{
+				Hostname: "172.17.0.4",
+				NonSSLPorts: ParsedConfigServicePorts{
+					Kv:        11210,
+					Mgmt:      8091,
+					Views:     8092,
+					Query:     8093,
+					Search:    8094,
+					Analytics: 0,
+				},
+				SSLPorts: ParsedConfigServicePorts{
+					Kv:        11207,
+					Mgmt:      18091,
+					Views:     18092,
+					Query:     18093,
+					Search:    18094,
+					Analytics: 0,
+				},
+			},
+			AltAddresses: map[string]ParsedConfigAddresses{
+				"external": {
+					Hostname: "192.168.132.234",
+					NonSSLPorts: ParsedConfigServicePorts{
+						Kv:        32823,
+						Mgmt:      32838,
+						Views:     32837,
+						Query:     32836,
+						Search:    32835,
+						Analytics: 0,
+					},
+					SSLPorts: ParsedConfigServicePorts{
+						Kv:        32824,
+						Mgmt:      32821,
+						Views:     32820,
+						Query:     32819,
+						Search:    32818,
+						Analytics: 0,
+					},
+				},
+			},
+		},
+	})
 }

@@ -20,7 +20,7 @@ type AnalyticsComponent struct {
 
 type AnalyticsComponentConfig struct {
 	HttpRoundTripper http.RoundTripper
-	Endpoints        []string
+	Endpoints        map[string]string
 	Authenticator    Authenticator
 }
 
@@ -34,7 +34,7 @@ func OrchestrateAnalyticsEndpoint[RespT any](
 	w *AnalyticsComponent,
 	fn func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error),
 ) (RespT, error) {
-	roundTripper, endpoint, username, password, err := w.SelectEndpoint(nil)
+	roundTripper, _, endpoint, username, password, err := w.SelectEndpoint(nil)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
