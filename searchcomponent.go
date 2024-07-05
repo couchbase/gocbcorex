@@ -27,7 +27,7 @@ type SearchComponent struct {
 
 type SearchComponentConfig struct {
 	HttpRoundTripper http.RoundTripper
-	Endpoints        []string
+	Endpoints        map[string]string
 	Authenticator    Authenticator
 
 	VectorSearchEnabled bool
@@ -43,7 +43,7 @@ func OrchestrateSearchEndpoint[RespT any](
 	w *SearchComponent,
 	fn func(roundTripper http.RoundTripper, endpoint, username, password string) (RespT, error),
 ) (RespT, error) {
-	roundTripper, endpoint, username, password, err := w.SelectEndpoint(nil)
+	roundTripper, _, endpoint, username, password, err := w.SelectEndpoint(nil)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err

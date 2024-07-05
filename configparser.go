@@ -1,7 +1,6 @@
 package gocbcorex
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
@@ -21,56 +20,26 @@ func parseConfigHostname(hostname string, sourceHostname string) string {
 	return hostname
 }
 
-func parseConfigHostsInto(config *ParsedConfigAddresses, hostname string, ports *cbconfig.TerseExtNodePortsJson, kvHasData bool) {
-	if ports.Kv > 0 {
-		endpoint := fmt.Sprintf("%s:%d", hostname, ports.Kv)
-		config.NonSSL.Kv = append(config.NonSSL.Kv, endpoint)
-		if kvHasData {
-			config.NonSSL.KvData = append(config.NonSSL.KvData, endpoint)
-		}
-	}
-	if ports.KvSsl > 0 {
-		endpoint := fmt.Sprintf("%s:%d", hostname, ports.KvSsl)
-		config.SSL.Kv = append(config.SSL.Kv, endpoint)
-		if kvHasData {
-			config.SSL.KvData = append(config.SSL.KvData, endpoint)
-		}
-	}
+func parseConfigHostsInto(hostname string, ports *cbconfig.TerseExtNodePortsJson) ParsedConfigAddresses {
+	var config ParsedConfigAddresses
 
-	if ports.Mgmt > 0 {
-		config.NonSSL.Mgmt = append(config.NonSSL.Mgmt, fmt.Sprintf("%s:%d", hostname, ports.Mgmt))
-	}
-	if ports.MgmtSsl > 0 {
-		config.SSL.Mgmt = append(config.SSL.Mgmt, fmt.Sprintf("%s:%d", hostname, ports.MgmtSsl))
-	}
+	config.Hostname = hostname
 
-	if ports.Capi > 0 {
-		config.NonSSL.Views = append(config.NonSSL.Views, fmt.Sprintf("%s:%d", hostname, ports.Capi))
-	}
-	if ports.CapiSsl > 0 {
-		config.SSL.Views = append(config.SSL.Views, fmt.Sprintf("%s:%d", hostname, ports.CapiSsl))
-	}
+	config.NonSSLPorts.Kv = int(ports.Kv)
+	config.NonSSLPorts.Mgmt = int(ports.Mgmt)
+	config.NonSSLPorts.Views = int(ports.Capi)
+	config.NonSSLPorts.Query = int(ports.N1ql)
+	config.NonSSLPorts.Search = int(ports.Fts)
+	config.NonSSLPorts.Analytics = int(ports.Cbas)
 
-	if ports.N1ql > 0 {
-		config.NonSSL.Query = append(config.NonSSL.Query, fmt.Sprintf("%s:%d", hostname, ports.N1ql))
-	}
-	if ports.N1qlSsl > 0 {
-		config.SSL.Query = append(config.SSL.Query, fmt.Sprintf("%s:%d", hostname, ports.N1qlSsl))
-	}
+	config.SSLPorts.Kv = int(ports.KvSsl)
+	config.SSLPorts.Mgmt = int(ports.MgmtSsl)
+	config.SSLPorts.Views = int(ports.CapiSsl)
+	config.SSLPorts.Query = int(ports.N1qlSsl)
+	config.SSLPorts.Search = int(ports.FtsSsl)
+	config.SSLPorts.Analytics = int(ports.CbasSsl)
 
-	if ports.Fts > 0 {
-		config.NonSSL.Search = append(config.NonSSL.Search, fmt.Sprintf("%s:%d", hostname, ports.Fts))
-	}
-	if ports.FtsSsl > 0 {
-		config.SSL.Search = append(config.SSL.Search, fmt.Sprintf("%s:%d", hostname, ports.FtsSsl))
-	}
-
-	if ports.Cbas > 0 {
-		config.NonSSL.Analytics = append(config.NonSSL.Analytics, fmt.Sprintf("%s:%d", hostname, ports.Cbas))
-	}
-	if ports.CbasSsl > 0 {
-		config.SSL.Analytics = append(config.SSL.Analytics, fmt.Sprintf("%s:%d", hostname, ports.CbasSsl))
-	}
+	return config
 }
 
 type ConfigParser struct{}
@@ -80,25 +49,22 @@ func (p ConfigParser) ParseTerseConfig(config *cbconfig.TerseConfigJson, sourceH
 	out.RevID = int64(config.Rev)
 	out.RevEpoch = int64(config.RevEpoch)
 
-	out.Addresses = &ParsedConfigAddresses{}
 	lenNodes := len(config.Nodes)
-	for i, node := range config.NodesExt {
-		kvHasData := i < lenNodes
+	out.Nodes = make([]ParsedConfigNode, len(config.NodesExt))
+	for nodeIdx, node := range config.NodesExt {
 		nodeHostname := parseConfigHostname(node.Hostname, sourceHostname)
-		parseConfigHostsInto(out.Addresses, nodeHostname, node.Services, kvHasData)
 
+		var nodeOut ParsedConfigNode
+		nodeOut.HasData = nodeIdx < lenNodes
+		nodeOut.Addresses = parseConfigHostsInto(nodeHostname, node.Services)
+
+		nodeOut.AltAddresses = make(map[string]ParsedConfigAddresses)
 		for networkType, altAddrs := range node.AltAddresses {
-			if out.AlternateAddresses == nil {
-				out.AlternateAddresses = make(map[string]*ParsedConfigAddresses)
-			}
-			if out.AlternateAddresses[networkType] == nil {
-				out.AlternateAddresses[networkType] = &ParsedConfigAddresses{}
-			}
-
-			altAddrsOut := out.AlternateAddresses[networkType]
 			altHostname := parseConfigHostname(altAddrs.Hostname, nodeHostname)
-			parseConfigHostsInto(altAddrsOut, altHostname, altAddrs.Ports, kvHasData)
+			nodeOut.AltAddresses[networkType] = parseConfigHostsInto(altHostname, altAddrs.Ports)
 		}
+
+		out.Nodes[nodeIdx] = nodeOut
 	}
 
 	if config.Name != "" {
