@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -74,6 +75,36 @@ func (c *baseHttpComponent) GetAllTargets(endpointIdsToIgnore []string) (http.Ro
 	}
 
 	return state.httpRoundTripper, targets, nil
+}
+
+func (c *baseHttpComponent) SelectSpecificEndpoint(endpointId string) (http.RoundTripper, string, string, string, error) {
+	c.lock.RLock()
+	state := *c.state
+	c.lock.RUnlock()
+
+	foundEndpoint := ""
+	for epId, endpoint := range state.endpoints {
+		if epId == endpointId {
+			foundEndpoint = endpoint
+			break
+		}
+	}
+
+	if foundEndpoint == "" {
+		return nil, "", "", "", errors.New("invalid endpoint")
+	}
+
+	host, err := getHostFromUri(foundEndpoint)
+	if err != nil {
+		return nil, "", "", "", err
+	}
+
+	username, password, err := state.authenticator.GetCredentials(c.serviceType, host)
+	if err != nil {
+		return nil, "", "", "", err
+	}
+
+	return state.httpRoundTripper, foundEndpoint, username, password, nil
 }
 
 func (c *baseHttpComponent) SelectEndpoint(endpointIdsToIgnore []string) (http.RoundTripper, string, string, string, string, error) {
