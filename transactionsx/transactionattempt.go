@@ -1,10 +1,7 @@
 package transactionsx
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,31 +64,6 @@ func (t *TransactionAttempt) ShouldRetry() bool {
 func (t *TransactionAttempt) shouldRollback() bool {
 	stateBits := atomic.LoadUint32(&t.stateBits)
 	return (stateBits & transactionStateBitShouldNotRollback) == 0
-}
-
-func (t *TransactionAttempt) UpdateState(opts UpdateStateOptions) {
-	t.logger.Info("updating state", zap.Stringer("opts", opts))
-
-	stateBits := uint32(0)
-	if opts.ShouldNotCommit {
-		stateBits |= transactionStateBitShouldNotCommit
-	}
-	if opts.ShouldNotRollback {
-		stateBits |= transactionStateBitShouldNotRollback
-	}
-	if opts.ShouldNotRetry {
-		stateBits |= transactionStateBitShouldNotRetry
-	}
-	if opts.Reason == TransactionErrorReasonTransactionExpired {
-		stateBits |= transactionStateBitHasExpired
-	}
-	t.applyStateBits(stateBits, opts.Reason)
-
-	t.lock.Lock()
-	if opts.State > 0 {
-		t.state = opts.State
-	}
-	t.lock.Unlock()
 }
 
 func (t *TransactionAttempt) GetATRLocation() ATRLocation {
@@ -164,71 +136,4 @@ func (t *TransactionAttempt) TimeRemaining() time.Duration {
 	}
 
 	return timeLeft
-}
-
-func (t *TransactionAttempt) toJsonObject() (SerializedAttemptJson, error) {
-	var res SerializedAttemptJson
-
-	t.lock.Lock()
-	defer t.lock.Unlock()
-
-	if errSt := t.checkCanCommitLocked(); errSt != nil {
-		return res, errSt.Err()
-	}
-
-	res.ID.Transaction = t.transactionID
-	res.ID.Attempt = t.id
-
-	if t.atrAgent != nil {
-		res.ATR.Bucket = t.atrAgent.BucketName()
-		res.ATR.Scope = t.atrScopeName
-		res.ATR.Collection = t.atrCollectionName
-		res.ATR.ID = string(t.atrKey)
-	} else if t.atrLocation.Agent != nil {
-		res.ATR.Bucket = t.atrLocation.Agent.BucketName()
-		res.ATR.Scope = t.atrLocation.ScopeName
-		res.ATR.Collection = t.atrLocation.CollectionName
-		res.ATR.ID = ""
-	}
-
-	res.Config.DurabilityLevel = durabilityLevelToString(t.durabilityLevel)
-	res.Config.NumAtrs = 1024
-
-	// we set a static timeout here to ensure that transactions work with older clients
-	// which still leverage this value, this isn't relevant for gocbcorex.
-	res.Config.KeyValueTimeoutMs = 2500
-
-	res.State.TimeLeftMs = int(t.TimeRemaining().Milliseconds())
-
-	for _, mutation := range t.stagedMutations {
-		var mutationData SerializedMutationJson
-
-		mutationData.Bucket = mutation.Agent.BucketName()
-		mutationData.Scope = mutation.ScopeName
-		mutationData.Collection = mutation.CollectionName
-		mutationData.ID = string(mutation.Key)
-		mutationData.Cas = fmt.Sprintf("%d", mutation.Cas)
-		mutationData.Type = stagedMutationTypeToString(mutation.OpType)
-
-		res.Mutations = append(res.Mutations, mutationData)
-	}
-	if len(res.Mutations) == 0 {
-		res.Mutations = []SerializedMutationJson{}
-	}
-
-	return res, nil
-}
-
-func (t *TransactionAttempt) Serialize(ctx context.Context) ([]byte, error) {
-	res, err := t.toJsonObject()
-	if err != nil {
-		return nil, err
-	}
-
-	resBytes, err := json.Marshal(res)
-	if err != nil {
-		return nil, err
-	}
-
-	return resBytes, nil
 }

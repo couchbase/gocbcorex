@@ -180,7 +180,7 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 		}
 	}
 
-	var txnData SerializedAttemptJson
+	var txnData SerializedAttempt
 	err := json.Unmarshal(txnBytes, &txnData)
 	if err != nil {
 		return nil, err

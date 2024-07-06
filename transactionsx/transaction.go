@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -72,7 +71,7 @@ func (t *Transaction) NewAttempt() error {
 	return nil
 }
 
-func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
+func (t *Transaction) resumeAttempt(txnData *SerializedAttempt) error {
 	if txnData.ID.Attempt == "" {
 		return errors.New("invalid txn data - no attempt id")
 	}
@@ -180,6 +179,10 @@ func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
 	}
 
 	return nil
+}
+
+func (t *Transaction) Attempt() *TransactionAttempt {
+	return t.attempt
 }
 
 // GetOptions provides options for a Get operation.
@@ -337,14 +340,6 @@ func (t *Transaction) TimeRemaining() time.Duration {
 	return t.attempt.TimeRemaining()
 }
 
-// SerializeAttempt will serialize the current transaction attempt, allowing it
-// to be resumed later, potentially under a different transactions client.  It
-// is no longer safe to use this attempt once this has occurred, a new attempt
-// must be started to use this object following this call.
-func (t *Transaction) SerializeAttempt(ctx context.Context) ([]byte, error) {
-	return t.attempt.Serialize(ctx)
-}
-
 // GetMutations returns a list of all the current mutations that have been performed
 // under this transaction.
 func (t *Transaction) GetMutations() []StagedMutation {
@@ -387,28 +382,4 @@ func (t *Transaction) Config() TransactionOptions {
 		ExpirationTime:    t.TimeRemaining(),
 		DurabilityLevel:   t.durabilityLevel,
 	}
-}
-
-// UpdateStateOptions are the settings available to UpdateState.
-// This function must only be called once the transaction has entered query mode.
-type UpdateStateOptions struct {
-	ShouldNotCommit   bool
-	ShouldNotRollback bool
-	ShouldNotRetry    bool
-	State             TransactionAttemptState
-	Reason            TransactionErrorReason
-}
-
-func (tuso UpdateStateOptions) String() string {
-	return fmt.Sprintf("Should not commit: %t, should not rollback: %t, should not retry: %t, state: %s, reason: %s",
-		tuso.ShouldNotCommit, tuso.ShouldNotRollback, tuso.ShouldNotRetry, tuso.State, tuso.Reason)
-}
-
-// UpdateState will update the internal state of the current attempt.
-func (t *Transaction) UpdateState(opts UpdateStateOptions) {
-	if t.attempt == nil {
-		return
-	}
-
-	t.attempt.UpdateState(opts)
 }

@@ -1,6 +1,9 @@
 package transactionsx
 
 import (
+	"strconv"
+
+	"github.com/couchbase/gocbcorex/cbqueryx"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/pkg/errors"
 )
@@ -38,6 +41,23 @@ func durabilityLevelToMemdx(durabilityLevel DurabilityLevel) (memdx.DurabilityLe
 		return memdx.DurabilityLevel(0), errors.New("cannot convert unknown durability level to memdx")
 	default:
 		return memdx.DurabilityLevel(0), errors.New("cannot convert unexpected durability level to memdx")
+	}
+}
+
+func durabilityLevelToQueryx(durabilityLevel DurabilityLevel) (cbqueryx.DurabilityLevel, error) {
+	switch durabilityLevel {
+	case DurabilityLevelNone:
+		return cbqueryx.DurabilityLevelNone, nil
+	case DurabilityLevelMajority:
+		return cbqueryx.DurabilityLevelMajority, nil
+	case DurabilityLevelMajorityAndPersistToActive:
+		return cbqueryx.DurabilityLevelMajorityAndPersistToActive, nil
+	case DurabilityLevelPersistToMajority:
+		return cbqueryx.DurabilityLevelPersistToMajority, nil
+	case DurabilityLevelUnknown:
+		return cbqueryx.DurabilityLevel(""), errors.New("cannot convert unknown durability level to cbqueryx")
+	default:
+		return cbqueryx.DurabilityLevel(""), errors.New("cannot convert unexpected durability level to cbqueryx")
 	}
 }
 
@@ -88,4 +108,17 @@ func txnStateFromJson(state TxnStateJson) (TransactionAttemptState, error) {
 	}
 
 	return TransactionAttemptState(0), errors.New("unexpected transaction state value")
+}
+
+func scasToCas(scas string) (uint64, error) {
+	i, err := strconv.ParseUint(scas, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return i, nil
+}
+
+func casToScas(cas uint64) string {
+	return strconv.FormatUint(uint64(cas), 10)
 }
