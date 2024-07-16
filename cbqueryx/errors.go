@@ -105,7 +105,7 @@ func (e ServerInvalidArgError) Unwrap() error {
 }
 
 func (e ServerInvalidArgError) Error() string {
-	return fmt.Sprintf("%s: %s - %s", e.Unwrap().Error(), e.Argument, e.Reason)
+	return fmt.Sprintf("server invalid arg: %s (argument: %s, reason: %s)", e.Unwrap().Error(), e.Argument, e.Reason)
 }
 
 type ResourceError struct {
@@ -122,10 +122,10 @@ func (e ResourceError) Unwrap() error {
 
 func (e ResourceError) Error() string {
 	if e.CollectionName == "" && e.ScopeName == "" {
-		return fmt.Sprintf("%s - '%s'", e.Unwrap().Error(), e.BucketName)
+		return fmt.Sprintf("resource error: %s (bucket: %s)", e.Unwrap().Error(), e.BucketName)
 	}
 	if e.CollectionName == "" {
-		return fmt.Sprintf("%s - '%s/%s'", e.Unwrap().Error(), e.BucketName, e.ScopeName)
+		return fmt.Sprintf("resource error: %s (bucket: %s, scope: %s)", e.Unwrap().Error(), e.BucketName, e.ScopeName)
 	}
-	return fmt.Sprintf("%s - '%s/%s/%s'", e.Unwrap().Error(), e.BucketName, e.ScopeName, e.CollectionName)
+	return fmt.Sprintf("resource error: %s (bucket: %s, scope: %s, collection: %s)", e.Unwrap().Error(), e.BucketName, e.ScopeName, e.CollectionName)
 }
