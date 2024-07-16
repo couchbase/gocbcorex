@@ -211,21 +211,21 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 	}
 }
 
-func createResourceError(msg string, cause error) ResourceError {
-	err := ResourceError{
+func createResourceError(msg string, cause error) *ResourceError {
+	err := &ResourceError{
 		Cause: cause,
 	}
 
 	if errors.Is(err, ErrScopeNotFound) || errors.Is(err, ErrCollectionNotFound) {
-		parseResourceNotFoundMsg(&err, msg)
+		parseResourceNotFoundMsg(err, msg)
 	}
 
 	if errors.Is(err, ErrAuthenticationFailure) {
-		parseAuthFailureMsg(&err, msg)
+		parseAuthFailureMsg(err, msg)
 	}
 
 	if errors.Is(err, ErrIndexNotFound) || errors.Is(err, ErrIndexExists) {
-		parseIndexNotFoundOrExistsMsg(&err, msg)
+		parseIndexNotFoundOrExistsMsg(err, msg)
 	}
 
 	return err
