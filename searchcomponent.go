@@ -138,6 +138,25 @@ func (w *SearchComponent) Reconfigure(config *SearchComponentConfig) error {
 	return nil
 }
 
+type GetSearchEndpointResult struct {
+	RoundTripper http.RoundTripper
+	Endpoint     string
+	Username     string
+	Password     string
+}
+
+func (w *SearchComponent) GetEndpoint(ctx context.Context) (*GetSearchEndpointResult, error) {
+	return OrchestrateSearchEndpoint(ctx, w,
+		func(roundTripper http.RoundTripper, endpoint, username, password string) (*GetSearchEndpointResult, error) {
+			return &GetSearchEndpointResult{
+				RoundTripper: roundTripper,
+				Endpoint:     endpoint,
+				Username:     username,
+				Password:     password,
+			}, nil
+		})
+}
+
 func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
 	// we load this before doing anything else to ensure ordering guarentees mentioned
 	// above where we store the searchState.

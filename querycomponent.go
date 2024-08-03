@@ -186,6 +186,27 @@ func (w *QueryComponent) Reconfigure(config *QueryComponentConfig) error {
 	return nil
 }
 
+type GetQueryEndpointResult struct {
+	RoundTripper http.RoundTripper
+	EndpointId   string
+	Endpoint     string
+	Username     string
+	Password     string
+}
+
+func (w *QueryComponent) GetEndpoint(ctx context.Context) (*GetQueryEndpointResult, error) {
+	return OrchestrateQueryEndpoint(ctx, w, "",
+		func(roundTripper http.RoundTripper, endpointId, endpoint, username, password string) (*GetQueryEndpointResult, error) {
+			return &GetQueryEndpointResult{
+				RoundTripper: roundTripper,
+				EndpointId:   endpointId,
+				Endpoint:     endpoint,
+				Username:     username,
+				Password:     password,
+			}, nil
+		})
+}
+
 type queryResultStream struct {
 	cbqueryx.ResultStream
 	endpoint string

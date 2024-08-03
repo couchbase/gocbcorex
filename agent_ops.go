@@ -261,3 +261,19 @@ func (agent *Agent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOp
 func (agent *Agent) AnalyticsQuery(ctx context.Context, opts *cbanalyticsx.QueryOptions) (cbanalyticsx.QueryResultStream, error) {
 	return agent.analytics.Query(ctx, opts)
 }
+
+func (agent *Agent) GetMgmtEndpoint(ctx context.Context) (*GetMgmtEndpointResult, error) {
+	return agent.mgmt.GetEndpoint(ctx)
+}
+
+func (agent *Agent) GetQueryEndpoint(ctx context.Context) (*GetQueryEndpointResult, error) {
+	return agent.query.GetEndpoint(ctx)
+}
+
+func (agent *Agent) GetSearchEndpoint(ctx context.Context) (*GetSearchEndpointResult, error) {
+	return agent.search.GetEndpoint(ctx)
+}
+
+func (agent *Agent) GetAnalyticsEndpoint(ctx context.Context) (*GetAnalyticsEndpointResult, error) {
+	return agent.analytics.GetEndpoint(ctx)
+}

@@ -116,6 +116,25 @@ func (w *AnalyticsComponent) Reconfigure(config *AnalyticsComponentConfig) error
 	return nil
 }
 
+type GetAnalyticsEndpointResult struct {
+	RoundTripper http.RoundTripper
+	Endpoint     string
+	Username     string
+	Password     string
+}
+
+func (w *AnalyticsComponent) GetEndpoint(ctx context.Context) (*GetAnalyticsEndpointResult, error) {
+	return OrchestrateAnalyticsEndpoint(ctx, w,
+		func(roundTripper http.RoundTripper, endpoint, username, password string) (*GetAnalyticsEndpointResult, error) {
+			return &GetAnalyticsEndpointResult{
+				RoundTripper: roundTripper,
+				Endpoint:     endpoint,
+				Username:     username,
+				Password:     password,
+			}, nil
+		})
+}
+
 func (w *AnalyticsComponent) Query(ctx context.Context, opts *AnalyticsQueryOptions) (AnalyticsQueryResultStream, error) {
 	return OrchestrateRetries(ctx, w.retries, func() (AnalyticsQueryResultStream, error) {
 		return OrchestrateAnalyticsEndpoint(ctx, w,

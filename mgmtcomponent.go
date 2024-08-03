@@ -108,6 +108,25 @@ func OrchestrateNoResMgmtCall[OptsT any](
 	return err
 }
 
+type GetMgmtEndpointResult struct {
+	RoundTripper http.RoundTripper
+	Endpoint     string
+	Username     string
+	Password     string
+}
+
+func (w *MgmtComponent) GetEndpoint(ctx context.Context) (*GetMgmtEndpointResult, error) {
+	return OrchestrateMgmtEndpoint(ctx, w,
+		func(roundTripper http.RoundTripper, endpoint, username, password string) (*GetMgmtEndpointResult, error) {
+			return &GetMgmtEndpointResult{
+				RoundTripper: roundTripper,
+				Endpoint:     endpoint,
+				Username:     username,
+				Password:     password,
+			}, nil
+		})
+}
+
 func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetCollectionManifest, opts)
 }
