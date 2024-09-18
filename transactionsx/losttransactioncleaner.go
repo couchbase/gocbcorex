@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/google/uuid"
@@ -85,10 +87,8 @@ func (c *LostTransactionCleaner) Run(ctx context.Context) error {
 }
 
 func (c *LostTransactionCleaner) cleanup(ctx context.Context) error {
-	c.logger.Debug("running cleanup", zap.String("uuid", c.uuid),
-		zap.String("bucket", c.atrAgent.BucketName()),
-		zap.String("scope", c.atrScopeName),
-		zap.String("collection", c.atrCollectionName))
+	c.logger.Debug("running cleanup",
+		zaputils.FQDocID("uuid", c.atrAgent.BucketName(), c.atrScopeName, c.atrCollectionName, []byte(c.uuid)))
 
 	atrsToProcess, err := c.processClient(ctx)
 	if err != nil {
