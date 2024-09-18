@@ -8,9 +8,12 @@ import (
 	"sort"
 	"time"
 
+	"go.uber.org/zap"
+
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
-	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
 
@@ -191,9 +194,7 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clien
 func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientUuidsToRemove []string) ([]string, error) {
 	c.logger.Debug("updating client record",
 		zap.String("uuid", c.uuid),
-		zap.String("bucket", c.atrAgent.BucketName()),
-		zap.String("scope", c.atrScopeName),
-		zap.String("collection", c.atrCollectionName))
+		zaputils.FQCollectionName("collection", c.atrAgent.BucketName(), c.atrScopeName, c.atrCollectionName))
 
 	return invokeHook(ctx, c.clientRecordHooks.UpdateRecord, func() ([]string, error) {
 		clientExpiryMs := (c.cleanupWindow + 20000*time.Millisecond).Milliseconds()

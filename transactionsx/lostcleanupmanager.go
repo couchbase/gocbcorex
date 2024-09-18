@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex"
 	"go.uber.org/zap"
 )
@@ -73,9 +75,7 @@ func (c *LostCleanupManager) AddLocation(loc LostCleanupLocation) {
 	c.lock.Lock()
 
 	c.logger.Debug("adding cleanup location",
-		zap.String("bucket", loc.Agent.BucketName()),
-		zap.String("scope", loc.ScopeName),
-		zap.String("collection", loc.CollectionName))
+		zaputils.FQCollectionName("location", loc.Agent.BucketName(), loc.ScopeName, loc.CollectionName))
 
 	if c.closed {
 		c.lock.Unlock()
@@ -128,9 +128,7 @@ func (c *LostCleanupManager) AddLocation(loc LostCleanupLocation) {
 		}
 
 		c.logger.Debug("completed cleanup location",
-			zap.String("bucket", loc.Agent.BucketName()),
-			zap.String("scope", loc.ScopeName),
-			zap.String("collection", loc.CollectionName))
+			zaputils.FQCollectionName("location", loc.Agent.BucketName(), loc.ScopeName, loc.CollectionName))
 
 		// once we are done, remove this cleaner from the list
 		c.lock.Lock()

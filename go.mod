@@ -1,6 +1,6 @@
 module github.com/couchbase/gocbcorex
 
-go 1.19
+go 1.21
 
 require (
 	github.com/couchbaselabs/gocbconnstr/v2 v2.0.0-20230515165046-68b522a21131

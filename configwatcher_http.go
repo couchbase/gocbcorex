@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
 )
@@ -200,7 +202,7 @@ func (w *ConfigWatcherHttp) watchThread(ctx context.Context, outCh chan<- *Parse
 			w.logger.Debug("failed to poll config via http",
 				zap.Error(err),
 				zap.String("endpoint", endpoint),
-				zap.String("bucketName", state.bucketName))
+				zaputils.BucketName("bucketName", state.bucketName))
 			continue
 		}
 
