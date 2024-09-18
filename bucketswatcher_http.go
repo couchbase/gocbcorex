@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 
 	"golang.org/x/exp/slices"
@@ -187,11 +189,11 @@ func (bw *BucketsWatcherHttp) GetAgent(ctx context.Context, bucketName string) (
 			lastUpdateTriggeredAt = time.Now()
 			bw.lastUpdateTriggeredAt = lastUpdateTriggeredAt
 
-			bw.logger.Debug("Bucket unknown, triggering manual update", zap.String("name", bucketName))
+			bw.logger.Debug("Bucket unknown, triggering manual update", zaputils.BucketName("name", bucketName))
 
 			bw.updateSig <- struct{}{}
 		} else {
-			bw.logger.Debug("Bucket unknown, manual update already in progress", zap.String("name", bucketName))
+			bw.logger.Debug("Bucket unknown, manual update already in progress", zaputils.BucketName("name", bucketName))
 		}
 
 		needsBucketChan := bw.needsBucketChan
@@ -210,10 +212,10 @@ func (bw *BucketsWatcherHttp) GetAgent(ctx context.Context, bucketName string) (
 			agent, ok := (*fastMap)[bucketName]
 			if !ok {
 				if lastUpdateTriggeredAt.Before(getAgentMadeAt) {
-					bw.logger.Debug("Bucket still unknown, but update after request was made - retrying", zap.String("name", bucketName))
+					bw.logger.Debug("Bucket still unknown, but update after request was made - retrying", zaputils.BucketName("name", bucketName))
 					continue
 				}
-				bw.logger.Debug("Bucket still unknown, erroring", zap.String("name", bucketName))
+				bw.logger.Debug("Bucket still unknown, erroring", zaputils.BucketName("name", bucketName))
 
 				return nil, cbmgmtx.ResourceError{
 					Cause:      cbmgmtx.ErrBucketNotFound,
@@ -272,10 +274,10 @@ func (bw *BucketsWatcherHttp) handleBuckets(ctx context.Context, buckets []bucke
 
 	for _, bucket := range buckets {
 		if _, ok := bw.slowMap[bucket.Name]; !ok {
-			bw.logger.Debug("New bucket on cluster, creating agent", zap.String("name", bucket.Name))
+			bw.logger.Debug("New bucket on cluster, creating agent", zaputils.BucketName("name", bucket.Name))
 			agent, err := bw.makeAgent(ctx, bucket.Name)
 			if err != nil {
-				bw.logger.Debug("Failed to create agent", zap.String("name", bucket.Name), zap.Error(err))
+				bw.logger.Debug("Failed to create agent", zaputils.BucketName("name", bucket.Name), zap.Error(err))
 				continue
 			}
 
@@ -287,11 +289,11 @@ func (bw *BucketsWatcherHttp) handleBuckets(ctx context.Context, buckets []bucke
 		if !slices.ContainsFunc(buckets, func(descriptor bucketDescriptor) bool {
 			return descriptor.Name == bucket
 		}) {
-			bw.logger.Debug("Bucket no longer on cluster, shutting down agent", zap.String("name", bucket))
+			bw.logger.Debug("Bucket no longer on cluster, shutting down agent", zaputils.BucketName("name", bucket))
 			delete(bw.slowMap, bucket)
 			err := agent.Close()
 			if err != nil {
-				bw.logger.Debug("Failed to close agent", zap.String("name", bucket))
+				bw.logger.Debug("Failed to close agent", zaputils.BucketName("name", bucket))
 			}
 		}
 	}

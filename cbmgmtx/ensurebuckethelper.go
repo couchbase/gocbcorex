@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
@@ -36,7 +38,7 @@ func (e *EnsureBucketHelper) pollOne(
 	e.Logger.Debug("polling a single target",
 		zap.String("endpoint", target.Endpoint),
 		zap.String("username", target.Username),
-		zap.String("bucketName", e.BucketName),
+		zaputils.BucketName("bucketName", e.BucketName),
 		zap.String("bucketUuid", e.BucketUUID),
 		zap.Bool("wantMissing", e.WantMissing))
 

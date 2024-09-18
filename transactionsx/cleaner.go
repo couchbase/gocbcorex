@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/couchbase/gocbcorex/zaputils"
+
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
 	"go.uber.org/zap"
@@ -215,10 +217,7 @@ func (c *TransactionCleaner) rollbackRepRemDoc(
 	if err != nil {
 		c.logger.Debug("failed to rollback replace/remove",
 			zap.Error(err),
-			zap.String("bucket", doc.Agent.BucketName()),
-			zap.String("collection", doc.CollectionName),
-			zap.String("scope", doc.ScopeName),
-			zap.ByteString("id", doc.ID))
+			zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 
 		return err
 	}
@@ -255,10 +254,7 @@ func (c *TransactionCleaner) rollbackInsDoc(
 		if err != nil {
 			c.logger.Debug("failed to rollback insert",
 				zap.Error(err),
-				zap.String("bucket", doc.Agent.BucketName()),
-				zap.String("collection", doc.CollectionName),
-				zap.String("scope", doc.ScopeName),
-				zap.ByteString("id", doc.ID))
+				zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 			return err
 		}
 
@@ -287,10 +283,7 @@ func (c *TransactionCleaner) rollbackInsDoc(
 	if err != nil {
 		c.logger.Debug("failed to rollback shadow insert",
 			zap.Error(err),
-			zap.String("bucket", doc.Agent.BucketName()),
-			zap.String("collection", doc.CollectionName),
-			zap.String("scope", doc.ScopeName),
-			zap.ByteString("id", doc.ID))
+			zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 		return err
 	}
 
@@ -328,10 +321,7 @@ func (c *TransactionCleaner) commitRemDoc(
 	if err != nil {
 		c.logger.Debug("failed to commit replace/remove",
 			zap.Error(err),
-			zap.String("bucket", doc.Agent.BucketName()),
-			zap.String("collection", doc.CollectionName),
-			zap.String("scope", doc.ScopeName),
-			zap.ByteString("id", doc.ID))
+			zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 		return err
 	}
 
@@ -379,10 +369,7 @@ func (c *TransactionCleaner) commitInsRepDoc(
 		if err != nil {
 			c.logger.Debug("failed to commit insert",
 				zap.Error(err),
-				zap.String("bucket", doc.Agent.BucketName()),
-				zap.String("collection", doc.CollectionName),
-				zap.String("scope", doc.ScopeName),
-				zap.ByteString("id", doc.ID))
+				zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 			return err
 		}
 	}
@@ -401,10 +388,7 @@ func (c *TransactionCleaner) commitInsRepDoc(
 	if err != nil {
 		c.logger.Debug("failed to commit shadow insert",
 			zap.Error(err),
-			zap.String("bucket", doc.Agent.BucketName()),
-			zap.String("collection", doc.CollectionName),
-			zap.String("scope", doc.ScopeName),
-			zap.ByteString("id", doc.ID))
+			zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 		return err
 	}
 
@@ -507,10 +491,7 @@ func (c *TransactionCleaner) fetchDoc(
 	if err != nil {
 		c.logger.Debug("failed to read document",
 			zap.Error(err),
-			zap.String("bucket", agent.BucketName()),
-			zap.String("collection", dr.CollectionName),
-			zap.String("scope", dr.ScopeName),
-			zap.ByteString("id", dr.ID))
+			zaputils.FQDocID("doc", dr.Agent.BucketName(), dr.ScopeName, dr.CollectionName, dr.ID))
 
 		return nil, err
 	}
