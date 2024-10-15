@@ -29,6 +29,7 @@ type OpsCore struct {
 
 func (o OpsCore) decodeErrorContext(resp *Packet, err error, dispatchedTo string, dispatchedFrom string) error {
 	baseCause := ServerError{
+		Magic:          resp.Magic,
 		OpCode:         resp.OpCode,
 		Status:         resp.Status,
 		Cause:          err,
@@ -73,7 +74,7 @@ type HelloRequest struct {
 	RequestedFeatures []HelloFeature
 }
 
-func (r HelloRequest) OpName() string { return OpCodeHello.String() }
+func (r HelloRequest) OpName() string { return OpCodeHello.String(MagicReq) }
 
 type HelloResponse struct {
 	CoreResponseMeta
@@ -125,7 +126,7 @@ type GetErrorMapRequest struct {
 	Version uint16
 }
 
-func (r GetErrorMapRequest) OpName() string { return OpCodeGetErrorMap.String() }
+func (r GetErrorMapRequest) OpName() string { return OpCodeGetErrorMap.String(MagicReq) }
 
 type GetErrorMapResponse struct {
 	CoreResponseMeta
@@ -162,7 +163,7 @@ type GetClusterConfigRequest struct {
 	CoreRequestMeta
 }
 
-func (r GetClusterConfigRequest) OpName() string { return OpCodeGetClusterConfig.String() }
+func (r GetClusterConfigRequest) OpName() string { return OpCodeGetClusterConfig.String(MagicReq) }
 
 type GetClusterConfigResponse struct {
 	CoreResponseMeta
@@ -213,7 +214,7 @@ type SelectBucketRequest struct {
 	BucketName string
 }
 
-func (r SelectBucketRequest) OpName() string { return OpCodeSelectBucket.String() }
+func (r SelectBucketRequest) OpName() string { return OpCodeSelectBucket.String(MagicReq) }
 
 type SelectBucketResponse struct {
 	CoreResponseMeta
@@ -255,7 +256,7 @@ type SASLListMechsRequest struct {
 	CoreRequestMeta
 }
 
-func (r SASLListMechsRequest) OpName() string { return OpCodeSASLListMechs.String() }
+func (r SASLListMechsRequest) OpName() string { return OpCodeSASLListMechs.String(MagicReq) }
 
 type SASLListMechsResponse struct {
 	CoreResponseMeta
@@ -297,7 +298,7 @@ type SASLAuthRequest struct {
 	Payload   []byte
 }
 
-func (r SASLAuthRequest) OpName() string { return OpCodeSASLAuth.String() }
+func (r SASLAuthRequest) OpName() string { return OpCodeSASLAuth.String(MagicReq) }
 
 type SASLAuthResponse struct {
 	CoreResponseMeta
@@ -347,7 +348,7 @@ type SASLStepRequest struct {
 	Payload   []byte
 }
 
-func (r SASLStepRequest) OpName() string { return OpCodeSASLStep.String() }
+func (r SASLStepRequest) OpName() string { return OpCodeSASLStep.String(MagicReq) }
 
 type SASLStepResponse struct {
 	CoreResponseMeta

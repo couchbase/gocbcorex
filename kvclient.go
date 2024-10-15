@@ -26,6 +26,7 @@ type KvClientConfig struct {
 	ClientName             string
 	Authenticator          Authenticator
 	SelectedBucket         string
+	ExtraFeatures          []memdx.HelloFeature
 	DisableDefaultFeatures bool
 	DisableErrorMap        bool
 
@@ -46,9 +47,10 @@ func (o KvClientConfig) Equals(b *KvClientConfig) bool {
 }
 
 type KvClientOptions struct {
-	Logger         *zap.Logger
-	NewMemdxClient GetMemdxClientFunc
-	CloseHandler   func(KvClient, error)
+	Logger              *zap.Logger
+	NewMemdxClient      GetMemdxClientFunc
+	UnsolicitedHandlers *memdx.UnsolicitedOpsHandlers
+	CloseHandler        func(KvClient, error)
 }
 
 type KvClientOps interface {
@@ -98,6 +100,7 @@ type KvClient interface {
 
 type MemdxDispatcherCloser interface {
 	memdx.Dispatcher
+	WritePacket(*memdx.Packet) error
 	Close() error
 }
 
@@ -111,6 +114,7 @@ type kvClient struct {
 
 	pendingOperations uint64
 	cli               MemdxDispatcherCloser
+	closed            uint32
 
 	lock          sync.Mutex
 	currentConfig KvClientConfig
@@ -123,8 +127,8 @@ type kvClient struct {
 	// asynchronously and we do not support changing selected buckets.
 	selectedBucket atomic.Pointer[string]
 
-	closed       uint32
-	closeHandler func(KvClient, error)
+	unsolicitedHandlers *memdx.UnsolicitedOpsHandlers
+	closeHandler        func(KvClient, error)
 }
 
 var _ KvClient = (*kvClient)(nil)
@@ -145,11 +149,12 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	remoteHostName, remotePort := parseHostPort(config.Address)
 
 	kvCli := &kvClient{
-		currentConfig:  *config,
-		remoteHostName: remoteHostName,
-		remotePort:     remotePort,
-		logger:         logger,
-		closeHandler:   opts.CloseHandler,
+		currentConfig:       *config,
+		remoteHostName:      remoteHostName,
+		remotePort:          remotePort,
+		logger:              logger,
+		unsolicitedHandlers: opts.UnsolicitedHandlers,
+		closeHandler:        opts.CloseHandler,
 	}
 
 	logger.Debug("id assigned for " + config.Address)
@@ -172,6 +177,12 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			memdx.HelloFeatureCreateAsDeleted,
 			memdx.HelloFeatureAltRequests,
 			memdx.HelloFeatureCollections,
+		}
+	}
+
+	for _, extraFeature := range config.ExtraFeatures {
+		if !slices.Contains(requestedFeatures, extraFeature) {
+			requestedFeatures = append(requestedFeatures, extraFeature)
 		}
 	}
 
@@ -220,9 +231,10 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
-		OrphanHandler: kvCli.handleOrphanResponse,
-		CloseHandler:  kvCli.handleConnectionClose,
-		Logger:        logger,
+		UnsolicitedHandler: kvCli.handleUnsolicitedPacket,
+		OrphanHandler:      kvCli.handleOrphanResponse,
+		CloseHandler:       kvCli.handleConnectionClose,
+		Logger:             logger,
 	}
 	if opts.NewMemdxClient == nil {
 		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
@@ -367,11 +379,28 @@ func (c *kvClient) LocalHostPort() (string, int) {
 	return c.localHost, c.localPort
 }
 
-func (c *kvClient) handleOrphanResponse(packet *memdx.Packet) {
+func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {
+	if c.unsolicitedHandlers == nil {
+		c.logger.Info("unexpected unsolicited packet",
+			zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
+			zap.String("opcode", pak.OpCode.String(pak.Magic)))
+		return
+	}
+
+	err := memdx.UnsolicitedOpsParser{
+		CollectionsEnabled: c.HasFeature(memdx.HelloFeatureCollections),
+	}.Handle(c.cli, pak, c.unsolicitedHandlers)
+	if err != nil {
+		c.logger.Info("error handling unsolicited packet",
+			zap.Error(err))
+	}
+}
+
+func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
 	c.logger.Info(
 		"orphaned response encountered",
-		zap.String("opaque", strconv.Itoa(int(packet.Opaque))),
-		zap.String("opcode", packet.OpCode.String()),
+		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
+		zap.String("opcode", pak.OpCode.String(pak.Magic)),
 	)
 }
 

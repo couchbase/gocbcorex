@@ -40,8 +40,8 @@ type QueryOptions struct {
 	ReadOnly        bool
 	ScanCap         uint32
 	ScanConsistency cbqueryx.ScanConsistency
-	ScanVector      json.RawMessage
-	ScanVectors     map[string]json.RawMessage
+	ScanVector      cbqueryx.ScanVectors
+	ScanVectors     map[string]cbqueryx.ScanVectors
 	ScanWait        time.Duration
 	Signature       bool
 	Statement       string

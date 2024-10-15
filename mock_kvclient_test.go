@@ -5,9 +5,8 @@ package gocbcorex
 
 import (
 	"context"
-	"sync"
-
 	"github.com/couchbase/gocbcorex/memdx"
+	"sync"
 )
 
 // Ensure, that KvClientMock does implement KvClient.
@@ -1552,6 +1551,9 @@ var _ MemdxDispatcherCloser = &MemdxDispatcherCloserMock{}
 //			RemoteAddrFunc: func() string {
 //				panic("mock out the RemoteAddr method")
 //			},
+//			WritePacketFunc: func(packet *memdx.Packet) error {
+//				panic("mock out the WritePacket method")
+//			},
 //		}
 //
 //		// use mockedMemdxDispatcherCloser in code that requires MemdxDispatcherCloser
@@ -1571,6 +1573,9 @@ type MemdxDispatcherCloserMock struct {
 	// RemoteAddrFunc mocks the RemoteAddr method.
 	RemoteAddrFunc func() string
 
+	// WritePacketFunc mocks the WritePacket method.
+	WritePacketFunc func(packet *memdx.Packet) error
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// Close holds details about calls to the Close method.
@@ -1589,11 +1594,17 @@ type MemdxDispatcherCloserMock struct {
 		// RemoteAddr holds details about calls to the RemoteAddr method.
 		RemoteAddr []struct {
 		}
+		// WritePacket holds details about calls to the WritePacket method.
+		WritePacket []struct {
+			// Packet is the packet argument value.
+			Packet *memdx.Packet
+		}
 	}
-	lockClose      sync.RWMutex
-	lockDispatch   sync.RWMutex
-	lockLocalAddr  sync.RWMutex
-	lockRemoteAddr sync.RWMutex
+	lockClose       sync.RWMutex
+	lockDispatch    sync.RWMutex
+	lockLocalAddr   sync.RWMutex
+	lockRemoteAddr  sync.RWMutex
+	lockWritePacket sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -1710,5 +1721,37 @@ func (mock *MemdxDispatcherCloserMock) RemoteAddrCalls() []struct {
 	mock.lockRemoteAddr.RLock()
 	calls = mock.calls.RemoteAddr
 	mock.lockRemoteAddr.RUnlock()
+	return calls
+}
+
+// WritePacket calls WritePacketFunc.
+func (mock *MemdxDispatcherCloserMock) WritePacket(packet *memdx.Packet) error {
+	if mock.WritePacketFunc == nil {
+		panic("MemdxDispatcherCloserMock.WritePacketFunc: method is nil but MemdxDispatcherCloser.WritePacket was just called")
+	}
+	callInfo := struct {
+		Packet *memdx.Packet
+	}{
+		Packet: packet,
+	}
+	mock.lockWritePacket.Lock()
+	mock.calls.WritePacket = append(mock.calls.WritePacket, callInfo)
+	mock.lockWritePacket.Unlock()
+	return mock.WritePacketFunc(packet)
+}
+
+// WritePacketCalls gets all the calls that were made to WritePacket.
+// Check the length with:
+//
+//	len(mockedMemdxDispatcherCloser.WritePacketCalls())
+func (mock *MemdxDispatcherCloserMock) WritePacketCalls() []struct {
+	Packet *memdx.Packet
+} {
+	var calls []struct {
+		Packet *memdx.Packet
+	}
+	mock.lockWritePacket.RLock()
+	calls = mock.calls.WritePacket
+	mock.lockWritePacket.RUnlock()
 	return calls
 }

@@ -86,7 +86,15 @@ var _ json.Unmarshaler = (*ScanVectorEntry)(nil)
 
 type FullScanVectors []ScanVectorEntry
 
+func (v FullScanVectors) IsScanVectors() bool { return true }
+
 type SparseScanVectors map[uint32]ScanVectorEntry
+
+func (v SparseScanVectors) IsScanVectors() bool { return true }
+
+type ScanVectors interface {
+	IsScanVectors() bool
+}
 
 type QueryOptions struct {
 	Args            []json.RawMessage
@@ -116,8 +124,8 @@ type QueryOptions struct {
 	ReadOnly        bool
 	ScanCap         uint32
 	ScanConsistency ScanConsistency
-	ScanVector      json.RawMessage
-	ScanVectors     map[string]json.RawMessage
+	ScanVector      ScanVectors
+	ScanVectors     map[string]ScanVectors
 	ScanWait        time.Duration
 	Signature       bool
 	Statement       string
@@ -243,7 +251,7 @@ func (o *QueryOptions) encodeToJson() (json.RawMessage, error) {
 	if o.ScanConsistency != ScanConsistencyUnset {
 		m["scan_consistency"] = encodeField(o.ScanConsistency)
 	}
-	if len(o.ScanVector) > 0 {
+	if o.ScanVector != nil {
 		m["scan_vector"] = encodeField(o.ScanVector)
 	}
 	if o.ScanVectors != nil {

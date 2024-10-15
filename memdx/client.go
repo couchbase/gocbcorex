@@ -14,10 +14,11 @@ var enablePacketLogging bool = os.Getenv("GCBCX_PACKET_LOGGING") != ""
 // note that it is not thread-safe, but does use locks to prevent internal races
 // between operations that are being sent and responses being received.
 type Client struct {
-	conn          *Conn
-	orphanHandler func(*Packet)
-	closeHandler  func(error)
-	logger        *zap.Logger
+	conn               *Conn
+	unsolicitedHandler func(*Packet)
+	orphanHandler      func(*Packet)
+	closeHandler       func(error)
+	logger             *zap.Logger
 
 	// opaqueMapLock control access to the opaque map itself and is used for all access to it.
 	opaqueMapLock sync.Mutex
@@ -32,9 +33,10 @@ type Client struct {
 var _ Dispatcher = (*Client)(nil)
 
 type ClientOptions struct {
-	OrphanHandler func(*Packet)
-	CloseHandler  func(error)
-	Logger        *zap.Logger
+	UnsolicitedHandler func(*Packet)
+	OrphanHandler      func(*Packet)
+	CloseHandler       func(error)
+	Logger             *zap.Logger
 }
 
 func NewClient(conn *Conn, opts *ClientOptions) *Client {
@@ -47,10 +49,11 @@ func NewClient(conn *Conn, opts *ClientOptions) *Client {
 	}
 
 	c := &Client{
-		conn:          conn,
-		orphanHandler: opts.OrphanHandler,
-		closeHandler:  opts.CloseHandler,
-		logger:        logger,
+		conn:               conn,
+		unsolicitedHandler: opts.UnsolicitedHandler,
+		orphanHandler:      opts.OrphanHandler,
+		closeHandler:       opts.CloseHandler,
+		logger:             logger,
 
 		opaqueCtr: 1,
 		opaqueMap: make(map[uint32]DispatchCallback),
@@ -124,7 +127,7 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 	if enablePacketLogging {
 		c.logger.Debug("read packet",
 			zap.String("magic", pak.Magic.String()),
-			zap.String("opcode", pak.OpCode.String()),
+			zap.String("opcode", pak.OpCode.String(pak.Magic)),
 			zap.Uint8("datatype", pak.Datatype),
 			zap.Uint16("vbucketID", pak.VbucketID),
 			zap.String("status", pak.Status.String()),
@@ -140,6 +143,18 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 	c.handlerInvokeLock.Lock()
 	defer c.handlerInvokeLock.Unlock()
 	c.opaqueMapLock.Lock()
+
+	if pak.Magic.IsRequest() {
+		unsolicitedHandler := c.unsolicitedHandler
+		c.opaqueMapLock.Unlock()
+
+		if unsolicitedHandler == nil {
+			return errors.New("unexpected unsolicited packet")
+		}
+
+		unsolicitedHandler(pak)
+		return nil
+	}
 
 	handler, handlerIsValid := c.opaqueMap[pak.Opaque]
 	if !handlerIsValid {
@@ -203,7 +218,7 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 	if enablePacketLogging {
 		c.logger.Debug("writing packet",
 			zap.String("magic", req.Magic.String()),
-			zap.String("opcode", req.OpCode.String()),
+			zap.String("opcode", req.OpCode.String(req.Magic)),
 			zap.Uint8("datatype", req.Datatype),
 			zap.Uint16("vbucketID", req.VbucketID),
 			zap.String("status", req.Status.String()),
@@ -221,7 +236,7 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 		c.logger.Debug("failed to write packet",
 			zap.Error(err),
 			zap.Uint32("opaque", opaqueID),
-			zap.String("opcode", req.OpCode.String()),
+			zap.String("opcode", req.OpCode.String(req.Magic)),
 		)
 
 		c.opaqueMapLock.Lock()
@@ -244,6 +259,10 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 		client:   c,
 		opaqueID: opaqueID,
 	}, nil
+}
+
+func (c *Client) WritePacket(pak *Packet) error {
+	return c.conn.WritePacket(pak)
 }
 
 func (c *Client) LocalAddr() string {

@@ -54,6 +54,7 @@ var (
 	ErrSyncWriteInProgress                 = errors.New("sync write in progress")
 	ErrSyncWriteReCommitInProgress         = errors.New("sync write recommit in progress")
 	ErrTmpFail                             = errors.New("temporary failure")
+	ErrDcpRollback                         = errors.New("dcp rollback")
 
 	ErrConfigNotSet   = errors.New("config not set")
 	ErrClosedInFlight = errors.New("connection closed whilst operation in flight")
@@ -114,6 +115,7 @@ func (e invalidArgError) Unwrap() error {
 }
 
 type ServerError struct {
+	Magic          Magic
 	OpCode         OpCode
 	Status         Status
 	Cause          error
@@ -127,7 +129,7 @@ func (e ServerError) Error() string {
 		"server error: %s, status: 0x%x, opcode: %s, dispatched from: %s, dispatched to: %s, opaque: %d",
 		e.Cause,
 		uint16(e.Status),
-		e.OpCode.String(),
+		e.OpCode.String(e.Magic),
 		e.DispatchedFrom,
 		e.DispatchedTo,
 		e.Opaque,
@@ -242,4 +244,19 @@ func (e ResourceError) Error() string {
 
 func (e ResourceError) Unwrap() error {
 	return e.Cause
+}
+
+type DcpRollbackError struct {
+	RollbackSeqNo uint64
+}
+
+func (e DcpRollbackError) Error() string {
+	return fmt.Sprintf(
+		"%s (rollback seqno: %016x)",
+		ErrDcpRollback,
+		e.RollbackSeqNo)
+}
+
+func (e DcpRollbackError) Unwrap() error {
+	return ErrDcpRollback
 }
