@@ -126,6 +126,9 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	case res := <-resulter.Ch:
 		releaseSyncCrudResulter(resulter)
 
+		if res.Err != nil {
+			span.RecordError(res.Err)
+		}
 		span.End()
 
 		return res.Result.(RespT), res.Err
