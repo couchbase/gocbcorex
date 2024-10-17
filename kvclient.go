@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/metric"
 
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
@@ -111,6 +112,7 @@ type kvClient struct {
 
 	pendingOperations uint64
 	cli               MemdxDispatcherCloser
+	durationMetric    metric.Float64Histogram
 
 	lock          sync.Mutex
 	currentConfig KvClientConfig
@@ -144,12 +146,19 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 
 	remoteHostName, remotePort := parseHostPort(config.Address)
 
+	durationMetric, err := meter.Float64Histogram("db.client.operation.duration",
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10))
+	if err != nil {
+		logger.Warn("failed to create operation duration metric")
+	}
+
 	kvCli := &kvClient{
 		currentConfig:  *config,
 		remoteHostName: remoteHostName,
 		remotePort:     remotePort,
 		logger:         logger,
 		closeHandler:   opts.CloseHandler,
+		durationMetric: durationMetric,
 	}
 
 	logger.Debug("id assigned for " + config.Address)
@@ -365,6 +374,14 @@ func (c *kvClient) RemoteHostPort() (string, string, int) {
 
 func (c *kvClient) LocalHostPort() (string, int) {
 	return c.localHost, c.localPort
+}
+
+func (c *kvClient) SelectedBucket() string {
+	bucketNamePtr := c.selectedBucket.Load()
+	if bucketNamePtr != nil {
+		return *bucketNamePtr
+	}
+	return ""
 }
 
 func (c *kvClient) handleOrphanResponse(packet *memdx.Packet) {
