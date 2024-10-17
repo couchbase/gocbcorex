@@ -8,12 +8,18 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/couchbase/gocbcorex/memdx"
+)
+
+var (
+	meter = otel.Meter("github.com/couchbase/gocbcorex")
 )
 
 type KvClientDispatchError struct {
@@ -61,15 +67,46 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	execFn func(o Encoder, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
 	req ReqT,
 ) (RespT, error) {
+	bucketName := c.SelectedBucket()
+	localHost, localPort := c.LocalHostPort()
+	_, remoteHost, remotePort := c.RemoteHostPort()
+
+	stime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "memcached/"+req.OpName(),
 		trace.WithSpanKind(trace.SpanKindClient))
 	if span.IsRecording() {
-		remoteName, remoteHost, remotePort := c.RemoteHostPort()
-		span.SetAttributes(semconv.NetPeerNameKey.String(remoteName),
-			semconv.NetPeerIPKey.String(remoteHost),
-			semconv.NetPeerPortKey.Int(remotePort),
-			semconv.RPCMethodKey.String(req.OpName()),
+		span.SetAttributes(
+			semconv.ServerAddress(remoteHost),
+			semconv.ServerPort(remotePort),
+			semconv.NetworkPeerAddress(localHost),
+			semconv.NetworkPeerPort(localPort),
+			semconv.RPCMethod(req.OpName()),
 			semconv.RPCSystemKey.String("memcached"))
+	}
+
+	finishCall := func(err error) {
+		etime := time.Now()
+		dtime := etime.Sub(stime)
+		dtimeSecs := float64(dtime) / float64(time.Second)
+
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.End()
+
+		c.durationMetric.Record(ctx, dtimeSecs,
+			metric.WithAttributes(
+				semconv.DBSystemCouchbase,
+				semconv.ServerAddress(remoteHost),
+				semconv.ServerPort(remotePort),
+				semconv.NetworkPeerAddress(localHost),
+				semconv.NetworkPeerPort(localPort),
+				semconv.DBNamespace(bucketName),
+				semconv.DBOperationName(req.OpName()),
+			),
+		)
+
 	}
 
 	resulter := allocSyncCrudResulter()
@@ -108,9 +145,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		}
 
 		releaseSyncCrudResulter(resulter)
-
-		span.RecordError(err)
-		span.End()
+		finishCall(err)
 
 		if errors.Is(err, memdx.ErrDispatch) {
 			err = KvClientDispatchError{err}
@@ -125,11 +160,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	select {
 	case res := <-resulter.Ch:
 		releaseSyncCrudResulter(resulter)
-
-		if res.Err != nil {
-			span.RecordError(res.Err)
-		}
-		span.End()
+		finishCall(err)
 
 		return res.Result.(RespT), res.Err
 	case <-ctx.Done():
@@ -137,9 +168,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		res := <-resulter.Ch
 
 		releaseSyncCrudResulter(resulter)
-
-		span.RecordError(ctx.Err())
-		span.End()
+		finishCall(ctx.Err())
 
 		return res.Result.(RespT), res.Err
 	}

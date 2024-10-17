@@ -3,11 +3,14 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
@@ -72,6 +75,10 @@ type kvClientPool struct {
 
 	needClientSigCh    chan struct{}
 	needNoDefunctSigCh chan struct{}
+
+	connCountMetric      metric.Int64Gauge
+	connCreateDuraMetric metric.Float64Histogram
+	connFailureMetric    metric.Int64Counter
 }
 
 func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kvClientPool, error) {
@@ -98,6 +105,22 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 		connectErrThrottlePeriod = 1 * time.Second
 	}
 
+	connCountMetric, err := meter.Int64Gauge(semconv.DBClientConnectionCountName)
+	if err != nil {
+		logger.Warn("failed to create connection count metric")
+	}
+
+	connCreateDuraMetric, err := meter.Float64Histogram(semconv.DBClientConnectionCreateTimeName,
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10))
+	if err != nil {
+		logger.Warn("failed to create connection create time metric")
+	}
+
+	connFailureMetric, err := meter.Int64Counter("db.client.connection.failures")
+	if err != nil {
+		logger.Warn("failed to create connection failure metric")
+	}
+
 	p := &kvClientPool{
 		logger:                   logger,
 		config:                   *config,
@@ -106,6 +129,10 @@ func NewKvClientPool(config *KvClientPoolConfig, opts *KvClientPoolOptions) (*kv
 
 		closeSig:        make(chan struct{}),
 		needClientSigCh: make(chan struct{}, 1),
+
+		connCountMetric:      connCountMetric,
+		connCreateDuraMetric: connCreateDuraMetric,
+		connFailureMetric:    connFailureMetric,
 	}
 
 	var newKvClient NewKvClientFunc
@@ -241,11 +268,35 @@ func (p *kvClientPool) startNewClientLocked() <-chan struct{} {
 
 		p.lock.Unlock()
 
+		connStime := time.Now()
+
 		timeoutCtx, timeoutCancel := context.WithTimeout(cancelCtx, p.connectTimeout)
 		client, err := p.newKvClient(timeoutCtx, &clientConfig)
 		timeoutCancel()
 
 		cancelFn()
+
+		connETime := time.Now()
+		connDTime := connETime.Sub(connStime)
+		connDTimeSecs := float64(connDTime) / float64(time.Second)
+
+		poolName := clientConfig.Address + "/" + clientConfig.SelectedBucket
+		if err != nil {
+			p.connFailureMetric.Add(context.Background(), 1, metric.WithAttributes(
+				semconv.DBSystemCouchbase,
+				semconv.DBClientConnectionsPoolName(poolName),
+			))
+		} else {
+			p.connCountMetric.Record(context.Background(), 1, metric.WithAttributes(
+				semconv.DBSystemCouchbase,
+				semconv.DBClientConnectionsPoolName(poolName),
+			))
+
+			p.connCreateDuraMetric.Record(context.Background(), connDTimeSecs, metric.WithAttributes(
+				semconv.DBSystemCouchbase,
+				semconv.DBClientConnectionsPoolName(poolName),
+			))
+		}
 
 		p.lock.Lock()
 
@@ -371,6 +422,14 @@ func (p *kvClientPool) rebuildActiveClientsLocked() {
 }
 
 func (p *kvClientPool) handleClientClosed(client KvClient, err error) {
+	host, _, port := client.RemoteHostPort()
+	poolName := fmt.Sprintf("%s:%d", host, port)
+
+	p.connCountMetric.Record(context.Background(), -1, metric.WithAttributes(
+		semconv.DBSystemCouchbase,
+		semconv.DBClientConnectionsPoolName(poolName),
+	))
+
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -394,6 +453,10 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 
 	p.logger.Debug("reconfiguring")
 
+	oldConfig := p.config.ClientConfig
+	oldPoolName := oldConfig.Address + "/" + oldConfig.SelectedBucket
+	newPoolName := oldConfig.Address + "/" + config.ClientConfig.SelectedBucket
+
 	p.config = *config
 
 	numClientsReconfiguring := int64(len(p.currentClients))
@@ -410,6 +473,7 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 
 	clientsToReconfigure := make([]KvClient, len(p.currentClients))
 	copy(clientsToReconfigure, p.currentClients)
+	numReconfigured := 0
 	for _, client := range clientsToReconfigure {
 		client := client
 
@@ -441,10 +505,23 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 
 		// reconfiguring is successful up until this point, so it can stay in the
 		// current list of clients.  it may be moved later by the Reconfigure callback.
+		numReconfigured++
 	}
 
 	p.rebuildActiveClientsLocked()
 	p.checkConnectionsLocked()
+
+	if oldPoolName != newPoolName {
+		p.connCountMetric.Record(context.Background(), -int64(numReconfigured), metric.WithAttributes(
+			semconv.DBSystemCouchbase,
+			semconv.DBClientConnectionsPoolName(oldPoolName),
+		))
+
+		p.connCountMetric.Record(context.Background(), int64(numReconfigured), metric.WithAttributes(
+			semconv.DBSystemCouchbase,
+			semconv.DBClientConnectionsPoolName(newPoolName),
+		))
+	}
 
 	return nil
 }
