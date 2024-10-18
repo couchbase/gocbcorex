@@ -27,6 +27,7 @@ type AgentOptions struct {
 	SeedConfig SeedConfig
 
 	CompressionConfig CompressionConfig
+	IoConfig          IoConfig
 
 	ConfigPollerConfig ConfigPollerConfig
 
@@ -80,6 +81,16 @@ func (c CompressionConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddInt("min-size", c.MinSize)
 	enc.AddFloat64("min-ratio", c.MinRatio)
 
+	return nil
+}
+
+// IoConfig specifies options for controlling io setup.
+type IoConfig struct {
+	ConnectionPoolSize uint
+}
+
+func (c IoConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddUint("connection-pool-size", c.ConnectionPoolSize)
 	return nil
 }
 
