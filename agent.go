@@ -68,6 +68,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	clientName := fmt.Sprintf("gocbcorex/%s", buildVersion)
 	srcHTTPAddrs := makeSrcHTTPAddrs(opts.SeedConfig.HTTPAddrs, opts.TLSConfig)
 
+	connectionPoolSize := opts.IoConfig.ConnectionPoolSize
+	if connectionPoolSize == 0 {
+		connectionPoolSize = 1
+	}
+
 	// Default values.
 	compressionMinSize := 32
 	compressionMinRatio := 0.83
@@ -145,7 +150,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			bucket:             opts.BucketName,
 			tlsConfig:          opts.TLSConfig,
 			authenticator:      opts.Authenticator,
-			numPoolConnections: 1,
+			numPoolConnections: connectionPoolSize,
 			latestConfig:       bootstrapConfig,
 			httpTransport:      httpTransport,
 		},
