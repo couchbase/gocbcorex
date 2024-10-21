@@ -6,11 +6,16 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+
+	"github.com/couchbase/gocbcorex/contrib/asyncwritebuf"
 )
 
 type Conn struct {
 	conn     net.Conn
 	ioReader io.Reader
+	ioWriter io.Writer
+
+	asyncWriter *asyncwritebuf.Writer
 
 	reader PacketReader
 	writer PacketWriter
@@ -20,7 +25,8 @@ type DialConnOptions struct {
 	TLSConfig *tls.Config
 	Dialer    *net.Dialer
 
-	ReadBufferSize int
+	ReadBufferSize  int
+	WriteBufferSize int
 }
 
 func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, error) {
@@ -31,7 +37,13 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 	readBufferSize := opts.ReadBufferSize
 	if readBufferSize == 0 {
 		// default to a read-buffer size of 1MB, use -1 to disable
-		readBufferSize = 1 * 1024 * 1024
+		readBufferSize = 10 * 1024 * 1024
+	}
+
+	writeBufferSize := opts.WriteBufferSize
+	if writeBufferSize == 0 {
+		// default to a read-buffer size of 1MB, use -1 to disable
+		writeBufferSize = 0
 	}
 
 	dialer := opts.Dialer
@@ -59,10 +71,6 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 		tcpConn, _ = tlsConn.NetConn().(*net.TCPConn)
 	}
 
-	// we disable TCP_NODELAY by default, this turns on the NAGLE algorithm and makes our
-	// network writes more efficient, in the future this should be done in user-space.
-	_ = tcpConn.SetNoDelay(false)
-
 	// if there is a read buffer size configured, we use it
 	var ioReader io.Reader
 	if readBufferSize > 0 {
@@ -71,16 +79,32 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 		ioReader = netConn
 	}
 
+	var asyncWriter *asyncwritebuf.Writer
+	var ioWriter io.Writer
+	if writeBufferSize > 0 {
+		asyncWriter = asyncwritebuf.NewWriter(netConn, writeBufferSize)
+		ioWriter = asyncWriter
+	} else {
+		ioWriter = netConn
+
+		// we disable TCP_NODELAY by default, this turns on the NAGLE algorithm and makes our
+		// network writes more efficient, this is only needed when we don't have user-space
+		// buffering to aggregate writes with.
+		_ = tcpConn.SetNoDelay(false)
+	}
+
 	c := &Conn{
-		conn:     netConn,
-		ioReader: ioReader,
+		conn:        netConn,
+		ioReader:    ioReader,
+		ioWriter:    ioWriter,
+		asyncWriter: asyncWriter,
 	}
 
 	return c, nil
 }
 
 func (c *Conn) WritePacket(pak *Packet) error {
-	return c.writer.WritePacket(c.conn, pak)
+	return c.writer.WritePacket(c.ioWriter, pak)
 }
 
 func (c *Conn) ReadPacket(pak *Packet) error {
@@ -88,6 +112,10 @@ func (c *Conn) ReadPacket(pak *Packet) error {
 }
 
 func (c *Conn) Close() error {
+	if c.asyncWriter != nil {
+		c.asyncWriter.Close()
+	}
+
 	return c.conn.Close()
 }
 
