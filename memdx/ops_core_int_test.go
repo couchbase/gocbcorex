@@ -60,9 +60,13 @@ func TestOpsCoreGetCollectionIDScopeMissing(t *testing.T) {
 	})
 	require.ErrorIs(t, err, memdx.ErrUnknownScopeName)
 
-	var serverErr memdx.ServerErrorWithContext
-	require.ErrorAs(t, err, &serverErr)
-	serverCtx := serverErr.ParseContext()
+	if testutilsint.IsServerVersionBetween(t, "7.6.0", "7.6.3") {
+		// BUG(ING-949): MB-64026 caused context to be missing in these server versions.
+	} else {
+		var serverErr memdx.ServerErrorWithContext
+		require.ErrorAs(t, err, &serverErr)
+		serverCtx := serverErr.ParseContext()
 
-	require.NotEqual(t, 0, serverCtx.ManifestRev)
+		require.NotEqual(t, 0, serverCtx.ManifestRev)
+	}
 }

@@ -187,9 +187,24 @@ func getServerVersion(t *testing.T) string {
 	return serverVersion
 }
 
+func isBeforeVersion(serverVersion, checkVersion string) bool {
+	return semver.Compare("v"+serverVersion, "v"+checkVersion) < 0
+}
+
+func isAfterVersion(serverVersion, checkVersion string) bool {
+	return semver.Compare("v"+serverVersion, "v"+checkVersion) > 0
+}
+
 func IsOlderServerVersion(t *testing.T, checkVersion string) bool {
 	serverVersion := getServerVersion(t)
-	return semver.Compare("v"+serverVersion, "v"+checkVersion) < 0
+	return isBeforeVersion(serverVersion, checkVersion)
+}
+
+// checks if server version is between start and end version inclusively
+func IsServerVersionBetween(t *testing.T, startVersion, endVersion string) bool {
+	serverVersion := getServerVersion(t)
+	return !isBeforeVersion(serverVersion, startVersion) &&
+		!isAfterVersion(serverVersion, endVersion)
 }
 
 func SkipIfOlderServerVersion(t *testing.T, checkVersion string) {
