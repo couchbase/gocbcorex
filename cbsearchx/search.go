@@ -600,7 +600,11 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 	} else if strings.Contains(errText, "unknown indextype") {
 		err = ErrUnknownIndexType
 	} else if strings.Contains(errText, "error obtaining vbucket count for bucket") ||
-		strings.Contains(errText, "requested resource not found") {
+		strings.Contains(errText, "requested resource not found") ||
+		strings.Contains(errText, "non existent bucket") {
+		// In server 7.2.4 and later, ns_server produces "non existent bucket" instead of "requested resource not found".  However
+		// in 7.6.0, FTS reordered their handling here and produces the "vbucket count for bucket" instead.  So we need to check
+		// for all the variants of this.
 		err = ErrSourceNotFound
 	} else if strings.Contains(errText, " failed to connect to or retrieve information from source, sourcetype") {
 		err = ErrSourceTypeIncorrect
