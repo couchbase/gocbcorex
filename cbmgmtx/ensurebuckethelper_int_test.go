@@ -2,6 +2,7 @@ package cbmgmtx_test
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"testing"
@@ -91,6 +92,11 @@ func TestEnsureBucketDino(t *testing.T) {
 				BucketName: testBucketName,
 			})
 			if err != nil {
+				// Workaround for MB-64034
+				if errors.Is(err, cbmgmtx.ErrBucketNotFound) {
+					return true
+				}
+
 				log.Printf("bucket deletion failed with error: %s", err)
 				return false
 			}
