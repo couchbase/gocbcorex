@@ -218,6 +218,7 @@ func (h Query) CreatePrimaryIndex(ctx context.Context, opts *CreatePrimaryIndexO
 	}
 
 	for rows.HasMoreRows() {
+		_, _ = rows.ReadRow()
 	}
 
 	return nil
@@ -291,6 +292,7 @@ func (h Query) CreateIndex(ctx context.Context, opts *CreateIndexOptions) error 
 	}
 
 	for rows.HasMoreRows() {
+		_, _ = rows.ReadRow()
 	}
 
 	return nil
@@ -344,6 +346,7 @@ func (h Query) DropPrimaryIndex(ctx context.Context, opts *DropPrimaryIndexOptio
 	}
 
 	for rows.HasMoreRows() {
+		_, _ = rows.ReadRow()
 	}
 
 	return nil
@@ -391,6 +394,7 @@ func (h Query) DropIndex(ctx context.Context, opts *DropIndexOptions) error {
 	}
 
 	for rows.HasMoreRows() {
+		_, _ = rows.ReadRow()
 	}
 
 	return nil
@@ -468,6 +472,7 @@ func (h Query) BuildDeferredIndexes(ctx context.Context, opts *BuildDeferredInde
 		}
 
 		for rows.HasMoreRows() {
+			_, _ = rows.ReadRow()
 		}
 	}
 

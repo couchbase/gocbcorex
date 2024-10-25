@@ -63,6 +63,8 @@ func TestEnsureQuery(t *testing.T) {
 		require.NoError(t, err)
 
 		for res.HasMoreRows() {
+			_, err := res.ReadRow()
+			require.NoError(t, err)
 		}
 	}
 
@@ -97,7 +99,10 @@ func TestEnsureQuery(t *testing.T) {
 	require.NoError(t, err)
 
 	for res.HasMoreRows() {
+		_, err := res.ReadRow()
+		require.NoError(t, err)
 	}
+
 	require.Eventually(t, func() bool {
 		res, err := hlpr.PollDropped(ctx, &cbqueryx.EnsureIndexPollOptions{
 			Transport: transport,
