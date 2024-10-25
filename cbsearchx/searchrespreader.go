@@ -37,7 +37,7 @@ func newRespReader(resp *http.Response, opts *respReaderOptions) (*respReader, e
 	}
 
 	if err := r.init(resp); err != nil {
-		return nil, SearchError{
+		return nil, &SearchError{
 			Cause:      err,
 			StatusCode: resp.StatusCode,
 			Endpoint:   r.endpoint,

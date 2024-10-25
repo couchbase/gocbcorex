@@ -138,7 +138,7 @@ func OrchestrateMemdRouting[RespT any](ctx context.Context, vb VbucketRouter, ch
 					}
 				}
 
-				var nmvErr memdx.ServerErrorWithConfig
+				var nmvErr *memdx.ServerErrorWithConfig
 				if !errors.As(err, &nmvErr) {
 					// if there is no new config available, we cant make any assumptions
 					// about the meaning of this error and propagate it upwards.

@@ -322,7 +322,7 @@ func TestKvClientWrapsDispatchError(t *testing.T) {
 	_, err = cli.Get(context.Background(), &memdx.GetRequest{})
 	require.ErrorIs(t, err, memdx.ErrDispatch)
 
-	var dispatchError KvClientDispatchError
+	var dispatchError *KvClientDispatchError
 	require.ErrorAs(t, err, &dispatchError)
 }
 
@@ -355,6 +355,6 @@ func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
 	_, err = cli.Get(context.Background(), &memdx.GetRequest{})
 	require.ErrorIs(t, err, memdx.ErrProtocol)
 
-	var dispatchError KvClientDispatchError
+	var dispatchError *KvClientDispatchError
 	require.False(t, errors.As(err, &dispatchError), "error should not have dispatch error")
 }

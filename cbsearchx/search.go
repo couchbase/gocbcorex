@@ -614,7 +614,7 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 		err = errors.New("unexpected error response")
 	}
 
-	return SearchError{
+	return &SearchError{
 		Cause:      err,
 		StatusCode: resp.StatusCode,
 		Body:       bodyBytes,

@@ -300,7 +300,7 @@ func OrchestrateMemdClient[RespT any](
 
 		res, err := fn(cli)
 		if err != nil {
-			var dispatchErr KvClientDispatchError
+			var dispatchErr *KvClientDispatchError
 			if errors.As(err, &dispatchErr) {
 				// this was a dispatch error, so we can just try with
 				// a different client instead...
@@ -329,7 +329,7 @@ func OrchestrateRandomMemdClient[RespT any](
 
 		res, err := fn(cli)
 		if err != nil {
-			var dispatchErr KvClientDispatchError
+			var dispatchErr *KvClientDispatchError
 			if errors.As(err, &dispatchErr) {
 				// this was a dispatch error, so we can just try with
 				// a different client instead...

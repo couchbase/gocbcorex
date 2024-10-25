@@ -215,7 +215,7 @@ func TestOpBootstrapCancelled(t *testing.T) {
 
 			expectedErr := errors.New("some error")
 			<-pair.Reached
-			op.Cancel(requestCancelledError{expectedErr})
+			op.Cancel(&requestCancelledError{expectedErr})
 			pair.Continue <- struct{}{}
 
 			// Due to the nature of bootstrap having some optional components which
