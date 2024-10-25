@@ -15,9 +15,10 @@ jobs:
     strategy:
       matrix:
         server:
-          - 7.2.2
-          - 7.1.1
-          - 7.0.3
+          - 7.6.3
+          - 7.2.6
+          - 7.1.6
+          - 7.0.5
 
     runs-on: ubuntu-20.04
     steps:
