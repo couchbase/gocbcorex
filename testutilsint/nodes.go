@@ -3,6 +3,7 @@ package testutilsint
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -105,14 +106,21 @@ func GetTestNodes(t *testing.T) NodeTargetList {
 	config, err := getTestMgmt().GetTerseClusterConfig(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{})
 	require.NoError(t, err)
 
+	srcUrl, _ := url.Parse(getTestMgmt().Endpoint)
+	srcHostname := srcUrl.Hostname()
 	orchestratorNsAddr := getOrchestratorNsAddr(t)
 
 	var nodes []*NodeTarget
 	for _, nodeExt := range config.NodesExt {
-		nsAddress := fmt.Sprintf("%s:%d", nodeExt.Hostname, nodeExt.Services.Mgmt)
+		hostname := nodeExt.Hostname
+		if hostname == "" {
+			hostname = srcHostname
+		}
+
+		nsAddress := fmt.Sprintf("%s:%d", hostname, nodeExt.Services.Mgmt)
 
 		nodes = append(nodes, &NodeTarget{
-			Hostname:       nodeExt.Hostname,
+			Hostname:       hostname,
 			NsPort:         nodeExt.Services.Mgmt,
 			QueryPort:      nodeExt.Services.N1ql,
 			SearchPort:     nodeExt.Services.Fts,
