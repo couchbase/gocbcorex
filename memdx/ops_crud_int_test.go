@@ -2075,27 +2075,6 @@ func TestOpsCrudLookupInErrorCases(t *testing.T) {
 		// 	ExpectedError: ErrSubDocXattrInvalidFlagCombo,
 		// 	RunFirst:      doSetOp,
 		// },
-		{
-			Name: "InvalidXattrKeyCombo",
-			Request: &memdx.LookupInRequest{
-				VbucketID: defaultTestVbucketID,
-				Ops: []memdx.LookupInOp{
-					{
-						Op:    memdx.LookupInOpTypeGet,
-						Path:  []byte("key"),
-						Flags: memdx.SubdocOpFlagXattrPath,
-					},
-					{
-						Op:    memdx.LookupInOpTypeGet,
-						Path:  []byte("key2"),
-						Flags: memdx.SubdocOpFlagXattrPath,
-					},
-					makeGetSubdocOp(),
-				},
-			},
-			ExpectedError: memdx.ErrSubDocXattrInvalidKeyCombo,
-			RunFirst:      doSetOp,
-		},
 
 		// Path level errors
 
@@ -2447,29 +2426,6 @@ func TestOpsCrudMutateInErrorCases(t *testing.T) {
 				Flags: memdx.SubdocDocFlagAddDoc,
 			},
 			ExpectedError: memdx.ErrSubDocInvalidXattrOrder,
-		},
-		{
-			Name: "InvalidXattrKeyCombo",
-			Request: &memdx.MutateInRequest{
-				VbucketID: defaultTestVbucketID,
-				Ops: []memdx.MutateInOp{
-					{
-						Op:    memdx.MutateInOpTypeDictSet,
-						Path:  []byte("key"),
-						Value: []byte(`"value"`),
-						Flags: memdx.SubdocOpFlagXattrPath,
-					},
-					{
-						Op:    memdx.MutateInOpTypeDictSet,
-						Path:  []byte("key2"),
-						Value: []byte(`"value"`),
-						Flags: memdx.SubdocOpFlagXattrPath,
-					},
-					makeSetSubdocOp(),
-				},
-				Flags: memdx.SubdocDocFlagAddDoc,
-			},
-			ExpectedError: memdx.ErrSubDocXattrInvalidKeyCombo,
 		},
 		{
 			Name: "XattrUnknownMacro",
@@ -3135,6 +3091,101 @@ func TestOpsCrudOnBehalfOf(t *testing.T) {
 
 			assert.ErrorIs(tt, <-wait, memdx.ErrAccessError)
 		})
+	}
+}
+
+func TestOpsCrudLookupinMultiXattr(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	key := []byte(uuid.NewString())
+
+	cli := createTestClient(t)
+
+	_, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Value:        []byte(`{"key":"value"}`),
+		Datatype:     uint8(0x01),
+		Expiry:       60,
+	})
+	require.NoError(t, err)
+
+	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.LookupIn, cli, &memdx.LookupInRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Ops: []memdx.LookupInOp{
+			{
+				Op:    memdx.LookupInOpTypeGet,
+				Path:  []byte("key"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+			{
+				Op:    memdx.LookupInOpTypeGet,
+				Path:  []byte("key2"),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+			{
+				Op:   memdx.LookupInOpTypeGet,
+				Path: []byte("key"),
+			},
+		},
+	})
+
+	if testutilsint.IsOlderServerVersion(t, "7.6.0") {
+		require.ErrorIs(t, err, memdx.ErrSubDocXattrInvalidKeyCombo)
+	} else {
+		require.NoError(t, err)
+	}
+}
+
+func TestOpsCrudMutateinMultiXattr(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	key := []byte(uuid.NewString())
+
+	cli := createTestClient(t)
+
+	_, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.MutateIn, cli, &memdx.MutateInRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Ops: []memdx.MutateInOp{
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("key"),
+				Value: []byte(`"value"`),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("key2"),
+				Value: []byte(`"value"`),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("key"),
+				Value: []byte(`"value"`),
+			},
+		},
+		Flags: memdx.SubdocDocFlagAddDoc,
+	})
+
+	if testutilsint.IsOlderServerVersion(t, "7.6.0") {
+		require.ErrorIs(t, err, memdx.ErrSubDocXattrInvalidKeyCombo)
+	} else {
+		require.NoError(t, err)
 	}
 }
 
