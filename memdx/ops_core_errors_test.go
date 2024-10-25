@@ -28,7 +28,7 @@ func TestOpsCoreDecodeError(t *testing.T) {
 				Opaque: 0x34,
 				Value:  []byte("impretendingtobeaconfig"),
 			},
-			ExpectedError: ServerErrorWithConfig{
+			ExpectedError: &ServerErrorWithConfig{
 				Cause: ServerError{
 					OpCode:         OpCodeReplace,
 					Status:         StatusNotMyVBucket,

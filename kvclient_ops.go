@@ -148,7 +148,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		finishCall(err)
 
 		if errors.Is(err, memdx.ErrDispatch) {
-			err = KvClientDispatchError{err}
+			err = &KvClientDispatchError{err}
 		}
 
 		var emptyResp RespT
@@ -358,7 +358,7 @@ func (c *kvClient) RangeScanContinue(ctx context.Context, req *memdx.RangeScanCo
 	})
 	if err != nil {
 		releaseSyncCrudResulter(resulter)
-		return nil, KvClientDispatchError{err}
+		return nil, &KvClientDispatchError{err}
 	}
 
 	select {

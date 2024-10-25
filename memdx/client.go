@@ -114,7 +114,7 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 		zap.Uint32("opaque", opaqueID),
 	)
 
-	hasMorePackets := handler(nil, requestCancelledError{cause: err})
+	hasMorePackets := handler(nil, &requestCancelledError{cause: err})
 	if hasMorePackets {
 		c.logger.DPanic("memd packet handler returned hasMorePackets after an error", zap.Uint32("opaque", opaqueID))
 	}

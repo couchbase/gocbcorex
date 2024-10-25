@@ -126,6 +126,6 @@ func (a OpBootstrap) Bootstrap(d Dispatcher, opts *BootstrapOptions, cb func(res
 }
 
 func (a OpBootstrap) isRequestCancelledError(err error) bool {
-	var cancelErr requestCancelledError
+	var cancelErr *requestCancelledError
 	return errors.As(err, &cancelErr)
 }

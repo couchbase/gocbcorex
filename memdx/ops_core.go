@@ -28,7 +28,7 @@ type OpsCore struct {
 }
 
 func (o OpsCore) decodeErrorContext(resp *Packet, err error, dispatchedTo string, dispatchedFrom string) error {
-	baseCause := ServerError{
+	baseCause := &ServerError{
 		OpCode:         resp.OpCode,
 		Status:         resp.Status,
 		Cause:          err,
@@ -39,14 +39,14 @@ func (o OpsCore) decodeErrorContext(resp *Packet, err error, dispatchedTo string
 
 	if len(resp.Value) > 0 {
 		if resp.Status == StatusNotMyVBucket {
-			return ServerErrorWithConfig{
-				Cause:      baseCause,
+			return &ServerErrorWithConfig{
+				Cause:      *baseCause,
 				ConfigJson: resp.Value,
 			}
 		}
 
-		return ServerErrorWithContext{
-			Cause:       baseCause,
+		return &ServerErrorWithContext{
+			Cause:       *baseCause,
 			ContextJson: resp.Value,
 		}
 	}

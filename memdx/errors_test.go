@@ -12,14 +12,13 @@ import (
 func TestServerErrorWithContextText(t *testing.T) {
 	text := []byte(`{"error":{"context":"Request must not include extras"}}`)
 
-	baseCause := ServerError{
-		Cause:          errors.New("invalid"),
-		DispatchedTo:   "",
-		DispatchedFrom: "",
-		Opaque:         1,
-	}
-	err := ServerErrorWithContext{
-		Cause:       baseCause,
+	err := &ServerErrorWithContext{
+		Cause: ServerError{
+			Cause:          errors.New("invalid"),
+			DispatchedTo:   "",
+			DispatchedFrom: "",
+			Opaque:         1,
+		},
 		ContextJson: text,
 	}
 

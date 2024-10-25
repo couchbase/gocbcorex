@@ -47,7 +47,7 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 	fn := func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
 		if fnCalls == 0 {
 			fnCalls++
-			return nil, memdx.ServerErrorWithContext{
+			return nil, &memdx.ServerErrorWithContext{
 				Cause:       memdx.ServerError{Cause: memdx.ErrUnknownCollectionID},
 				ContextJson: []byte(fmt.Sprintf(`{"manifest_uid":"%d"}`, firstServerManifestRev)),
 			}

@@ -100,7 +100,7 @@ func TestUpsertIndex(t *testing.T) {
 		opts := defaultOpts(indexName)
 		err := search.UpsertIndex(ctx, &opts)
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.Equal(t, sErr.Cause, cbsearchx.ErrIndexExists)
 	})
@@ -131,7 +131,7 @@ func TestUpsertIndex(t *testing.T) {
 		opts.SourceType = "magma"
 		err := search.UpsertIndex(ctx, &opts)
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.Equal(t, sErr.Cause, cbsearchx.ErrSourceTypeIncorrect)
 	})
@@ -141,7 +141,7 @@ func TestUpsertIndex(t *testing.T) {
 		opts.Type = "notAType"
 		err := search.UpsertIndex(ctx, &opts)
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.Equal(t, sErr.Cause, cbsearchx.ErrUnknownIndexType)
 	})
@@ -154,7 +154,7 @@ func TestUpsertIndex(t *testing.T) {
 		opts.SourceName = "sourceNotFound"
 		err := search.UpsertIndex(ctx, &opts)
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.Equal(t, cbsearchx.ErrSourceNotFound, sErr.Cause)
 	})
@@ -217,7 +217,7 @@ func TestGetIndex(t *testing.T) {
 		_, err := search.GetIndex(ctx, &cbsearchx.GetIndexOptions{
 			IndexName: "indexNotFound",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -244,7 +244,7 @@ func TestGetIndex(t *testing.T) {
 			BucketName: testutilsint.TestOpts.BucketName,
 			ScopeName:  "scopeNotFound",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -285,7 +285,7 @@ func TestDeleteIndex(t *testing.T) {
 		err := search.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
 			IndexName: "not-an-index",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -324,7 +324,7 @@ func TestDeleteIndex(t *testing.T) {
 			BucketName: testutilsint.TestOpts.BucketName,
 			ScopeName:  "scopeNotFound",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -455,7 +455,7 @@ func TestPartitionControl(t *testing.T) {
 			IndexName: "notAnIndex",
 		})
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -489,7 +489,7 @@ func TestPartitionControl(t *testing.T) {
 			ScopeName:  "_default",
 		})
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, err, cbsearchx.ErrIndexNotFound)
 	})
@@ -529,7 +529,7 @@ func TestIngestControl(t *testing.T) {
 		err = search.PauseIngest(ctx, &cbsearchx.PauseIngestOptions{
 			IndexName: "notAnIndex",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 
@@ -568,7 +568,7 @@ func TestIngestControl(t *testing.T) {
 			BucketName: "bucketNotFound",
 			ScopeName:  "_default",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 
@@ -616,7 +616,7 @@ func TestQueryControl(t *testing.T) {
 		err = search.DisallowQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
 			IndexName: "notAnIndex",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 
@@ -656,7 +656,7 @@ func TestQueryControl(t *testing.T) {
 			BucketName: "notABucket",
 			ScopeName:  "_default",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 
@@ -731,7 +731,7 @@ func TestAnalyzeDocument(t *testing.T) {
 			DocContent: []byte("true"),
 		}
 		_, err := search.AnalyzeDocument(ctx, &aOpts)
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -779,7 +779,7 @@ func TestAnalyzeDocument(t *testing.T) {
 			DocContent: []byte("true"),
 		}
 		_, err := search.AnalyzeDocument(ctx, &aOpts)
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -828,7 +828,7 @@ func TestGetIndexedDocumentsCount(t *testing.T) {
 		_, err := search.GetIndexedDocumentsCount(ctx, &cbsearchx.GetIndexedDocumentsCountOptions{
 			IndexName: "indexNotFound",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -871,7 +871,7 @@ func TestGetIndexedDocumentsCount(t *testing.T) {
 			ScopeName:  scopedOpts.ScopeName,
 			IndexName:  "indexNotFound",
 		})
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
@@ -885,7 +885,7 @@ func TestGetIndexedDocumentsCount(t *testing.T) {
 			IndexName:  scopedName,
 		})
 
-		var sErr cbsearchx.SearchError
+		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
