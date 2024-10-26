@@ -56,7 +56,7 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 	})
 }
 
-func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, dataCb func(*RangeScanDataResponse),
+func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, dataCb func(*RangeScanDataResponse) error,
 	actionCb func(*RangeScanActionResponse, error)) (PendingOp, error) {
 	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
@@ -111,10 +111,16 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 		items := o.parseRangeScanData(resp.Value, includesContentFlag == 0)
 
 		if len(items) > 0 {
-			dataCb(&RangeScanDataResponse{
+			err := dataCb(&RangeScanDataResponse{
 				KeysOnly: includesContentFlag == 0,
 				Items:    items,
 			})
+			if err != nil {
+				// if an error is returned from the dataCb, we should stop the range scan and
+				// return that error back to the caller in the final callback.
+				actionCb(nil, err)
+				return false
+			}
 		}
 
 		if resp.Status == StatusRangeScanMore ||

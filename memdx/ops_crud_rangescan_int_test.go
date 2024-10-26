@@ -68,9 +68,10 @@ func TestOpsCrudRangeScanCreateContinueOnce(t *testing.T) {
 	}.RangeScanContinue(cli, &memdx.RangeScanContinueRequest{
 		VbucketID: defaultTestVbucketID,
 		ScanUUID:  scanUUID,
-	}, func(response *memdx.RangeScanDataResponse) {
+	}, func(response *memdx.RangeScanDataResponse) error {
 		assert.False(t, response.KeysOnly)
 		items = append(items, response.Items...)
+		return nil
 	}, func(response *memdx.RangeScanActionResponse, err error) {
 		waitAction <- memdx.UnaryResult[*memdx.RangeScanActionResponse]{
 			Resp: response,
@@ -163,9 +164,10 @@ func TestOpsCrudRangeScanCreateContinueMoreThanOnce(t *testing.T) {
 		VbucketID: defaultTestVbucketID,
 		ScanUUID:  scanUUID,
 		MaxCount:  1,
-	}, func(response *memdx.RangeScanDataResponse) {
+	}, func(response *memdx.RangeScanDataResponse) error {
 		assert.False(t, response.KeysOnly)
 		items = append(items, response.Items...)
+		return nil
 	}, func(response *memdx.RangeScanActionResponse, err error) {
 		waitAction <- memdx.UnaryResult[*memdx.RangeScanActionResponse]{
 			Resp: response,
@@ -258,9 +260,10 @@ func TestOpsCrudRangeScanCreateContinueCancel(t *testing.T) {
 		VbucketID: defaultTestVbucketID,
 		ScanUUID:  scanUUID,
 		MaxCount:  1,
-	}, func(response *memdx.RangeScanDataResponse) {
+	}, func(response *memdx.RangeScanDataResponse) error {
 		assert.False(t, response.KeysOnly)
 		items = append(items, response.Items...)
+		return nil
 	}, func(response *memdx.RangeScanActionResponse, err error) {
 		waitAction <- memdx.UnaryResult[*memdx.RangeScanActionResponse]{
 			Resp: response,
