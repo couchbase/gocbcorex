@@ -113,7 +113,12 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	atomic.AddUint32(&resulter.AllocCount, 1)
 
 	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
-		err = c.wrapErrorWithBucket(err)
+		if err != nil && bucketName != "" {
+			err = &KvBucketError{
+				Cause:      err,
+				BucketName: bucketName,
+			}
+		}
 
 		span.AddEvent("RECEIVED")
 
@@ -206,24 +211,6 @@ func kvClient_SimpleCrudCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 		DurabilityEnabled:     c.HasFeature(memdx.HelloFeatureSyncReplication),
 		PreserveExpiryEnabled: c.HasFeature(memdx.HelloFeaturePreserveExpiry),
 	}, execFn, req)
-}
-
-// wrapErrorWithBucket will attempt to wrap any errors we receive with some
-// context about which particular bucket the error occurred against
-func (c *kvClient) wrapErrorWithBucket(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	selectedBucket := c.selectedBucket.Load()
-	if selectedBucket == nil {
-		return err
-	}
-
-	return &KvBucketError{
-		Cause:      err,
-		BucketName: *selectedBucket,
-	}
 }
 
 func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) (*memdx.BootstrapResult, error) {
