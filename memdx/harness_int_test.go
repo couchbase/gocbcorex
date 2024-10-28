@@ -2,9 +2,10 @@ package memdx_test
 
 import (
 	"context"
-	"encoding/json"
+	"net"
 	"testing"
 
+	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/stretchr/testify/require"
@@ -22,15 +23,9 @@ func createTestClient(t *testing.T) *memdx.Client {
 
 	// As we tie commands to a vbucket we have to ensure that the client we're returning is
 	// actually connected to the right node.
-	type vbucketServerMap struct {
-		ServerList []string `json:"serverList"`
-		VBucketMap [][]int  `json:"vBucketMap,omitempty"`
-	}
-	type cbConfig struct {
-		VBucketServerMap vbucketServerMap `json:"vBucketServerMap"`
-	}
-	var config cbConfig
-	require.NoError(t, json.Unmarshal(resp.ClusterConfig.Config, &config))
+	nodeHostname, _, _ := net.SplitHostPort(testAddress)
+	config, err := cbconfig.ParseTerseConfig(resp.ClusterConfig.Config, nodeHostname)
+	require.NoError(t, err)
 
 	// This is all a bit rough and can be improved, in time.
 	vbIdx := config.VBucketServerMap.VBucketMap[defaultTestVbucketID][0]

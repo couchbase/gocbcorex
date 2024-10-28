@@ -5,6 +5,7 @@ package gocbcorex
 
 import (
 	"context"
+	"net"
 	"sync"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -37,6 +38,9 @@ var _ KvClient = &KvClientMock{}
 //			},
 //			DeleteMetaFunc: func(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
 //				panic("mock out the DeleteMeta method")
+//			},
+//			DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+//				panic("mock out the Dispatch method")
 //			},
 //			GetFunc: func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error) {
 //				panic("mock out the Get method")
@@ -71,8 +75,8 @@ var _ KvClient = &KvClientMock{}
 //			LoadFactorFunc: func() float64 {
 //				panic("mock out the LoadFactor method")
 //			},
-//			LocalHostPortFunc: func() (string, int) {
-//				panic("mock out the LocalHostPort method")
+//			LocalAddrFunc: func() net.Addr {
+//				panic("mock out the LocalAddr method")
 //			},
 //			LookupInFunc: func(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
 //				panic("mock out the LookupIn method")
@@ -95,8 +99,11 @@ var _ KvClient = &KvClientMock{}
 //			ReconfigureFunc: func(config *KvClientConfig, cb func(error)) error {
 //				panic("mock out the Reconfigure method")
 //			},
-//			RemoteHostPortFunc: func() (string, string, int) {
-//				panic("mock out the RemoteHostPort method")
+//			RemoteAddrFunc: func() net.Addr {
+//				panic("mock out the RemoteAddr method")
+//			},
+//			RemoteHostnameFunc: func() string {
+//				panic("mock out the RemoteHostname method")
 //			},
 //			ReplaceFunc: func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
 //				panic("mock out the Replace method")
@@ -138,6 +145,9 @@ type KvClientMock struct {
 	// DeleteMetaFunc mocks the DeleteMeta method.
 	DeleteMetaFunc func(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error)
 
+	// DispatchFunc mocks the Dispatch method.
+	DispatchFunc func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error)
+
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
 
@@ -171,8 +181,8 @@ type KvClientMock struct {
 	// LoadFactorFunc mocks the LoadFactor method.
 	LoadFactorFunc func() float64
 
-	// LocalHostPortFunc mocks the LocalHostPort method.
-	LocalHostPortFunc func() (string, int)
+	// LocalAddrFunc mocks the LocalAddr method.
+	LocalAddrFunc func() net.Addr
 
 	// LookupInFunc mocks the LookupIn method.
 	LookupInFunc func(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
@@ -195,8 +205,11 @@ type KvClientMock struct {
 	// ReconfigureFunc mocks the Reconfigure method.
 	ReconfigureFunc func(config *KvClientConfig, cb func(error)) error
 
-	// RemoteHostPortFunc mocks the RemoteHostPort method.
-	RemoteHostPortFunc func() (string, string, int)
+	// RemoteAddrFunc mocks the RemoteAddr method.
+	RemoteAddrFunc func() net.Addr
+
+	// RemoteHostnameFunc mocks the RemoteHostname method.
+	RemoteHostnameFunc func() string
 
 	// ReplaceFunc mocks the Replace method.
 	ReplaceFunc func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
@@ -252,6 +265,13 @@ type KvClientMock struct {
 			Ctx context.Context
 			// Req is the req argument value.
 			Req *memdx.DeleteMetaRequest
+		}
+		// Dispatch holds details about calls to the Dispatch method.
+		Dispatch []struct {
+			// Packet is the packet argument value.
+			Packet *memdx.Packet
+			// DispatchCallback is the dispatchCallback argument value.
+			DispatchCallback memdx.DispatchCallback
 		}
 		// Get holds details about calls to the Get method.
 		Get []struct {
@@ -324,8 +344,8 @@ type KvClientMock struct {
 		// LoadFactor holds details about calls to the LoadFactor method.
 		LoadFactor []struct {
 		}
-		// LocalHostPort holds details about calls to the LocalHostPort method.
-		LocalHostPort []struct {
+		// LocalAddr holds details about calls to the LocalAddr method.
+		LocalAddr []struct {
 		}
 		// LookupIn holds details about calls to the LookupIn method.
 		LookupIn []struct {
@@ -378,8 +398,11 @@ type KvClientMock struct {
 			// Cb is the cb argument value.
 			Cb func(error)
 		}
-		// RemoteHostPort holds details about calls to the RemoteHostPort method.
-		RemoteHostPort []struct {
+		// RemoteAddr holds details about calls to the RemoteAddr method.
+		RemoteAddr []struct {
+		}
+		// RemoteHostname holds details about calls to the RemoteHostname method.
+		RemoteHostname []struct {
 		}
 		// Replace holds details about calls to the Replace method.
 		Replace []struct {
@@ -423,6 +446,7 @@ type KvClientMock struct {
 	lockDecrement         sync.RWMutex
 	lockDelete            sync.RWMutex
 	lockDeleteMeta        sync.RWMutex
+	lockDispatch          sync.RWMutex
 	lockGet               sync.RWMutex
 	lockGetAndLock        sync.RWMutex
 	lockGetAndTouch       sync.RWMutex
@@ -434,7 +458,7 @@ type KvClientMock struct {
 	lockHasFeature        sync.RWMutex
 	lockIncrement         sync.RWMutex
 	lockLoadFactor        sync.RWMutex
-	lockLocalHostPort     sync.RWMutex
+	lockLocalAddr         sync.RWMutex
 	lockLookupIn          sync.RWMutex
 	lockMutateIn          sync.RWMutex
 	lockPrepend           sync.RWMutex
@@ -442,7 +466,8 @@ type KvClientMock struct {
 	lockRangeScanContinue sync.RWMutex
 	lockRangeScanCreate   sync.RWMutex
 	lockReconfigure       sync.RWMutex
-	lockRemoteHostPort    sync.RWMutex
+	lockRemoteAddr        sync.RWMutex
+	lockRemoteHostname    sync.RWMutex
 	lockReplace           sync.RWMutex
 	lockSet               sync.RWMutex
 	lockSetMeta           sync.RWMutex
@@ -654,6 +679,42 @@ func (mock *KvClientMock) DeleteMetaCalls() []struct {
 	mock.lockDeleteMeta.RLock()
 	calls = mock.calls.DeleteMeta
 	mock.lockDeleteMeta.RUnlock()
+	return calls
+}
+
+// Dispatch calls DispatchFunc.
+func (mock *KvClientMock) Dispatch(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+	if mock.DispatchFunc == nil {
+		panic("KvClientMock.DispatchFunc: method is nil but KvClient.Dispatch was just called")
+	}
+	callInfo := struct {
+		Packet           *memdx.Packet
+		DispatchCallback memdx.DispatchCallback
+	}{
+		Packet:           packet,
+		DispatchCallback: dispatchCallback,
+	}
+	mock.lockDispatch.Lock()
+	mock.calls.Dispatch = append(mock.calls.Dispatch, callInfo)
+	mock.lockDispatch.Unlock()
+	return mock.DispatchFunc(packet, dispatchCallback)
+}
+
+// DispatchCalls gets all the calls that were made to Dispatch.
+// Check the length with:
+//
+//	len(mockedKvClient.DispatchCalls())
+func (mock *KvClientMock) DispatchCalls() []struct {
+	Packet           *memdx.Packet
+	DispatchCallback memdx.DispatchCallback
+} {
+	var calls []struct {
+		Packet           *memdx.Packet
+		DispatchCallback memdx.DispatchCallback
+	}
+	mock.lockDispatch.RLock()
+	calls = mock.calls.Dispatch
+	mock.lockDispatch.RUnlock()
 	return calls
 }
 
@@ -1040,30 +1101,30 @@ func (mock *KvClientMock) LoadFactorCalls() []struct {
 	return calls
 }
 
-// LocalHostPort calls LocalHostPortFunc.
-func (mock *KvClientMock) LocalHostPort() (string, int) {
-	if mock.LocalHostPortFunc == nil {
-		panic("KvClientMock.LocalHostPortFunc: method is nil but KvClient.LocalHostPort was just called")
+// LocalAddr calls LocalAddrFunc.
+func (mock *KvClientMock) LocalAddr() net.Addr {
+	if mock.LocalAddrFunc == nil {
+		panic("KvClientMock.LocalAddrFunc: method is nil but KvClient.LocalAddr was just called")
 	}
 	callInfo := struct {
 	}{}
-	mock.lockLocalHostPort.Lock()
-	mock.calls.LocalHostPort = append(mock.calls.LocalHostPort, callInfo)
-	mock.lockLocalHostPort.Unlock()
-	return mock.LocalHostPortFunc()
+	mock.lockLocalAddr.Lock()
+	mock.calls.LocalAddr = append(mock.calls.LocalAddr, callInfo)
+	mock.lockLocalAddr.Unlock()
+	return mock.LocalAddrFunc()
 }
 
-// LocalHostPortCalls gets all the calls that were made to LocalHostPort.
+// LocalAddrCalls gets all the calls that were made to LocalAddr.
 // Check the length with:
 //
-//	len(mockedKvClient.LocalHostPortCalls())
-func (mock *KvClientMock) LocalHostPortCalls() []struct {
+//	len(mockedKvClient.LocalAddrCalls())
+func (mock *KvClientMock) LocalAddrCalls() []struct {
 } {
 	var calls []struct {
 	}
-	mock.lockLocalHostPort.RLock()
-	calls = mock.calls.LocalHostPort
-	mock.lockLocalHostPort.RUnlock()
+	mock.lockLocalAddr.RLock()
+	calls = mock.calls.LocalAddr
+	mock.lockLocalAddr.RUnlock()
 	return calls
 }
 
@@ -1323,30 +1384,57 @@ func (mock *KvClientMock) ReconfigureCalls() []struct {
 	return calls
 }
 
-// RemoteHostPort calls RemoteHostPortFunc.
-func (mock *KvClientMock) RemoteHostPort() (string, string, int) {
-	if mock.RemoteHostPortFunc == nil {
-		panic("KvClientMock.RemoteHostPortFunc: method is nil but KvClient.RemoteHostPort was just called")
+// RemoteAddr calls RemoteAddrFunc.
+func (mock *KvClientMock) RemoteAddr() net.Addr {
+	if mock.RemoteAddrFunc == nil {
+		panic("KvClientMock.RemoteAddrFunc: method is nil but KvClient.RemoteAddr was just called")
 	}
 	callInfo := struct {
 	}{}
-	mock.lockRemoteHostPort.Lock()
-	mock.calls.RemoteHostPort = append(mock.calls.RemoteHostPort, callInfo)
-	mock.lockRemoteHostPort.Unlock()
-	return mock.RemoteHostPortFunc()
+	mock.lockRemoteAddr.Lock()
+	mock.calls.RemoteAddr = append(mock.calls.RemoteAddr, callInfo)
+	mock.lockRemoteAddr.Unlock()
+	return mock.RemoteAddrFunc()
 }
 
-// RemoteHostPortCalls gets all the calls that were made to RemoteHostPort.
+// RemoteAddrCalls gets all the calls that were made to RemoteAddr.
 // Check the length with:
 //
-//	len(mockedKvClient.RemoteHostPortCalls())
-func (mock *KvClientMock) RemoteHostPortCalls() []struct {
+//	len(mockedKvClient.RemoteAddrCalls())
+func (mock *KvClientMock) RemoteAddrCalls() []struct {
 } {
 	var calls []struct {
 	}
-	mock.lockRemoteHostPort.RLock()
-	calls = mock.calls.RemoteHostPort
-	mock.lockRemoteHostPort.RUnlock()
+	mock.lockRemoteAddr.RLock()
+	calls = mock.calls.RemoteAddr
+	mock.lockRemoteAddr.RUnlock()
+	return calls
+}
+
+// RemoteHostname calls RemoteHostnameFunc.
+func (mock *KvClientMock) RemoteHostname() string {
+	if mock.RemoteHostnameFunc == nil {
+		panic("KvClientMock.RemoteHostnameFunc: method is nil but KvClient.RemoteHostname was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockRemoteHostname.Lock()
+	mock.calls.RemoteHostname = append(mock.calls.RemoteHostname, callInfo)
+	mock.lockRemoteHostname.Unlock()
+	return mock.RemoteHostnameFunc()
+}
+
+// RemoteHostnameCalls gets all the calls that were made to RemoteHostname.
+// Check the length with:
+//
+//	len(mockedKvClient.RemoteHostnameCalls())
+func (mock *KvClientMock) RemoteHostnameCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockRemoteHostname.RLock()
+	calls = mock.calls.RemoteHostname
+	mock.lockRemoteHostname.RUnlock()
 	return calls
 }
 
@@ -1530,35 +1618,35 @@ func (mock *KvClientMock) UnlockCalls() []struct {
 	return calls
 }
 
-// Ensure, that MemdxDispatcherCloserMock does implement MemdxDispatcherCloser.
+// Ensure, that MemdxClientMock does implement MemdxClient.
 // If this is not the case, regenerate this file with moq.
-var _ MemdxDispatcherCloser = &MemdxDispatcherCloserMock{}
+var _ MemdxClient = &MemdxClientMock{}
 
-// MemdxDispatcherCloserMock is a mock implementation of MemdxDispatcherCloser.
+// MemdxClientMock is a mock implementation of MemdxClient.
 //
-//	func TestSomethingThatUsesMemdxDispatcherCloser(t *testing.T) {
+//	func TestSomethingThatUsesMemdxClient(t *testing.T) {
 //
-//		// make and configure a mocked MemdxDispatcherCloser
-//		mockedMemdxDispatcherCloser := &MemdxDispatcherCloserMock{
+//		// make and configure a mocked MemdxClient
+//		mockedMemdxClient := &MemdxClientMock{
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
 //			},
 //			DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 //				panic("mock out the Dispatch method")
 //			},
-//			LocalAddrFunc: func() string {
+//			LocalAddrFunc: func() net.Addr {
 //				panic("mock out the LocalAddr method")
 //			},
-//			RemoteAddrFunc: func() string {
+//			RemoteAddrFunc: func() net.Addr {
 //				panic("mock out the RemoteAddr method")
 //			},
 //		}
 //
-//		// use mockedMemdxDispatcherCloser in code that requires MemdxDispatcherCloser
+//		// use mockedMemdxClient in code that requires MemdxClient
 //		// and then make assertions.
 //
 //	}
-type MemdxDispatcherCloserMock struct {
+type MemdxClientMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
 
@@ -1566,10 +1654,10 @@ type MemdxDispatcherCloserMock struct {
 	DispatchFunc func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error)
 
 	// LocalAddrFunc mocks the LocalAddr method.
-	LocalAddrFunc func() string
+	LocalAddrFunc func() net.Addr
 
 	// RemoteAddrFunc mocks the RemoteAddr method.
-	RemoteAddrFunc func() string
+	RemoteAddrFunc func() net.Addr
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -1597,9 +1685,9 @@ type MemdxDispatcherCloserMock struct {
 }
 
 // Close calls CloseFunc.
-func (mock *MemdxDispatcherCloserMock) Close() error {
+func (mock *MemdxClientMock) Close() error {
 	if mock.CloseFunc == nil {
-		panic("MemdxDispatcherCloserMock.CloseFunc: method is nil but MemdxDispatcherCloser.Close was just called")
+		panic("MemdxClientMock.CloseFunc: method is nil but MemdxClient.Close was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -1612,8 +1700,8 @@ func (mock *MemdxDispatcherCloserMock) Close() error {
 // CloseCalls gets all the calls that were made to Close.
 // Check the length with:
 //
-//	len(mockedMemdxDispatcherCloser.CloseCalls())
-func (mock *MemdxDispatcherCloserMock) CloseCalls() []struct {
+//	len(mockedMemdxClient.CloseCalls())
+func (mock *MemdxClientMock) CloseCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -1624,9 +1712,9 @@ func (mock *MemdxDispatcherCloserMock) CloseCalls() []struct {
 }
 
 // Dispatch calls DispatchFunc.
-func (mock *MemdxDispatcherCloserMock) Dispatch(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
+func (mock *MemdxClientMock) Dispatch(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 	if mock.DispatchFunc == nil {
-		panic("MemdxDispatcherCloserMock.DispatchFunc: method is nil but MemdxDispatcherCloser.Dispatch was just called")
+		panic("MemdxClientMock.DispatchFunc: method is nil but MemdxClient.Dispatch was just called")
 	}
 	callInfo := struct {
 		Packet           *memdx.Packet
@@ -1644,8 +1732,8 @@ func (mock *MemdxDispatcherCloserMock) Dispatch(packet *memdx.Packet, dispatchCa
 // DispatchCalls gets all the calls that were made to Dispatch.
 // Check the length with:
 //
-//	len(mockedMemdxDispatcherCloser.DispatchCalls())
-func (mock *MemdxDispatcherCloserMock) DispatchCalls() []struct {
+//	len(mockedMemdxClient.DispatchCalls())
+func (mock *MemdxClientMock) DispatchCalls() []struct {
 	Packet           *memdx.Packet
 	DispatchCallback memdx.DispatchCallback
 } {
@@ -1660,9 +1748,9 @@ func (mock *MemdxDispatcherCloserMock) DispatchCalls() []struct {
 }
 
 // LocalAddr calls LocalAddrFunc.
-func (mock *MemdxDispatcherCloserMock) LocalAddr() string {
+func (mock *MemdxClientMock) LocalAddr() net.Addr {
 	if mock.LocalAddrFunc == nil {
-		panic("MemdxDispatcherCloserMock.LocalAddrFunc: method is nil but MemdxDispatcherCloser.LocalAddr was just called")
+		panic("MemdxClientMock.LocalAddrFunc: method is nil but MemdxClient.LocalAddr was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -1675,8 +1763,8 @@ func (mock *MemdxDispatcherCloserMock) LocalAddr() string {
 // LocalAddrCalls gets all the calls that were made to LocalAddr.
 // Check the length with:
 //
-//	len(mockedMemdxDispatcherCloser.LocalAddrCalls())
-func (mock *MemdxDispatcherCloserMock) LocalAddrCalls() []struct {
+//	len(mockedMemdxClient.LocalAddrCalls())
+func (mock *MemdxClientMock) LocalAddrCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -1687,9 +1775,9 @@ func (mock *MemdxDispatcherCloserMock) LocalAddrCalls() []struct {
 }
 
 // RemoteAddr calls RemoteAddrFunc.
-func (mock *MemdxDispatcherCloserMock) RemoteAddr() string {
+func (mock *MemdxClientMock) RemoteAddr() net.Addr {
 	if mock.RemoteAddrFunc == nil {
-		panic("MemdxDispatcherCloserMock.RemoteAddrFunc: method is nil but MemdxDispatcherCloser.RemoteAddr was just called")
+		panic("MemdxClientMock.RemoteAddrFunc: method is nil but MemdxClient.RemoteAddr was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -1702,8 +1790,8 @@ func (mock *MemdxDispatcherCloserMock) RemoteAddr() string {
 // RemoteAddrCalls gets all the calls that were made to RemoteAddr.
 // Check the length with:
 //
-//	len(mockedMemdxDispatcherCloser.RemoteAddrCalls())
-func (mock *MemdxDispatcherCloserMock) RemoteAddrCalls() []struct {
+//	len(mockedMemdxClient.RemoteAddrCalls())
+func (mock *MemdxClientMock) RemoteAddrCalls() []struct {
 } {
 	var calls []struct {
 	}

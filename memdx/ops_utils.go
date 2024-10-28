@@ -70,7 +70,7 @@ func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse,
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCore{}.decodeError(resp))
 			return false
 		}
 
@@ -122,13 +122,13 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 
 		if resp.Status == StatusScopeUnknown {
 			cb(nil, &ResourceError{
-				Cause:     OpsCore{}.decodeErrorContext(resp, ErrUnknownScopeName, "", ""),
+				Cause:     OpsCore{}.decodeErrorContext(resp, ErrUnknownScopeName),
 				ScopeName: req.ScopeName,
 			})
 			return false
 		} else if resp.Status == StatusCollectionUnknown {
 			cb(nil, &ResourceError{
-				Cause:          OpsCore{}.decodeErrorContext(resp, ErrUnknownCollectionName, "", ""),
+				Cause:          OpsCore{}.decodeErrorContext(resp, ErrUnknownCollectionName),
 				ScopeName:      req.ScopeName,
 				CollectionName: req.CollectionName,
 			})
@@ -136,7 +136,7 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCore{}.decodeError(resp))
 			return false
 		}
 

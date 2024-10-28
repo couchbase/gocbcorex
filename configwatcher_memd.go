@@ -2,8 +2,6 @@ package gocbcorex
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -67,13 +65,8 @@ func configWatcherMemd_pollOne(
 		return nil, err
 	}
 
-	host, _, _ := client.RemoteHostPort()
-	if host == "" {
-		return nil, errors.New("unexpected cccp endpoint format")
-	}
-
 	logger.Debug("Polling for new config",
-		zap.String("host", host),
+		zap.String("endpoint", endpoint),
 		zap.String("endpoint", endpoint))
 
 	resp, err := client.GetClusterConfig(ctx, &memdx.GetClusterConfigRequest{})
@@ -81,8 +74,9 @@ func configWatcherMemd_pollOne(
 		return nil, err
 	}
 
-	var config cbconfig.TerseConfigJson
-	err = json.Unmarshal(resp.Config, &config)
+	hostname := client.RemoteHostname()
+
+	config, err := cbconfig.ParseTerseConfig(resp.Config, hostname)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +85,7 @@ func configWatcherMemd_pollOne(
 		zap.Int("config", config.Rev),
 		zap.Int("configRevEpoch", config.RevEpoch))
 
-	parsedConfig, err := ConfigParser{}.ParseTerseConfig(&config, host)
+	parsedConfig, err := ConfigParser{}.ParseTerseConfig(config, hostname)
 	if err != nil {
 		return nil, err
 	}

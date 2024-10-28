@@ -15,9 +15,6 @@ func TestOpsCoreDecodeError(t *testing.T) {
 		ExpectedError error
 	}
 
-	dispatchedTo := "endpoint1"
-	dispatchedFrom := "local1"
-
 	tests := []test{
 		{
 			Name: "NotMyVbucket",
@@ -30,12 +27,10 @@ func TestOpsCoreDecodeError(t *testing.T) {
 			},
 			ExpectedError: &ServerErrorWithConfig{
 				Cause: ServerError{
-					OpCode:         OpCodeReplace,
-					Status:         StatusNotMyVBucket,
-					Cause:          ErrNotMyVbucket,
-					DispatchedTo:   dispatchedTo,
-					DispatchedFrom: dispatchedFrom,
-					Opaque:         0x34,
+					OpCode: OpCodeReplace,
+					Status: StatusNotMyVBucket,
+					Cause:  ErrNotMyVbucket,
+					Opaque: 0x34,
 				},
 				ConfigJson: []byte("impretendingtobeaconfig"),
 			},
@@ -44,7 +39,7 @@ func TestOpsCoreDecodeError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
-			err := OpsCore{}.decodeError(test.Pkt, dispatchedTo, dispatchedFrom)
+			err := OpsCore{}.decodeError(test.Pkt)
 
 			assert.Equal(t, test.ExpectedError, err)
 		})

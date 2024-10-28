@@ -114,22 +114,18 @@ func (e invalidArgError) Unwrap() error {
 }
 
 type ServerError struct {
-	OpCode         OpCode
-	Status         Status
-	Cause          error
-	DispatchedTo   string
-	DispatchedFrom string
-	Opaque         uint32
+	OpCode OpCode
+	Status Status
+	Cause  error
+	Opaque uint32
 }
 
 func (e ServerError) Error() string {
 	return fmt.Sprintf(
-		"server error: %s, status: 0x%x, opcode: %s, dispatched from: %s, dispatched to: %s, opaque: %d",
+		"server error: %s, status: 0x%x, opcode: %s, opaque: %d",
 		e.Cause,
 		uint16(e.Status),
 		e.OpCode.String(),
-		e.DispatchedFrom,
-		e.DispatchedTo,
 		e.Opaque,
 	)
 }

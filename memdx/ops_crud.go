@@ -139,13 +139,13 @@ func (o OpsCrud) decodeCommonStatus(status Status) error {
 		return nil
 	}
 }
-func (o OpsCrud) decodeCommonError(resp *Packet, dispatchedTo string, dispatchedFrom string) error {
+func (o OpsCrud) decodeCommonError(resp *Packet) error {
 	err := OpsCrud{}.decodeCommonStatus(resp.Status)
 	if err != nil {
 		return err
 	}
 
-	return OpsCore{}.decodeError(resp, dispatchedTo, dispatchedFrom)
+	return OpsCore{}.decodeError(resp)
 }
 
 type GetRequest struct {
@@ -194,7 +194,7 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -278,7 +278,7 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -354,7 +354,7 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -438,7 +438,7 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -514,7 +514,7 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -625,7 +625,7 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -706,7 +706,7 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -786,7 +786,7 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -878,7 +878,7 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -981,7 +981,7 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1097,7 +1097,7 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1201,7 +1201,7 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1305,7 +1305,7 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1413,7 +1413,7 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1528,7 +1528,7 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1620,7 +1620,7 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1719,7 +1719,7 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1810,7 +1810,7 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 			cb(nil, ErrDocNotFound)
 			return false
 		} else if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -1936,7 +1936,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			docIsDeleted = true
 			// considered a success still
 		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocMultiPathFailure {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -2216,7 +2216,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			docIsDeleted = true
 			// considered a success still
 		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocMultiPathFailure {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 

@@ -22,6 +22,19 @@ func getHostFromUri(uri string) (string, error) {
 	return parsedUrl.Host, nil
 }
 
+func hostnameFromAddrStr(address string) string {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return address
+	}
+	return host
+}
+
+func hostPortFromNetAddr(addr net.Addr) (string, int) {
+	tcpAddr := addr.(*net.TCPAddr)
+	return tcpAddr.IP.String(), tcpAddr.Port
+}
+
 func hostFromHostPort(hostport string) (string, error) {
 	host, _, err := net.SplitHostPort(hostport)
 	if err != nil {

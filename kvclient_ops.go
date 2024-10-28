@@ -68,8 +68,8 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	req ReqT,
 ) (RespT, error) {
 	bucketName := c.SelectedBucket()
-	localHost, localPort := c.LocalHostPort()
-	_, remoteHost, remotePort := c.RemoteHostPort()
+	localHost, localPort := hostPortFromNetAddr(c.LocalAddr())
+	remoteHost, remotePort := hostPortFromNetAddr(c.RemoteAddr())
 
 	stime := time.Now()
 
