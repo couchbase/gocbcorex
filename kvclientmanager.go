@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 
@@ -285,6 +286,22 @@ func (m *kvClientManager) Close() error {
 	return nil
 }
 
+type KvClientError struct {
+	Cause          error
+	RemoteHostname string
+	RemoteAddr     net.Addr
+	LocalAddr      net.Addr
+}
+
+func (e *KvClientError) Error() string {
+	return fmt.Sprintf("kv client error: %s (remote-host: %s, remote-addr: %s, local-addr: %s)",
+		e.Cause, e.RemoteHostname, e.RemoteAddr, e.LocalAddr)
+}
+
+func (e *KvClientError) Unwrap() error {
+	return e.Cause
+}
+
 func OrchestrateMemdClient[RespT any](
 	ctx context.Context,
 	cm KvClientManager,
@@ -308,7 +325,12 @@ func OrchestrateMemdClient[RespT any](
 				continue
 			}
 
-			return res, err
+			return res, &KvClientError{
+				Cause:          err,
+				RemoteHostname: cli.RemoteHostname(),
+				RemoteAddr:     cli.RemoteAddr(),
+				LocalAddr:      cli.LocalAddr(),
+			}
 		}
 
 		return res, nil
@@ -337,7 +359,12 @@ func OrchestrateRandomMemdClient[RespT any](
 				continue
 			}
 
-			return res, err
+			return res, &KvClientError{
+				Cause:          err,
+				RemoteHostname: cli.RemoteHostname(),
+				RemoteAddr:     cli.RemoteAddr(),
+				LocalAddr:      cli.LocalAddr(),
+			}
 		}
 
 		return res, nil

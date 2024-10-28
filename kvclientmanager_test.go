@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -602,7 +603,11 @@ func TestKvClientManagerPoolReturnError(t *testing.T) {
 
 func TestOrchestrateMemdClient(t *testing.T) {
 	ep := "endpoint1"
-	expectedClient := &KvClientMock{}
+	expectedClient := &KvClientMock{
+		RemoteHostnameFunc: func() string { return "hostname" },
+		RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+		LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+	}
 	mgr := &KvClientManagerMock{
 		GetClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
 			assert.Equal(t, ep, endpoint)
@@ -622,7 +627,11 @@ func TestOrchestrateMemdClient(t *testing.T) {
 }
 
 func TestOrchestrateRandomMemdClient(t *testing.T) {
-	expectedClient := &KvClientMock{}
+	expectedClient := &KvClientMock{
+		RemoteHostnameFunc: func() string { return "hostname" },
+		RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+		LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+	}
 	mgr := &KvClientManagerMock{
 		GetRandomClientFunc: func(ctx context.Context) (KvClient, error) {
 			return expectedClient, nil
@@ -689,7 +698,11 @@ func TestOrchestrateMemdClientGetReturnError(t *testing.T) {
 }
 
 func TestOrchestrateMemdCallbackReturnError(t *testing.T) {
-	client := &KvClientMock{}
+	client := &KvClientMock{
+		RemoteHostnameFunc: func() string { return "hostname" },
+		RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+		LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+	}
 	expectedErr := errors.New("somesortoferror")
 
 	mgr := &KvClientManagerMock{
@@ -730,13 +743,17 @@ func TestOrchestrateMemdCallbackReturnError(t *testing.T) {
 			err := test.Fn(func(client KvClient) (int, error) {
 				return 0, expectedErr
 			})
-			assert.Equal(tt, expectedErr, err)
+			assert.ErrorIs(tt, err, expectedErr)
 		})
 	}
 }
 
 func TestOrchestrateRandomMemdCallbackReturnDispatchError(t *testing.T) {
-	expectedClient := &KvClientMock{}
+	expectedClient := &KvClientMock{
+		RemoteHostnameFunc: func() string { return "hostname" },
+		RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+		LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+	}
 	var shutdowns int
 	mgr := &KvClientManagerMock{
 		GetRandomClientFunc: func(ctx context.Context) (KvClient, error) {
@@ -768,7 +785,11 @@ func TestOrchestrateRandomMemdCallbackReturnDispatchError(t *testing.T) {
 }
 
 func TestOrchestrateMemdCallbackReturnDispatchError(t *testing.T) {
-	expectedClient := &KvClientMock{}
+	expectedClient := &KvClientMock{
+		RemoteHostnameFunc: func() string { return "hostname" },
+		RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+		LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+	}
 	ep := "endpoint1"
 	var shutdowns int
 	mgr := &KvClientManagerMock{

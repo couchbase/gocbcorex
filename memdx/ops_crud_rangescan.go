@@ -45,7 +45,7 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 			cb(nil, ErrRangeScanVbUuidMismatch)
 			return false
 		} else if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -98,7 +98,7 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 			return false
 		} else if resp.Status != StatusSuccess && resp.Status != StatusRangeScanMore &&
 			resp.Status != StatusRangeScanComplete {
-			actionCb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			actionCb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 
@@ -169,7 +169,7 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 			cb(nil, ErrRangeScanNotFound)
 			return false
 		} else if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp, d.RemoteAddr(), d.LocalAddr()))
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
 

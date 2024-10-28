@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,11 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 	}
 	nkcp := &KvClientManagerMock{
 		GetClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
-			return &KvClientMock{}, nil
+			return &KvClientMock{
+				RemoteHostnameFunc: func() string { return "hostname" },
+				RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+				LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+			}, nil
 		},
 	}
 

@@ -14,10 +14,8 @@ func TestServerErrorWithContextText(t *testing.T) {
 
 	err := &ServerErrorWithContext{
 		Cause: ServerError{
-			Cause:          errors.New("invalid"),
-			DispatchedTo:   "",
-			DispatchedFrom: "",
-			Opaque:         1,
+			Cause:  errors.New("invalid"),
+			Opaque: 1,
 		},
 		ContextJson: text,
 	}

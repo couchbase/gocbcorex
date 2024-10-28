@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -23,11 +24,7 @@ func (mpo memdxPendingOpMock) Cancel(err error) {
 func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
-		DispatchFunc:   nil,
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
-	}
+	memdxCli := &MemdxClientMock{}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -38,7 +35,7 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -58,11 +55,7 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
-		DispatchFunc:   nil,
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
-	}
+	memdxCli := &MemdxClientMock{}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -73,7 +66,7 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -93,11 +86,7 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 func TestKvClientReconfigureUsername(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
-		DispatchFunc:   nil,
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
-	}
+	memdxCli := &MemdxClientMock{}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -108,7 +97,7 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -128,11 +117,7 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 func TestKvClientReconfigurePassword(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
-		DispatchFunc:   nil,
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
-	}
+	memdxCli := &MemdxClientMock{}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -143,7 +128,7 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -163,11 +148,7 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 func TestKvClientReconfigureAddress(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
-		DispatchFunc:   nil,
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
-	}
+	memdxCli := &MemdxClientMock{}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -178,7 +159,7 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -199,12 +180,10 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 func TestKvClientOrphanResponseHandler(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
+	memdxCli := &MemdxClientMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return memdxPendingOpMock{}, nil
 		},
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
@@ -216,7 +195,7 @@ func TestKvClientOrphanResponseHandler(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -228,12 +207,10 @@ func TestKvClientOrphanResponseHandler(t *testing.T) {
 func TestKvClientConnCloseHandlerDefault(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
+	memdxCli := &MemdxClientMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return memdxPendingOpMock{}, nil
 		},
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
@@ -245,7 +222,7 @@ func TestKvClientConnCloseHandlerDefault(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -258,12 +235,10 @@ func TestKvClientConnCloseHandlerDefault(t *testing.T) {
 func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
+	memdxCli := &MemdxClientMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return memdxPendingOpMock{}, nil
 		},
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
 	}
 
 	var closedCli KvClient
@@ -277,7 +252,7 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 		CloseHandler: func(client KvClient, err error) {
@@ -296,12 +271,12 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 func TestKvClientWrapsDispatchError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
+	memdxCli := &MemdxClientMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return nil, memdx.ErrDispatch
 		},
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
@@ -313,7 +288,7 @@ func TestKvClientWrapsDispatchError(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})
@@ -329,12 +304,12 @@ func TestKvClientWrapsDispatchError(t *testing.T) {
 func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxDispatcherCloserMock{
+	memdxCli := &MemdxClientMock{
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return nil, memdx.ErrProtocol
 		},
-		RemoteAddrFunc: func() string { return "remote:1" },
-		LocalAddrFunc:  func() string { return "local:2" },
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
@@ -346,7 +321,7 @@ func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
 		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
-		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxDispatcherCloser {
+		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
 	})

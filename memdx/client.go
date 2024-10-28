@@ -2,6 +2,7 @@ package memdx
 
 import (
 	"errors"
+	"net"
 	"os"
 	"sync"
 
@@ -246,10 +247,10 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 	}, nil
 }
 
-func (c *Client) LocalAddr() string {
+func (c *Client) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
-func (c *Client) RemoteAddr() string {
+func (c *Client) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }

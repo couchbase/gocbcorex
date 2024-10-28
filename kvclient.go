@@ -19,7 +19,7 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
-type GetMemdxClientFunc func(opts *memdx.ClientOptions) MemdxDispatcherCloser
+type GetMemdxClientFunc func(opts *memdx.ClientOptions) MemdxClient
 
 type KvClientConfig struct {
 	Address                string
@@ -91,27 +91,20 @@ type KvClient interface {
 
 	LoadFactor() float64
 
-	RemoteHostPort() (string, string, int)
-	LocalHostPort() (string, int)
+	RemoteHostname() string
+	RemoteAddr() net.Addr
+	LocalAddr() net.Addr
 
 	KvClientOps
-}
-
-type MemdxDispatcherCloser interface {
 	memdx.Dispatcher
-	Close() error
 }
 
 type kvClient struct {
 	logger         *zap.Logger
-	remoteHostName string
-	remoteHost     string
-	remotePort     int
-	localHost      string
-	localPort      int
+	remoteHostname string
 
 	pendingOperations uint64
-	cli               MemdxDispatcherCloser
+	cli               MemdxClient
 	durationMetric    metric.Float64Histogram
 
 	lock          sync.Mutex
@@ -132,19 +125,11 @@ type kvClient struct {
 var _ KvClient = (*kvClient)(nil)
 
 func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOptions) (*kvClient, error) {
-	parseHostPort := func(addr string) (string, int) {
-		host, portStr, _ := net.SplitHostPort(addr)
-		parsedPort, _ := strconv.ParseInt(portStr, 10, 64)
-		return host, int(parsedPort)
-	}
-
 	logger := loggerOrNop(opts.Logger)
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
 		zap.String("clientId", uuid.NewString()[:8]),
 	)
-
-	remoteHostName, remotePort := parseHostPort(config.Address)
 
 	durationMetric, err := meter.Float64Histogram("db.client.operation.duration",
 		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10))
@@ -154,8 +139,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 
 	kvCli := &kvClient{
 		currentConfig:  *config,
-		remoteHostName: remoteHostName,
-		remotePort:     remotePort,
+		remoteHostname: hostnameFromAddrStr(config.Address),
 		logger:         logger,
 		closeHandler:   opts.CloseHandler,
 		durationMetric: durationMetric,
@@ -243,12 +227,6 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	} else {
 		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
 	}
-
-	remoteHost, _ := parseHostPort(kvCli.cli.RemoteAddr())
-	localHost, localPort := parseHostPort(kvCli.cli.LocalAddr())
-	kvCli.remoteHost = remoteHost
-	kvCli.localHost = localHost
-	kvCli.localPort = localPort
 
 	if shouldBootstrap {
 		if bootstrapSelectBucket != nil {
@@ -368,12 +346,20 @@ func (c *kvClient) LoadFactor() float64 {
 	return (float64)(atomic.LoadUint64(&c.pendingOperations))
 }
 
-func (c *kvClient) RemoteHostPort() (string, string, int) {
-	return c.remoteHostName, c.remoteHost, c.remotePort
+func (c *kvClient) RemoteHostname() string {
+	return c.remoteHostname
 }
 
-func (c *kvClient) LocalHostPort() (string, int) {
-	return c.localHost, c.localPort
+func (c *kvClient) RemoteAddr() net.Addr {
+	return c.cli.RemoteAddr()
+}
+
+func (c *kvClient) LocalAddr() net.Addr {
+	return c.cli.LocalAddr()
+}
+
+func (c *kvClient) Dispatch(packet *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
+	return c.cli.Dispatch(packet, cb)
 }
 
 func (c *kvClient) SelectedBucket() string {
