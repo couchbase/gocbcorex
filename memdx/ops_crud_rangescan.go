@@ -229,7 +229,7 @@ type RangeScanCreateRequest struct {
 	Snapshot *RangeScanCreateSnapshotRequirements
 }
 
-func (r RangeScanCreateRequest) OpName() string { return OpCodeRangeScanCreate.String() }
+func (r RangeScanCreateRequest) OpName() string { return OpCodeRangeScanCreate.String(MagicReq) }
 
 func (opts RangeScanCreateRequest) toJSON() ([]byte, error) {
 	if opts.Range != nil && opts.Sampling != nil {
@@ -332,7 +332,7 @@ type RangeScanContinueRequest struct {
 	Deadline  time.Time
 }
 
-func (r RangeScanContinueRequest) OpName() string { return OpCodeRangeScanContinue.String() }
+func (r RangeScanContinueRequest) OpName() string { return OpCodeRangeScanContinue.String(MagicReq) }
 
 type RangeScanDataResponse struct {
 	Items    []RangeScanItem
@@ -351,7 +351,7 @@ type RangeScanCancelRequest struct {
 	VbucketID uint16
 }
 
-func (r RangeScanCancelRequest) OpName() string { return OpCodeRangeScanCancel.String() }
+func (r RangeScanCancelRequest) OpName() string { return OpCodeRangeScanCancel.String(MagicReq) }
 
 type RangeScanCancelResponse struct{}
 

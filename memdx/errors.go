@@ -114,6 +114,7 @@ func (e invalidArgError) Unwrap() error {
 }
 
 type ServerError struct {
+	Magic  Magic
 	OpCode OpCode
 	Status Status
 	Cause  error
@@ -125,7 +126,7 @@ func (e ServerError) Error() string {
 		"server error: %s, status: 0x%x, opcode: %s, opaque: %d",
 		e.Cause,
 		uint16(e.Status),
-		e.OpCode.String(),
+		e.OpCode.String(e.Magic),
 		e.Opaque,
 	)
 }
