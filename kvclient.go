@@ -205,9 +205,10 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
-		OrphanHandler: kvCli.handleOrphanResponse,
-		CloseHandler:  kvCli.handleConnectionClose,
-		Logger:        logger,
+		UnsolicitedHandler: kvCli.handleUnsolicitedPacket,
+		OrphanHandler:      kvCli.handleOrphanResponse,
+		CloseHandler:       kvCli.handleConnectionClose,
+		Logger:             logger,
 	}
 	if opts.NewMemdxClient == nil {
 		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
@@ -362,6 +363,12 @@ func (c *kvClient) SelectedBucket() string {
 		return *bucketNamePtr
 	}
 	return ""
+}
+
+func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {
+	c.logger.Info("unexpected unsolicited packet",
+		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
+		zap.String("opcode", pak.OpCode.String()))
 }
 
 func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
