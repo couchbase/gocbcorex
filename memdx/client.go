@@ -15,10 +15,11 @@ var enablePacketLogging bool = os.Getenv("GCBCX_PACKET_LOGGING") != ""
 // note that it is not thread-safe, but does use locks to prevent internal races
 // between operations that are being sent and responses being received.
 type Client struct {
-	conn          *Conn
-	orphanHandler func(*Packet)
-	closeHandler  func(error)
-	logger        *zap.Logger
+	conn               *Conn
+	unsolicitedHandler func(*Packet)
+	orphanHandler      func(*Packet)
+	closeHandler       func(error)
+	logger             *zap.Logger
 
 	// opaqueMapLock control access to the opaque map itself and is used for all access to it.
 	opaqueMapLock sync.Mutex
@@ -33,9 +34,10 @@ type Client struct {
 var _ Dispatcher = (*Client)(nil)
 
 type ClientOptions struct {
-	OrphanHandler func(*Packet)
-	CloseHandler  func(error)
-	Logger        *zap.Logger
+	UnsolicitedHandler func(*Packet)
+	OrphanHandler      func(*Packet)
+	CloseHandler       func(error)
+	Logger             *zap.Logger
 }
 
 func NewClient(conn *Conn, opts *ClientOptions) *Client {
@@ -48,10 +50,11 @@ func NewClient(conn *Conn, opts *ClientOptions) *Client {
 	}
 
 	c := &Client{
-		conn:          conn,
-		orphanHandler: opts.OrphanHandler,
-		closeHandler:  opts.CloseHandler,
-		logger:        logger,
+		conn:               conn,
+		unsolicitedHandler: opts.UnsolicitedHandler,
+		orphanHandler:      opts.OrphanHandler,
+		closeHandler:       opts.CloseHandler,
+		logger:             logger,
 
 		opaqueCtr: 1,
 		opaqueMap: make(map[uint32]DispatchCallback),
@@ -140,8 +143,19 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 
 	c.handlerInvokeLock.Lock()
 	defer c.handlerInvokeLock.Unlock()
-	c.opaqueMapLock.Lock()
 
+	if !pak.IsResponse {
+		unsolicitedHandler := c.unsolicitedHandler
+
+		if unsolicitedHandler == nil {
+			return errors.New("unexpected unsolicited packet")
+		}
+
+		unsolicitedHandler(pak)
+		return nil
+	}
+
+	c.opaqueMapLock.Lock()
 	handler, handlerIsValid := c.opaqueMap[pak.Opaque]
 	if !handlerIsValid {
 		orphanHandler := c.orphanHandler
