@@ -42,24 +42,6 @@ func TestOpsCrudGets(t *testing.T) {
 			},
 		},
 		{
-			Name: "GetRandom",
-			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
-				return opsCrud.GetRandom(cli, &memdx.GetRandomRequest{}, func(resp *memdx.GetRandomResponse, err error) {
-					cb(resp, err)
-				})
-			},
-			CheckOverride: func(t *testing.T, res interface{}) {
-				randRes, ok := res.(*memdx.GetRandomResponse)
-				if !ok {
-					t.Fatalf("Result of GetRandom was not *GetRandomResponse: %v", res)
-				}
-
-				assert.NotZero(t, randRes.Cas)
-				assert.NotZero(t, randRes.Key)
-				assert.NotZero(t, randRes.Value)
-			},
-		},
-		{
 			Name: "GetAndTouch",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
 				return opsCrud.GetAndTouch(cli, &memdx.GetAndTouchRequest{
@@ -1052,6 +1034,46 @@ func TestOpsCrudTouch(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotZero(t, res.Cas)
+}
+
+func TestOpsCrudGetRandom(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	key := []byte(uuid.NewString())
+	value := []byte(uuid.NewString())
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	_, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Value:        value,
+		Datatype:     datatype,
+	})
+	require.NoError(t, err)
+
+	var resOut *memdx.GetRandomResponse
+	require.Eventually(t, func() bool {
+		res, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+			CollectionsEnabled: true,
+			ExtFramesEnabled:   true,
+		}, memdx.OpsCrud.GetRandom, cli, &memdx.GetRandomRequest{})
+		if err != nil {
+			return false
+		}
+
+		resOut = res
+		return true
+	}, 15*time.Second, 100*time.Millisecond)
+	assert.NotZero(t, resOut.Key)
+	assert.NotZero(t, resOut.Value)
+	assert.NotZero(t, resOut.Cas)
+
 }
 
 func TestOpsCrudMutationTokens(t *testing.T) {
