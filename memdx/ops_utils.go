@@ -44,7 +44,7 @@ type StatsRequest struct {
 	GroupName string
 }
 
-func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String() }
+func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String(MagicReq) }
 
 type StatsResponse struct {
 	UtilsResponseMeta
@@ -93,7 +93,7 @@ type GetCollectionIDRequest struct {
 	CollectionName string
 }
 
-func (r GetCollectionIDRequest) OpName() string { return OpCodeCollectionsGetID.String() }
+func (r GetCollectionIDRequest) OpName() string { return OpCodeCollectionsGetID.String(MagicReq) }
 
 type GetCollectionIDResponse struct {
 	UtilsResponseMeta
