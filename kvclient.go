@@ -359,8 +359,12 @@ func (c *kvClient) LocalAddr() net.Addr {
 	return c.cli.LocalAddr()
 }
 
-func (c *kvClient) Dispatch(packet *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
-	return c.cli.Dispatch(packet, cb)
+func (c *kvClient) WritePacket(pak *memdx.Packet) error {
+	return c.cli.WritePacket(pak)
+}
+
+func (c *kvClient) Dispatch(pak *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
+	return c.cli.Dispatch(pak, cb)
 }
 
 func (c *kvClient) SelectedBucket() string {
@@ -375,7 +379,6 @@ func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {
 	c.logger.Info("unexpected unsolicited packet",
 		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
 		zap.String("opcode", pak.OpCode.String(pak.Magic)))
-	return
 }
 
 func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
