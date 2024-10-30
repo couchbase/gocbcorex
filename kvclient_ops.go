@@ -2,134 +2,9 @@ package gocbcorex
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"sync"
-	"sync/atomic"
-
-	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 
 	"github.com/couchbase/gocbcorex/memdx"
 )
-
-var (
-	meter = otel.Meter("github.com/couchbase/gocbcorex")
-)
-
-type KvClientDispatchError struct {
-	Cause error
-}
-
-func (e KvClientDispatchError) Error() string {
-	return fmt.Sprintf("dispatch error: %s", e.Cause)
-}
-
-func (e KvClientDispatchError) Unwrap() error {
-	return e.Cause
-}
-
-type syncCrudResult struct {
-	Result interface{}
-	Err    error
-}
-
-type syncCrudResulter struct {
-	Ch         chan syncCrudResult
-	AllocCount uint32
-	SendCount  uint32
-}
-
-var syncCrudResulterPool sync.Pool
-
-func allocSyncCrudResulter() *syncCrudResulter {
-	resulter := syncCrudResulterPool.Get()
-	if resulter == nil {
-		return &syncCrudResulter{
-			Ch: make(chan syncCrudResult, 1),
-		}
-	}
-	return resulter.(*syncCrudResulter)
-}
-func releaseSyncCrudResulter(v *syncCrudResulter) {
-	syncCrudResulterPool.Put(v)
-}
-
-func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpResponse](
-	ctx context.Context,
-	c *kvClient,
-	o Encoder,
-	execFn func(o Encoder, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
-	req ReqT,
-) (RespT, error) {
-	bucketName := c.SelectedBucket()
-	ctx, opTelem := c.telemetry.BeginOp(ctx, c, bucketName, req.OpName())
-
-	resulter := allocSyncCrudResulter()
-	atomic.AddUint32(&resulter.AllocCount, 1)
-
-	pendingOp, err := execFn(o, c.cli, req, func(resp RespT, err error) {
-		if err != nil && bucketName != "" {
-			err = &KvBucketError{
-				Cause:      err,
-				BucketName: bucketName,
-			}
-		}
-
-		opTelem.MarkReceived()
-
-		var emptyResp RespT
-		if resp != emptyResp {
-			if sdResp, _ := any(resp).(memdx.ServerDurationResponse); sdResp != nil {
-				opTelem.RecordServerDuration(sdResp.GetServerDuration())
-			}
-		}
-
-		newSendCount := atomic.AddUint32(&resulter.SendCount, 1)
-		if newSendCount != atomic.LoadUint32(&resulter.AllocCount) {
-			c.logger.DPanic("sync resulter executed multiple sends", zap.Any("resp", resp), zap.Error(err))
-		}
-
-		resulter.Ch <- syncCrudResult{
-			Result: resp,
-			Err:    err,
-		}
-	})
-	if err != nil {
-		newSendCount := atomic.AddUint32(&resulter.SendCount, 1)
-		if newSendCount != atomic.LoadUint32(&resulter.AllocCount) {
-			c.logger.DPanic("sync resulter executed error after send", zap.Error(err))
-		}
-
-		releaseSyncCrudResulter(resulter)
-		opTelem.End(ctx, err)
-
-		if errors.Is(err, memdx.ErrDispatch) {
-			err = &KvClientDispatchError{err}
-		}
-
-		var emptyResp RespT
-		return emptyResp, err
-	}
-
-	opTelem.MarkSent()
-
-	select {
-	case res := <-resulter.Ch:
-		releaseSyncCrudResulter(resulter)
-		opTelem.End(ctx, err)
-
-		return res.Result.(RespT), res.Err
-	case <-ctx.Done():
-		pendingOp.Cancel(ctx.Err())
-		res := <-resulter.Ch
-
-		releaseSyncCrudResulter(resulter)
-		opTelem.End(ctx, ctx.Err())
-
-		return res.Result.(RespT), res.Err
-	}
-}
 
 func kvClient_SimpleCoreCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	ctx context.Context,
@@ -137,7 +12,7 @@ func kvClient_SimpleCoreCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	execFn func(o memdx.OpsCore, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
 	req ReqT,
 ) (RespT, error) {
-	return kvClient_SimpleCall(ctx, c, memdx.OpsCore{}, execFn, req)
+	return memdClient_SimpleCall(ctx, c, memdx.OpsCore{}, execFn, req)
 }
 
 func kvClient_SimpleUtilsCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
@@ -146,7 +21,7 @@ func kvClient_SimpleUtilsCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	execFn func(o memdx.OpsUtils, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
 	req ReqT,
 ) (RespT, error) {
-	return kvClient_SimpleCall(ctx, c, memdx.OpsUtils{
+	return memdClient_SimpleCall(ctx, c, memdx.OpsUtils{
 		ExtFramesEnabled: c.HasFeature(memdx.HelloFeatureAltRequests),
 	}, execFn, req)
 }
@@ -157,7 +32,7 @@ func kvClient_SimpleCrudCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	execFn func(o memdx.OpsCrud, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
 	req ReqT,
 ) (RespT, error) {
-	return kvClient_SimpleCall(ctx, c, memdx.OpsCrud{
+	return memdClient_SimpleCall(ctx, c, memdx.OpsCrud{
 		ExtFramesEnabled:      c.HasFeature(memdx.HelloFeatureAltRequests),
 		CollectionsEnabled:    c.HasFeature(memdx.HelloFeatureCollections),
 		DurabilityEnabled:     c.HasFeature(memdx.HelloFeatureSyncReplication),
@@ -166,7 +41,7 @@ func kvClient_SimpleCrudCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 }
 
 func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) (*memdx.BootstrapResult, error) {
-	return kvClient_SimpleCall(ctx, c, memdx.OpBootstrap{
+	return memdClient_SimpleCall(ctx, c, memdx.OpBootstrap{
 		Encoder: memdx.OpsCore{},
 	}, memdx.OpBootstrap.Bootstrap, opts)
 }

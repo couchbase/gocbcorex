@@ -353,8 +353,12 @@ func (c *kvClient) LocalAddr() net.Addr {
 	return c.cli.LocalAddr()
 }
 
-func (c *kvClient) Dispatch(packet *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
-	return c.cli.Dispatch(packet, cb)
+func (c *kvClient) WritePacket(pak *memdx.Packet) error {
+	return c.cli.WritePacket(pak)
+}
+
+func (c *kvClient) Dispatch(pak *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
+	return c.cli.Dispatch(pak, cb)
 }
 
 func (c *kvClient) SelectedBucket() string {
@@ -363,6 +367,10 @@ func (c *kvClient) SelectedBucket() string {
 		return *bucketNamePtr
 	}
 	return ""
+}
+
+func (c *kvClient) Telemetry() MemdClientTelem {
+	return c.telemetry
 }
 
 func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {

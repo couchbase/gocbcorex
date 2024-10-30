@@ -8,6 +8,7 @@ import (
 
 type MemdxClient interface {
 	memdx.Dispatcher
+	WritePacket(pak *memdx.Packet) error
 	LocalAddr() net.Addr
 	RemoteAddr() net.Addr
 	Close() error

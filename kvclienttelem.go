@@ -24,6 +24,8 @@ type kvClientTelem struct {
 	attribsCache   *atomiccowcache.Cache[kvClientTelemOpKey, attribute.Set]
 }
 
+var _ MemdClientTelem = (*kvClientTelem)(nil)
+
 type kvClientTelemOpKey struct {
 	bucketName string
 	opName     string
@@ -72,10 +74,9 @@ type kvClientTelemOp struct {
 
 func (k *kvClientTelem) BeginOp(
 	ctx context.Context,
-	c *kvClient,
 	bucketName string,
 	opName string,
-) (context.Context, *kvClientTelemOp) {
+) (context.Context, MemdClientTelemOp) {
 	startTime := time.Now()
 
 	ctx, span := tracer.Start(ctx, "memcached/"+opName,
@@ -97,6 +98,10 @@ func (k *kvClientTelem) BeginOp(
 		bucketName: bucketName,
 		opName:     opName,
 	}
+}
+
+func (k *kvClientTelemOp) IsRecording() bool {
+	return k.span.IsRecording()
 }
 
 func (k *kvClientTelemOp) MarkSent() {
