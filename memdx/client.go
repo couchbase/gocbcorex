@@ -206,6 +206,10 @@ func (c *Client) Close() error {
 	return nil
 }
 
+func (c *Client) WritePacket(pak *Packet) error {
+	return c.conn.WritePacket(pak)
+}
+
 // Dispatches a packet to the network, calling the handler with responses.
 // Note that the handlers can be invoked before this function returns due to races
 // between this function returning and the IO thread receiving responses. This out

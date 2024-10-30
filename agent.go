@@ -10,13 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/couchbase/gocbcorex/contrib/buildversion"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
-
-var buildVersion string = buildversion.GetVersion("github.com/couchbase/gocbcorex")
 
 type agentState struct {
 	bucket             string
