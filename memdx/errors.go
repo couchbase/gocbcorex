@@ -55,6 +55,7 @@ var (
 	ErrSyncWriteReCommitInProgress         = errors.New("sync write recommit in progress")
 	ErrTmpFail                             = errors.New("temporary failure")
 	ErrDcpRollback                         = errors.New("dcp rollback")
+	ErrDcpDuplicateStream                  = errors.New("duplicate dcp vbucket stream")
 
 	ErrConfigNotSet   = errors.New("config not set")
 	ErrClosedInFlight = errors.New("connection closed whilst operation in flight")
