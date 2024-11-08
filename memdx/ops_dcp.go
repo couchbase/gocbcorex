@@ -153,7 +153,6 @@ type DcpStreamReqRequest struct {
 func (r DcpStreamReqRequest) OpName() string { return OpCodeDcpStreamReq.String(MagicReq) }
 
 type DcpStreamReqResponse struct {
-	Opaque      uint32
 	FailoverLog []DcpFailoverEntry
 }
 
@@ -252,7 +251,6 @@ func (o OpsDcp) DcpStreamReq(
 		}
 
 		cb(&DcpStreamReqResponse{
-			Opaque:      resp.Opaque,
 			FailoverLog: entries,
 		}, nil)
 		return false
