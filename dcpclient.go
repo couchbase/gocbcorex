@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -17,27 +16,27 @@ import (
 )
 
 type DcpClientEventsHandlers struct {
-	DcpSnapshotMarker     func(req *memdx.DcpSnapshotMarkerEvent) error
-	DcpMutation           func(req *memdx.DcpMutationEvent) error
-	DcpDeletion           func(req *memdx.DcpDeletionEvent) error
-	DcpExpiration         func(req *memdx.DcpExpirationEvent) error
-	DcpCollectionCreation func(req *memdx.DcpCollectionCreationEvent) error
-	DcpCollectionDeletion func(req *memdx.DcpCollectionDeletionEvent) error
-	DcpCollectionFlush    func(req *memdx.DcpCollectionFlushEvent) error
-	DcpScopeCreation      func(req *memdx.DcpScopeCreationEvent) error
-	DcpScopeDeletion      func(req *memdx.DcpScopeDeletionEvent) error
-	DcpCollectionChanged  func(req *memdx.DcpCollectionModificationEvent) error
-	DcpStreamEnd          func(req *memdx.DcpStreamEndEvent) error
-	DcpOSOSnapshot        func(req *memdx.DcpOSOSnapshotEvent) error
-	DcpSeqNoAdvanced      func(req *memdx.DcpSeqoNoAdvancedEvent) error
+	SnapshotMarker     func(req *memdx.DcpSnapshotMarkerEvent) error
+	Mutation           func(req *memdx.DcpMutationEvent) error
+	Deletion           func(req *memdx.DcpDeletionEvent) error
+	Expiration         func(req *memdx.DcpExpirationEvent) error
+	CollectionCreation func(req *memdx.DcpCollectionCreationEvent) error
+	CollectionDeletion func(req *memdx.DcpCollectionDeletionEvent) error
+	CollectionFlush    func(req *memdx.DcpCollectionFlushEvent) error
+	ScopeCreation      func(req *memdx.DcpScopeCreationEvent) error
+	ScopeDeletion      func(req *memdx.DcpScopeDeletionEvent) error
+	CollectionChanged  func(req *memdx.DcpCollectionModificationEvent) error
+	StreamEnd          func(req *memdx.DcpStreamEndEvent) error
+	OSOSnapshot        func(req *memdx.DcpOSOSnapshotEvent) error
+	SeqNoAdvanced      func(req *memdx.DcpSeqNoAdvancedEvent) error
 }
 
 type DcpClientOptions struct {
-	Address        string
-	TlsConfig      *tls.Config
-	ClientName     string
-	Authenticator  Authenticator
-	SelectedBucket string
+	Address       string
+	TlsConfig     *tls.Config
+	ClientName    string
+	Authenticator Authenticator
+	Bucket        string
 
 	Handlers DcpClientEventsHandlers
 
@@ -58,21 +57,19 @@ type DcpClientOptions struct {
 
 	Logger         *zap.Logger
 	NewMemdxClient GetMemdxClientFunc
-	CloseHandler   func(KvClient, error)
+	CloseHandler   func(*DcpClient, error)
 }
 
 type DcpClient struct {
 	logger         *zap.Logger
 	selectedBucket string
 	handlers       DcpClientEventsHandlers
+	closeHandler   func(*DcpClient, error)
 
 	cli                     MemdxClient
 	supportedFeatures       []memdx.HelloFeature
 	noopEnabled             bool
-	streamIdsEnabled        bool
 	streamEndOnCloseEnabled bool
-
-	closed uint32
 }
 
 var _ MemdClient = (*DcpClient)(nil)
@@ -81,7 +78,7 @@ func NewDcpClient(ctx context.Context, opts *DcpClientOptions) (*DcpClient, erro
 	if opts.ConnectionName == "" {
 		return nil, errors.New("connection name must be specified")
 	}
-	if opts.SelectedBucket == "" {
+	if opts.Bucket == "" {
 		return nil, errors.New("bucket name must be specified")
 	}
 	if (opts.ConnectionFlags & memdx.DcpConnectionFlagsProducer) == 0 {
@@ -96,8 +93,9 @@ func NewDcpClient(ctx context.Context, opts *DcpClientOptions) (*DcpClient, erro
 
 	dcpCli := &DcpClient{
 		logger:         logger,
-		selectedBucket: opts.SelectedBucket,
+		selectedBucket: opts.Bucket,
 		handlers:       opts.Handlers,
+		closeHandler:   opts.CloseHandler,
 	}
 
 	logger.Debug("id assigned for " + opts.Address)
@@ -139,13 +137,13 @@ func NewDcpClient(ctx context.Context, opts *DcpClientOptions) (*DcpClient, erro
 	}
 
 	bootstrapSelectBucket := &memdx.SelectBucketRequest{
-		BucketName: opts.SelectedBucket,
+		BucketName: opts.Bucket,
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
 		UnsolicitedHandler: dcpCli.handleUnsolicitedPacket,
 		OrphanHandler:      dcpCli.handleOrphanResponse,
-		CloseHandler:       nil,
+		CloseHandler:       dcpCli.handleConnectionClose,
 		Logger:             logger,
 	}
 	if opts.NewMemdxClient == nil {
@@ -225,18 +223,6 @@ func NewDcpClient(ctx context.Context, opts *DcpClientOptions) (*DcpClient, erro
 		}
 	}
 
-	if opts.EnableStreamIds {
-		_, err = dcpCli.dcpControl(ctx, &memdx.DcpControlRequest{
-			Key:   "enable_stream_id",
-			Value: "true",
-		})
-		if err != nil {
-			dcpCli.logger.Debug("failed to enable stream-ids feature", zap.Error(err))
-		} else {
-			dcpCli.streamIdsEnabled = true
-		}
-	}
-
 	if opts.ForceValueCompression {
 		_, err = dcpCli.dcpControl(ctx, &memdx.DcpControlRequest{
 			Key:   "force_value_compression",
@@ -284,10 +270,6 @@ func (c *DcpClient) HasFeature(feat memdx.HelloFeature) bool {
 	return slices.Contains(c.supportedFeatures, feat)
 }
 
-func (c *DcpClient) StreamIdsEnabled() bool {
-	return c.streamIdsEnabled
-}
-
 func (c *DcpClient) StreamEndOnCloseEnabled() bool {
 	return c.streamEndOnCloseEnabled
 }
@@ -314,11 +296,6 @@ func (c *DcpClient) Dispatch(pak *memdx.Packet, cb memdx.DispatchCallback) (memd
 
 func (c *DcpClient) Close() error {
 	c.logger.Info("closing")
-	if !atomic.CompareAndSwapUint32(&c.closed, 0, 1) {
-		c.logger.Debug("already closed")
-		return nil
-	}
-
 	return c.cli.Close()
 }
 
@@ -326,19 +303,19 @@ func (c *DcpClient) handleUnsolicitedPacket(pak *memdx.Packet) {
 	err := memdx.UnsolicitedOpsParser{
 		CollectionsEnabled: c.HasFeature(memdx.HelloFeatureCollections),
 	}.Handle(c, pak, &memdx.UnsolicitedOpsHandlers{
-		DcpSnapshotMarker:     c.handlers.DcpSnapshotMarker,
-		DcpMutation:           c.handlers.DcpMutation,
-		DcpDeletion:           c.handlers.DcpDeletion,
-		DcpExpiration:         c.handlers.DcpExpiration,
-		DcpCollectionCreation: c.handlers.DcpCollectionCreation,
-		DcpCollectionDeletion: c.handlers.DcpCollectionDeletion,
-		DcpCollectionFlush:    c.handlers.DcpCollectionFlush,
-		DcpScopeCreation:      c.handlers.DcpScopeCreation,
-		DcpScopeDeletion:      c.handlers.DcpScopeDeletion,
-		DcpCollectionChanged:  c.handlers.DcpCollectionChanged,
-		DcpStreamEnd:          c.handlers.DcpStreamEnd,
-		DcpOSOSnapshot:        c.handlers.DcpOSOSnapshot,
-		DcpSeqNoAdvanced:      c.handlers.DcpSeqNoAdvanced,
+		DcpSnapshotMarker:     c.handlers.SnapshotMarker,
+		DcpMutation:           c.handlers.Mutation,
+		DcpDeletion:           c.handlers.Deletion,
+		DcpExpiration:         c.handlers.Expiration,
+		DcpCollectionCreation: c.handlers.CollectionCreation,
+		DcpCollectionDeletion: c.handlers.CollectionDeletion,
+		DcpCollectionFlush:    c.handlers.CollectionFlush,
+		DcpScopeCreation:      c.handlers.ScopeCreation,
+		DcpScopeDeletion:      c.handlers.ScopeDeletion,
+		DcpCollectionChanged:  c.handlers.CollectionChanged,
+		DcpStreamEnd:          c.handlers.StreamEnd,
+		DcpOSOSnapshot:        c.handlers.OSOSnapshot,
+		DcpSeqNoAdvanced:      c.handlers.SeqNoAdvanced,
 		DcpNoOp: func(evt *memdx.DcpNoOpEvent) (*memdx.DcpNoOpEventResponse, error) {
 			return &memdx.DcpNoOpEventResponse{}, nil
 		},
@@ -355,4 +332,11 @@ func (c *DcpClient) handleOrphanResponse(pak *memdx.Packet) {
 		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
 		zap.String("opcode", pak.OpCode.String(pak.Magic)),
 	)
+}
+
+func (c *DcpClient) handleConnectionClose(err error) {
+	c.logger.Info("closed")
+	if c.closeHandler != nil {
+		c.closeHandler(c, err)
+	}
 }

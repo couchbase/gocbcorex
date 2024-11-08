@@ -28,28 +28,28 @@ func TestDcpClientBasic(t *testing.T) {
 		Logger:          logger,
 		Address:         testutilsint.TestOpts.MemdAddrs[0],
 		Authenticator:   auth,
-		SelectedBucket:  "default",
+		Bucket:          "default",
 		ConnectionName:  "test-conn",
 		ConnectionFlags: memdx.DcpConnectionFlagsProducer,
 		NoopInterval:    5 * time.Second,
 		Handlers: gocbcorex.DcpClientEventsHandlers{
-			DcpSnapshotMarker: func(evt *memdx.DcpSnapshotMarkerEvent) error {
+			SnapshotMarker: func(evt *memdx.DcpSnapshotMarkerEvent) error {
 				log.Printf("SnapshotMarker: %+v", evt)
 				return nil
 			},
-			DcpScopeCreation: func(evt *memdx.DcpScopeCreationEvent) error {
+			ScopeCreation: func(evt *memdx.DcpScopeCreationEvent) error {
 				log.Printf("ScopeCreation: %+v", evt)
 				return nil
 			},
-			DcpCollectionCreation: func(evt *memdx.DcpCollectionCreationEvent) error {
+			CollectionCreation: func(evt *memdx.DcpCollectionCreationEvent) error {
 				log.Printf("CollectionCreation: %+v", evt)
 				return nil
 			},
-			DcpMutation: func(evt *memdx.DcpMutationEvent) error {
+			Mutation: func(evt *memdx.DcpMutationEvent) error {
 				log.Printf("Mutation: %s (value-len: %d)", evt.Key, len(evt.Value))
 				return nil
 			},
-			DcpStreamEnd: func(evt *memdx.DcpStreamEndEvent) error {
+			StreamEnd: func(evt *memdx.DcpStreamEndEvent) error {
 				log.Printf("StreamEnd: %+v", evt)
 				return nil
 			},

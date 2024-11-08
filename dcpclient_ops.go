@@ -15,7 +15,7 @@ func dcpClient_SimpleDcpCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	return memdClient_SimpleCall(ctx, c, memdx.OpsDcp{
 		ExtFramesEnabled:   c.HasFeature(memdx.HelloFeatureAltRequests),
 		CollectionsEnabled: c.HasFeature(memdx.HelloFeatureCollections),
-		StreamIdsEnabled:   c.streamIdsEnabled,
+		StreamIdsEnabled:   false,
 	}, execFn, req)
 }
 
