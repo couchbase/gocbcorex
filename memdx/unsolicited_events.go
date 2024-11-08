@@ -143,7 +143,7 @@ type DcpOSOSnapshotEvent struct {
 	VbucketId    uint16
 }
 
-type DcpSeqoNoAdvancedEvent struct {
+type DcpSeqNoAdvancedEvent struct {
 	StreamId  uint16
 	SeqNo     uint64
 	VbucketId uint16

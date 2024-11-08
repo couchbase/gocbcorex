@@ -25,7 +25,7 @@ type UnsolicitedOpsHandlers struct {
 	DcpCollectionChanged  func(req *DcpCollectionModificationEvent) error
 	DcpStreamEnd          func(req *DcpStreamEndEvent) error
 	DcpOSOSnapshot        func(req *DcpOSOSnapshotEvent) error
-	DcpSeqNoAdvanced      func(req *DcpSeqoNoAdvancedEvent) error
+	DcpSeqNoAdvanced      func(req *DcpSeqNoAdvancedEvent) error
 	DcpNoOp               func(req *DcpNoOpEvent) (*DcpNoOpEventResponse, error)
 }
 
@@ -416,7 +416,7 @@ func (o UnsolicitedOpsParser) parseDcpSeqNoAdvance(pak *Packet, handlers *Unsoli
 	}
 
 	if len(pak.Extras) == 4 {
-		return handlers.DcpSeqNoAdvanced(&DcpSeqoNoAdvancedEvent{
+		return handlers.DcpSeqNoAdvanced(&DcpSeqNoAdvancedEvent{
 			StreamId:  streamId,
 			VbucketId: pak.VbucketID,
 			SeqNo:     binary.BigEndian.Uint64(pak.Extras[0:]),
