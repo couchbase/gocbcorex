@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 )
 
 type CbAuthClient struct {
 	logger           *zap.Logger
+	hostPort         string
 	heartbeatTimeout time.Duration
 	livenessTimeout  time.Duration
 
@@ -73,8 +77,11 @@ func NewCbAuthClient(ctx context.Context, opts *CbAuthClientOptions) (*CbAuthCli
 		zap.String("clientId", uuid.NewString()[:8]),
 	)
 
+	parsedEndpoint, _ := url.Parse(opts.Endpoint)
+
 	cli := &CbAuthClient{
 		logger:           logger,
+		hostPort:         parsedEndpoint.Host,
 		heartbeatTimeout: opts.HeartbeatTimeout,
 		livenessTimeout:  opts.LivenessTimeout,
 		clusterUuid:      opts.ClusterUuid,
@@ -198,6 +205,10 @@ func (c *CbAuthClient) refreshLivenessLocked() {
 func (c *CbAuthClient) rpcHeartbeat(opts *HeartbeatOptions) (bool, error) {
 	c.logger.Debug("received heartbeat rpc", zap.Any("opts", opts))
 
+	revrpcHeartbeats.Add(context.Background(), 1, metric.WithAttributes(
+		attribute.String("server_address", c.hostPort),
+	))
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -207,6 +218,10 @@ func (c *CbAuthClient) rpcHeartbeat(opts *HeartbeatOptions) (bool, error) {
 
 func (c *CbAuthClient) rpcUpdateDBExt(opts *UpdateDBExtOptions) (bool, error) {
 	c.logger.Debug("received updateDBExt rpc", zap.Any("opts", opts))
+
+	revrpcDbUpdates.Add(context.Background(), 1, metric.WithAttributes(
+		attribute.String("server_address", c.hostPort),
+	))
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -283,7 +298,7 @@ func (c *CbAuthClient) Close() error {
 	return c.rpcCli.Close()
 }
 
-func (a *CbAuthClient) getAuthCache(ctx context.Context) (*AuthCheckCached, error) {
+func (a *CbAuthClient) getAuthCache(_ context.Context) (*AuthCheckCached, error) {
 	lastCommTs := a.lastCommTs.Load()
 	lastCommTime := time.Unix(lastCommTs, 0)
 	if time.Since(lastCommTime) > a.livenessTimeout {
