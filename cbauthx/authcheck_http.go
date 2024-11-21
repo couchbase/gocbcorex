@@ -8,6 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type AuthCheckResponse struct {
@@ -18,6 +22,7 @@ type AuthCheckResponse struct {
 
 type AuthCheckHttp struct {
 	transport   http.RoundTripper
+	hostPort    string
 	uri         string
 	clusterUuid string
 }
@@ -31,14 +36,17 @@ type AuthCheckHttpOptions struct {
 }
 
 func NewAuthCheckHttp(opts *AuthCheckHttpOptions) *AuthCheckHttp {
+	parsedEndpoint, _ := url.Parse(opts.Uri)
+
 	return &AuthCheckHttp{
 		transport:   opts.Transport,
+		hostPort:    parsedEndpoint.Host,
 		uri:         opts.Uri,
 		clusterUuid: opts.ClusterUuid,
 	}
 }
 
-func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, password string) (UserInfo, error) {
+func (a *AuthCheckHttp) checkUserPass(ctx context.Context, username string, password string) (UserInfo, error) {
 	qs := make(url.Values)
 	if a.clusterUuid != "" {
 		qs.Set("uuid", a.clusterUuid)
@@ -96,4 +104,34 @@ func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, pass
 		Domain: jsonResp.Domain,
 		Uuid:   jsonResp.Uuid,
 	}, nil
+}
+
+func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, password string) (UserInfo, error) {
+	stime := time.Now()
+
+	userInfo, err := a.checkUserPass(ctx, username, password)
+
+	etime := time.Now()
+	dtime := etime.Sub(stime)
+	dtimeSecs := float64(dtime) / float64(time.Second)
+
+	strResult := ""
+	if err != nil {
+		if errors.Is(err, ErrInvalidAuth) {
+			strResult = "bad_auth"
+		} else {
+			strResult = "error"
+		}
+	} else {
+		strResult = "success"
+	}
+
+	authCheckLatencies.Record(ctx, dtimeSecs,
+		metric.WithAttributes(
+			attribute.String("server_address", a.hostPort),
+			attribute.String("result", strResult),
+		),
+	)
+
+	return userInfo, err
 }
