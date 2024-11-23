@@ -378,3 +378,33 @@ func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepR
 		return false
 	})
 }
+
+type NoOpRequest struct {
+	CoreRequestMeta
+}
+
+func (r NoOpRequest) OpName() string { return OpCodeNoOp.String() }
+
+type NoOpResponse struct {
+	CoreResponseMeta
+}
+
+func (o OpsCore) NoOp(d Dispatcher, req *NoOpRequest, cb func(*NoOpResponse, error)) (PendingOp, error) {
+	return d.Dispatch(&Packet{
+		Magic:  MagicReq,
+		OpCode: OpCodeNoOp,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, o.decodeError(resp))
+			return false
+		}
+
+		cb(&NoOpResponse{}, nil)
+		return false
+	})
+}
