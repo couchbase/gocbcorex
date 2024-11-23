@@ -9,6 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOpsCoreNoOp(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+
+	// we intentionally request a non-default collection to guarentee that
+	// collection-id and manifest-rev are non-zero.
+	_, err := memdx.SyncUnaryCall(memdx.OpsCore{}, memdx.OpsCore.NoOp, cli, &memdx.NoOpRequest{})
+	require.NoError(t, err)
+}
+
 func TestOpsCoreGetCollectionIDBasic(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 

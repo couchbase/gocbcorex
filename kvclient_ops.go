@@ -54,6 +54,10 @@ func (c *kvClient) SelectBucket(ctx context.Context, req *memdx.SelectBucketRequ
 	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.SelectBucket, req)
 }
 
+func (c *kvClient) NoOp(ctx context.Context, req *memdx.NoOpRequest) (*memdx.NoOpResponse, error) {
+	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.NoOp, req)
+}
+
 func (c *kvClient) GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error) {
 	return kvClient_SimpleUtilsCall(ctx, c, memdx.OpsUtils.GetCollectionID, req)
 }
