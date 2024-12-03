@@ -146,7 +146,7 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		err = ErrDataverseNotFound
 	}
 	if errCode == 24039 {
-		err = ErrJobQueueFull
+		err = ErrDataverseExists
 	}
 	if errCode == 24040 {
 		err = ErrDatasetExists
