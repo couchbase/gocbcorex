@@ -301,131 +301,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	return agent, nil
 }
 
-type agentComponentConfigs struct {
-	ConfigWatcherHttpConfig  ConfigWatcherHttpConfig
-	ConfigWatcherMemdConfig  ConfigWatcherMemdConfig
-	KvClientManagerClients   map[string]*KvClientConfig
-	VbucketRoutingInfo       *VbucketRoutingInfo
-	QueryComponentConfig     QueryComponentConfig
-	MgmtComponentConfig      MgmtComponentConfig
-	SearchComponentConfig    SearchComponentConfig
-	AnalyticsComponentConfig AnalyticsComponentConfig
-}
-
-func (agent *Agent) genAgentComponentConfigsLocked() *agentComponentConfigs {
-	clientName := fmt.Sprintf("gocbcorex/%s", buildVersion)
-
-	latestConfig := agent.state.latestConfig
-	netInfo := latestConfig.AddressesGroupForNetworkType(agent.networkType)
-
-	kvDataNodeIds := make([]string, 0, len(netInfo.Nodes))
-	kvDataHosts := make(map[string]string, len(netInfo.Nodes))
-	mgmtEndpoints := make(map[string]string, len(netInfo.Nodes))
-	queryEndpoints := make(map[string]string, len(netInfo.Nodes))
-	searchEndpoints := make(map[string]string, len(netInfo.Nodes))
-	analyticsEndpoints := make(map[string]string, len(netInfo.Nodes))
-
-	tlsConfig := agent.state.tlsConfig
-	for _, node := range netInfo.Nodes {
-		kvEpId := "kv" + node.NodeID
-		mgmtEpId := "mg" + node.NodeID
-		queryEpId := "qu" + node.NodeID
-		searchEpId := "se" + node.NodeID
-		analyticsEpId := "an" + node.NodeID
-
-		if node.HasData {
-			kvDataNodeIds = append(kvDataNodeIds, kvEpId)
-		}
-
-		if tlsConfig == nil {
-			if node.NonSSLPorts.Kv > 0 {
-				kvDataHosts[kvEpId] = fmt.Sprintf("%s:%d", node.Hostname, node.NonSSLPorts.Kv)
-			}
-			if node.NonSSLPorts.Mgmt > 0 {
-				mgmtEndpoints[mgmtEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Mgmt)
-			}
-			if node.NonSSLPorts.Query > 0 {
-				queryEndpoints[queryEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Query)
-			}
-			if node.NonSSLPorts.Search > 0 {
-				searchEndpoints[searchEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Search)
-			}
-			if node.NonSSLPorts.Analytics > 0 {
-				analyticsEndpoints[analyticsEpId] = fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Analytics)
-			}
-		} else {
-			if node.SSLPorts.Kv > 0 {
-				kvDataHosts[kvEpId] = fmt.Sprintf("%s:%d", node.Hostname, node.SSLPorts.Kv)
-			}
-			if node.SSLPorts.Mgmt > 0 {
-				mgmtEndpoints[mgmtEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Mgmt)
-			}
-			if node.SSLPorts.Query > 0 {
-				queryEndpoints[queryEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Query)
-			}
-			if node.SSLPorts.Search > 0 {
-				searchEndpoints[searchEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Search)
-			}
-			if node.SSLPorts.Analytics > 0 {
-				analyticsEndpoints[analyticsEpId] = fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Analytics)
-			}
-		}
-	}
-
-	clients := make(map[string]*KvClientConfig)
-	for nodeId, addr := range kvDataHosts {
-		clients[nodeId] = &KvClientConfig{
-			Address:        addr,
-			TlsConfig:      tlsConfig,
-			ClientName:     clientName,
-			SelectedBucket: agent.state.bucket,
-			Authenticator:  agent.state.authenticator,
-		}
-	}
-
-	mgmtEndpointsList := make([]string, 0, len(mgmtEndpoints))
-	for _, ep := range mgmtEndpoints {
-		mgmtEndpointsList = append(mgmtEndpointsList, ep)
-	}
-
-	return &agentComponentConfigs{
-		ConfigWatcherHttpConfig: ConfigWatcherHttpConfig{
-			HttpRoundTripper: agent.state.httpTransport,
-			Endpoints:        mgmtEndpointsList,
-			UserAgent:        clientName,
-			Authenticator:    agent.state.authenticator,
-			BucketName:       agent.state.bucket,
-		},
-		ConfigWatcherMemdConfig: ConfigWatcherMemdConfig{
-			Endpoints: kvDataNodeIds,
-		},
-		KvClientManagerClients: clients,
-		VbucketRoutingInfo: &VbucketRoutingInfo{
-			VbMap:      agent.state.latestConfig.VbucketMap,
-			ServerList: kvDataNodeIds,
-		},
-		QueryComponentConfig: QueryComponentConfig{
-			HttpRoundTripper: agent.state.httpTransport,
-			Endpoints:        queryEndpoints,
-			Authenticator:    agent.state.authenticator,
-		},
-		MgmtComponentConfig: MgmtComponentConfig{
-			HttpRoundTripper: agent.state.httpTransport,
-			Endpoints:        mgmtEndpoints,
-			Authenticator:    agent.state.authenticator,
-		},
-		SearchComponentConfig: SearchComponentConfig{
-			HttpRoundTripper:    agent.state.httpTransport,
-			Endpoints:           searchEndpoints,
-			Authenticator:       agent.state.authenticator,
-			VectorSearchEnabled: latestConfig.Features.FtsVectorSearch,
-		},
-		AnalyticsComponentConfig: AnalyticsComponentConfig{
-			HttpRoundTripper: agent.state.httpTransport,
-			Endpoints:        analyticsEndpoints,
-			Authenticator:    agent.state.authenticator,
-		},
-	}
+func (agent *Agent) genAgentComponentConfigsLocked() *AgentComponentConfigs {
+	return GenerateComponentConfigsFromConfig(
+		agent.state.latestConfig,
+		agent.networkType,
+		agent.state.tlsConfig,
+		agent.state.bucket,
+		agent.state.authenticator,
+		agent.state.httpTransport)
 }
 
 func (agent *Agent) Reconfigure(opts *AgentReconfigureOptions) error {
