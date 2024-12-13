@@ -1401,8 +1401,8 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusBadDelta {
-			cb(nil, ErrBadDelta)
+		} else if resp.Status == StatusDeltaBadval {
+			cb(nil, ErrDeltaBadval)
 			return false
 		} else if resp.Status == StatusSyncWriteAmbiguous {
 			cb(nil, ErrSyncWriteAmbiguous)
@@ -1519,8 +1519,8 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 		} else if resp.Status == StatusLocked {
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusBadDelta {
-			cb(nil, ErrBadDelta)
+		} else if resp.Status == StatusDeltaBadval {
+			cb(nil, ErrDeltaBadval)
 			return false
 		} else if resp.Status == StatusSyncWriteAmbiguous {
 			cb(nil, ErrSyncWriteAmbiguous)
