@@ -661,6 +661,201 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 	}
 }
 
+func TestOpsCrudDocLocked(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	key := []byte(uuid.NewString())
+	value := []byte("1")
+	datatype := uint8(0x01)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op   func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error)
+		Name string
+	}
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Set(cli, &memdx.SetRequest{
+					CollectionID: 0,
+					Key:          key,
+					Value:        key,
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Touch",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Touch(cli, &memdx.TouchRequest{
+					CollectionID: 0,
+					Key:          key,
+					Expiry:       60,
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.TouchResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		// normally this would screw things up, but it should fail due to the doc being locked
+		{
+			Name: "Delete",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Delete(cli, &memdx.DeleteRequest{
+					CollectionID: 0,
+					Key:          key,
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.DeleteResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Replace(cli, &memdx.ReplaceRequest{
+					CollectionID: 0,
+					Key:          key,
+					Value:        []byte("value"),
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Append(cli, &memdx.AppendRequest{
+					CollectionID: 0,
+					Key:          key,
+					Value:        []byte("value"),
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Prepend(cli, &memdx.PrependRequest{
+					CollectionID: 0,
+					Key:          key,
+					Value:        []byte("value"),
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Increment",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Increment(cli, &memdx.IncrementRequest{
+					CollectionID: 0,
+					Key:          key,
+					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
+					Delta:        1,
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.IncrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "Decrement",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Decrement(cli, &memdx.DecrementRequest{
+					CollectionID: 0,
+					Key:          key,
+					Initial:      uint64(0xFFFFFFFFFFFFFFFF),
+					Delta:        1,
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.DecrementResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "MutateIn",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.MutateIn(cli, &memdx.MutateInRequest{
+					CollectionID: 0,
+					Key:          key,
+					VbucketID:    defaultTestVbucketID,
+					Ops: []memdx.MutateInOp{
+						{
+							Op:    memdx.MutateInOpTypeDictSet,
+							Path:  []byte("key"),
+							Value: []byte("value"),
+						},
+					},
+				}, func(resp *memdx.MutateInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+	}
+
+	_, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Value:        value,
+		Datatype:     datatype,
+		Expiry:       60,
+	})
+	require.NoError(t, err)
+
+	lockResp, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.GetAndLock, cli, &memdx.GetAndLockRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		LockTime:     30,
+	})
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			wait := make(chan error, 1)
+
+			_, err := test.Op(memdx.OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, func(i interface{}, err error) {
+				wait <- err
+			})
+			require.NoError(tt, err)
+
+			require.ErrorIs(tt, <-wait, memdx.ErrDocLocked)
+		})
+	}
+
+	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Unlock, cli, &memdx.UnlockRequest{
+		CollectionID: 0,
+		Key:          key,
+		Cas:          lockResp.Cas,
+		VbucketID:    defaultTestVbucketID,
+	})
+	require.NoError(t, err)
+
+}
+
 func TestOpsCrudDocExists(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
