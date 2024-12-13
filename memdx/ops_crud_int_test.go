@@ -3434,7 +3434,7 @@ func TestOpsCrudCounterNonNumericDoc(t *testing.T) {
 		VbucketID:    defaultTestVbucketID,
 		Delta:        1,
 	})
-	require.ErrorIs(t, err, memdx.ErrBadDelta)
+	require.ErrorIs(t, err, memdx.ErrDeltaBadval)
 
 	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
 		CollectionsEnabled: true,
@@ -3445,7 +3445,7 @@ func TestOpsCrudCounterNonNumericDoc(t *testing.T) {
 		VbucketID:    defaultTestVbucketID,
 		Delta:        1,
 	})
-	require.ErrorIs(t, err, memdx.ErrBadDelta)
+	require.ErrorIs(t, err, memdx.ErrDeltaBadval)
 }
 
 type testCrudDispatcher struct {

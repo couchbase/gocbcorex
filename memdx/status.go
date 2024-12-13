@@ -24,8 +24,8 @@ const (
 	// StatusNotStored occurs when the server fails to store a key.
 	StatusNotStored = Status(0x05)
 
-	// StatusBadDelta occurs when an invalid delta value is specified to a counter operation.
-	StatusBadDelta = Status(0x06)
+	// StatusDeltaBadval occurs when performing a counter op and the document is non-numeric.
+	StatusDeltaBadval = Status(0x06)
 
 	// StatusNotMyVBucket occurs when an operation is dispatched to a server which is
 	// non-authoritative for a specific vbucket.
@@ -262,8 +262,8 @@ func (s Status) String() string {
 		return "InvalidArgs"
 	case StatusNotStored:
 		return "NotStored"
-	case StatusBadDelta:
-		return "BadDelta"
+	case StatusDeltaBadval:
+		return "DeltaBadval"
 	case StatusNotMyVBucket:
 		return "NotMyVBucket"
 	case StatusNoBucket:
