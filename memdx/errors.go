@@ -22,6 +22,7 @@ var (
 	ErrCasMismatch                         = errors.New("cas mismatch")
 	ErrDocLocked                           = errors.New("document locked")
 	ErrDocNotLocked                        = errors.New("document not locked")
+	ErrBadDelta                            = errors.New("bad delta")
 	ErrAccessError                         = errors.New("access error")
 	ErrRangeScanEmpty                      = errors.New("range scan range was empty")
 	ErrRangeScanSeqNoNotFound              = errors.New("range scan sequence number not found")
