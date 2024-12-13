@@ -3406,6 +3406,48 @@ func TestOpsCrudMutateinMultiXattr(t *testing.T) {
 	}
 }
 
+func TestOpsCrudCounterNonNumericDoc(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	key := []byte(uuid.NewString())
+
+	cli := createTestClient(t)
+
+	_, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Value:        []byte(`{"key":"value"}`),
+		Datatype:     uint8(0x01),
+	})
+	require.NoError(t, err)
+
+	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Increment, cli, &memdx.IncrementRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Delta:        1,
+	})
+	require.ErrorIs(t, err, memdx.ErrBadDelta)
+
+	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Decrement, cli, &memdx.DecrementRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Delta:        1,
+	})
+	require.ErrorIs(t, err, memdx.ErrBadDelta)
+}
+
 type testCrudDispatcher struct {
 	Pak *memdx.Packet
 }
