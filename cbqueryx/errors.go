@@ -24,6 +24,7 @@ var (
 	ErrCollectionNotFound       = errors.New("collection not found")
 	ErrServerInvalidArg         = errors.New("invalid argument")
 	ErrBuildAlreadyInProgress   = errors.New("build already in progress")
+	ErrBuildFails               = errors.New("build fails, will be retried by query engine")
 )
 
 type Error struct {
