@@ -467,6 +467,8 @@ func (h Query) BuildDeferredIndexes(ctx context.Context, opts *BuildDeferredInde
 		rows, err := h.Query(ctx, &queryOpts)
 		if errors.Is(err, ErrBuildAlreadyInProgress) {
 			// this is considered a success
+		} else if errors.Is(err, ErrBuildFails) {
+			// this is considered a success
 		} else if err != nil {
 			return nil, err
 		}
