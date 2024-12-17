@@ -136,6 +136,9 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		if strings.Contains(lowerMsg, "build already in progress") {
 			err = ErrBuildAlreadyInProgress
 		}
+		if strings.Contains(lowerMsg, "build index fails") {
+			err = ErrBuildFails
+		}
 		if match, matchErr := regexp.MatchString(".*?ndex .*? already exist.*", lowerMsg); matchErr == nil && match {
 			err = ErrIndexExists
 		}
