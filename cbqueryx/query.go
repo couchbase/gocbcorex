@@ -209,6 +209,7 @@ func (h Query) CreatePrimaryIndex(ctx context.Context, opts *CreatePrimaryIndexO
 	rows, err := h.Query(ctx, &queryOpts)
 	if errors.Is(err, ErrBuildAlreadyInProgress) {
 		// this is considered a success
+		return nil
 	} else if err != nil {
 		if opts.IgnoreIfExists && errors.Is(err, ErrIndexExists) {
 			return nil
@@ -283,6 +284,7 @@ func (h Query) CreateIndex(ctx context.Context, opts *CreateIndexOptions) error 
 	rows, err := h.Query(ctx, &queryOpts)
 	if errors.Is(err, ErrBuildAlreadyInProgress) {
 		// this is considered a success
+		return nil
 	} else if err != nil {
 		if opts.IgnoreIfExists && errors.Is(err, ErrIndexExists) {
 			return nil
@@ -465,10 +467,9 @@ func (h Query) BuildDeferredIndexes(ctx context.Context, opts *BuildDeferredInde
 		queryOpts.Statement = qs
 
 		rows, err := h.Query(ctx, &queryOpts)
-		if errors.Is(err, ErrBuildAlreadyInProgress) {
+		if errors.Is(err, ErrBuildAlreadyInProgress) || errors.Is(err, ErrBuildFails) {
 			// this is considered a success
-		} else if errors.Is(err, ErrBuildFails) {
-			// this is considered a success
+			break
 		} else if err != nil {
 			return nil, err
 		}
