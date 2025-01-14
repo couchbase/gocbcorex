@@ -53,7 +53,8 @@ type StatsResponse struct {
 }
 
 func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	extFramesBuf := make([]byte, 0, 128)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +103,8 @@ type GetCollectionIDResponse struct {
 }
 
 func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	extFramesBuf := make([]byte, 0, 128)
+	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
