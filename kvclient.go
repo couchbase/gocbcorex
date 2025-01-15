@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/metric"
 
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
@@ -105,7 +104,7 @@ type kvClient struct {
 
 	pendingOperations uint64
 	cli               MemdxClient
-	durationMetric    metric.Float64Histogram
+	telemetry         *kvClientTelem
 
 	lock          sync.Mutex
 	currentConfig KvClientConfig
@@ -131,18 +130,11 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 		zap.String("clientId", uuid.NewString()[:8]),
 	)
 
-	durationMetric, err := meter.Float64Histogram("db.client.operation.duration",
-		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10))
-	if err != nil {
-		logger.Warn("failed to create operation duration metric")
-	}
-
 	kvCli := &kvClient{
 		currentConfig:  *config,
 		remoteHostname: hostnameFromAddrStr(config.Address),
 		logger:         logger,
 		closeHandler:   opts.CloseHandler,
-		durationMetric: durationMetric,
 	}
 
 	logger.Debug("id assigned for " + config.Address)
@@ -227,6 +219,8 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	} else {
 		kvCli.cli = opts.NewMemdxClient(memdxClientOpts)
 	}
+
+	kvCli.telemetry = newKvClientTelem(kvCli.cli.LocalAddr(), kvCli.cli.RemoteAddr())
 
 	if shouldBootstrap {
 		if bootstrapSelectBucket != nil {
