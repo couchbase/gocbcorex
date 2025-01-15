@@ -24,7 +24,10 @@ func (mpo memdxPendingOpMock) Cancel(err error) {
 func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxClientMock{}
+	memdxCli := &MemdxClientMock{
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -55,7 +58,10 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 func TestKvClientReconfigureTLSConfig(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxClientMock{}
+	memdxCli := &MemdxClientMock{
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -86,7 +92,10 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 func TestKvClientReconfigureUsername(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxClientMock{}
+	memdxCli := &MemdxClientMock{
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -117,7 +126,10 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 func TestKvClientReconfigurePassword(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxClientMock{}
+	memdxCli := &MemdxClientMock{
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -148,7 +160,10 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 func TestKvClientReconfigureAddress(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 
-	memdxCli := &MemdxClientMock{}
+	memdxCli := &MemdxClientMock{
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
@@ -184,6 +199,8 @@ func TestKvClientOrphanResponseHandler(t *testing.T) {
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return memdxPendingOpMock{}, nil
 		},
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
@@ -211,6 +228,8 @@ func TestKvClientConnCloseHandlerDefault(t *testing.T) {
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return memdxPendingOpMock{}, nil
 		},
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
 	}
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
@@ -239,6 +258,8 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 		DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 			return memdxPendingOpMock{}, nil
 		},
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
 	}
 
 	var closedCli KvClient

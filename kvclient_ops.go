@@ -6,13 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -68,46 +63,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 	req ReqT,
 ) (RespT, error) {
 	bucketName := c.SelectedBucket()
-	localHost, localPort := hostPortFromNetAddr(c.LocalAddr())
-	remoteHost, remotePort := hostPortFromNetAddr(c.RemoteAddr())
-
-	stime := time.Now()
-
-	ctx, span := tracer.Start(ctx, "memcached/"+req.OpName(),
-		trace.WithSpanKind(trace.SpanKindClient))
-	if span.IsRecording() {
-		span.SetAttributes(
-			semconv.ServerAddress(remoteHost),
-			semconv.ServerPort(remotePort),
-			semconv.NetworkPeerAddress(localHost),
-			semconv.NetworkPeerPort(localPort),
-			semconv.RPCMethod(req.OpName()),
-			semconv.RPCSystemKey.String("memcached"))
-	}
-
-	finishCall := func(err error) {
-		etime := time.Now()
-		dtime := etime.Sub(stime)
-		dtimeSecs := float64(dtime) / float64(time.Second)
-
-		if err != nil {
-			span.RecordError(err)
-		}
-		span.End()
-
-		c.durationMetric.Record(ctx, dtimeSecs,
-			metric.WithAttributes(
-				semconv.DBSystemCouchbase,
-				semconv.ServerAddress(remoteHost),
-				semconv.ServerPort(remotePort),
-				semconv.NetworkPeerAddress(localHost),
-				semconv.NetworkPeerPort(localPort),
-				semconv.DBNamespace(bucketName),
-				semconv.DBOperationName(req.OpName()),
-			),
-		)
-
-	}
+	ctx, opTelem := c.telemetry.BeginOp(ctx, c, bucketName, req.OpName())
 
 	resulter := allocSyncCrudResulter()
 	atomic.AddUint32(&resulter.AllocCount, 1)
@@ -120,16 +76,12 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 			}
 		}
 
-		span.AddEvent("RECEIVED")
+		opTelem.MarkReceived()
 
-		if span.IsRecording() {
-			var emptyResp RespT
-			if resp != emptyResp {
-				if sdResp, _ := any(resp).(memdx.ServerDurationResponse); sdResp != nil {
-					span.SetAttributes(attribute.Int(
-						"db.couchbase.server_duration",
-						int(sdResp.GetServerDuration()/time.Microsecond)))
-				}
+		var emptyResp RespT
+		if resp != emptyResp {
+			if sdResp, _ := any(resp).(memdx.ServerDurationResponse); sdResp != nil {
+				opTelem.RecordServerDuration(sdResp.GetServerDuration())
 			}
 		}
 
@@ -150,7 +102,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		}
 
 		releaseSyncCrudResulter(resulter)
-		finishCall(err)
+		opTelem.End(ctx, err)
 
 		if errors.Is(err, memdx.ErrDispatch) {
 			err = &KvClientDispatchError{err}
@@ -160,12 +112,12 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		return emptyResp, err
 	}
 
-	span.AddEvent("SENT")
+	opTelem.MarkSent()
 
 	select {
 	case res := <-resulter.Ch:
 		releaseSyncCrudResulter(resulter)
-		finishCall(err)
+		opTelem.End(ctx, err)
 
 		return res.Result.(RespT), res.Err
 	case <-ctx.Done():
@@ -173,7 +125,7 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		res := <-resulter.Ch
 
 		releaseSyncCrudResulter(resulter)
-		finishCall(ctx.Err())
+		opTelem.End(ctx, ctx.Err())
 
 		return res.Result.(RespT), res.Err
 	}
