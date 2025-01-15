@@ -95,18 +95,19 @@ func kvClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpRespon
 		}
 		span.End()
 
-		c.durationMetric.Record(ctx, dtimeSecs,
-			metric.WithAttributes(
-				semconv.DBSystemCouchbase,
-				semconv.ServerAddress(remoteHost),
-				semconv.ServerPort(remotePort),
-				semconv.NetworkPeerAddress(localHost),
-				semconv.NetworkPeerPort(localPort),
-				semconv.DBNamespace(bucketName),
-				semconv.DBOperationName(req.OpName()),
-			),
-		)
-
+		if otel.GetMeterProvider() != nil {
+			c.durationMetric.Record(ctx, dtimeSecs,
+				metric.WithAttributeSet(attribute.NewSet(
+					semconv.DBSystemCouchbase,
+					semconv.ServerAddress(remoteHost),
+					semconv.ServerPort(remotePort),
+					semconv.NetworkPeerAddress(localHost),
+					semconv.NetworkPeerPort(localPort),
+					semconv.DBNamespace(bucketName),
+					semconv.DBOperationName(req.OpName()),
+				)),
+			)
+		}
 	}
 
 	resulter := allocSyncCrudResulter()
