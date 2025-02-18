@@ -129,18 +129,23 @@ func (o OpsCrud) decodeResExtFrames(
 	return serverDuration, nil
 }
 
-func (o OpsCrud) decodeCommonStatus(status Status) error {
-	switch status {
+func (o OpsCrud) decodeCommonStatus(resp *Packet) error {
+	var err error
+
+	switch resp.Status {
 	case StatusCollectionUnknown:
-		return ErrUnknownCollectionID
+		err = ErrUnknownCollectionID
 	case StatusAccessError:
-		return ErrAccessError
+		err = ErrAccessError
 	default:
 		return nil
 	}
+
+	return OpsCore{}.decodeErrorContext(resp, err)
 }
+
 func (o OpsCrud) decodeCommonError(resp *Packet) error {
-	err := OpsCrud{}.decodeCommonStatus(resp.Status)
+	err := OpsCrud{}.decodeCommonStatus(resp)
 	if err != nil {
 		return err
 	}
