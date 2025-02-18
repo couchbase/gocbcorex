@@ -274,7 +274,7 @@ func (cr *CollectionResolverCached) InvalidateCollectionID(
 		return
 	}
 
-	if slowEntry.ManifestRev > invalidatingManifestRev {
+	if invalidatingManifestRev > 0 && slowEntry.ManifestRev > invalidatingManifestRev {
 		// our entry is newer than is being invalidated, so leave it...
 		cr.slowLock.Unlock()
 		return
