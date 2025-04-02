@@ -384,7 +384,7 @@ type NoOpRequest struct {
 	CoreRequestMeta
 }
 
-func (r NoOpRequest) OpName() string { return OpCodeNoOp.String() }
+func (r NoOpRequest) OpName() string { return OpCodeNoOp.String(MagicReq) }
 
 type NoOpResponse struct {
 	CoreResponseMeta
