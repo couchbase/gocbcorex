@@ -35,6 +35,11 @@ func (vbMap VbucketMap) NumReplicas() int {
 }
 
 func (vbMap VbucketMap) VbucketByKey(key []byte) uint16 {
+	if len(vbMap.entries) == 0 {
+		// prevent divide-by-zero panic's
+		return 0
+	}
+
 	crc := crc32.ChecksumIEEE(key)
 	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
 	return crcMidBits % uint16(len(vbMap.entries))
