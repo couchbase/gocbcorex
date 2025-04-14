@@ -35,6 +35,9 @@ func (vbMap VbucketMap) NumReplicas() int {
 }
 
 func (vbMap VbucketMap) VbucketByKey(key []byte) uint16 {
+	// No need to check for an 0-entry maps, since the constructor
+	// of the VbucketMap's checks that before allowing creation.
+
 	crc := crc32.ChecksumIEEE(key)
 	crcMidBits := uint16(crc>>16) & ^uint16(0x8000)
 	return crcMidBits % uint16(len(vbMap.entries))
