@@ -415,7 +415,7 @@ func (o UnsolicitedOpsParser) parseDcpSeqNoAdvance(pak *Packet, handlers *Unsoli
 		return err
 	}
 
-	if len(pak.Extras) == 4 {
+	if len(pak.Extras) == 8 {
 		return handlers.DcpSeqNoAdvanced(&DcpSeqNoAdvancedEvent{
 			StreamId:  streamId,
 			VbucketId: pak.VbucketID,
@@ -423,7 +423,7 @@ func (o UnsolicitedOpsParser) parseDcpSeqNoAdvance(pak *Packet, handlers *Unsoli
 		})
 	}
 
-	return &protocolError{"unknown dcp oso snapshot format"}
+	return &protocolError{"unknown dcp seqno advanced format"}
 }
 
 func (o UnsolicitedOpsParser) parseSrvClustermapChangeNotification(pak *Packet, handlers *UnsolicitedOpsHandlers) error {
