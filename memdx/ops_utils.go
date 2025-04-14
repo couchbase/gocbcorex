@@ -46,13 +46,21 @@ type StatsRequest struct {
 
 func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String() }
 
-type StatsResponse struct {
-	UtilsResponseMeta
+type StatsDataResponse struct {
 	Key   string
 	Value string
 }
 
-func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) (PendingOp, error) {
+type StatsActionResponse struct {
+	UtilsResponseMeta
+}
+
+func (o OpsUtils) Stats(
+	d Dispatcher,
+	req *StatsRequest,
+	dataCb func(*StatsDataResponse),
+	actionCb func(*StatsActionResponse, error),
+) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
 	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
@@ -60,29 +68,29 @@ func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse,
 	}
 
 	return d.Dispatch(&Packet{
-		OpCode:        OpCodeSASLAuth,
+		OpCode:        OpCodeStat,
 		Key:           []byte(req.GroupName),
 		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
-			cb(nil, err)
+			actionCb(nil, err)
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			actionCb(nil, OpsCore{}.decodeError(resp))
 			return false
 		}
 
-		if resp.Key == nil && resp.Value == nil {
-			cb(nil, nil)
+		if len(resp.Key) == 0 && len(resp.Value) == 0 {
+			actionCb(&StatsActionResponse{}, nil)
 			return false
 		}
 
-		cb(&StatsResponse{
+		dataCb(&StatsDataResponse{
 			Key:   string(resp.Key),
 			Value: string(resp.Value),
-		}, nil)
+		})
 		return true
 	})
 }
