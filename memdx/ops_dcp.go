@@ -146,8 +146,8 @@ type DcpStreamReqRequest struct {
 
 	ManifestUid   uint64
 	StreamId      uint64
-	ScopeId       uint64
-	CollectionIds []uint64
+	ScopeId       *uint32
+	CollectionIds []uint32
 }
 
 func (r DcpStreamReqRequest) OpName() string { return OpCodeDcpStreamReq.String(MagicReq) }
@@ -177,26 +177,31 @@ func (o OpsDcp) DcpStreamReq(
 	binary.BigEndian.PutUint64(extraBuf[40:], uint64(req.SnapEndSeqNo))
 
 	var valueBuf []byte
-	if req.StreamId > 0 || req.ManifestUid > 0 || req.ScopeId > 0 || len(req.CollectionIds) > 0 {
+	if req.StreamId > 0 || req.ManifestUid > 0 || req.ScopeId != nil || len(req.CollectionIds) > 0 {
 		if req.StreamId > 0 && !o.StreamIdsEnabled {
 			return nil, protocolError{"cannot use stream ids when its not enabled"}
 		}
 
-		if (req.ManifestUid > 0 || req.ScopeId > 0 || len(req.CollectionIds) > 0) && !o.CollectionsEnabled {
+		if (req.ManifestUid > 0 || req.ScopeId != nil || len(req.CollectionIds) > 0) && !o.CollectionsEnabled {
 			return nil, protocolError{"cannot use collection filters when collections not enabled"}
+		}
+
+		valueObj := DcpStreamReqJson{}
+		if req.ManifestUid > 0 {
+			valueObj.UID = fmt.Sprintf("%x", req.ManifestUid)
+		}
+		if req.StreamId > 0 {
+			valueObj.SID = fmt.Sprintf("%x", req.StreamId)
+		}
+		if req.ScopeId != nil {
+			valueObj.Scope = fmt.Sprintf("%x", *req.ScopeId)
 		}
 
 		collectionHexIds := make([]string, len(req.CollectionIds))
 		for colIdx, colId := range req.CollectionIds {
 			collectionHexIds[colIdx] = fmt.Sprintf("%x", colId)
 		}
-
-		valueObj := DcpStreamReqJson{
-			UID:         fmt.Sprintf("%x", req.ManifestUid),
-			SID:         fmt.Sprintf("%x", req.StreamId),
-			Scope:       fmt.Sprintf("%x", req.ScopeId),
-			Collections: collectionHexIds,
-		}
+		valueObj.Collections = collectionHexIds
 
 		genValueBuf, err := json.Marshal(valueObj)
 		if err != nil {
