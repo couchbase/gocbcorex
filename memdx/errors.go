@@ -181,7 +181,7 @@ func (e ServerErrorWithContext) Error() string {
 }
 
 func (e ServerErrorWithContext) Unwrap() error {
-	return e.Cause
+	return &e.Cause
 }
 
 type serverErrorWithContextParsedContextJson struct {
