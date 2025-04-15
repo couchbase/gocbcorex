@@ -10,6 +10,7 @@ type AgentComponentConfigs struct {
 	ConfigWatcherHttpConfig  ConfigWatcherHttpConfig
 	ConfigWatcherMemdConfig  ConfigWatcherMemdConfig
 	KvClientManagerClients   map[string]*KvClientConfig
+	DcpClientManagerClients  map[string]*DcpClientManagerClientConfig
 	VbucketRoutingInfo       *VbucketRoutingInfo
 	QueryComponentConfig     QueryComponentConfig
 	MgmtComponentConfig      MgmtComponentConfig
@@ -93,6 +94,16 @@ func GenerateComponentConfigsFromConfig(
 		}
 	}
 
+	dcpClients := make(map[string]*DcpClientManagerClientConfig)
+	for nodeId, addr := range kvDataHosts {
+		dcpClients[nodeId] = &DcpClientManagerClientConfig{
+			Address:       addr,
+			TlsConfig:     tlsConfig,
+			ClientName:    clientName,
+			Authenticator: authenticator,
+		}
+	}
+
 	mgmtEndpointsList := make([]string, 0, len(mgmtEndpoints))
 	for _, ep := range mgmtEndpoints {
 		mgmtEndpointsList = append(mgmtEndpointsList, ep)
@@ -109,7 +120,8 @@ func GenerateComponentConfigsFromConfig(
 		ConfigWatcherMemdConfig: ConfigWatcherMemdConfig{
 			Endpoints: kvDataNodeIds,
 		},
-		KvClientManagerClients: clients,
+		KvClientManagerClients:  clients,
+		DcpClientManagerClients: dcpClients,
 		VbucketRoutingInfo: &VbucketRoutingInfo{
 			VbMap:      config.VbucketMap,
 			ServerList: kvDataNodeIds,
