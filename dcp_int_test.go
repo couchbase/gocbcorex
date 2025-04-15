@@ -2,13 +2,13 @@ package gocbcorex_test
 
 import (
 	"context"
-	"log"
 	"testing"
 	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -24,56 +24,69 @@ func TestDcpBasic(t *testing.T) {
 		Password: testutilsint.TestOpts.Password,
 	}
 
-	cli, err := gocbcorex.NewDcpStreamClient(ctx, &gocbcorex.DcpStreamClientOptions{
-		Address:         testutilsint.TestOpts.MemdAddrs[0],
-		ClientName:      "test-client",
-		Authenticator:   auth,
-		Logger:          logger,
-		Bucket:          "default",
-		ConnectionName:  "test-conn",
-		ConnectionFlags: memdx.DcpConnectionFlagsProducer,
-		NoopInterval:    5 * time.Second,
+	agent := CreateDefaultAgent(t)
+
+	dcpAgent, err := gocbcorex.CreateDcpAgent(ctx, gocbcorex.DcpAgentOptions{
+		Logger:        logger,
+		TLSConfig:     nil,
+		Authenticator: auth,
+		BucketName:    testutilsint.TestOpts.BucketName,
+		SeedMgmtAddrs: testutilsint.TestOpts.HTTPAddrs,
+		StreamOptions: gocbcorex.DcpStreamOptions{
+			ConnectionName: "test-conn",
+			NoopInterval:   5 * time.Second,
+		},
+	})
+	require.NoError(t, err)
+
+	mutsCh := make(chan *memdx.DcpMutationEvent, 1024)
+	streamSet, err := dcpAgent.NewStreamSet(&gocbcorex.NewStreamSetOptions{
 		Handlers: gocbcorex.DcpEventsHandlers{
-			StreamOpen: func(evt *memdx.DcpStreamReqResponse) {
-				log.Printf("StreamOpen: %+v", evt)
-			},
-			StreamEnd: func(evt *memdx.DcpStreamEndEvent) {
-				log.Printf("StreamEnd: %+v", evt)
-			},
-			SnapshotMarker: func(evt *memdx.DcpSnapshotMarkerEvent) {
-				log.Printf("SnapshotMarker: %+v", evt)
-			},
-			ScopeCreation: func(evt *memdx.DcpScopeCreationEvent) {
-				log.Printf("ScopeCreation: %+v", evt)
-			},
-			CollectionCreation: func(evt *memdx.DcpCollectionCreationEvent) {
-				log.Printf("CollectionCreation: %+v", evt)
-			},
 			Mutation: func(evt *memdx.DcpMutationEvent) {
-				log.Printf("Mutation: %s (value-len: %d)", evt.Key, len(evt.Value))
+				select {
+				case mutsCh <- evt:
+				default:
+					// Drop the event if the channel is full
+				}
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	err = cli.OpenStream(ctx, &memdx.DcpStreamReqRequest{
-		VbucketID:      0,
-		Flags:          0,
-		StartSeqNo:     0,
-		EndSeqNo:       0xffffffffffffffff,
-		VbUuid:         0,
-		SnapStartSeqNo: 0,
-		SnapEndSeqNo:   0xffffffffffffffff,
+	// write something so we know we have at least one mutation
+	testKey := []byte("dcp-test-key" + uuid.NewString()[:6])
+	_, err = agent.Upsert(ctx, &gocbcorex.UpsertOptions{
+		Key:   testKey,
+		Value: []byte(testKey),
 	})
 	require.NoError(t, err)
 
-	time.Sleep(1 * time.Second)
+	// open all vbuckets
+	numVbs := dcpAgent.NumVbuckets()
+	for vbId := uint16(0); vbId < numVbs; vbId++ {
+		_, err := streamSet.OpenVbucket(ctx, &gocbcorex.OpenVbucketOptions{
+			VbucketId:      vbId,
+			Flags:          0,
+			StartSeqNo:     0,
+			EndSeqNo:       0xffffffffffffffff,
+			VbUuid:         0,
+			SnapStartSeqNo: 0,
+			SnapEndSeqNo:   0xffffffffffffffff,
+		})
+		require.NoError(t, err)
+	}
 
-	err = cli.CloseStream(ctx, &memdx.DcpCloseStreamRequest{
-		VbucketID: 0,
-	})
+	// we should receive at least one mutation
+	<-mutsCh
+
+	for vbId := uint16(0); vbId < numVbs; vbId++ {
+		err = streamSet.CloseVbucket(ctx, vbId)
+		require.NoError(t, err)
+	}
+
+	err = dcpAgent.Close()
 	require.NoError(t, err)
 
-	err = cli.Close()
+	err = agent.Close()
 	require.NoError(t, err)
 }

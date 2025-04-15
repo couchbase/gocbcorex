@@ -35,7 +35,7 @@ func (c *DcpClient) dcpControl(ctx context.Context, req *memdx.DcpControlRequest
 
 func (c *DcpClient) DcpStreamReq(ctx context.Context,
 	req *memdx.DcpStreamReqRequest,
-	syncCb func(*memdx.DcpStreamReqResponse) error,
+	syncCb func(*memdx.DcpStreamReqResponse),
 ) (*memdx.DcpStreamReqResponse, error) {
 	return dcpClient_SimpleDcpCall(ctx, c,
 		func(o memdx.OpsDcp,
@@ -45,7 +45,9 @@ func (c *DcpClient) DcpStreamReq(ctx context.Context,
 		) (memdx.PendingOp, error) {
 			return memdx.OpsDcp.DcpStreamReq(o, d, req, func(resp *memdx.DcpStreamReqResponse, err error) {
 				if err == nil {
-					err = syncCb(resp)
+					if syncCb != nil {
+						syncCb(resp)
+					}
 				}
 				cb(resp, err)
 			})
@@ -54,4 +56,33 @@ func (c *DcpClient) DcpStreamReq(ctx context.Context,
 
 func (c *DcpClient) DcpCloseStream(ctx context.Context, req *memdx.DcpCloseStreamRequest) (*memdx.DcpCloseStreamResponse, error) {
 	return dcpClient_SimpleDcpCall(ctx, c, memdx.OpsDcp.DcpCloseStream, req)
+}
+
+type StatsResponse struct {
+	Values map[string]string
+}
+
+func (c *DcpClient) Stats(ctx context.Context, req *memdx.StatsRequest) (*StatsResponse, error) {
+	allStats := make(map[string]string)
+	return memdClient_SimpleCall(ctx, c, memdx.OpsUtils{
+		ExtFramesEnabled: c.HasFeature(memdx.HelloFeatureAltRequests),
+	}, func(
+		o memdx.OpsUtils,
+		d memdx.Dispatcher,
+		req *memdx.StatsRequest,
+		cb func(*StatsResponse, error),
+	) (memdx.PendingOp, error) {
+		return memdx.OpsUtils.Stats(o, d, req, func(resp *memdx.StatsDataResponse) {
+			allStats[resp.Key] = resp.Value
+		}, func(resp *memdx.StatsActionResponse, err error) {
+			if err != nil {
+				cb(nil, err)
+				return
+			}
+
+			cb(&StatsResponse{
+				Values: allStats,
+			}, nil)
+		})
+	}, req)
 }

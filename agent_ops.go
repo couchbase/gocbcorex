@@ -266,6 +266,10 @@ func (agent *Agent) GetMgmtEndpoint(ctx context.Context) (*GetMgmtEndpointResult
 	return agent.mgmt.GetEndpoint(ctx)
 }
 
+func (agent *Agent) GetMgmtEndpoints() ([]string, error) {
+	return agent.mgmt.GetAllEndpoints()
+}
+
 func (agent *Agent) GetQueryEndpoint(ctx context.Context) (*GetQueryEndpointResult, error) {
 	return agent.query.GetEndpoint(ctx)
 }
