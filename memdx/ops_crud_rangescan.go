@@ -9,7 +9,7 @@ import (
 )
 
 func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb func(*RangeScanCreateResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,6 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeRangeScanCreate,
 		Datatype:      uint8(DatatypeFlagJSON),
 		VbucketID:     req.VbucketID,
@@ -58,7 +57,7 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 
 func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, dataCb func(*RangeScanDataResponse) error,
 	actionCb func(*RangeScanActionResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,6 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 	binary.BigEndian.PutUint32(extraBuf[24:], req.MaxBytes)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeRangeScanContinue,
 		VbucketID:     req.VbucketID,
 		Extras:        extraBuf,
@@ -141,7 +139,7 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 }
 
 func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb func(*RangeScanCancelResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +152,6 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 	copy(extraBuf[:16], req.ScanUUID)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeRangeScanCancel,
 		VbucketID:     req.VbucketID,
 		Extras:        extraBuf,
@@ -229,7 +226,7 @@ type RangeScanCreateRequest struct {
 	Snapshot *RangeScanCreateSnapshotRequirements
 }
 
-func (r RangeScanCreateRequest) OpName() string { return OpCodeRangeScanCreate.String(MagicReq) }
+func (r RangeScanCreateRequest) OpName() string { return OpCodeRangeScanCreate.String() }
 
 func (opts RangeScanCreateRequest) toJSON() ([]byte, error) {
 	if opts.Range != nil && opts.Sampling != nil {
@@ -332,7 +329,7 @@ type RangeScanContinueRequest struct {
 	Deadline  time.Time
 }
 
-func (r RangeScanContinueRequest) OpName() string { return OpCodeRangeScanContinue.String(MagicReq) }
+func (r RangeScanContinueRequest) OpName() string { return OpCodeRangeScanContinue.String() }
 
 type RangeScanDataResponse struct {
 	Items    []RangeScanItem
@@ -351,7 +348,7 @@ type RangeScanCancelRequest struct {
 	VbucketID uint16
 }
 
-func (r RangeScanCancelRequest) OpName() string { return OpCodeRangeScanCancel.String(MagicReq) }
+func (r RangeScanCancelRequest) OpName() string { return OpCodeRangeScanCancel.String() }
 
 type RangeScanCancelResponse struct{}
 

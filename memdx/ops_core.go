@@ -27,7 +27,6 @@ type OpsCore struct {
 
 func (o OpsCore) decodeErrorContext(resp *Packet, err error) error {
 	baseCause := &ServerError{
-		Magic:  resp.Magic,
 		OpCode: resp.OpCode,
 		Status: resp.Status,
 		Cause:  err,
@@ -70,7 +69,7 @@ type HelloRequest struct {
 	RequestedFeatures []HelloFeature
 }
 
-func (r HelloRequest) OpName() string { return OpCodeHello.String(MagicReq) }
+func (r HelloRequest) OpName() string { return OpCodeHello.String() }
 
 type HelloResponse struct {
 	CoreResponseMeta
@@ -84,7 +83,6 @@ func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, 
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeHello,
 		Key:    req.ClientName,
 		Value:  featureBytes,
@@ -122,7 +120,7 @@ type GetErrorMapRequest struct {
 	Version uint16
 }
 
-func (r GetErrorMapRequest) OpName() string { return OpCodeGetErrorMap.String(MagicReq) }
+func (r GetErrorMapRequest) OpName() string { return OpCodeGetErrorMap.String() }
 
 type GetErrorMapResponse struct {
 	CoreResponseMeta
@@ -134,7 +132,6 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func(*Get
 	binary.BigEndian.PutUint16(valueBuf[0:], req.Version)
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeGetErrorMap,
 		Value:  valueBuf,
 	}, func(resp *Packet, err error) bool {
@@ -159,7 +156,7 @@ type GetClusterConfigRequest struct {
 	CoreRequestMeta
 }
 
-func (r GetClusterConfigRequest) OpName() string { return OpCodeGetClusterConfig.String(MagicReq) }
+func (r GetClusterConfigRequest) OpName() string { return OpCodeGetClusterConfig.String() }
 
 type GetClusterConfigResponse struct {
 	CoreResponseMeta
@@ -168,7 +165,6 @@ type GetClusterConfigResponse struct {
 
 func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func(*GetClusterConfigResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeGetClusterConfig,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
@@ -202,7 +198,7 @@ type SelectBucketRequest struct {
 	BucketName string
 }
 
-func (r SelectBucketRequest) OpName() string { return OpCodeSelectBucket.String(MagicReq) }
+func (r SelectBucketRequest) OpName() string { return OpCodeSelectBucket.String() }
 
 type SelectBucketResponse struct {
 	CoreResponseMeta
@@ -210,7 +206,6 @@ type SelectBucketResponse struct {
 
 func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*SelectBucketResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSelectBucket,
 		Key:    []byte(req.BucketName),
 	}, func(resp *Packet, err error) bool {
@@ -244,7 +239,7 @@ type SASLListMechsRequest struct {
 	CoreRequestMeta
 }
 
-func (r SASLListMechsRequest) OpName() string { return OpCodeSASLListMechs.String(MagicReq) }
+func (r SASLListMechsRequest) OpName() string { return OpCodeSASLListMechs.String() }
 
 type SASLListMechsResponse struct {
 	CoreResponseMeta
@@ -253,7 +248,6 @@ type SASLListMechsResponse struct {
 
 func (o OpsCore) SASLListMechs(d Dispatcher, req *SASLListMechsRequest, cb func(*SASLListMechsResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSASLListMechs,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
@@ -286,7 +280,7 @@ type SASLAuthRequest struct {
 	Payload   []byte
 }
 
-func (r SASLAuthRequest) OpName() string { return OpCodeSASLAuth.String(MagicReq) }
+func (r SASLAuthRequest) OpName() string { return OpCodeSASLAuth.String() }
 
 type SASLAuthResponse struct {
 	CoreResponseMeta
@@ -296,7 +290,6 @@ type SASLAuthResponse struct {
 
 func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSASLAuth,
 		Key:    []byte(req.Mechanism),
 		Value:  req.Payload,
@@ -336,7 +329,7 @@ type SASLStepRequest struct {
 	Payload   []byte
 }
 
-func (r SASLStepRequest) OpName() string { return OpCodeSASLStep.String(MagicReq) }
+func (r SASLStepRequest) OpName() string { return OpCodeSASLStep.String() }
 
 type SASLStepResponse struct {
 	CoreResponseMeta
@@ -346,7 +339,6 @@ type SASLStepResponse struct {
 
 func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSASLStep,
 		Key:    []byte(req.Mechanism),
 		Value:  req.Payload,
@@ -384,7 +376,7 @@ type NoOpRequest struct {
 	CoreRequestMeta
 }
 
-func (r NoOpRequest) OpName() string { return OpCodeNoOp.String(MagicReq) }
+func (r NoOpRequest) OpName() string { return OpCodeNoOp.String() }
 
 type NoOpResponse struct {
 	CoreResponseMeta
@@ -392,7 +384,6 @@ type NoOpResponse struct {
 
 func (o OpsCore) NoOp(d Dispatcher, req *NoOpRequest, cb func(*NoOpResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeNoOp,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {

@@ -15,12 +15,12 @@ type OpsDcp struct {
 func (o OpsDcp) encodeReqExtFrames(
 	streamId uint16,
 	buf []byte,
-) (Magic, []byte, error) {
+) ([]byte, error) {
 	var err error
 
 	if streamId > 0 {
 		if !o.StreamIdsEnabled {
-			return 0, nil, protocolError{"cannot use stream ids when its not enabled"}
+			return nil, protocolError{"cannot use stream ids when its not enabled"}
 		}
 
 		streamIdBuf := make([]byte, 2)
@@ -28,19 +28,19 @@ func (o OpsDcp) encodeReqExtFrames(
 
 		buf, err = AppendExtFrame(ExtFrameCodeReqStreamID, streamIdBuf, buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	}
 
 	if len(buf) > 0 {
 		if !o.ExtFramesEnabled {
-			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+			return nil, protocolError{"cannot use framing extras when its not enabled"}
 		}
 
-		return MagicReqExt, buf, nil
+		return buf, nil
 	}
 
-	return MagicReq, nil, nil
+	return nil, nil
 }
 
 type DcpOpenConnectionRequest struct {
@@ -49,7 +49,7 @@ type DcpOpenConnectionRequest struct {
 	Flags          DcpConnectionFlags
 }
 
-func (r DcpOpenConnectionRequest) OpName() string { return OpCodeDcpOpenConnection.String(MagicReq) }
+func (r DcpOpenConnectionRequest) OpName() string { return OpCodeDcpOpenConnection.String() }
 
 type DcpOpenConnectionResponse struct {
 }
@@ -82,7 +82,6 @@ func (o OpsDcp) DcpOpenConnection(
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeDcpOpenConnection,
 		Key:    []byte(req.ConnectionName),
 		Value:  valueBuf,
@@ -108,14 +107,13 @@ type DcpControlRequest struct {
 	Value string
 }
 
-func (r DcpControlRequest) OpName() string { return OpCodeDcpControl.String(MagicReq) }
+func (r DcpControlRequest) OpName() string { return OpCodeDcpControl.String() }
 
 type DcpControlResponse struct {
 }
 
 func (o OpsDcp) DcpControl(d Dispatcher, req *DcpControlRequest, cb func(*DcpControlResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeDcpControl,
 		Key:    []byte(req.Key),
 		Value:  []byte(req.Value),
@@ -150,7 +148,7 @@ type DcpStreamReqRequest struct {
 	CollectionIds []uint32
 }
 
-func (r DcpStreamReqRequest) OpName() string { return OpCodeDcpStreamReq.String(MagicReq) }
+func (r DcpStreamReqRequest) OpName() string { return OpCodeDcpStreamReq.String() }
 
 type DcpStreamReqResponse struct {
 	FailoverLog []DcpFailoverEntry
@@ -212,7 +210,6 @@ func (o OpsDcp) DcpStreamReq(
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
 		OpCode:    OpCodeDcpStreamReq,
 		Key:       nil,
 		Value:     valueBuf,
@@ -267,7 +264,7 @@ type DcpCloseStreamRequest struct {
 	StreamId  uint16
 }
 
-func (r DcpCloseStreamRequest) OpName() string { return OpCodeDcpCloseStream.String(MagicReq) }
+func (r DcpCloseStreamRequest) OpName() string { return OpCodeDcpCloseStream.String() }
 
 type DcpCloseStreamResponse struct {
 }
@@ -276,13 +273,12 @@ func (o OpsDcp) DcpCloseStream(
 	d Dispatcher, req *DcpCloseStreamRequest,
 	cb func(*DcpCloseStreamResponse, error),
 ) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.StreamId, nil)
+	extFramesBuf, err := o.encodeReqExtFrames(req.StreamId, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:     reqMagic,
 		OpCode:    OpCodeDcpCloseStream,
 		Key:       nil,
 		Value:     nil,
