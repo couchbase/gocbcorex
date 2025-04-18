@@ -9,7 +9,7 @@ const (
 )
 
 type Packet struct {
-	Magic         Magic
+	IsResponse    bool
 	OpCode        OpCode
 	Datatype      uint8
 	VbucketID     uint16 // Only valid for Req-type packets

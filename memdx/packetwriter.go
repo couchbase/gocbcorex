@@ -10,6 +10,7 @@ type PacketWriter struct {
 }
 
 func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
+	isExtFrame := pak.FramingExtras != nil
 	extFramesLen := len(pak.FramingExtras)
 	extrasLen := len(pak.Extras)
 	keyLen := len(pak.Key)
@@ -21,20 +22,31 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 	// so this will end up not needing to actually allocate (will go on stack)
 	headerBuf := make([]byte, 24)
 
-	headerBuf[0] = uint8(pak.Magic)
+	var magic Magic
+	if !isExtFrame {
+		if !pak.IsResponse {
+			magic = MagicReq
+		} else {
+			magic = MagicRes
+		}
+	} else {
+		if !pak.IsResponse {
+			magic = MagicReqExt
+		} else {
+			magic = MagicResExt
+		}
+	}
+
+	headerBuf[0] = uint8(magic)
 	headerBuf[1] = uint8(pak.OpCode)
 
-	if pak.Magic == MagicReq || pak.Magic == MagicRes {
-		if extFramesLen > 0 {
-			return invalidArgError{"cannot use framing extras with non-ext packets"}
-		}
-
+	if !isExtFrame {
 		if keyLen > math.MaxUint16 {
 			return invalidArgError{"key too long to encode"}
 		}
 
 		binary.BigEndian.PutUint16(headerBuf[2:], uint16(keyLen))
-	} else if pak.Magic == MagicReqExt || pak.Magic == MagicResExt {
+	} else {
 		if extFramesLen > math.MaxUint8 {
 			return invalidArgError{"framing extras too long to encode"}
 		}
@@ -45,8 +57,6 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 
 		headerBuf[2] = uint8(extFramesLen)
 		headerBuf[3] = uint8(keyLen)
-	} else {
-		return invalidArgError{"invalid magic for key length encoding"}
 	}
 
 	if extrasLen > math.MaxUint8 {
@@ -56,20 +66,18 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 
 	headerBuf[5] = pak.Datatype
 
-	if pak.Magic == MagicReq || pak.Magic == MagicReqExt {
+	if !pak.IsResponse {
 		if pak.Status != 0 {
 			return invalidArgError{"cannot specify status in a request packet"}
 		}
 
 		binary.BigEndian.PutUint16(headerBuf[6:], pak.VbucketID)
-	} else if pak.Magic == MagicRes || pak.Magic == MagicResExt {
+	} else {
 		if pak.VbucketID != 0 {
 			return invalidArgError{"cannot specify vbucket in a response packet"}
 		}
 
 		binary.BigEndian.PutUint16(headerBuf[6:], uint16(pak.Status))
-	} else {
-		return invalidArgError{"invalid magic for status/vbucket encoding"}
 	}
 
 	if payloadLen > math.MaxUint32 {
