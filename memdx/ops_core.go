@@ -83,7 +83,6 @@ func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, 
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeHello,
 		Key:    req.ClientName,
 		Value:  featureBytes,
@@ -133,7 +132,6 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func(*Get
 	binary.BigEndian.PutUint16(valueBuf[0:], req.Version)
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeGetErrorMap,
 		Value:  valueBuf,
 	}, func(resp *Packet, err error) bool {
@@ -167,7 +165,6 @@ type GetClusterConfigResponse struct {
 
 func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb func(*GetClusterConfigResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeGetClusterConfig,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
@@ -209,7 +206,6 @@ type SelectBucketResponse struct {
 
 func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*SelectBucketResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSelectBucket,
 		Key:    []byte(req.BucketName),
 	}, func(resp *Packet, err error) bool {
@@ -252,7 +248,6 @@ type SASLListMechsResponse struct {
 
 func (o OpsCore) SASLListMechs(d Dispatcher, req *SASLListMechsRequest, cb func(*SASLListMechsResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSASLListMechs,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
@@ -295,7 +290,6 @@ type SASLAuthResponse struct {
 
 func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSASLAuth,
 		Key:    []byte(req.Mechanism),
 		Value:  req.Payload,
@@ -345,7 +339,6 @@ type SASLStepResponse struct {
 
 func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeSASLStep,
 		Key:    []byte(req.Mechanism),
 		Value:  req.Payload,
@@ -391,7 +384,6 @@ type NoOpResponse struct {
 
 func (o OpsCore) NoOp(d Dispatcher, req *NoOpRequest, cb func(*NoOpResponse, error)) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeNoOp,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {

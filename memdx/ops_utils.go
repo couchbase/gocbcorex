@@ -18,25 +18,25 @@ type OpsUtils struct {
 	ExtFramesEnabled bool
 }
 
-func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []byte, error) {
+func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) ([]byte, error) {
 	var err error
 
 	if onBehalfOf != "" {
 		buf, err = AppendExtFrame(ExtFrameCodeReqOnBehalfOf, []byte(onBehalfOf), buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	}
 
 	if len(buf) > 0 {
 		if !o.ExtFramesEnabled {
-			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+			return nil, protocolError{"cannot use framing extras when its not enabled"}
 		}
 
-		return MagicReqExt, buf, nil
+		return buf, nil
 	}
 
-	return MagicReq, nil, nil
+	return nil, nil
 }
 
 type StatsRequest struct {
@@ -54,13 +54,12 @@ type StatsResponse struct {
 
 func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeSASLAuth,
 		Key:           []byte(req.GroupName),
 		FramingExtras: extFramesBuf,
@@ -104,7 +103,7 @@ type GetCollectionIDResponse struct {
 
 func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +111,6 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 	reqPath := fmt.Sprintf("%s.%s", req.ScopeName, req.CollectionName)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeCollectionsGetID,
 		Value:         []byte(reqPath),
 		FramingExtras: extFramesBuf,
