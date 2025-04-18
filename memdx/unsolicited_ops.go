@@ -452,10 +452,10 @@ func (o UnsolicitedOpsParser) parseSrvClustermapChangeNotification(pak *Packet, 
 
 func (o UnsolicitedOpsParser) writeDcpNoOpResponse(r Replier, pak *Packet, _ *DcpNoOpEventResponse) error {
 	return r.WritePacket(&Packet{
-		Magic:  MagicRes,
-		OpCode: OpCodeDcpNoOp,
-		Opaque: pak.Opaque,
-		Status: StatusSuccess,
+		IsResponse: true,
+		OpCode:     OpCodeDcpNoOp,
+		Opaque:     pak.Opaque,
+		Status:     StatusSuccess,
 	})
 }
 
@@ -477,35 +477,31 @@ func (o UnsolicitedOpsParser) parseDcpNoOp(r Replier, pak *Packet, handlers *Uns
 }
 
 func (o UnsolicitedOpsParser) Handle(r Replier, pak *Packet, handlers *UnsolicitedOpsHandlers) error {
-	if pak.Magic.IsRequest() {
-		if pak.Magic.IsServerInitiated() {
-			if pak.OpCode == OpCodeSrvClustermapChangeNotification {
-				return o.parseSrvClustermapChangeNotification(pak, handlers)
-			}
-		} else {
-			if pak.OpCode == OpCodeDcpSnapshotMarker {
-				return o.parseDcpSnapshotMarker(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpMutation {
-				return o.parseDcpMutation(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpDeletion {
-				return o.parseDcpDeletion(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpExpiration {
-				return o.parseDcpExpiration(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpEvent {
-				return o.parseDcpEvent(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpStreamEnd {
-				return o.parseDcpStreamEnd(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpOsoSnapshot {
-				return o.parseDcpOsoSnapshot(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpSeqNoAdvanced {
-				return o.parseDcpSeqNoAdvance(pak, handlers)
-			} else if pak.OpCode == OpCodeDcpNoOp {
-				return o.parseDcpNoOp(r, pak, handlers)
-			}
+	if !pak.IsResponse {
+		if pak.OpCode == OpCodeSrvClustermapChangeNotification {
+			return o.parseSrvClustermapChangeNotification(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpSnapshotMarker {
+			return o.parseDcpSnapshotMarker(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpMutation {
+			return o.parseDcpMutation(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpDeletion {
+			return o.parseDcpDeletion(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpExpiration {
+			return o.parseDcpExpiration(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpEvent {
+			return o.parseDcpEvent(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpStreamEnd {
+			return o.parseDcpStreamEnd(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpOsoSnapshot {
+			return o.parseDcpOsoSnapshot(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpSeqNoAdvanced {
+			return o.parseDcpSeqNoAdvance(pak, handlers)
+		} else if pak.OpCode == OpCodeDcpNoOp {
+			return o.parseDcpNoOp(r, pak, handlers)
 		}
 	}
 
 	return &protocolError{
 		fmt.Sprintf("unknown unsolicited event (opcode: %s)",
-			pak.OpCode.String(pak.Magic))}
+			pak.OpCode.String())}
 }

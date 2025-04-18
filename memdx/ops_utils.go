@@ -18,25 +18,25 @@ type OpsUtils struct {
 	ExtFramesEnabled bool
 }
 
-func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []byte, error) {
+func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) ([]byte, error) {
 	var err error
 
 	if onBehalfOf != "" {
 		buf, err = AppendExtFrame(ExtFrameCodeReqOnBehalfOf, []byte(onBehalfOf), buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	}
 
 	if len(buf) > 0 {
 		if !o.ExtFramesEnabled {
-			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+			return nil, protocolError{"cannot use framing extras when its not enabled"}
 		}
 
-		return MagicReqExt, buf, nil
+		return buf, nil
 	}
 
-	return MagicReq, nil, nil
+	return nil, nil
 }
 
 type StatsRequest struct {
@@ -44,7 +44,7 @@ type StatsRequest struct {
 	GroupName string
 }
 
-func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String(MagicReq) }
+func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String() }
 
 type StatsDataResponse struct {
 	Key   string
@@ -61,13 +61,12 @@ func (o OpsUtils) Stats(
 	dataCb func(*StatsDataResponse),
 	actionCb func(*StatsActionResponse, error),
 ) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeStat,
 		Key:           []byte(req.GroupName),
 		FramingExtras: extFramesBuf,
@@ -101,7 +100,7 @@ type GetCollectionIDRequest struct {
 	CollectionName string
 }
 
-func (r GetCollectionIDRequest) OpName() string { return OpCodeCollectionsGetID.String(MagicReq) }
+func (r GetCollectionIDRequest) OpName() string { return OpCodeCollectionsGetID.String() }
 
 type GetCollectionIDResponse struct {
 	UtilsResponseMeta
@@ -110,7 +109,7 @@ type GetCollectionIDResponse struct {
 }
 
 func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) (PendingOp, error) {
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +117,6 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 	reqPath := fmt.Sprintf("%s.%s", req.ScopeName, req.CollectionName)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeCollectionsGetID,
 		Value:         []byte(reqPath),
 		FramingExtras: extFramesBuf,

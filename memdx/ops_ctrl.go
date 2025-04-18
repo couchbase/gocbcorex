@@ -26,7 +26,6 @@ func (o OpsCtrl) DcpGetFailoverLog(
 	cb func(*DcpGetFailoverLogResponse, error),
 ) (PendingOp, error) {
 	return d.Dispatch(&Packet{
-		Magic:     MagicReq,
 		OpCode:    OpCodeDcpGetFailoverLog,
 		VbucketID: req.VbucketID,
 	}, func(resp *Packet, err error) bool {
@@ -91,7 +90,6 @@ func (o OpsCtrl) GetVbucketSeqNos(
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:  MagicReq,
 		OpCode: OpCodeGetAllVBSeqnos,
 		Extras: extraBuf,
 	}, func(resp *Packet, err error) bool {

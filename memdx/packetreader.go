@@ -24,15 +24,18 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 		return err
 	}
 
-	pak.Magic = Magic(headerBuf[0])
+	magic := Magic(headerBuf[0])
 	pak.OpCode = OpCode(headerBuf[1])
 
 	var extFramesLen int
 	var keyLen int
-	if pak.Magic == MagicReq || pak.Magic == MagicRes {
+	var isExtFrame bool
+	if magic == MagicReq || magic == MagicRes {
+		isExtFrame = false
 		extFramesLen = 0
 		keyLen = int(binary.BigEndian.Uint16(headerBuf[2:]))
-	} else if pak.Magic == MagicReqExt || pak.Magic == MagicResExt {
+	} else if magic == MagicReqExt || magic == MagicResExt {
+		isExtFrame = true
 		extFramesLen = int(headerBuf[2])
 		keyLen = int(headerBuf[3])
 	} else {
@@ -43,12 +46,14 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 
 	pak.Datatype = headerBuf[5]
 
-	if pak.Magic == MagicReq || pak.Magic == MagicReqExt {
+	if magic == MagicReq || magic == MagicReqExt {
 		pak.VbucketID = binary.BigEndian.Uint16(headerBuf[6:])
 		pak.Status = 0
-	} else if pak.Magic == MagicRes || pak.Magic == MagicResExt {
+		pak.IsResponse = false
+	} else if magic == MagicRes || magic == MagicResExt {
 		pak.VbucketID = 0
 		pak.Status = Status(binary.BigEndian.Uint16(headerBuf[6:]))
+		pak.IsResponse = true
 	} else {
 		return protocolError{"invalid magic for status/vbucket decoding"}
 	}
@@ -71,7 +76,11 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 
 	payloadPos := 0
 
-	pak.FramingExtras = payloadBuf[payloadPos : payloadPos+extFramesLen]
+	if isExtFrame {
+		pak.FramingExtras = payloadBuf[payloadPos : payloadPos+extFramesLen]
+	} else {
+		pak.FramingExtras = nil
+	}
 	payloadPos += extFramesLen
 
 	pak.Extras = payloadBuf[payloadPos : payloadPos+extrasLen]

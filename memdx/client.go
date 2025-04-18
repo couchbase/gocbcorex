@@ -127,8 +127,8 @@ func (c *Client) cancelHandler(opaqueID uint32, err error) {
 func (c *Client) dispatchCallback(pak *Packet) error {
 	if enablePacketLogging {
 		c.logger.Debug("read packet",
-			zap.String("magic", pak.Magic.String()),
-			zap.String("opcode", pak.OpCode.String(pak.Magic)),
+			zap.Bool("isResponse", pak.IsResponse),
+			zap.String("opcode", pak.OpCode.String()),
 			zap.Uint8("datatype", pak.Datatype),
 			zap.Uint16("vbucketID", pak.VbucketID),
 			zap.String("status", pak.Status.String()),
@@ -144,7 +144,7 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 	c.handlerInvokeLock.Lock()
 	defer c.handlerInvokeLock.Unlock()
 
-	if pak.Magic.IsRequest() {
+	if !pak.IsResponse {
 		unsolicitedHandler := c.unsolicitedHandler
 
 		if unsolicitedHandler == nil {
@@ -221,8 +221,8 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 
 	if enablePacketLogging {
 		c.logger.Debug("writing packet",
-			zap.String("magic", req.Magic.String()),
-			zap.String("opcode", req.OpCode.String(req.Magic)),
+			zap.Bool("isResponse", req.IsResponse),
+			zap.String("opcode", req.OpCode.String()),
 			zap.Uint8("datatype", req.Datatype),
 			zap.Uint16("vbucketID", req.VbucketID),
 			zap.String("status", req.Status.String()),
@@ -240,7 +240,7 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 		c.logger.Debug("failed to write packet",
 			zap.Error(err),
 			zap.Uint32("opaque", opaqueID),
-			zap.String("opcode", req.OpCode.String(req.Magic)),
+			zap.String("opcode", req.OpCode.String()),
 		)
 
 		c.opaqueMapLock.Lock()

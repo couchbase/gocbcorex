@@ -403,7 +403,7 @@ func (c *DcpClient) handleOrphanResponse(pak *memdx.Packet) {
 	c.logger.Info(
 		"orphaned response encountered",
 		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
-		zap.String("opcode", pak.OpCode.String(pak.Magic)),
+		zap.String("opcode", pak.OpCode.String()),
 	)
 }
 
