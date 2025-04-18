@@ -25,7 +25,13 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 	}
 
 	magic := Magic(headerBuf[0])
-	pak.OpCode = OpCode(headerBuf[1])
+	opCode := OpCode(headerBuf[1])
+
+	if !magic.IsServerInitiated() {
+		pak.OpCode = OpCodeTypeCli | opCode
+	} else {
+		pak.OpCode = OpCodeTypeSrv | opCode
+	}
 
 	var extFramesLen int
 	var keyLen int

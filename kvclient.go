@@ -364,11 +364,11 @@ func (c *kvClient) SelectedBucket() string {
 	return ""
 }
 
-func (c *kvClient) handleOrphanResponse(packet *memdx.Packet) {
+func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
 	c.logger.Info(
 		"orphaned response encountered",
-		zap.String("opaque", strconv.Itoa(int(packet.Opaque))),
-		zap.String("opcode", packet.OpCode.String()),
+		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
+		zap.String("opcode", pak.OpCode.String()),
 	)
 }
 
