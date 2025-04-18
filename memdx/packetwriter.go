@@ -23,18 +23,32 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 	headerBuf := make([]byte, 24)
 
 	var magic Magic
-	if !isExtFrame {
-		if !pak.IsResponse {
-			magic = MagicReq
+	if pak.OpCode.IsCli() {
+		if !isExtFrame {
+			if !pak.IsResponse {
+				magic = MagicReq
+			} else {
+				magic = MagicRes
+			}
 		} else {
-			magic = MagicRes
+			if !pak.IsResponse {
+				magic = MagicReqExt
+			} else {
+				magic = MagicResExt
+			}
+		}
+	} else if pak.OpCode.IsSrv() {
+		if !isExtFrame {
+			if !pak.IsResponse {
+				magic = MagicSrvReq
+			} else {
+				magic = MagicSrvRes
+			}
+		} else {
+			return invalidArgError{"invalid opcode type for extended framing (srv)"}
 		}
 	} else {
-		if !pak.IsResponse {
-			magic = MagicReqExt
-		} else {
-			magic = MagicResExt
-		}
+		return invalidArgError{"invalid opcode type"}
 	}
 
 	headerBuf[0] = uint8(magic)

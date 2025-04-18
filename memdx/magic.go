@@ -16,6 +16,12 @@ const (
 
 	// MagicResExt indicates that the packet is a response with framing extras.
 	MagicResExt = Magic(0x18)
+
+	// MagicSrvReq indicates that the packet is a server-initiated request.
+	MagicSrvReq = Magic(0x82)
+
+	// MagicSrvRes indicates that the packet is a server-initiated response.
+	MagicSrvRes = Magic(0x83)
 )
 
 func (m Magic) String() string {
@@ -28,19 +34,27 @@ func (m Magic) String() string {
 		return "ReqExt"
 	case MagicResExt:
 		return "ResExt"
+	case MagicSrvReq:
+		return "SrvReq"
+	case MagicSrvRes:
+		return "SrvRes"
 	}
 
 	return "x" + hex.EncodeToString([]byte{byte(m)})
 }
 
 func (m Magic) IsRequest() bool {
-	return m == MagicReq || m == MagicReqExt
+	return m == MagicReq || m == MagicReqExt || m == MagicSrvReq
 }
 
 func (m Magic) IsResponse() bool {
-	return m == MagicRes || m == MagicResExt
+	return m == MagicRes || m == MagicResExt || m == MagicSrvRes
 }
 
 func (m Magic) IsExtended() bool {
 	return m == MagicReqExt || m == MagicResExt
+}
+
+func (m Magic) IsServerInitiated() bool {
+	return m == MagicSrvReq || m == MagicSrvRes
 }
