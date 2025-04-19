@@ -10,7 +10,7 @@ import (
 
 func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb func(*RangeScanCreateResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,6 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeRangeScanCreate,
 		Datatype:      uint8(DatatypeFlagJSON),
 		VbucketID:     req.VbucketID,
@@ -60,7 +59,7 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, dataCb func(*RangeScanDataResponse) error,
 	actionCb func(*RangeScanActionResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +80,6 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 	binary.BigEndian.PutUint32(extraBuf[24:], req.MaxBytes)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeRangeScanContinue,
 		VbucketID:     req.VbucketID,
 		Extras:        extraBuf,
@@ -144,7 +142,7 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 
 func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb func(*RangeScanCancelResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +155,6 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 	copy(extraBuf[:16], req.ScanUUID)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeRangeScanCancel,
 		VbucketID:     req.VbucketID,
 		Extras:        extraBuf,

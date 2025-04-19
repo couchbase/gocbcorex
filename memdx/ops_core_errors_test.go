@@ -19,11 +19,11 @@ func TestOpsCoreDecodeError(t *testing.T) {
 		{
 			Name: "NotMyVbucket",
 			Pkt: &Packet{
-				Magic:  MagicResExt,
-				OpCode: OpCodeReplace,
-				Status: StatusNotMyVBucket,
-				Opaque: 0x34,
-				Value:  []byte("impretendingtobeaconfig"),
+				IsResponse: true,
+				OpCode:     OpCodeReplace,
+				Status:     StatusNotMyVBucket,
+				Opaque:     0x34,
+				Value:      []byte("impretendingtobeaconfig"),
 			},
 			ExpectedError: &ServerErrorWithConfig{
 				Cause: ServerError{

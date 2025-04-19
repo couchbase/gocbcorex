@@ -23,7 +23,6 @@ func TestClientOpCancellation(t *testing.T) {
 	result := make(chan memdx.UnaryResult[*memdx.Packet], 1)
 	expectedErr := errors.New("some error")
 	op, err := cli.Dispatch(&memdx.Packet{
-		Magic:     memdx.MagicReq,
 		OpCode:    memdx.OpCodeGet,
 		Key:       key,
 		VbucketID: defaultTestVbucketID,
@@ -54,7 +53,6 @@ func TestClientOpCancellationAfterResult(t *testing.T) {
 	result := make(chan memdx.UnaryResult[*memdx.Packet], 1)
 	expectedErr := errors.New("some error")
 	op, err := cli.Dispatch(&memdx.Packet{
-		Magic:     memdx.MagicReq,
 		OpCode:    memdx.OpCodeGet,
 		Key:       key,
 		VbucketID: defaultTestVbucketID,

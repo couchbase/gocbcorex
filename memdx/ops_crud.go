@@ -50,24 +50,24 @@ func (o OpsCrud) encodeReqExtFrames(
 	durabilityLevel DurabilityLevel, durabilityLevelTimeout time.Duration,
 	preserveExpiry bool,
 	buf []byte,
-) (Magic, []byte, error) {
+) ([]byte, error) {
 	var err error
 
 	if onBehalfOf != "" {
 		buf, err = AppendExtFrame(ExtFrameCodeReqOnBehalfOf, []byte(onBehalfOf), buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	}
 
 	if durabilityLevel > 0 {
 		if !o.DurabilityEnabled {
-			return 0, nil, protocolError{"cannot use synchronous durability when its not enabled"}
+			return nil, protocolError{"cannot use synchronous durability when its not enabled"}
 		}
 
 		duraBuf, err := EncodeDurabilityExtFrame(durabilityLevel, durabilityLevelTimeout)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 
 		buf, err = AppendExtFrame(
@@ -75,32 +75,32 @@ func (o OpsCrud) encodeReqExtFrames(
 			duraBuf,
 			buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	} else if durabilityLevelTimeout > 0 {
-		return 0, nil, protocolError{"cannot encode durability timeout without durability level"}
+		return nil, protocolError{"cannot encode durability timeout without durability level"}
 	}
 
 	if preserveExpiry {
 		if !o.PreserveExpiryEnabled {
-			return 0, nil, protocolError{"cannot use preserve expiry when its not enabled"}
+			return nil, protocolError{"cannot use preserve expiry when its not enabled"}
 		}
 
 		buf, err = AppendExtFrame(ExtFrameCodeReqPreserveTTL, nil, buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	}
 
 	if len(buf) > 0 {
 		if !o.ExtFramesEnabled {
-			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+			return nil, protocolError{"cannot use framing extras when its not enabled"}
 		}
 
-		return MagicReqExt, buf, nil
+		return buf, nil
 	}
 
-	return MagicReq, nil, nil
+	return nil, nil
 }
 
 func (o OpsCrud) decodeResExtFrames(
@@ -172,7 +172,7 @@ type GetResponse struct {
 
 func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,6 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeGet,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -250,7 +249,7 @@ type GetAndTouchResponse struct {
 
 func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*GetAndTouchResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +263,6 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeGAT,
 		Key:           reqKey,
 		Extras:        extraBuf,
@@ -334,7 +332,7 @@ type GetReplicaResponse struct {
 
 func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetReplicaResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +343,6 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeGetReplica,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -412,7 +409,7 @@ type GetAndLockResponse struct {
 
 func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAndLockResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +423,6 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 	binary.BigEndian.PutUint32(extraBuf[0:], req.LockTime)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeGetLocked,
 		Key:           reqKey,
 		Extras:        extraBuf,
@@ -495,7 +491,7 @@ type GetRandomResponse struct {
 
 func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRandomResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -513,7 +509,6 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeGetRandom,
 		Extras:        extrasBuf,
 		FramingExtras: extFramesBuf,
@@ -580,7 +575,7 @@ type SetResponse struct {
 
 func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		req.PreserveExpiry,
@@ -600,7 +595,6 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeSet,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -683,7 +677,7 @@ type UnlockResponse struct {
 
 func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -694,7 +688,6 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeUnlockKey,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -764,7 +757,7 @@ type TouchResponse struct {
 
 func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -778,7 +771,6 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeTouch,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -844,7 +836,7 @@ type DeleteResponse struct {
 
 func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		false,
@@ -859,7 +851,6 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeDelete,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -945,7 +936,7 @@ type AddResponse struct {
 
 func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		false,
@@ -964,7 +955,6 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeAdd,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1055,7 +1045,7 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 	}
 
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		req.PreserveExpiry,
@@ -1074,7 +1064,6 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeReplace,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1165,7 +1154,7 @@ type AppendResponse struct {
 
 func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		false,
@@ -1180,7 +1169,6 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeAppend,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1270,7 +1258,7 @@ type PrependResponse struct {
 
 func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		false,
@@ -1285,7 +1273,6 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodePrepend,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1376,7 +1363,7 @@ type IncrementResponse struct {
 
 func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*IncrementResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		false,
@@ -1401,7 +1388,6 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeIncrement,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1495,7 +1481,7 @@ type DecrementResponse struct {
 
 func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*DecrementResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		false,
@@ -1520,7 +1506,6 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeDecrement,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1613,7 +1598,7 @@ type GetMetaResponse struct {
 
 func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1629,7 +1614,6 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 	extraBuf[0] = 2
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeGetMeta,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1703,7 +1687,7 @@ type SetMetaResponse struct {
 
 func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1723,7 +1707,6 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 	copy(extraBuf[30:], req.Extra)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeSetMeta,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1800,7 +1783,7 @@ type DeleteMetaResponse struct {
 
 func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*DeleteMetaResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1820,7 +1803,6 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 	copy(extraBuf[30:], req.Extra)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeDelMeta,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
@@ -1889,7 +1871,7 @@ type LookupInResponse struct {
 
 func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1928,7 +1910,6 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeSubDocMultiLookup,
 		Key:           reqKey,
 		Extras:        extraBuf,
@@ -2072,7 +2053,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 	}
 
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(
+	extFramesBuf, err := o.encodeReqExtFrames(
 		req.OnBehalfOf,
 		req.DurabilityLevel, req.DurabilityLevelTimeout,
 		req.PreserveExpiry,
@@ -2125,7 +2106,6 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeSubDocMultiMutation,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,

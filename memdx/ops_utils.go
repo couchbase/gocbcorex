@@ -18,25 +18,25 @@ type OpsUtils struct {
 	ExtFramesEnabled bool
 }
 
-func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) (Magic, []byte, error) {
+func (o OpsUtils) encodeReqExtFrames(onBehalfOf string, buf []byte) ([]byte, error) {
 	var err error
 
 	if onBehalfOf != "" {
 		buf, err = AppendExtFrame(ExtFrameCodeReqOnBehalfOf, []byte(onBehalfOf), buf)
 		if err != nil {
-			return 0, nil, err
+			return nil, err
 		}
 	}
 
 	if len(buf) > 0 {
 		if !o.ExtFramesEnabled {
-			return 0, nil, protocolError{"cannot use framing extras when its not enabled"}
+			return nil, protocolError{"cannot use framing extras when its not enabled"}
 		}
 
-		return MagicReqExt, buf, nil
+		return buf, nil
 	}
 
-	return MagicReq, nil, nil
+	return nil, nil
 }
 
 type StatsRequest struct {
@@ -46,44 +46,51 @@ type StatsRequest struct {
 
 func (r StatsRequest) OpName() string { return OpCodeSASLAuth.String() }
 
-type StatsResponse struct {
-	UtilsResponseMeta
+type StatsDataResponse struct {
 	Key   string
 	Value string
 }
 
-func (o OpsUtils) Stats(d Dispatcher, req *StatsRequest, cb func(*StatsResponse, error)) (PendingOp, error) {
+type StatsActionResponse struct {
+	UtilsResponseMeta
+}
+
+func (o OpsUtils) Stats(
+	d Dispatcher,
+	req *StatsRequest,
+	dataCb func(*StatsDataResponse),
+	actionCb func(*StatsActionResponse, error),
+) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
-		OpCode:        OpCodeSASLAuth,
+		OpCode:        OpCodeStat,
 		Key:           []byte(req.GroupName),
 		FramingExtras: extFramesBuf,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
-			cb(nil, err)
+			actionCb(nil, err)
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCore{}.decodeError(resp))
+			actionCb(nil, OpsCore{}.decodeError(resp))
 			return false
 		}
 
-		if resp.Key == nil && resp.Value == nil {
-			cb(nil, nil)
+		if len(resp.Key) == 0 && len(resp.Value) == 0 {
+			actionCb(&StatsActionResponse{}, nil)
 			return false
 		}
 
-		cb(&StatsResponse{
+		dataCb(&StatsDataResponse{
 			Key:   string(resp.Key),
 			Value: string(resp.Value),
-		}, nil)
+		})
 		return true
 	})
 }
@@ -104,7 +111,7 @@ type GetCollectionIDResponse struct {
 
 func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb func(*GetCollectionIDResponse, error)) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
-	reqMagic, extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, extFramesBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +119,6 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 	reqPath := fmt.Sprintf("%s.%s", req.ScopeName, req.CollectionName)
 
 	return d.Dispatch(&Packet{
-		Magic:         reqMagic,
 		OpCode:        OpCodeCollectionsGetID,
 		Value:         []byte(reqPath),
 		FramingExtras: extFramesBuf,

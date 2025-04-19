@@ -1351,10 +1351,6 @@ type GetExResult struct {
 }
 
 func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExResult, error) {
-	// TODO(brett19): This functions error handling needs to be modified to return some
-	// form of projection-style error so we know which projected paths failed when
-	// errors ultimately occur.
-
 	if len(opts.Project) == 0 && !opts.WithExpiry {
 		resp, err := cc.Get(ctx, &GetOptions{
 			Key:            opts.Key,

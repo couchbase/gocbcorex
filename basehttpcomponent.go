@@ -41,6 +41,24 @@ func (c *baseHttpComponent) updateState(newState baseHttpComponentState) {
 	c.lock.Unlock()
 }
 
+func (c *baseHttpComponent) GetAllEndpoints() ([]string, error) {
+	c.lock.RLock()
+	state := *c.state
+	c.lock.RUnlock()
+
+	endpoints := make([]string, 0, len(state.endpoints))
+	for _, endpoint := range state.endpoints {
+		host, err := getHostFromUri(endpoint)
+		if err != nil {
+			return nil, err
+		}
+
+		endpoints = append(endpoints, host)
+	}
+
+	return endpoints, nil
+}
+
 func (c *baseHttpComponent) GetAllTargets(endpointIdsToIgnore []string) (http.RoundTripper, []baseHttpTarget, error) {
 	c.lock.RLock()
 	state := *c.state

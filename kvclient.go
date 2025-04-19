@@ -205,9 +205,10 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	}
 
 	memdxClientOpts := &memdx.ClientOptions{
-		OrphanHandler: kvCli.handleOrphanResponse,
-		CloseHandler:  kvCli.handleConnectionClose,
-		Logger:        logger,
+		UnsolicitedHandler: kvCli.handleUnsolicitedPacket,
+		OrphanHandler:      kvCli.handleOrphanResponse,
+		CloseHandler:       kvCli.handleConnectionClose,
+		Logger:             logger,
 	}
 	if opts.NewMemdxClient == nil {
 		conn, err := memdx.DialConn(ctx, config.Address, &memdx.DialConnOptions{TLSConfig: config.TlsConfig})
@@ -352,8 +353,12 @@ func (c *kvClient) LocalAddr() net.Addr {
 	return c.cli.LocalAddr()
 }
 
-func (c *kvClient) Dispatch(packet *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
-	return c.cli.Dispatch(packet, cb)
+func (c *kvClient) WritePacket(pak *memdx.Packet) error {
+	return c.cli.WritePacket(pak)
+}
+
+func (c *kvClient) Dispatch(pak *memdx.Packet, cb memdx.DispatchCallback) (memdx.PendingOp, error) {
+	return c.cli.Dispatch(pak, cb)
 }
 
 func (c *kvClient) SelectedBucket() string {
@@ -364,11 +369,21 @@ func (c *kvClient) SelectedBucket() string {
 	return ""
 }
 
-func (c *kvClient) handleOrphanResponse(packet *memdx.Packet) {
+func (c *kvClient) Telemetry() MemdClientTelem {
+	return c.telemetry
+}
+
+func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {
+	c.logger.Info("unexpected unsolicited packet",
+		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
+		zap.String("opcode", pak.OpCode.String()))
+}
+
+func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
 	c.logger.Info(
 		"orphaned response encountered",
-		zap.String("opaque", strconv.Itoa(int(packet.Opaque))),
-		zap.String("opcode", packet.OpCode.String()),
+		zap.String("opaque", strconv.Itoa(int(pak.Opaque))),
+		zap.String("opcode", pak.OpCode.String()),
 	)
 }
 

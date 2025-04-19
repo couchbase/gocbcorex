@@ -1640,6 +1640,9 @@ var _ MemdxClient = &MemdxClientMock{}
 //			RemoteAddrFunc: func() net.Addr {
 //				panic("mock out the RemoteAddr method")
 //			},
+//			WritePacketFunc: func(pak *memdx.Packet) error {
+//				panic("mock out the WritePacket method")
+//			},
 //		}
 //
 //		// use mockedMemdxClient in code that requires MemdxClient
@@ -1659,6 +1662,9 @@ type MemdxClientMock struct {
 	// RemoteAddrFunc mocks the RemoteAddr method.
 	RemoteAddrFunc func() net.Addr
 
+	// WritePacketFunc mocks the WritePacket method.
+	WritePacketFunc func(pak *memdx.Packet) error
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// Close holds details about calls to the Close method.
@@ -1677,11 +1683,17 @@ type MemdxClientMock struct {
 		// RemoteAddr holds details about calls to the RemoteAddr method.
 		RemoteAddr []struct {
 		}
+		// WritePacket holds details about calls to the WritePacket method.
+		WritePacket []struct {
+			// Pak is the pak argument value.
+			Pak *memdx.Packet
+		}
 	}
-	lockClose      sync.RWMutex
-	lockDispatch   sync.RWMutex
-	lockLocalAddr  sync.RWMutex
-	lockRemoteAddr sync.RWMutex
+	lockClose       sync.RWMutex
+	lockDispatch    sync.RWMutex
+	lockLocalAddr   sync.RWMutex
+	lockRemoteAddr  sync.RWMutex
+	lockWritePacket sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -1798,5 +1810,37 @@ func (mock *MemdxClientMock) RemoteAddrCalls() []struct {
 	mock.lockRemoteAddr.RLock()
 	calls = mock.calls.RemoteAddr
 	mock.lockRemoteAddr.RUnlock()
+	return calls
+}
+
+// WritePacket calls WritePacketFunc.
+func (mock *MemdxClientMock) WritePacket(pak *memdx.Packet) error {
+	if mock.WritePacketFunc == nil {
+		panic("MemdxClientMock.WritePacketFunc: method is nil but MemdxClient.WritePacket was just called")
+	}
+	callInfo := struct {
+		Pak *memdx.Packet
+	}{
+		Pak: pak,
+	}
+	mock.lockWritePacket.Lock()
+	mock.calls.WritePacket = append(mock.calls.WritePacket, callInfo)
+	mock.lockWritePacket.Unlock()
+	return mock.WritePacketFunc(pak)
+}
+
+// WritePacketCalls gets all the calls that were made to WritePacket.
+// Check the length with:
+//
+//	len(mockedMemdxClient.WritePacketCalls())
+func (mock *MemdxClientMock) WritePacketCalls() []struct {
+	Pak *memdx.Packet
+} {
+	var calls []struct {
+		Pak *memdx.Packet
+	}
+	mock.lockWritePacket.RLock()
+	calls = mock.calls.WritePacket
+	mock.lockWritePacket.RUnlock()
 	return calls
 }

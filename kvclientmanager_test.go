@@ -771,7 +771,7 @@ func TestOrchestrateRandomMemdCallbackReturnDispatchError(t *testing.T) {
 		assert.Equal(t, expectedClient, client)
 		calls++
 		if calls == 1 {
-			return 0, &KvClientDispatchError{
+			return 0, &MemdClientDispatchError{
 				Cause: errors.New("something naughty"),
 			}
 		} else {
@@ -809,7 +809,7 @@ func TestOrchestrateMemdCallbackReturnDispatchError(t *testing.T) {
 		assert.Equal(t, expectedClient, client)
 		calls++
 		if calls == 1 {
-			return 0, &KvClientDispatchError{
+			return 0, &MemdClientDispatchError{
 				Cause: errors.New("something naughty"),
 			}
 		} else {
