@@ -266,14 +266,30 @@ func (agent *Agent) GetMgmtEndpoint(ctx context.Context) (*GetMgmtEndpointResult
 	return agent.mgmt.GetEndpoint(ctx)
 }
 
+func (agent *Agent) GetMgmtEndpoints() ([]string, error) {
+	return agent.mgmt.GetAllEndpoints()
+}
+
 func (agent *Agent) GetQueryEndpoint(ctx context.Context) (*GetQueryEndpointResult, error) {
 	return agent.query.GetEndpoint(ctx)
+}
+
+func (agent *Agent) GetQueryEndpoints() ([]string, error) {
+	return agent.query.GetAllEndpoints()
 }
 
 func (agent *Agent) GetSearchEndpoint(ctx context.Context) (*GetSearchEndpointResult, error) {
 	return agent.search.GetEndpoint(ctx)
 }
 
+func (agent *Agent) GetSearchEndpoints() ([]string, error) {
+	return agent.search.GetAllEndpoints()
+}
+
 func (agent *Agent) GetAnalyticsEndpoint(ctx context.Context) (*GetAnalyticsEndpointResult, error) {
 	return agent.analytics.GetEndpoint(ctx)
+}
+
+func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
+	return agent.analytics.GetAllEndpoints()
 }
