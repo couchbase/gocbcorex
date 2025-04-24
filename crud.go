@@ -1506,7 +1506,7 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 							return executeGet(true)
 						} else if errors.Is(op.Err, memdx.ErrSubDocNotJSON) {
 							// this is actually a document error, not a path error
-							return nil, err
+							return nil, op.Err
 						} else if errors.Is(op.Err, memdx.ErrSubDocPathNotFound) {
 							// path not founds are skipped and not included in the
 							// output document rather than triggering errors.
@@ -1514,12 +1514,12 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 						} else if errors.Is(op.Err, memdx.ErrSubDocPathInvalid) {
 							return nil, &PathProjectionError{
 								Path:  path,
-								Cause: err,
+								Cause: op.Err,
 							}
 						} else if errors.Is(op.Err, memdx.ErrSubDocPathMismatch) {
 							return nil, &PathProjectionError{
 								Path:  path,
-								Cause: err,
+								Cause: op.Err,
 							}
 						} else if errors.Is(op.Err, memdx.ErrSubDocPathTooBig) {
 							cc.logger.Debug("falling back to fulldoc projection due to ErrSubDocPathTooBig")
