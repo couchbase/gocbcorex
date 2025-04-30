@@ -5,10 +5,9 @@ package gocbcorex
 
 import (
 	"context"
+	"github.com/couchbase/gocbcorex/memdx"
 	"net"
 	"sync"
-
-	"github.com/couchbase/gocbcorex/memdx"
 )
 
 // Ensure, that KvClientMock does implement KvClient.
@@ -24,11 +23,17 @@ var _ KvClient = &KvClientMock{}
 //			AddFunc: func(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error) {
 //				panic("mock out the Add method")
 //			},
+//			AddWithMetaFunc: func(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error) {
+//				panic("mock out the AddWithMeta method")
+//			},
 //			AppendFunc: func(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error) {
 //				panic("mock out the Append method")
 //			},
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
+//			},
+//			DcpGetFailoverLogFunc: func(ctx context.Context, req *memdx.DcpGetFailoverLogRequest) (*memdx.DcpGetFailoverLogResponse, error) {
+//				panic("mock out the DcpGetFailoverLog method")
 //			},
 //			DecrementFunc: func(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error) {
 //				panic("mock out the Decrement method")
@@ -36,8 +41,8 @@ var _ KvClient = &KvClientMock{}
 //			DeleteFunc: func(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error) {
 //				panic("mock out the Delete method")
 //			},
-//			DeleteMetaFunc: func(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
-//				panic("mock out the DeleteMeta method")
+//			DeleteWithMetaFunc: func(ctx context.Context, req *memdx.DeleteWithMetaRequest) (*memdx.DeleteWithMetaResponse, error) {
+//				panic("mock out the DeleteWithMeta method")
 //			},
 //			DispatchFunc: func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error) {
 //				panic("mock out the Dispatch method")
@@ -111,8 +116,8 @@ var _ KvClient = &KvClientMock{}
 //			SetFunc: func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
 //				panic("mock out the Set method")
 //			},
-//			SetMetaFunc: func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
-//				panic("mock out the SetMeta method")
+//			SetWithMetaFunc: func(ctx context.Context, req *memdx.SetWithMetaRequest) (*memdx.SetWithMetaResponse, error) {
+//				panic("mock out the SetWithMeta method")
 //			},
 //			TouchFunc: func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error) {
 //				panic("mock out the Touch method")
@@ -130,11 +135,17 @@ type KvClientMock struct {
 	// AddFunc mocks the Add method.
 	AddFunc func(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error)
 
+	// AddWithMetaFunc mocks the AddWithMeta method.
+	AddWithMetaFunc func(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error)
+
 	// AppendFunc mocks the Append method.
 	AppendFunc func(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error)
 
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
+
+	// DcpGetFailoverLogFunc mocks the DcpGetFailoverLog method.
+	DcpGetFailoverLogFunc func(ctx context.Context, req *memdx.DcpGetFailoverLogRequest) (*memdx.DcpGetFailoverLogResponse, error)
 
 	// DecrementFunc mocks the Decrement method.
 	DecrementFunc func(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error)
@@ -142,8 +153,8 @@ type KvClientMock struct {
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
 
-	// DeleteMetaFunc mocks the DeleteMeta method.
-	DeleteMetaFunc func(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error)
+	// DeleteWithMetaFunc mocks the DeleteWithMeta method.
+	DeleteWithMetaFunc func(ctx context.Context, req *memdx.DeleteWithMetaRequest) (*memdx.DeleteWithMetaResponse, error)
 
 	// DispatchFunc mocks the Dispatch method.
 	DispatchFunc func(packet *memdx.Packet, dispatchCallback memdx.DispatchCallback) (memdx.PendingOp, error)
@@ -217,8 +228,8 @@ type KvClientMock struct {
 	// SetFunc mocks the Set method.
 	SetFunc func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 
-	// SetMetaFunc mocks the SetMeta method.
-	SetMetaFunc func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error)
+	// SetWithMetaFunc mocks the SetWithMeta method.
+	SetWithMetaFunc func(ctx context.Context, req *memdx.SetWithMetaRequest) (*memdx.SetWithMetaResponse, error)
 
 	// TouchFunc mocks the Touch method.
 	TouchFunc func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error)
@@ -235,6 +246,13 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.AddRequest
 		}
+		// AddWithMeta holds details about calls to the AddWithMeta method.
+		AddWithMeta []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.AddWithMetaRequest
+		}
 		// Append holds details about calls to the Append method.
 		Append []struct {
 			// Ctx is the ctx argument value.
@@ -244,6 +262,13 @@ type KvClientMock struct {
 		}
 		// Close holds details about calls to the Close method.
 		Close []struct {
+		}
+		// DcpGetFailoverLog holds details about calls to the DcpGetFailoverLog method.
+		DcpGetFailoverLog []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.DcpGetFailoverLogRequest
 		}
 		// Decrement holds details about calls to the Decrement method.
 		Decrement []struct {
@@ -259,12 +284,12 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.DeleteRequest
 		}
-		// DeleteMeta holds details about calls to the DeleteMeta method.
-		DeleteMeta []struct {
+		// DeleteWithMeta holds details about calls to the DeleteWithMeta method.
+		DeleteWithMeta []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Req is the req argument value.
-			Req *memdx.DeleteMetaRequest
+			Req *memdx.DeleteWithMetaRequest
 		}
 		// Dispatch holds details about calls to the Dispatch method.
 		Dispatch []struct {
@@ -418,12 +443,12 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.SetRequest
 		}
-		// SetMeta holds details about calls to the SetMeta method.
-		SetMeta []struct {
+		// SetWithMeta holds details about calls to the SetWithMeta method.
+		SetWithMeta []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Req is the req argument value.
-			Req *memdx.SetMetaRequest
+			Req *memdx.SetWithMetaRequest
 		}
 		// Touch holds details about calls to the Touch method.
 		Touch []struct {
@@ -441,11 +466,13 @@ type KvClientMock struct {
 		}
 	}
 	lockAdd               sync.RWMutex
+	lockAddWithMeta       sync.RWMutex
 	lockAppend            sync.RWMutex
 	lockClose             sync.RWMutex
+	lockDcpGetFailoverLog sync.RWMutex
 	lockDecrement         sync.RWMutex
 	lockDelete            sync.RWMutex
-	lockDeleteMeta        sync.RWMutex
+	lockDeleteWithMeta    sync.RWMutex
 	lockDispatch          sync.RWMutex
 	lockGet               sync.RWMutex
 	lockGetAndLock        sync.RWMutex
@@ -470,7 +497,7 @@ type KvClientMock struct {
 	lockRemoteHostname    sync.RWMutex
 	lockReplace           sync.RWMutex
 	lockSet               sync.RWMutex
-	lockSetMeta           sync.RWMutex
+	lockSetWithMeta       sync.RWMutex
 	lockTouch             sync.RWMutex
 	lockUnlock            sync.RWMutex
 }
@@ -508,6 +535,42 @@ func (mock *KvClientMock) AddCalls() []struct {
 	mock.lockAdd.RLock()
 	calls = mock.calls.Add
 	mock.lockAdd.RUnlock()
+	return calls
+}
+
+// AddWithMeta calls AddWithMetaFunc.
+func (mock *KvClientMock) AddWithMeta(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error) {
+	if mock.AddWithMetaFunc == nil {
+		panic("KvClientMock.AddWithMetaFunc: method is nil but KvClient.AddWithMeta was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.AddWithMetaRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockAddWithMeta.Lock()
+	mock.calls.AddWithMeta = append(mock.calls.AddWithMeta, callInfo)
+	mock.lockAddWithMeta.Unlock()
+	return mock.AddWithMetaFunc(ctx, req)
+}
+
+// AddWithMetaCalls gets all the calls that were made to AddWithMeta.
+// Check the length with:
+//
+//	len(mockedKvClient.AddWithMetaCalls())
+func (mock *KvClientMock) AddWithMetaCalls() []struct {
+	Ctx context.Context
+	Req *memdx.AddWithMetaRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.AddWithMetaRequest
+	}
+	mock.lockAddWithMeta.RLock()
+	calls = mock.calls.AddWithMeta
+	mock.lockAddWithMeta.RUnlock()
 	return calls
 }
 
@@ -571,6 +634,42 @@ func (mock *KvClientMock) CloseCalls() []struct {
 	mock.lockClose.RLock()
 	calls = mock.calls.Close
 	mock.lockClose.RUnlock()
+	return calls
+}
+
+// DcpGetFailoverLog calls DcpGetFailoverLogFunc.
+func (mock *KvClientMock) DcpGetFailoverLog(ctx context.Context, req *memdx.DcpGetFailoverLogRequest) (*memdx.DcpGetFailoverLogResponse, error) {
+	if mock.DcpGetFailoverLogFunc == nil {
+		panic("KvClientMock.DcpGetFailoverLogFunc: method is nil but KvClient.DcpGetFailoverLog was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.DcpGetFailoverLogRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockDcpGetFailoverLog.Lock()
+	mock.calls.DcpGetFailoverLog = append(mock.calls.DcpGetFailoverLog, callInfo)
+	mock.lockDcpGetFailoverLog.Unlock()
+	return mock.DcpGetFailoverLogFunc(ctx, req)
+}
+
+// DcpGetFailoverLogCalls gets all the calls that were made to DcpGetFailoverLog.
+// Check the length with:
+//
+//	len(mockedKvClient.DcpGetFailoverLogCalls())
+func (mock *KvClientMock) DcpGetFailoverLogCalls() []struct {
+	Ctx context.Context
+	Req *memdx.DcpGetFailoverLogRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.DcpGetFailoverLogRequest
+	}
+	mock.lockDcpGetFailoverLog.RLock()
+	calls = mock.calls.DcpGetFailoverLog
+	mock.lockDcpGetFailoverLog.RUnlock()
 	return calls
 }
 
@@ -646,39 +745,39 @@ func (mock *KvClientMock) DeleteCalls() []struct {
 	return calls
 }
 
-// DeleteMeta calls DeleteMetaFunc.
-func (mock *KvClientMock) DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
-	if mock.DeleteMetaFunc == nil {
-		panic("KvClientMock.DeleteMetaFunc: method is nil but KvClient.DeleteMeta was just called")
+// DeleteWithMeta calls DeleteWithMetaFunc.
+func (mock *KvClientMock) DeleteWithMeta(ctx context.Context, req *memdx.DeleteWithMetaRequest) (*memdx.DeleteWithMetaResponse, error) {
+	if mock.DeleteWithMetaFunc == nil {
+		panic("KvClientMock.DeleteWithMetaFunc: method is nil but KvClient.DeleteWithMeta was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Req *memdx.DeleteMetaRequest
+		Req *memdx.DeleteWithMetaRequest
 	}{
 		Ctx: ctx,
 		Req: req,
 	}
-	mock.lockDeleteMeta.Lock()
-	mock.calls.DeleteMeta = append(mock.calls.DeleteMeta, callInfo)
-	mock.lockDeleteMeta.Unlock()
-	return mock.DeleteMetaFunc(ctx, req)
+	mock.lockDeleteWithMeta.Lock()
+	mock.calls.DeleteWithMeta = append(mock.calls.DeleteWithMeta, callInfo)
+	mock.lockDeleteWithMeta.Unlock()
+	return mock.DeleteWithMetaFunc(ctx, req)
 }
 
-// DeleteMetaCalls gets all the calls that were made to DeleteMeta.
+// DeleteWithMetaCalls gets all the calls that were made to DeleteWithMeta.
 // Check the length with:
 //
-//	len(mockedKvClient.DeleteMetaCalls())
-func (mock *KvClientMock) DeleteMetaCalls() []struct {
+//	len(mockedKvClient.DeleteWithMetaCalls())
+func (mock *KvClientMock) DeleteWithMetaCalls() []struct {
 	Ctx context.Context
-	Req *memdx.DeleteMetaRequest
+	Req *memdx.DeleteWithMetaRequest
 } {
 	var calls []struct {
 		Ctx context.Context
-		Req *memdx.DeleteMetaRequest
+		Req *memdx.DeleteWithMetaRequest
 	}
-	mock.lockDeleteMeta.RLock()
-	calls = mock.calls.DeleteMeta
-	mock.lockDeleteMeta.RUnlock()
+	mock.lockDeleteWithMeta.RLock()
+	calls = mock.calls.DeleteWithMeta
+	mock.lockDeleteWithMeta.RUnlock()
 	return calls
 }
 
@@ -1510,39 +1609,39 @@ func (mock *KvClientMock) SetCalls() []struct {
 	return calls
 }
 
-// SetMeta calls SetMetaFunc.
-func (mock *KvClientMock) SetMeta(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
-	if mock.SetMetaFunc == nil {
-		panic("KvClientMock.SetMetaFunc: method is nil but KvClient.SetMeta was just called")
+// SetWithMeta calls SetWithMetaFunc.
+func (mock *KvClientMock) SetWithMeta(ctx context.Context, req *memdx.SetWithMetaRequest) (*memdx.SetWithMetaResponse, error) {
+	if mock.SetWithMetaFunc == nil {
+		panic("KvClientMock.SetWithMetaFunc: method is nil but KvClient.SetWithMeta was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
-		Req *memdx.SetMetaRequest
+		Req *memdx.SetWithMetaRequest
 	}{
 		Ctx: ctx,
 		Req: req,
 	}
-	mock.lockSetMeta.Lock()
-	mock.calls.SetMeta = append(mock.calls.SetMeta, callInfo)
-	mock.lockSetMeta.Unlock()
-	return mock.SetMetaFunc(ctx, req)
+	mock.lockSetWithMeta.Lock()
+	mock.calls.SetWithMeta = append(mock.calls.SetWithMeta, callInfo)
+	mock.lockSetWithMeta.Unlock()
+	return mock.SetWithMetaFunc(ctx, req)
 }
 
-// SetMetaCalls gets all the calls that were made to SetMeta.
+// SetWithMetaCalls gets all the calls that were made to SetWithMeta.
 // Check the length with:
 //
-//	len(mockedKvClient.SetMetaCalls())
-func (mock *KvClientMock) SetMetaCalls() []struct {
+//	len(mockedKvClient.SetWithMetaCalls())
+func (mock *KvClientMock) SetWithMetaCalls() []struct {
 	Ctx context.Context
-	Req *memdx.SetMetaRequest
+	Req *memdx.SetWithMetaRequest
 } {
 	var calls []struct {
 		Ctx context.Context
-		Req *memdx.SetMetaRequest
+		Req *memdx.SetWithMetaRequest
 	}
-	mock.lockSetMeta.RLock()
-	calls = mock.calls.SetMeta
-	mock.lockSetMeta.RUnlock()
+	mock.lockSetWithMeta.RLock()
+	calls = mock.calls.SetWithMeta
+	mock.lockSetWithMeta.RUnlock()
 	return calls
 }
 

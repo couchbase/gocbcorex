@@ -82,12 +82,16 @@ func (agent *Agent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*GetMeta
 	return agent.crud.GetMeta(ctx, opts)
 }
 
-func (agent *Agent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*SetMetaResult, error) {
-	return agent.crud.SetMeta(ctx, opts)
+func (agent *Agent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptions) (*AddWithMetaResult, error) {
+	return agent.crud.AddWithMeta(ctx, opts)
 }
 
-func (agent *Agent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions) (*DeleteMetaResult, error) {
-	return agent.crud.DeleteMeta(ctx, opts)
+func (agent *Agent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptions) (*SetWithMetaResult, error) {
+	return agent.crud.SetWithMeta(ctx, opts)
+}
+
+func (agent *Agent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMetaOptions) (*DeleteWithMetaResult, error) {
+	return agent.crud.DeleteWithMeta(ctx, opts)
 }
 
 func (agent *Agent) LookupIn(ctx context.Context, opts *LookupInOptions) (*LookupInResult, error) {
@@ -292,4 +296,8 @@ func (agent *Agent) GetAnalyticsEndpoint(ctx context.Context) (*GetAnalyticsEndp
 
 func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
 	return agent.analytics.GetAllEndpoints()
+}
+
+func (agent *Agent) DcpGetFailoverLog(ctx context.Context, opts *DcpGetFailoverLogOptions) (*DcpGetFailoverLogResult, error) {
+	return agent.crud.DcpGetFailoverLog(ctx, opts)
 }

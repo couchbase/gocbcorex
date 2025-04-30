@@ -7,60 +7,6 @@ type OpsCtrl struct {
 	CollectionsEnabled bool
 }
 
-type DcpGetFailoverLogRequest struct {
-	VbucketID uint16
-}
-
-type DcpFailoverEntry struct {
-	VbUuid uint64
-	SeqNo  uint64
-}
-
-type DcpGetFailoverLogResponse struct {
-	Entries []DcpFailoverEntry
-}
-
-func (o OpsCtrl) DcpGetFailoverLog(
-	d Dispatcher,
-	req *DcpGetFailoverLogRequest,
-	cb func(*DcpGetFailoverLogResponse, error),
-) (PendingOp, error) {
-	return d.Dispatch(&Packet{
-		OpCode:    OpCodeDcpGetFailoverLog,
-		VbucketID: req.VbucketID,
-	}, func(resp *Packet, err error) bool {
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
-
-		decompErr := OpsCore{}.maybeDecompressPacket(resp)
-		if decompErr != nil {
-			cb(nil, decompErr)
-			return false
-		}
-
-		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
-			return false
-		}
-
-		numEntries := len(resp.Value) / 16
-		entries := make([]DcpFailoverEntry, numEntries)
-		for i := 0; i < numEntries; i++ {
-			entries[i] = DcpFailoverEntry{
-				VbUuid: binary.BigEndian.Uint64(resp.Value[i*16+0:]),
-				SeqNo:  binary.BigEndian.Uint64(resp.Value[i*16+8:]),
-			}
-		}
-
-		cb(&DcpGetFailoverLogResponse{
-			Entries: entries,
-		}, nil)
-		return false
-	})
-}
-
 type GetVbucketSeqNosRequest struct {
 	VbucketState VbucketState
 	CollectionID uint32

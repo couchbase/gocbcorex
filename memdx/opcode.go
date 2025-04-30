@@ -15,7 +15,7 @@ const OpCodeTypeSrv = 0x1000
 // These constants provide predefined values for all the operations
 // which are supported by this library.
 const (
-	OpCodeGet                        = OpCode(OpCodeTypeCli | 0x00) // nolint:staticcheck
+	OpCodeGet                        = OpCode(OpCodeTypeCli) // | 0x00)
 	OpCodeSet                        = OpCode(OpCodeTypeCli | 0x01)
 	OpCodeAdd                        = OpCode(OpCodeTypeCli | 0x02)
 	OpCodeReplace                    = OpCode(OpCodeTypeCli | 0x03)
@@ -33,6 +33,8 @@ const (
 	OpCodeSASLAuth                   = OpCode(OpCodeTypeCli | 0x21)
 	OpCodeSASLStep                   = OpCode(OpCodeTypeCli | 0x22)
 	OpCodeGetAllVBSeqnos             = OpCode(OpCodeTypeCli | 0x48)
+	OpCodeGetEx                      = OpCode(OpCodeTypeCli | 0x49)
+	OpCodeGetExReplica               = OpCode(OpCodeTypeCli | 0x4a)
 	OpCodeDcpOpenConnection          = OpCode(OpCodeTypeCli | 0x50)
 	OpCodeDcpAddStream               = OpCode(OpCodeTypeCli | 0x51)
 	OpCodeDcpCloseStream             = OpCode(OpCodeTypeCli | 0x52)
@@ -58,8 +60,9 @@ const (
 	OpCodeGetLocked                  = OpCode(OpCodeTypeCli | 0x94)
 	OpCodeUnlockKey                  = OpCode(OpCodeTypeCli | 0x95)
 	OpCodeGetMeta                    = OpCode(OpCodeTypeCli | 0xa0)
-	OpCodeSetMeta                    = OpCode(OpCodeTypeCli | 0xa2)
-	OpCodeDelMeta                    = OpCode(OpCodeTypeCli | 0xa8)
+	OpCodeSetWithMeta                = OpCode(OpCodeTypeCli | 0xa2)
+	OpCodeAddWithMeta                = OpCode(OpCodeTypeCli | 0xa4)
+	OpCodeDelWithMeta                = OpCode(OpCodeTypeCli | 0xa8)
 	OpCodeGetClusterConfig           = OpCode(OpCodeTypeCli | 0xb5)
 	OpCodeGetRandom                  = OpCode(OpCodeTypeCli | 0xb6)
 	OpCodeCollectionsGetManifest     = OpCode(OpCodeTypeCli | 0xba)
@@ -179,9 +182,9 @@ func (c OpCode) String() string {
 		return "UnlockKey"
 	case OpCodeGetMeta:
 		return "GetMeta"
-	case OpCodeSetMeta:
-		return "SetMeta"
-	case OpCodeDelMeta:
+	case OpCodeSetWithMeta:
+		return "SetWithMeta"
+	case OpCodeDelWithMeta:
 		return "DelMeta"
 	case OpCodeGetClusterConfig:
 		return "GetClusterConfig"

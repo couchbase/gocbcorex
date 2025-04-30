@@ -342,6 +342,17 @@ func (agent *Agent) BucketName() string {
 	return agent.state.bucket
 }
 
+func (agent *Agent) NumVbuckets() int {
+	agent.lock.Lock()
+	defer agent.lock.Unlock()
+
+	if agent.state.latestConfig == nil {
+		return 0
+	}
+
+	return agent.state.latestConfig.VbucketMap.NumVbuckets()
+}
+
 func (agent *Agent) Close() error {
 	if err := agent.connMgr.Close(); err != nil {
 		agent.logger.Debug("Failed to close conn mgr", zap.Error(err))
