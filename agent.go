@@ -51,6 +51,7 @@ type Agent struct {
 	mgmt      *MgmtComponent
 	search    *SearchComponent
 	analytics *AnalyticsComponent
+	stats     *StatsComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -256,12 +257,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		CollectionChecker: collectionChecker,
 	}
 
+	nmvHandler := &agentNmvHandler{agent}
+
 	agent.crud = &CrudComponent{
 		logger:      agent.logger,
 		collections: agent.collections,
 		retries:     consistencyRetryMgr,
 		connManager: agent.connMgr,
-		nmvHandler:  &agentNmvHandler{agent},
+		nmvHandler:  nmvHandler,
 		vbs:         agent.vbRouter,
 		compression: &CompressionManagerDefault{
 			disableCompression:   !useCompression,
@@ -295,6 +298,13 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			UserAgent: clientName,
 		},
 	)
+
+	agent.stats = &StatsComponent{
+		nmvHandler:  nmvHandler,
+		retries:     agent.retries,
+		connManager: agent.connMgr,
+		vbs:         agent.vbRouter,
+	}
 
 	agent.startConfigWatcher()
 
@@ -340,6 +350,17 @@ func (agent *Agent) BucketName() string {
 	defer agent.lock.Unlock()
 
 	return agent.state.bucket
+}
+
+func (agent *Agent) NumVbuckets() int {
+	agent.lock.Lock()
+	defer agent.lock.Unlock()
+
+	if agent.state.latestConfig == nil {
+		return 0
+	}
+
+	return agent.state.latestConfig.VbucketMap.NumVbuckets()
 }
 
 func (agent *Agent) Close() error {

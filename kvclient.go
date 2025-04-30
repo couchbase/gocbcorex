@@ -70,14 +70,17 @@ type KvClientOps interface {
 	Increment(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error)
 	Decrement(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error)
 	GetMeta(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error)
-	SetMeta(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error)
-	DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error)
+	AddWithMeta(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error)
+	SetWithMeta(ctx context.Context, req *memdx.SetWithMetaRequest) (*memdx.SetWithMetaResponse, error)
+	DeleteWithMeta(ctx context.Context, req *memdx.DeleteWithMetaRequest) (*memdx.DeleteWithMetaResponse, error)
 	LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
 	MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error)
 	RangeScanCreate(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error)
 	RangeScanContinue(ctx context.Context, req *memdx.RangeScanContinueRequest,
 		dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error)
 	RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error)
+	DcpGetFailoverLog(ctx context.Context, req *memdx.DcpGetFailoverLogRequest) (*memdx.DcpGetFailoverLogResponse, error)
+	StatsVbucketDetails(ctx context.Context, req *memdx.StatsVbucketDetailsRequest) (*memdx.StatsVbucketDetailsResponse, error)
 }
 
 // KvClient implements a synchronous wrapper around a memdx.Client.
@@ -148,7 +151,8 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			memdx.HelloFeatureXerror,
 			memdx.HelloFeatureSnappy,
 			memdx.HelloFeatureJSON,
-			memdx.HelloFeatureUnorderedExec,
+			// TODO(brett19): Disabled to support DcpGetFailoverLog for XDCR. DO NOT MERGE
+			// memdx.HelloFeatureUnorderedExec,
 			memdx.HelloFeatureDurations,
 			memdx.HelloFeaturePreserveExpiry,
 			memdx.HelloFeatureSyncReplication,

@@ -17,7 +17,7 @@ var (
 type VbucketRouter interface {
 	UpdateRoutingInfo(*VbucketRoutingInfo)
 	DispatchByKey(key []byte, vbServerIdx uint32) (string, uint16, error)
-	DispatchToVbucket(vbID uint16) (string, error)
+	DispatchToVbucket(vbID uint16, vbServerIdx uint32) (string, error)
 	NumReplicas() (int, error)
 }
 
@@ -92,13 +92,13 @@ func (vbd *vbucketRouter) DispatchByKey(key []byte, vbServerIdx uint32) (string,
 	return info.ServerList[idx], vbID, nil
 }
 
-func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16) (string, error) {
+func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16, vbServerIdx uint32) (string, error) {
 	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return "", err
 	}
 
-	idx, err := info.VbMap.NodeByVbucket(vbID, 0)
+	idx, err := info.VbMap.NodeByVbucket(vbID, vbServerIdx)
 	if err != nil {
 		return "", err
 	}
@@ -177,6 +177,74 @@ func OrchestrateMemdRouting[RespT any](
 
 				endpoint = newEndpoint
 				vbID = newVbID
+				continue
+			}
+
+			return res, err
+		}
+
+		return res, nil
+	}
+}
+
+func OrchestrateMemdRoutingByVbucketId[RespT any](
+	ctx context.Context,
+	vb VbucketRouter,
+	ch NotMyVbucketConfigHandler,
+	vbID uint16,
+	vbServerIdx uint32,
+	fn func(endpoint string) (RespT, error),
+) (RespT, error) {
+	endpoint, err := vb.DispatchToVbucket(vbID, vbServerIdx)
+	if err != nil {
+		var emptyResp RespT
+		return emptyResp, err
+	}
+
+	for {
+		res, err := fn(endpoint)
+		if err != nil {
+			if errors.Is(err, memdx.ErrNotMyVbucket) {
+				// if we have a config handler, lets try to parse the config and update
+				if ch != nil {
+					var nmvErr *memdx.ServerErrorWithConfig
+					if errors.As(err, &nmvErr) {
+						var kvCliErr *KvClientError
+						if errors.As(err, &kvCliErr) {
+							sourceHostname := kvCliErr.RemoteHostname
+
+							config, parseErr := cbconfig.ParseTerseConfig(
+								nmvErr.ConfigJson,
+								sourceHostname)
+							if parseErr != nil {
+								return res, &VbucketMapOutdatedError{
+									Cause: err,
+								}
+							}
+
+							ch.HandleNotMyVbucketConfig(config, sourceHostname)
+						}
+					}
+				}
+
+				newEndpoint, err := vb.DispatchToVbucket(vbID, vbServerIdx)
+				if err != nil {
+					var emptyResp RespT
+					return emptyResp, &VbucketMapOutdatedError{
+						Cause: err,
+					}
+				}
+
+				if newEndpoint == endpoint {
+					// if after the update we are going to be sending the request back
+					// to the place that rejected it, we consider this non-deterministic
+					// and fall back to the application to deal with (or retries).
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
+				}
+
+				endpoint = newEndpoint
 				continue
 			}
 
