@@ -68,6 +68,7 @@ func dialAndBootstrapClient(t *testing.T, addr, user, pass, bucket string) (*mem
 				memdx.HelloFeatureXerror,
 				memdx.HelloFeatureSyncReplication,
 				memdx.HelloFeatureSnappy,
+				memdx.HelloFeatureSnappyEverywhere,
 			},
 		},
 		GetErrorMap: &memdx.GetErrorMapRequest{

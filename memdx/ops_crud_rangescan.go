@@ -32,6 +32,12 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 			return false
 		}
 
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
 		switch resp.Status {
 		case StatusKeyNotFound:
 			cb(nil, ErrRangeScanEmpty)
@@ -90,6 +96,12 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			actionCb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			actionCb(nil, decompErr)
 			return false
 		}
 
@@ -168,6 +180,12 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
