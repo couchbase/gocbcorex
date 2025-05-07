@@ -54,6 +54,7 @@ var (
 	ErrSyncWriteAmbiguous                  = errors.New("sync write was ambiguous")
 	ErrSyncWriteInProgress                 = errors.New("sync write in progress")
 	ErrSyncWriteReCommitInProgress         = errors.New("sync write recommit in progress")
+	ErrDurabilityImpossible                = errors.New("sync write impossible")
 	ErrTmpFail                             = errors.New("temporary failure")
 	ErrDcpRollback                         = errors.New("dcp rollback")
 	ErrDcpDuplicateStream                  = errors.New("duplicate dcp vbucket stream")
