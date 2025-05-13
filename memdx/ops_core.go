@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"strings"
+
+	"github.com/golang/snappy"
 )
 
 type OpRequest interface {
@@ -63,6 +65,20 @@ func (o OpsCore) decodeError(resp *Packet) error {
 	return o.decodeErrorContext(resp, err)
 }
 
+func (o OpsCore) maybeDecompressPacket(pak *Packet) error {
+	if pak.Datatype&uint8(DatatypeFlagCompressed) != 0 {
+		decPayload, err := snappy.Decode(nil, pak.Value)
+		if err != nil {
+			return protocolError{"failed to decompress snappy payload: " + err.Error()}
+		}
+
+		pak.Value = decPayload
+		pak.Datatype &= ^uint8(DatatypeFlagCompressed)
+	}
+
+	return nil
+}
+
 type HelloRequest struct {
 	CoreRequestMeta
 	ClientName        []byte
@@ -89,6 +105,12 @@ func (o OpsCore) Hello(d Dispatcher, req *HelloRequest, cb func(*HelloResponse, 
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
@@ -140,6 +162,12 @@ func (o OpsCore) GetErrorMap(d Dispatcher, req *GetErrorMapRequest, cb func(*Get
 			return false
 		}
 
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			cb(nil, o.decodeError(resp))
 			return false
@@ -169,6 +197,12 @@ func (o OpsCore) GetClusterConfig(d Dispatcher, req *GetClusterConfigRequest, cb
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
@@ -214,6 +248,12 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*S
 			return false
 		}
 
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
 		if resp.Status == StatusAccessError {
 			cb(nil, ErrUnknownBucketName)
 			return false
@@ -252,6 +292,12 @@ func (o OpsCore) SASLListMechs(d Dispatcher, req *SASLListMechsRequest, cb func(
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
@@ -296,6 +342,12 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
@@ -348,6 +400,12 @@ func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepR
 			return false
 		}
 
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
 		if resp.Status == StatusAuthContinue {
 			cb(&SASLStepResponse{
 				NeedsMoreSteps: true,
@@ -388,6 +446,12 @@ func (o OpsCore) NoOp(d Dispatcher, req *NoOpRequest, cb func(*NoOpResponse, err
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := o.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
