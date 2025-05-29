@@ -155,7 +155,9 @@ func OrchestrateMemdRouting[RespT any](
 						}
 					}
 				}
+			}
 
+			if errors.Is(err, memdx.ErrNotMyVbucket) || errors.Is(err, memdx.ErrConfigOnly) {
 				newEndpoint, newVbID, err := vb.DispatchByKey(key, vbServerIdx)
 				if err != nil {
 					var emptyResp RespT
