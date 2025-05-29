@@ -135,6 +135,8 @@ func (o OpsCrud) decodeCommonStatus(resp *Packet) error {
 	switch resp.Status {
 	case StatusCollectionUnknown:
 		err = ErrUnknownCollectionID
+	case StatusConfigOnly:
+		err = ErrConfigOnly
 	case StatusAccessError:
 		err = ErrAccessError
 	default:
