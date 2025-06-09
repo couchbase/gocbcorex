@@ -9,6 +9,7 @@ import (
 
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/couchbase/gocbcorex/testutilsint"
+	"github.com/golang/snappy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1738,6 +1739,277 @@ func TestOpsCrudMutations(t *testing.T) {
 				assert.Equal(tt, test.ExpectedValue, value)
 			}
 
+		})
+	}
+}
+
+func TestOpsCrudMutationsSnappy(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op              func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error)
+		Name            string
+		SkipDocCreation bool
+		ExpectDeleted   bool
+		ExpectedValue   []byte
+	}
+
+	usualExpectedValue := []byte(`{"key":"value2"}`)
+	usualSnappyValue := snappy.Encode(nil, usualExpectedValue)
+	initialValue := []byte(`{"key":"value"}`)
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Set(cli, &memdx.SetRequest{
+					Key:       key,
+					Value:     usualSnappyValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Add",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Add(cli, &memdx.AddRequest{
+					Key:       key,
+					Value:     usualSnappyValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   usualExpectedValue,
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Replace(cli, &memdx.ReplaceRequest{
+					Key:       key,
+					Value:     usualSnappyValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Append(cli, &memdx.AppendRequest{
+					Key:       key,
+					Value:     usualSnappyValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(initialValue, usualExpectedValue...),
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Prepend(cli, &memdx.PrependRequest{
+					Key:       key,
+					Value:     usualSnappyValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(usualExpectedValue, initialValue...),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			waiterr := make(chan error, 1)
+			waitres := make(chan interface{}, 1)
+
+			key := []byte(uuid.NewString())
+
+			var cas uint64
+			if !test.SkipDocCreation {
+				setRes, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					Value:     initialValue,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(t, err)
+				cas = setRes.Cas
+			}
+
+			_, err := test.Op(memdx.OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, key, cas, func(i interface{}, err error) {
+				waiterr <- err
+				waitres <- i
+			})
+			require.NoError(tt, err)
+
+			require.NoError(tt, <-waiterr)
+
+			<-waitres
+
+			getRes, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, memdx.OpsCrud.Get, cli, &memdx.GetRequest{
+				Key:       key,
+				VbucketID: defaultTestVbucketID,
+			})
+
+			require.NoError(t, err)
+			assert.Equal(tt, test.ExpectedValue, getRes.Value)
+		})
+	}
+}
+
+func TestOpsCrudMutationsSnappyBadInflate(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	cli := createTestClient(t)
+
+	type test struct {
+		Op              func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error)
+		Name            string
+		SkipDocCreation bool
+		ExpectDeleted   bool
+		ExpectedValue   []byte
+	}
+
+	usualExpectedValue := []byte(`{"key":"value2"}`)
+	initialValue := []byte(`{"key":"value"}`)
+
+	tests := []test{
+		{
+			Name: "Set",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Set(cli, &memdx.SetRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.SetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Add",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Add(cli, &memdx.AddRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.AddResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			SkipDocCreation: true,
+			ExpectedValue:   usualExpectedValue,
+		},
+		{
+			Name: "Replace",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Replace(cli, &memdx.ReplaceRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.ReplaceResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "Append",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Append(cli, &memdx.AppendRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.AppendResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(initialValue, usualExpectedValue...),
+		},
+		{
+			Name: "Prepend",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Prepend(cli, &memdx.PrependRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					Datatype:  uint8(memdx.DatatypeFlagCompressed),
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.PrependResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: append(usualExpectedValue, initialValue...),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(tt *testing.T) {
+			waiterr := make(chan error, 1)
+			waitres := make(chan interface{}, 1)
+
+			key := []byte(uuid.NewString())
+
+			var cas uint64
+			if !test.SkipDocCreation {
+				setRes, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+					CollectionsEnabled: true,
+					ExtFramesEnabled:   true,
+				}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+					Value:     initialValue,
+					Datatype:  uint8(0x01),
+				})
+				require.NoError(t, err)
+				cas = setRes.Cas
+			}
+
+			_, err := test.Op(memdx.OpsCrud{
+				CollectionsEnabled: true,
+				ExtFramesEnabled:   true,
+			}, key, cas, func(i interface{}, err error) {
+				waiterr <- err
+				waitres <- i
+			})
+			require.NoError(tt, err)
+
+			err = <-waiterr
+			require.ErrorIs(tt, err, memdx.ErrInvalidArgument)
+			errType := memdx.ParseInvalidArgsError(err)
+			require.Equal(t, memdx.InvalidArgsErrorCannotInflate, errType)
+
+			<-waitres
 		})
 	}
 }
