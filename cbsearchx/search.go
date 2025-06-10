@@ -19,8 +19,7 @@ type Search struct {
 	Transport http.RoundTripper
 	UserAgent string
 	Endpoint  string
-	Username  string
-	Password  string
+	Auth      cbhttpx.Authenticator
 
 	VectorSearchEnabled bool
 }
@@ -32,10 +31,9 @@ func (h Search) NewRequest(
 	body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
-		UserAgent:     h.UserAgent,
-		Endpoint:      h.Endpoint,
-		BasicAuthUser: h.Username,
-		BasicAuthPass: h.Password,
+		UserAgent: h.UserAgent,
+		Endpoint:  h.Endpoint,
+		Auth:      h.Auth,
 	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 

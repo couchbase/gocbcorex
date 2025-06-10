@@ -20,8 +20,7 @@ type Query struct {
 	Transport http.RoundTripper
 	UserAgent string
 	Endpoint  string
-	Username  string
-	Password  string
+	Auth      cbhttpx.Authenticator
 }
 
 func (h Query) NewRequest(
@@ -31,10 +30,9 @@ func (h Query) NewRequest(
 	body io.Reader,
 ) (*http.Request, error) {
 	return cbhttpx.RequestBuilder{
-		UserAgent:     h.UserAgent,
-		Endpoint:      h.Endpoint,
-		BasicAuthUser: h.Username,
-		BasicAuthPass: h.Password,
+		UserAgent: h.UserAgent,
+		Endpoint:  h.Endpoint,
+		Auth:      h.Auth,
 	}.NewRequest(ctx, method, path, contentType, onBehalfOf, body)
 }
 

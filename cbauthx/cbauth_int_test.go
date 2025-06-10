@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbauthx"
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -147,8 +148,10 @@ func TestCbauthInvalidations(t *testing.T) {
 		Transport: http.DefaultTransport,
 		UserAgent: "stg",
 		Endpoint:  "http://" + testutilsint.TestOpts.HTTPAddrs[0],
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}
 
 	// check that user1 is handled properly before creation

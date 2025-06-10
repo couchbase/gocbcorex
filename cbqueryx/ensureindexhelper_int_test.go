@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbqueryx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -46,8 +47,10 @@ func TestEnsureQuery(t *testing.T) {
 		Transport: transport,
 		UserAgent: "useragent",
 		Endpoint:  targets[len(targets)-1].Endpoint,
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}
 
 	idxName := uuid.NewString()[:6]

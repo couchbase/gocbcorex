@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/zaputils"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
@@ -99,8 +100,10 @@ func configWatcherHttp_pollOne(
 			Transport: httpRoundTripper,
 			UserAgent: userAgent,
 			Endpoint:  endpoint,
-			Username:  username,
-			Password:  password,
+			Auth: &cbhttpx.BasicAuth{
+				Username: username,
+				Password: password,
+			},
 		}.GetTerseClusterConfig(ctx, &cbmgmtx.GetTerseClusterConfigOptions{})
 		if err != nil {
 			return nil, err
@@ -119,8 +122,10 @@ func configWatcherHttp_pollOne(
 			Transport: httpRoundTripper,
 			UserAgent: userAgent,
 			Endpoint:  endpoint,
-			Username:  username,
-			Password:  password,
+			Auth: &cbhttpx.BasicAuth{
+				Username: username,
+				Password: password,
+			},
 		}.GetTerseBucketConfig(ctx, &cbmgmtx.GetTerseBucketConfigOptions{
 			BucketName: bucketName,
 		})

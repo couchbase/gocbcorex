@@ -78,8 +78,10 @@ func (e *EnsureIndexHelper) pollOne(
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
-		Username:  target.Username,
-		Password:  target.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: target.Username,
+			Password: target.Password,
+		},
 	}.GetIndex(ctx, &GetIndexOptions{
 		BucketName: e.BucketName,
 		ScopeName:  e.ScopeName,
@@ -123,8 +125,10 @@ func (e *EnsureIndexHelper) maybeRefreshOne(
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
-		Username:  target.Username,
-		Password:  target.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: target.Username,
+			Password: target.Password,
+		},
 	}.RefreshConfig(ctx, &RefreshConfigOptions{
 		OnBehalfOf: e.OnBehalfOf,
 	})

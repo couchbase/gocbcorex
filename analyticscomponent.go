@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/couchbase/gocbcorex/cbanalyticsx"
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"go.uber.org/zap"
 )
 
@@ -62,8 +63,10 @@ func OrchestrateAnalyticsMgmtCall[OptsT any, RespT any](
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}, ctx, opts)
 			})
 	})
@@ -83,8 +86,10 @@ func OrchestrateNoResAnalyticsMgmtCall[OptsT any](
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}, ctx, opts)
 			})
 		return err
@@ -144,8 +149,10 @@ func (w *AnalyticsComponent) Query(ctx context.Context, opts *AnalyticsQueryOpti
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}.Query(ctx, opts)
 			})
 	})

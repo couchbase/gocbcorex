@@ -83,8 +83,10 @@ func OrchestrateSimpleMgmtCall[OptsT any, RespT any](
 				UserAgent: w.userAgent,
 				Transport: roundTripper,
 				Endpoint:  endpoint,
-				Username:  username,
-				Password:  password,
+				Auth: &cbhttpx.BasicAuth{
+					Username: username,
+					Password: password,
+				},
 			}, ctx, opts)
 		})
 }
@@ -101,8 +103,10 @@ func OrchestrateNoResMgmtCall[OptsT any](
 				UserAgent: w.userAgent,
 				Transport: roundTripper,
 				Endpoint:  endpoint,
-				Username:  username,
-				Password:  password,
+				Auth: &cbhttpx.BasicAuth{
+					Username: username,
+					Password: password,
+				},
 			}, ctx, opts)
 		})
 	return err

@@ -111,8 +111,10 @@ func (e *EnsureIndexHelper) pollOne(
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
-		Username:  target.Username,
-		Password:  target.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: target.Username,
+			Password: target.Password,
+		},
 	}.Query(ctx, &QueryOptions{
 		ReadOnly:   true,
 		OnBehalfOf: e.OnBehalfOf,

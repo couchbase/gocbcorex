@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,8 +41,10 @@ func TestPreparedQuery(t *testing.T) {
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
-			Username:  "username",
-			Password:  "password",
+			Auth: &cbhttpx.BasicAuth{
+				Username: "username",
+				Password: "password",
+			},
 		},
 		Cache: cache,
 	}.PreparedQuery(context.Background(), opts)
@@ -92,8 +95,10 @@ func TestPreparedQueryAlreadyCached(t *testing.T) {
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
-			Username:  "username",
-			Password:  "password",
+			Auth: &cbhttpx.BasicAuth{
+				Username: "username",
+				Password: "password",
+			},
 		},
 		Cache: cache,
 	}.PreparedQuery(context.Background(), opts)
@@ -153,8 +158,10 @@ func TestPreparedQueryAlreadyCachedVersionFails(t *testing.T) {
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
-			Username:  "username",
-			Password:  "password",
+			Auth: &cbhttpx.BasicAuth{
+				Username: "username",
+				Password: "password",
+			},
 		},
 		Cache: cache,
 	}.PreparedQuery(context.Background(), opts)
@@ -194,8 +201,10 @@ func TestPreparedQueryPreparedNameMissing(t *testing.T) {
 			Transport: rt,
 			Logger:    testutils.MakeTestLogger(t),
 			UserAgent: "useragent",
-			Username:  "username",
-			Password:  "password",
+			Auth: &cbhttpx.BasicAuth{
+				Username: "username",
+				Password: "password",
+			},
 		},
 		Cache: cache,
 	}.PreparedQuery(context.Background(), opts)

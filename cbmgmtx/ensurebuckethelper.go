@@ -46,8 +46,10 @@ func (e *EnsureBucketHelper) pollOne(
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
-		Username:  target.Username,
-		Password:  target.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: target.Username,
+			Password: target.Password,
+		},
 	}.GetTerseBucketConfig(ctx, &GetTerseBucketConfigOptions{
 		BucketName: e.BucketName,
 		OnBehalfOf: e.OnBehalfOf,

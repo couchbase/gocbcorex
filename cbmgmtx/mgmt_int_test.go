@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/couchbase/gocbcorex/contrib/ptr"
@@ -20,8 +21,10 @@ func getHttpMgmt() *cbmgmtx.Management {
 		Transport: nil,
 		UserAgent: "gocbcorex test",
 		Endpoint:  "http://" + testutilsint.TestOpts.HTTPAddrs[0],
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}
 }
 

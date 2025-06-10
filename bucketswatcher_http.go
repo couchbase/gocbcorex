@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/zaputils"
 
 	"github.com/couchbase/gocbcorex/cbmgmtx"
@@ -374,8 +375,10 @@ func bucketsTracker_fetchOneBuckets(
 		Transport: httpRoundTripper,
 		UserAgent: userAgent,
 		Endpoint:  endpoint,
-		Username:  username,
-		Password:  password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: username,
+			Password: password,
+		},
 	}.GetClusterConfig(ctx, &cbmgmtx.GetClusterConfigOptions{})
 	if err != nil {
 		return nil, err

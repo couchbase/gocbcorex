@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 
 	"go.uber.org/zap"
@@ -188,8 +189,10 @@ func streamWatcherHttp_streamBuckets(
 		Transport: httpRoundTripper,
 		UserAgent: userAgent,
 		Endpoint:  endpoint,
-		Username:  username,
-		Password:  password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: username,
+			Password: password,
+		},
 	}.StreamFullClusterConfig(ctx, &cbmgmtx.StreamFullClusterConfigOptions{})
 	if err != nil {
 		return err
