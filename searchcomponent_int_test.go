@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex"
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
 	"github.com/couchbase/gocbcorex/testutils"
@@ -26,8 +27,10 @@ func getSearchEndpoints(t *testing.T) map[string]string {
 		Transport: http.DefaultTransport,
 		UserAgent: "useragent",
 		Endpoint:  "http://" + testutilsint.TestOpts.HTTPAddrs[0],
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}.GetTerseClusterConfig(context.Background(), &cbmgmtx.GetTerseClusterConfigOptions{
 		OnBehalfOf: nil,
 	})

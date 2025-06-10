@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -39,8 +40,10 @@ func TestQuery(t *testing.T) {
 		Transport: makeSingleTestRoundTripper(resp, nil),
 		Logger:    testutils.MakeTestLogger(t),
 		UserAgent: "useragent",
-		Username:  "username",
-		Password:  "password",
+		Auth: &cbhttpx.BasicAuth{
+			Username: "username",
+			Password: "password",
+		},
 	}.Query(context.Background(), opts)
 	require.NoError(t, err)
 
@@ -78,8 +81,10 @@ func TestQueryIndexExists(t *testing.T) {
 		Transport: makeSingleTestRoundTripper(resp, nil),
 		Logger:    testutils.MakeTestLogger(t),
 		UserAgent: "useragent",
-		Username:  "username",
-		Password:  "password",
+		Auth: &cbhttpx.BasicAuth{
+			Username: "username",
+			Password: "password",
+		},
 	}.Query(context.Background(), opts)
 	assert.ErrorIs(t, err, ErrIndexExists)
 }
@@ -113,8 +118,10 @@ func TestQueryIndexNotFound(t *testing.T) {
 		Transport: makeSingleTestRoundTripper(resp, nil),
 		Logger:    testutils.MakeTestLogger(t),
 		UserAgent: "useragent",
-		Username:  "username",
-		Password:  "password",
+		Auth: &cbhttpx.BasicAuth{
+			Username: "username",
+			Password: "password",
+		},
 	}.Query(context.Background(), opts)
 	assert.ErrorIs(t, err, ErrIndexNotFound)
 }

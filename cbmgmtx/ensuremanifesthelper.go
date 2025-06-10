@@ -33,8 +33,10 @@ func (e *EnsureManifestHelper) pollOne(
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
-		Username:  target.Username,
-		Password:  target.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: target.Username,
+			Password: target.Password,
+		},
 	}.GetCollectionManifest(ctx, &GetCollectionManifestOptions{
 		BucketName: e.BucketName,
 		OnBehalfOf: e.OnBehalfOf,

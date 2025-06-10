@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -54,8 +55,10 @@ func TestEnsureBucketDino(t *testing.T) {
 		Transport: transport,
 		UserAgent: "useragent",
 		Endpoint:  execEndpoint,
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}
 
 	createTestBucket := func() {

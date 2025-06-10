@@ -131,8 +131,10 @@ func OrchestrateQueryMgmtCall[OptsT any, RespT any](
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}, ctx, opts)
 			})
 	})
@@ -152,8 +154,10 @@ func OrchestrateNoResQueryMgmtCall[OptsT any](
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}, ctx, opts)
 			})
 		return err
@@ -225,8 +229,10 @@ func (w *QueryComponent) Query(ctx context.Context, opts *QueryOptions) (QueryRe
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}.Query(ctx, &cbqueryx.QueryOptions{
 					Args:            opts.Args,
 					AtrCollection:   opts.AtrCollection,
@@ -294,8 +300,10 @@ func (w *QueryComponent) PreparedQuery(ctx context.Context, opts *QueryOptions) 
 						UserAgent: w.userAgent,
 						Transport: roundTripper,
 						Endpoint:  endpoint,
-						Username:  username,
-						Password:  password,
+						Auth: &cbhttpx.BasicAuth{
+							Username: username,
+							Password: password,
+						},
 					},
 					Cache: w.preparedCache,
 				}.PreparedQuery(ctx, &cbqueryx.QueryOptions{

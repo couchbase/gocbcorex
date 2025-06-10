@@ -15,10 +15,9 @@ type OnBehalfOfInfo struct {
 }
 
 type RequestBuilder struct {
-	UserAgent     string
-	Endpoint      string
-	BasicAuthUser string
-	BasicAuthPass string
+	UserAgent string
+	Endpoint  string
+	Auth      Authenticator
 }
 
 func (h RequestBuilder) NewRequest(
@@ -41,8 +40,8 @@ func (h RequestBuilder) NewRequest(
 		req.Header.Set("User-Agent", h.UserAgent)
 	}
 
-	if h.BasicAuthUser != "" || h.BasicAuthPass != "" {
-		req.SetBasicAuth(h.BasicAuthUser, h.BasicAuthPass)
+	if h.Auth != nil {
+		h.Auth.applyToRequest(req)
 	}
 
 	if onBehalfOf != nil {

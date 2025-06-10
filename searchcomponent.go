@@ -70,8 +70,10 @@ func OrchestrateNoResSearchMgmtCall[OptsT any](
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}, ctx, opts)
 			})
 		return err
@@ -91,8 +93,10 @@ func OrchestrateSearchMgmtCall[OptsT any, RespT any](
 					UserAgent: w.userAgent,
 					Transport: roundTripper,
 					Endpoint:  endpoint,
-					Username:  username,
-					Password:  password,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 				}, ctx, opts)
 			})
 	})
@@ -166,12 +170,14 @@ func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOption
 		return OrchestrateSearchEndpoint(ctx, w,
 			func(roundTripper http.RoundTripper, endpoint, username, password string) (cbsearchx.QueryResultStream, error) {
 				return cbsearchx.Search{
-					Logger:              w.logger,
-					UserAgent:           w.userAgent,
-					Transport:           roundTripper,
-					Endpoint:            endpoint,
-					Username:            username,
-					Password:            password,
+					Logger:    w.logger,
+					UserAgent: w.userAgent,
+					Transport: roundTripper,
+					Endpoint:  endpoint,
+					Auth: &cbhttpx.BasicAuth{
+						Username: username,
+						Password: password,
+					},
 					VectorSearchEnabled: searchState.VectorSearchEnabled,
 				}.Query(ctx, opts)
 			})

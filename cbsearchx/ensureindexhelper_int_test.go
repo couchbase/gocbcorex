@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -53,8 +54,10 @@ func TestEnsureIndexDino(t *testing.T) {
 		Transport: transport,
 		UserAgent: "useragent",
 		Endpoint:  execEndpoint,
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}
 
 	indexName := "a" + uuid.NewString()[:6]

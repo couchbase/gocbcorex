@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -31,8 +32,10 @@ func defaultSearch(t *testing.T) *cbsearchx.Search {
 		Transport: http.DefaultTransport,
 		UserAgent: "useragent",
 		Endpoint:  searchNode.SearchEndpoint(),
-		Username:  testutilsint.TestOpts.Username,
-		Password:  testutilsint.TestOpts.Password,
+		Auth: &cbhttpx.BasicAuth{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
 	}
 }
 
