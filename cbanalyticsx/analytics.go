@@ -80,7 +80,7 @@ func (h Analytics) Query(ctx context.Context, opts *QueryOptions) (QueryResultSt
 		return nil, err
 	}
 
-	return newQueryRespReader(resp, &queryRespReaderOptions{
+	return NewQueryRespReader(resp, &QueryRespReaderOptions{
 		Logger:          h.Logger,
 		Endpoint:        h.Endpoint,
 		Statement:       opts.Statement,

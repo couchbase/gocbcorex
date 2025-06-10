@@ -13,7 +13,7 @@ import (
 	"github.com/couchbase/gocbcorex/cbhttpx"
 )
 
-type respReaderOptions struct {
+type QueryRespReaderOptions struct {
 	Logger   *zap.Logger
 	Endpoint string
 }
@@ -30,7 +30,7 @@ type respReader struct {
 	facets    map[string]FacetResult
 }
 
-func newRespReader(resp *http.Response, opts *respReaderOptions) (*respReader, error) {
+func NewQueryRespReader(resp *http.Response, opts *QueryRespReaderOptions) (*respReader, error) {
 	r := &respReader{
 		logger:     opts.Logger,
 		endpoint:   opts.Endpoint,
