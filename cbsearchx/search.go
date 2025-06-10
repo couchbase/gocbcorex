@@ -101,7 +101,7 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 		return nil, err
 	}
 
-	return newRespReader(resp, &respReaderOptions{
+	return NewQueryRespReader(resp, &QueryRespReaderOptions{
 		Logger:   h.Logger,
 		Endpoint: h.Endpoint,
 	})

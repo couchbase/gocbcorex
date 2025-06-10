@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type queryRespReaderOptions struct {
+type QueryRespReaderOptions struct {
 	Logger          *zap.Logger
 	Endpoint        string
 	Statement       string
@@ -31,7 +31,7 @@ type queryRespReader struct {
 	metaDataErr error
 }
 
-func newQueryRespReader(resp *http.Response, opts *queryRespReaderOptions) (*queryRespReader, error) {
+func NewQueryRespReader(resp *http.Response, opts *QueryRespReaderOptions) (*queryRespReader, error) {
 	r := &queryRespReader{
 		logger:          opts.Logger,
 		endpoint:        opts.Endpoint,
