@@ -19,7 +19,7 @@ type respReaderOptions struct {
 }
 
 type respReader struct {
-	Logger     *zap.Logger
+	logger     *zap.Logger
 	endpoint   string
 	statusCode int
 
@@ -32,6 +32,7 @@ type respReader struct {
 
 func newRespReader(resp *http.Response, opts *respReaderOptions) (*respReader, error) {
 	r := &respReader{
+		logger:     opts.Logger,
 		endpoint:   opts.Endpoint,
 		statusCode: resp.StatusCode,
 	}

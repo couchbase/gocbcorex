@@ -42,6 +42,7 @@ func TestEnsureQuery(t *testing.T) {
 	// to create the index with so we don't unintentionally give additional
 	// time for nodes to sync their configuration
 	query := cbqueryx.Query{
+		Logger:    testutils.MakeTestLogger(t),
 		Transport: transport,
 		UserAgent: "useragent",
 		Endpoint:  targets[len(targets)-1].Endpoint,

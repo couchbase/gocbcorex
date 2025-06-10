@@ -107,6 +107,7 @@ func (e *EnsureIndexHelper) pollOne(
 	}
 
 	resp, err := Query{
+		Logger:    e.Logger,
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
