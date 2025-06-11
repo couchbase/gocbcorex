@@ -41,7 +41,7 @@ func (h RequestBuilder) NewRequest(
 	}
 
 	if h.Auth != nil {
-		h.Auth.applyToRequest(req)
+		h.Auth.ApplyToRequest(req)
 	}
 
 	if onBehalfOf != nil {
