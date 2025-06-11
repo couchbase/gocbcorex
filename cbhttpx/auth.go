@@ -3,7 +3,7 @@ package cbhttpx
 import "net/http"
 
 type Authenticator interface {
-	applyToRequest(req *http.Request)
+	ApplyToRequest(req *http.Request)
 }
 
 type BasicAuth struct {
@@ -11,6 +11,8 @@ type BasicAuth struct {
 	Password string
 }
 
-func (b BasicAuth) applyToRequest(req *http.Request) {
+var _ Authenticator = BasicAuth{}
+
+func (b BasicAuth) ApplyToRequest(req *http.Request) {
 	req.SetBasicAuth(b.Username, b.Password)
 }
