@@ -52,13 +52,14 @@ func (o OpsCore) decodeErrorContext(resp *Packet, err error) error {
 
 func (o OpsCore) decodeError(resp *Packet) error {
 	var err error
-	if resp.Status == StatusNotMyVBucket {
+	switch resp.Status {
+	case StatusNotMyVBucket:
 		err = ErrNotMyVbucket
-	} else if resp.Status == StatusTmpFail {
+	case StatusTmpFail:
 		err = ErrTmpFail
-	} else if resp.Status == StatusInvalidArgs {
+	case StatusInvalidArgs:
 		err = ErrInvalidArgument
-	} else {
+	default:
 		err = errors.New("unexpected status: " + resp.Status.String())
 	}
 
@@ -216,10 +217,11 @@ func (o OpsCore) SelectBucket(d Dispatcher, req *SelectBucketRequest, cb func(*S
 			return false
 		}
 
-		if resp.Status == StatusAccessError {
+		switch resp.Status {
+		case StatusAccessError:
 			cb(nil, ErrUnknownBucketName)
 			return false
-		} else if resp.Status == StatusKeyNotFound {
+		case StatusKeyNotFound:
 			// in some cases, it seems that kv_engine returns KeyNotFound rather
 			// than access error when a bucket does not exist yet.	I believe this
 			// is a race between the RBAC data updating and the bucket data updating.
@@ -301,13 +303,14 @@ func (o OpsCore) SASLAuth(d Dispatcher, req *SASLAuthRequest, cb func(*SASLAuthR
 			return false
 		}
 
-		if resp.Status == StatusAuthContinue {
+		switch resp.Status {
+		case StatusAuthContinue:
 			cb(&SASLAuthResponse{
 				NeedsMoreSteps: true,
 				Payload:        resp.Value,
 			}, nil)
 			return false
-		} else if resp.Status == StatusAuthError {
+		case StatusAuthError:
 			cb(nil, ErrAuthError)
 			return false
 		}
@@ -350,13 +353,14 @@ func (o OpsCore) SASLStep(d Dispatcher, req *SASLStepRequest, cb func(*SASLStepR
 			return false
 		}
 
-		if resp.Status == StatusAuthContinue {
+		switch resp.Status {
+		case StatusAuthContinue:
 			cb(&SASLStepResponse{
 				NeedsMoreSteps: true,
 				Payload:        resp.Value,
 			}, nil)
 			return false
-		} else if resp.Status == StatusAuthError {
+		case StatusAuthError:
 			cb(nil, ErrAuthError)
 			return false
 		}

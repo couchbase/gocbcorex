@@ -221,10 +221,11 @@ func (o OpsDcp) DcpStreamReq(
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		switch resp.Status {
+		case StatusKeyExists:
 			cb(nil, ErrDcpDuplicateStream)
 			return false
-		} else if resp.Status == StatusRollback {
+		case StatusRollback:
 			if len(resp.Value) != 8 {
 				cb(nil, protocolError{"rollback error with bad value length"})
 				return false

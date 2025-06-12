@@ -69,7 +69,7 @@ func runDinoCmd(args []string) (string, error) {
 
 	err := cmd.Run()
 
-	pipeWrt.Close()
+	_ = pipeWrt.Close()
 	<-outputWaitCh
 
 	log.Printf("---")

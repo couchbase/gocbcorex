@@ -39,7 +39,7 @@ func helperSetupBasicTest(
 
 func TestTransactionsInsertTxn1GetTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
@@ -69,7 +69,7 @@ func TestTransactionsInsertTxn1GetTxn2(t *testing.T) {
 
 func TestTransactionsInsertTxn1InsertTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
@@ -99,7 +99,7 @@ func TestTransactionsInsertTxn1InsertTxn2(t *testing.T) {
 
 func TestTransactionsReplaceTxn1GetTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -142,7 +142,7 @@ func TestTransactionsReplaceTxn1GetTxn2(t *testing.T) {
 
 func TestTransactionsReplaceTxn1InsertTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -185,7 +185,7 @@ func TestTransactionsReplaceTxn1InsertTxn2(t *testing.T) {
 
 func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -233,7 +233,7 @@ func TestTransactionsReplaceTxn1ReplaceTxn2(t *testing.T) {
 
 func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -280,7 +280,7 @@ func TestTransactionsReplaceTxn1RemoveTxn2(t *testing.T) {
 
 func TestTransactionsRemoveTxn1GetTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -322,7 +322,7 @@ func TestTransactionsRemoveTxn1GetTxn2(t *testing.T) {
 
 func TestTransactionsRemoveTxn1InsertTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -363,7 +363,7 @@ func TestTransactionsRemoveTxn1InsertTxn2(t *testing.T) {
 
 func TestTransactionsRemoveTxn1ReplaceTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -410,7 +410,7 @@ func TestTransactionsRemoveTxn1ReplaceTxn2(t *testing.T) {
 
 func TestTransactionsRemoveTxn1RemoveTxn2(t *testing.T) {
 	ctx, agent, _, txn1, txn2, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	_, err := agent.Add(ctx, &gocbcorex.AddOptions{
 		ScopeName:      "_default",
@@ -456,7 +456,7 @@ func TestTransactionsRemoveTxn1RemoveTxn2(t *testing.T) {
 
 func TestTransactionsInsertReplace(t *testing.T) {
 	ctx, agent, _, txn1, _, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	insertRes, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,
@@ -485,7 +485,7 @@ func TestTransactionsInsertReplace(t *testing.T) {
 
 func TestTransactionsInsertRemove(t *testing.T) {
 	ctx, agent, _, txn1, _, docKey := helperSetupBasicTest(t)
-	defer agent.Close()
+	defer func() { _ = agent.Close() }()
 
 	insertRes, err := txn1.Insert(ctx, transactionsx.InsertOptions{
 		Agent:          agent,

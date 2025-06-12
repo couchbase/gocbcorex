@@ -95,6 +95,7 @@ func (c *Client) Step(in []byte) bool {
 	if c.step > 2 || c.err != nil {
 		return false
 	}
+
 	c.step++
 	switch c.step {
 	case 1:
@@ -105,7 +106,7 @@ func (c *Client) Step(in []byte) bool {
 		c.err = c.step3(in)
 	}
 
-	return !(c.step > 2 || c.err != nil)
+	return c.step < 3 && c.err == nil
 }
 
 func (c *Client) step1(in []byte) error {

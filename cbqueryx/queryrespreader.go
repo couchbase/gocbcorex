@@ -177,11 +177,12 @@ func (r *queryRespReader) parseError(errJson *queryErrorJson) *ServerError {
 		if len(errJson.Reason) > 0 {
 			if code, ok := errJson.Reason["code"]; ok {
 				code = int(code.(float64))
-				if code == 12033 {
+				switch code {
+				case 12033:
 					err = ErrCasMismatch
-				} else if code == 17014 {
+				case 17014:
 					err = ErrDocumentNotFound
-				} else if code == 17012 {
+				case 17012:
 					err = ErrDocumentExists
 				}
 			}

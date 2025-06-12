@@ -385,7 +385,7 @@ func (p *kvClientPool) shutdownClientLocked(client KvClient) {
 
 	go func() {
 		// for now we just ungracefully kill them...
-		client.Close()
+		_ = client.Close()
 
 		p.lock.Lock()
 		defer p.lock.Unlock()

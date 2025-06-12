@@ -68,12 +68,12 @@ func (cr *CollectionResolverHttp) ResolveCollectionID(
 		return 0, 0, cbmgmtx.ErrCollectionNotFound
 	}
 
-	parsedManifestRev, err := strconv.ParseUint(strings.Replace(manifest.UID, "0x", "", -1), 16, 64)
+	parsedManifestRev, err := strconv.ParseUint(strings.ReplaceAll(manifest.UID, "0x", ""), 16, 64)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	parsedCollectionId, err := strconv.ParseUint(strings.Replace(manifestColl.UID, "0x", "", -1), 16, 32)
+	parsedCollectionId, err := strconv.ParseUint(strings.ReplaceAll(manifestColl.UID, "0x", ""), 16, 32)
 	if err != nil {
 		return 0, 0, err
 	}

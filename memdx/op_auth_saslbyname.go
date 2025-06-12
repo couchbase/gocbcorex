@@ -22,14 +22,15 @@ type SaslAuthByNameOptions struct {
 }
 
 func (a OpSaslAuthByName) SASLAuthByName(d Dispatcher, opts *SaslAuthByNameOptions, pipelineCb func(), cb func(err error)) (PendingOp, error) {
-	if opts.Mechanism == PlainAuthMechanism {
+	switch opts.Mechanism {
+	case PlainAuthMechanism:
 		return OpSaslAuthPlain{
 			Encoder: a.Encoder,
 		}.SASLAuthPlain(d, &SaslAuthPlainOptions{
 			Username: opts.Username,
 			Password: opts.Password,
 		}, pipelineCb, cb)
-	} else if opts.Mechanism == ScramSha1AuthMechanism {
+	case ScramSha1AuthMechanism:
 		return OpSaslAuthScram{
 			Encoder: a.Encoder,
 		}.SASLAuthScram(d, &SaslAuthScramOptions{
@@ -37,7 +38,7 @@ func (a OpSaslAuthByName) SASLAuthByName(d Dispatcher, opts *SaslAuthByNameOptio
 			Username: opts.Username,
 			Password: opts.Password,
 		}, pipelineCb, cb)
-	} else if opts.Mechanism == ScramSha256AuthMechanism {
+	case ScramSha256AuthMechanism:
 		return OpSaslAuthScram{
 			Encoder: a.Encoder,
 		}.SASLAuthScram(d, &SaslAuthScramOptions{
@@ -45,7 +46,7 @@ func (a OpSaslAuthByName) SASLAuthByName(d Dispatcher, opts *SaslAuthByNameOptio
 			Username: opts.Username,
 			Password: opts.Password,
 		}, pipelineCb, cb)
-	} else if opts.Mechanism == ScramSha512AuthMechanism {
+	case ScramSha512AuthMechanism:
 		return OpSaslAuthScram{
 			Encoder: a.Encoder,
 		}.SASLAuthScram(d, &SaslAuthScramOptions{
@@ -53,11 +54,11 @@ func (a OpSaslAuthByName) SASLAuthByName(d Dispatcher, opts *SaslAuthByNameOptio
 			Username: opts.Username,
 			Password: opts.Password,
 		}, pipelineCb, cb)
-	} else if opts.Mechanism == "INVALID" {
+	case "INVALID":
 		return OpSaslAuthInvalid{
 			Encoder: a.Encoder,
 		}.SASLAuthInvalid(d, pipelineCb, cb)
-	} else {
+	default:
 		return nil, fmt.Errorf("unsupported mechanism specified (mechanism: %s)", opts.Mechanism)
 	}
 }

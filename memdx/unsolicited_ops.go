@@ -82,7 +82,8 @@ func (o UnsolicitedOpsParser) parseDcpSnapshotMarker(pak *Packet, handlers *Unso
 	} else if len(pak.Extras) == 1 {
 		// Length of 1 indicates v2+ packet
 		version := pak.Extras[0]
-		if version == 0 {
+		switch version {
+		case 0:
 			return handlers.DcpSnapshotMarker(&DcpSnapshotMarkerEvent{
 				StreamId:           streamId,
 				Version:            2,
@@ -93,7 +94,7 @@ func (o UnsolicitedOpsParser) parseDcpSnapshotMarker(pak *Packet, handlers *Unso
 				HighCompletedSeqNo: binary.BigEndian.Uint64(pak.Value[28:]),
 				SnapshotTimeStamp:  0,
 			})
-		} else if version == 1 {
+		case 1:
 			return handlers.DcpSnapshotMarker(&DcpSnapshotMarkerEvent{
 				StreamId:           streamId,
 				Version:            3,
@@ -104,7 +105,7 @@ func (o UnsolicitedOpsParser) parseDcpSnapshotMarker(pak *Packet, handlers *Unso
 				HighCompletedSeqNo: binary.BigEndian.Uint64(pak.Value[28:]),
 				SnapshotTimeStamp:  binary.BigEndian.Uint64(pak.Value[36:]),
 			})
-		} else {
+		default:
 			return &protocolError{"unknown dcp snapshot marker version"}
 		}
 	} else {
@@ -240,12 +241,14 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 		eventCode := DcpStreamEventCode(binary.BigEndian.Uint32(pak.Extras[8:]))
 		version := pak.Extras[12]
 
-		if eventCode == DcpStreamEventCodeCollectionCreate {
+		switch eventCode {
+		case DcpStreamEventCodeCollectionCreate:
 			if handlers.DcpCollectionCreation == nil {
 				return errors.New("unhandled DcpCollectionCreation event")
 			}
 
-			if version == 0 {
+			switch version {
+			case 0:
 				return handlers.DcpCollectionCreation(&DcpCollectionCreationEvent{
 					StreamId:       streamId,
 					Version:        0,
@@ -257,7 +260,7 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					CollectionName: string(pak.Key),
 					Ttl:            0,
 				})
-			} else if version == 1 {
+			case 1:
 				return handlers.DcpCollectionCreation(&DcpCollectionCreationEvent{
 					StreamId:       streamId,
 					Version:        1,
@@ -269,15 +272,16 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					CollectionName: string(pak.Key),
 					Ttl:            binary.BigEndian.Uint32(pak.Value[16:]),
 				})
-			} else {
+			default:
 				return &protocolError{"unknown dcp collection create event version"}
 			}
-		} else if eventCode == DcpStreamEventCodeCollectionDelete {
+		case DcpStreamEventCodeCollectionDelete:
 			if handlers.DcpCollectionDeletion == nil {
 				return errors.New("unhandled DcpCollectionDeletion event")
 			}
 
-			if version == 0 {
+			switch version {
+			case 0:
 				return handlers.DcpCollectionDeletion(&DcpCollectionDeletionEvent{
 					StreamId:     streamId,
 					Version:      0,
@@ -287,15 +291,16 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					ScopeID:      binary.BigEndian.Uint32(pak.Value[8:]),
 					CollectionId: binary.BigEndian.Uint32(pak.Value[12:]),
 				})
-			} else {
+			default:
 				return &protocolError{"unknown dcp collection delete event version"}
 			}
-		} else if eventCode == DcpStreamEventCodeCollectionFlush {
+		case DcpStreamEventCodeCollectionFlush:
 			if handlers.DcpCollectionFlush == nil {
 				return errors.New("unhandled DcpCollectionFlush event")
 			}
 
-			if version == 0 {
+			switch version {
+			case 0:
 				return handlers.DcpCollectionFlush(&DcpCollectionFlushEvent{
 					StreamId:     streamId,
 					Version:      0,
@@ -304,15 +309,16 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					ManifestUid:  binary.BigEndian.Uint64(pak.Value[0:]),
 					CollectionId: binary.BigEndian.Uint32(pak.Value[8:]),
 				})
-			} else {
+			default:
 				return &protocolError{"unknown dcp collection flush event version"}
 			}
-		} else if eventCode == DcpStreamEventCodeScopeCreate {
+		case DcpStreamEventCodeScopeCreate:
 			if handlers.DcpScopeCreation == nil {
 				return errors.New("unhandled DcpScopeCreation event")
 			}
 
-			if version == 0 {
+			switch version {
+			case 0:
 				return handlers.DcpScopeCreation(&DcpScopeCreationEvent{
 					StreamId:    streamId,
 					Version:     0,
@@ -322,15 +328,16 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					ScopeId:     binary.BigEndian.Uint32(pak.Value[8:]),
 					ScopeName:   string(pak.Key),
 				})
-			} else {
+			default:
 				return &protocolError{"unknown dcp scope create event version"}
 			}
-		} else if eventCode == DcpStreamEventCodeScopeDelete {
+		case DcpStreamEventCodeScopeDelete:
 			if handlers.DcpScopeDeletion == nil {
 				return errors.New("unhandled DcpScopeDeletion event")
 			}
 
-			if version == 0 {
+			switch version {
+			case 0:
 				return handlers.DcpScopeDeletion(&DcpScopeDeletionEvent{
 					StreamId:    streamId,
 					Version:     0,
@@ -339,15 +346,16 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					ManifestUid: binary.BigEndian.Uint64(pak.Value[0:]),
 					ScopeId:     binary.BigEndian.Uint32(pak.Value[8:]),
 				})
-			} else {
+			default:
 				return &protocolError{"unknown dcp scope delete event version"}
 			}
-		} else if eventCode == DcpStreamEventCodeCollectionChanged {
+		case DcpStreamEventCodeCollectionChanged:
 			if handlers.DcpCollectionChanged == nil {
 				return errors.New("unhandled DcpCollectionChanged event")
 			}
 
-			if version == 0 {
+			switch version {
+			case 0:
 				return handlers.DcpCollectionChanged(&DcpCollectionModificationEvent{
 					StreamId:     streamId,
 					Version:      0,
@@ -357,10 +365,10 @@ func (o UnsolicitedOpsParser) parseDcpEvent(pak *Packet, handlers *UnsolicitedOp
 					CollectionId: binary.BigEndian.Uint32(pak.Value[8:]),
 					Ttl:          binary.BigEndian.Uint32(pak.Value[8:]),
 				})
-			} else {
+			default:
 				return &protocolError{"unknown dcp collection changed event version"}
 			}
-		} else {
+		default:
 			return &protocolError{"unknown dcp event code"}
 		}
 	}
@@ -478,25 +486,26 @@ func (o UnsolicitedOpsParser) parseDcpNoOp(r Replier, pak *Packet, handlers *Uns
 
 func (o UnsolicitedOpsParser) Handle(r Replier, pak *Packet, handlers *UnsolicitedOpsHandlers) error {
 	if !pak.IsResponse {
-		if pak.OpCode == OpCodeSrvClustermapChangeNotification {
+		switch pak.OpCode {
+		case OpCodeSrvClustermapChangeNotification:
 			return o.parseSrvClustermapChangeNotification(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpSnapshotMarker {
+		case OpCodeDcpSnapshotMarker:
 			return o.parseDcpSnapshotMarker(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpMutation {
+		case OpCodeDcpMutation:
 			return o.parseDcpMutation(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpDeletion {
+		case OpCodeDcpDeletion:
 			return o.parseDcpDeletion(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpExpiration {
+		case OpCodeDcpExpiration:
 			return o.parseDcpExpiration(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpEvent {
+		case OpCodeDcpEvent:
 			return o.parseDcpEvent(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpStreamEnd {
+		case OpCodeDcpStreamEnd:
 			return o.parseDcpStreamEnd(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpOsoSnapshot {
+		case OpCodeDcpOsoSnapshot:
 			return o.parseDcpOsoSnapshot(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpSeqNoAdvanced {
+		case OpCodeDcpSeqNoAdvanced:
 			return o.parseDcpSeqNoAdvance(pak, handlers)
-		} else if pak.OpCode == OpCodeDcpNoOp {
+		case OpCodeDcpNoOp:
 			return o.parseDcpNoOp(r, pak, handlers)
 		}
 	}

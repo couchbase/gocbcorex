@@ -128,13 +128,14 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 			return false
 		}
 
-		if resp.Status == StatusScopeUnknown {
+		switch resp.Status {
+		case StatusScopeUnknown:
 			cb(nil, &ResourceError{
 				Cause:     OpsCore{}.decodeErrorContext(resp, ErrUnknownScopeName),
 				ScopeName: req.ScopeName,
 			})
 			return false
-		} else if resp.Status == StatusCollectionUnknown {
+		case StatusCollectionUnknown:
 			cb(nil, &ResourceError{
 				Cause:          OpsCore{}.decodeErrorContext(resp, ErrUnknownCollectionName),
 				ScopeName:      req.ScopeName,

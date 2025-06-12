@@ -72,11 +72,7 @@ func (w *StreamWatcherHttp[StreamT]) watch(
 	var recentEndpoints []string
 	allEndpointsFailed := true
 
-	for {
-		if ctx.Err() != nil {
-			break
-		}
-
+	for ctx.Err() == nil {
 		w.lock.Lock()
 		state := w.state
 		w.lock.Unlock()

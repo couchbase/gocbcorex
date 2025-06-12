@@ -195,7 +195,8 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
 		}
@@ -276,10 +277,11 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
 		}
@@ -355,7 +357,8 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
 		}
@@ -436,10 +439,11 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
 		}
@@ -611,25 +615,26 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		switch resp.Status {
+		case StatusKeyExists:
 			cb(nil, ErrCasMismatch)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -704,13 +709,14 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrCasMismatch)
 			return false
-		} else if resp.Status == StatusNotLocked {
+		case StatusNotLocked:
 			cb(nil, ErrDocNotLocked)
 			return false
 		}
@@ -787,10 +793,11 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
 		}
@@ -867,25 +874,26 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		switch resp.Status {
+		case StatusKeyExists:
 			cb(nil, ErrCasMismatch)
 			return false
-		} else if resp.Status == StatusKeyNotFound {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -976,22 +984,23 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		switch resp.Status {
+		case StatusKeyExists:
 			cb(nil, ErrDocExists)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -1089,28 +1098,29 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		switch resp.Status {
+		case StatusKeyExists:
 			cb(nil, ErrCasMismatch)
 			return false
-		} else if resp.Status == StatusKeyNotFound {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -1196,28 +1206,31 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 			return false
 		}
 
-		if resp.Status == StatusKeyExists && req.Cas > 0 {
-			cb(nil, ErrCasMismatch)
-			return false
-		} else if resp.Status == StatusNotStored {
+		switch resp.Status {
+		case StatusKeyExists:
+			if req.Cas > 0 {
+				cb(nil, ErrCasMismatch)
+				return false
+			}
+		case StatusNotStored:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -1303,28 +1316,31 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		}
 
-		if resp.Status == StatusKeyExists && req.Cas > 0 {
-			cb(nil, ErrCasMismatch)
-			return false
-		} else if resp.Status == StatusNotStored {
+		switch resp.Status {
+		case StatusKeyExists:
+			if req.Cas > 0 {
+				cb(nil, ErrCasMismatch)
+				return false
+			}
+		case StatusNotStored:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -1420,25 +1436,26 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusDeltaBadval {
+		case StatusDeltaBadval:
 			cb(nil, ErrDeltaBadval)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -1541,25 +1558,26 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusDeltaBadval {
+		case StatusDeltaBadval:
 			cb(nil, ErrDeltaBadval)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
 		}
@@ -1651,7 +1669,8 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
 		}
@@ -1747,10 +1766,11 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 			return false
 		}
 
-		if resp.Status == StatusKeyExists {
+		switch resp.Status {
+		case StatusKeyExists:
 			cb(nil, ErrCasMismatch)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
 		}
@@ -1840,13 +1860,18 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 			return false
 		}
 
-		if resp.Status == StatusKeyExists && req.Cas > 0 {
-			cb(nil, ErrCasMismatch)
-			return false
-		} else if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyExists:
+			if req.Cas > 0 {
+				cb(nil, ErrCasMismatch)
+				return false
+			}
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status != StatusSuccess {
+		}
+
+		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
@@ -1948,22 +1973,23 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusLocked {
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusSubDocInvalidCombo {
+		case StatusSubDocInvalidCombo:
 			cb(nil, ErrSubDocInvalidCombo)
 			return false
-		} else if resp.Status == StatusSubDocInvalidXattrOrder {
+		case StatusSubDocInvalidXattrOrder:
 			cb(nil, ErrSubDocInvalidXattrOrder)
 			return false
-		} else if resp.Status == StatusSubDocXattrInvalidKeyCombo {
+		case StatusSubDocXattrInvalidKeyCombo:
 			cb(nil, ErrSubDocXattrInvalidKeyCombo)
 			return false
-		} else if resp.Status == StatusSubDocXattrInvalidFlagCombo {
+		case StatusSubDocXattrInvalidFlagCombo:
 			cb(nil, ErrSubDocXattrInvalidFlagCombo)
 			return false
 		}
@@ -2145,61 +2171,64 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
-		} else if resp.Status == StatusKeyExists && req.Cas > 0 {
-			cb(nil, ErrCasMismatch)
-			return false
-		} else if resp.Status == StatusKeyExists {
-			cb(nil, ErrDocExists)
-			return false
-		} else if resp.Status == StatusLocked {
+		case StatusKeyExists:
+			if req.Cas > 0 {
+				cb(nil, ErrCasMismatch)
+				return false
+			} else {
+				cb(nil, ErrDocExists)
+				return false
+			}
+		case StatusLocked:
 			cb(nil, ErrDocLocked)
 			return false
-		} else if resp.Status == StatusTooBig {
+		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
 			return false
-		} else if resp.Status == StatusSubDocInvalidCombo {
+		case StatusSubDocInvalidCombo:
 			cb(nil, ErrSubDocInvalidCombo)
 			return false
-		} else if resp.Status == StatusSubDocInvalidXattrOrder {
+		case StatusSubDocInvalidXattrOrder:
 			cb(nil, ErrSubDocInvalidXattrOrder)
 			return false
-		} else if resp.Status == StatusSubDocXattrInvalidKeyCombo {
+		case StatusSubDocXattrInvalidKeyCombo:
 			cb(nil, ErrSubDocXattrInvalidKeyCombo)
 			return false
-		} else if resp.Status == StatusSubDocXattrInvalidFlagCombo {
+		case StatusSubDocXattrInvalidFlagCombo:
 			cb(nil, ErrSubDocXattrInvalidFlagCombo)
 			return false
-		} else if resp.Status == StatusSubDocXattrUnknownMacro {
+		case StatusSubDocXattrUnknownMacro:
 			cb(nil, ErrSubDocXattrUnknownMacro)
 			return false
-		} else if resp.Status == StatusSubDocXattrUnknownVattrMacro {
+		case StatusSubDocXattrUnknownVattrMacro:
 			cb(nil, ErrSubDocXattrUnknownVattrMacro)
 			return false
-		} else if resp.Status == StatusSubDocXattrCannotModifyVAttr {
+		case StatusSubDocXattrCannotModifyVAttr:
 			cb(nil, ErrSubDocXattrCannotModifyVAttr)
 			return false
-		} else if resp.Status == StatusSubDocCanOnlyReviveDeletedDocuments {
+		case StatusSubDocCanOnlyReviveDeletedDocuments:
 			cb(nil, ErrSubDocCanOnlyReviveDeletedDocuments)
 			return false
-		} else if resp.Status == StatusSubDocDeletedDocumentCantHaveValue {
+		case StatusSubDocDeletedDocumentCantHaveValue:
 			cb(nil, ErrSubDocDeletedDocumentCantHaveValue)
 			return false
-		} else if resp.Status == StatusDurabilityImpossible {
+		case StatusDurabilityImpossible:
 			cb(nil, ErrDurabilityImpossible)
 			return false
-		} else if resp.Status == StatusSyncWriteAmbiguous {
+		case StatusSyncWriteAmbiguous:
 			cb(nil, ErrSyncWriteAmbiguous)
 			return false
-		} else if resp.Status == StatusSyncWriteInProgress {
+		case StatusSyncWriteInProgress:
 			cb(nil, ErrSyncWriteInProgress)
 			return false
-		} else if resp.Status == StatusSyncWriteReCommitInProgress {
+		case StatusSyncWriteReCommitInProgress:
 			cb(nil, ErrSyncWriteReCommitInProgress)
 			return false
-		} else if resp.Status == StatusNotStored {
+		case StatusNotStored:
 			if req.Flags == SubdocDocFlagAddDoc {
 				cb(nil, ErrDocExists)
 				return false
@@ -2207,7 +2236,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 
 			cb(nil, ErrDocNotStored)
 			return false
-		} else if resp.Status == StatusSubDocMultiPathFailure {
+		case StatusSubDocMultiPathFailure:
 			if len(resp.Value) != 3 {
 				cb(nil, protocolError{"bad value length"})
 				return false
