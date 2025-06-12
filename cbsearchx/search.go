@@ -152,7 +152,9 @@ func (h Search) UpsertIndex(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
@@ -197,7 +199,9 @@ func (h Search) DeleteIndex(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
@@ -244,7 +248,9 @@ func (h Search) GetIndex(
 	}
 
 	if resp.StatusCode != 200 {
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		return nil, h.DecodeCommonError(resp)
 	}
 
@@ -294,7 +300,7 @@ func (h Search) GetAllIndexes(
 	}
 
 	if resp.StatusCode != 200 {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		return nil, h.DecodeCommonError(resp)
 	}
 
@@ -360,7 +366,7 @@ func (h Search) AnalyzeDocument(
 	}
 
 	if resp.StatusCode != 200 {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		return nil, h.DecodeCommonError(resp)
 	}
 
@@ -413,7 +419,7 @@ func (h Search) GetIndexedDocumentsCount(
 	}
 
 	if resp.StatusCode != 200 {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		return 0, h.DecodeCommonError(resp)
 	}
 
@@ -539,7 +545,7 @@ func (h Search) controlRequest(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return h.DecodeCommonError(resp)
@@ -567,10 +573,9 @@ func (h Search) RefreshConfig(
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
-		defer resp.Body.Close()
 		return h.DecodeCommonError(resp)
 	}
 

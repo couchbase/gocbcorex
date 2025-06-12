@@ -36,15 +36,16 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 	var extFramesLen int
 	var keyLen int
 	var isExtFrame bool
-	if magic == MagicReq || magic == MagicRes {
+	switch magic {
+	case MagicReq, MagicRes:
 		isExtFrame = false
 		extFramesLen = 0
 		keyLen = int(binary.BigEndian.Uint16(headerBuf[2:]))
-	} else if magic == MagicReqExt || magic == MagicResExt {
+	case MagicReqExt, MagicResExt:
 		isExtFrame = true
 		extFramesLen = int(headerBuf[2])
 		keyLen = int(headerBuf[3])
-	} else {
+	default:
 		return protocolError{"invalid magic for key length decoding"}
 	}
 
@@ -52,15 +53,16 @@ func (pr *PacketReader) ReadPacket(r io.Reader, pak *Packet) error {
 
 	pak.Datatype = headerBuf[5]
 
-	if magic == MagicReq || magic == MagicReqExt {
+	switch magic {
+	case MagicReq, MagicReqExt:
 		pak.VbucketID = binary.BigEndian.Uint16(headerBuf[6:])
 		pak.Status = 0
 		pak.IsResponse = false
-	} else if magic == MagicRes || magic == MagicResExt {
+	case MagicRes, MagicResExt:
 		pak.VbucketID = 0
 		pak.Status = Status(binary.BigEndian.Uint16(headerBuf[6:]))
 		pak.IsResponse = true
-	} else {
+	default:
 		return protocolError{"invalid magic for status/vbucket decoding"}
 	}
 

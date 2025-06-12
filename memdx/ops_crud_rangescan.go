@@ -32,19 +32,22 @@ func (o OpsCrud) RangeScanCreate(d Dispatcher, req *RangeScanCreateRequest, cb f
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrRangeScanEmpty)
 			return false
-		} else if resp.Status == StatusNotStored {
+		case StatusNotStored:
 			cb(nil, ErrRangeScanSeqNoNotFound)
 			return false
-		} else if resp.Status == StatusRangeError {
+		case StatusRangeError:
 			cb(nil, ErrRangeScanRangeError)
 			return false
-		} else if resp.Status == StatusRangeScanVbUUIDNotEqual {
+		case StatusRangeScanVbUUIDNotEqual:
 			cb(nil, ErrRangeScanVbUuidMismatch)
 			return false
-		} else if resp.Status != StatusSuccess {
+		}
+
+		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
@@ -90,13 +93,16 @@ func (o OpsCrud) RangeScanContinue(d Dispatcher, req *RangeScanContinueRequest, 
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			actionCb(nil, ErrRangeScanNotFound)
 			return false
-		} else if resp.Status == StatusRangeScanCancelled {
+		case StatusRangeScanCancelled:
 			actionCb(nil, ErrRangeScanCancelled)
 			return false
-		} else if resp.Status != StatusSuccess && resp.Status != StatusRangeScanMore &&
+		}
+
+		if resp.Status != StatusSuccess && resp.Status != StatusRangeScanMore &&
 			resp.Status != StatusRangeScanComplete {
 			actionCb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
@@ -165,10 +171,13 @@ func (o OpsCrud) RangeScanCancel(d Dispatcher, req *RangeScanCancelRequest, cb f
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
+		switch resp.Status {
+		case StatusKeyNotFound:
 			cb(nil, ErrRangeScanNotFound)
 			return false
-		} else if resp.Status != StatusSuccess {
+		}
+
+		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
 		}
@@ -255,11 +264,11 @@ func (opts RangeScanCreateRequest) toJSON() ([]byte, error) {
 		if opts.Range.hasEnd() && opts.Range.hasExclusiveEnd() {
 			return nil, invalidArgError{"only one of end and exclusive end within range can be set"}
 		}
-		if !(opts.Range.hasStart() || opts.Range.hasExclusiveStart()) {
-			return nil, invalidArgError{"one of start and exclusive start within range must both be set"}
+		if !opts.Range.hasStart() && !opts.Range.hasExclusiveStart() {
+			return nil, invalidArgError{"one of start and exclusive start within range must be set"}
 		}
-		if !(opts.Range.hasEnd() || opts.Range.hasExclusiveEnd()) {
-			return nil, invalidArgError{"one of end and exclusive end within range must both be set"}
+		if !opts.Range.hasEnd() && !opts.Range.hasExclusiveEnd() {
+			return nil, invalidArgError{"one of end and exclusive end within range must be set"}
 		}
 
 		createReq.Range = &rangeScanCreateRangeJSON{}
@@ -400,11 +409,7 @@ func (o OpsCrud) parseRangeScanKeys(data []byte) []RangeScanItem {
 	var keys []RangeScanItem
 	var i uint64
 	dataLen := uint64(len(data))
-	for {
-		if i >= dataLen {
-			break
-		}
-
+	for i < dataLen {
 		key, n := o.parseRangeScanLebEncoded(data[i:])
 		keys = append(keys, RangeScanItem{
 			Key: key,
@@ -439,11 +444,7 @@ func (o OpsCrud) parseRangeScanDocs(data []byte) []RangeScanItem {
 	var items []RangeScanItem
 	var i uint64
 	dataLen := uint64(len(data))
-	for {
-		if i >= dataLen {
-			break
-		}
-
+	for i < dataLen {
 		item, n := o.parseRangeScanItem(data[i:])
 		items = append(items, item)
 		i = i + n

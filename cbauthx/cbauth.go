@@ -269,7 +269,7 @@ func (a *CbAuth) Reconfigure(config *CbAuthConfig) error {
 
 	if !a.isCliValidLocked() {
 		if a.cli != nil {
-			a.cli.Close()
+			_ = a.cli.Close()
 		}
 	}
 
@@ -359,7 +359,7 @@ func (a *CbAuth) runThread(
 		a.lock.Lock()
 
 		if a.cli != nil {
-			a.cli.Close()
+			_ = a.cli.Close()
 		}
 
 		a.cli = newCli
@@ -379,7 +379,7 @@ func (a *CbAuth) runThread(
 		if !a.isCliValidLocked() {
 			// closed or reconfigured since initial connect
 			a.logger.Debug("disconnecting new cli due to invalidity")
-			runCli.Close()
+			_ = runCli.Close()
 		}
 
 		hasClosed := a.closed
@@ -478,7 +478,7 @@ func (a *CbAuth) Close() error {
 
 	a.closed = true
 	if a.cli != nil {
-		a.cli.Close()
+		_ = a.cli.Close()
 	}
 	if a.threadCancel != nil {
 		a.threadCancel()

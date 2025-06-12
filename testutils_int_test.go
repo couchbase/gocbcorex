@@ -20,7 +20,7 @@ func CreateAndEnsureScope(ctx context.Context, t *testing.T, agent *gocbcorex.Ag
 	})
 	require.NoError(t, err)
 
-	uid, err := strconv.ParseUint(strings.Replace(res.ManifestUid, "0x", "", -1), 16, 64)
+	uid, err := strconv.ParseUint(strings.ReplaceAll(res.ManifestUid, "0x", ""), 16, 64)
 	require.NoError(t, err)
 
 	WaitForManifest(ctx, t, agent, uid, bucketName)
@@ -34,7 +34,7 @@ func CreateAndEnsureCollection(ctx context.Context, t *testing.T, agent *gocbcor
 	})
 	require.NoError(t, err)
 
-	uid, err := strconv.ParseUint(strings.Replace(res.ManifestUid, "0x", "", -1), 16, 64)
+	uid, err := strconv.ParseUint(strings.ReplaceAll(res.ManifestUid, "0x", ""), 16, 64)
 	require.NoError(t, err)
 
 	WaitForManifest(ctx, t, agent, uid, bucketName)
@@ -55,7 +55,7 @@ func WaitForManifest(ctx context.Context, t *testing.T, agent *gocbcorex.Agent, 
 			return false
 		}
 
-		uid, err := strconv.ParseUint(strings.Replace(manifest.UID, "0x", "", -1), 16, 64)
+		uid, err := strconv.ParseUint(strings.ReplaceAll(manifest.UID, "0x", ""), 16, 64)
 		if err != nil {
 			t.Logf("Failed to parse uid: %s", err)
 			return false

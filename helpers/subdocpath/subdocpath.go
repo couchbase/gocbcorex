@@ -39,11 +39,12 @@ func Parse(path string) ([]Element, error) {
 			}
 
 			nextCh := path[chIdx+1]
-			if nextCh == '.' {
+			switch nextCh {
+			case '.':
 				return nil, errors.New("unexpected period after period")
-			} else if nextCh == '[' {
+			case '[':
 				return nil, errors.New("unexpected array start after a period")
-			} else if nextCh == ']' {
+			case ']':
 				return nil, errors.New("unexpected end of array without start of array")
 			}
 		} else if ch == '`' {

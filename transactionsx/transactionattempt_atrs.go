@@ -408,13 +408,14 @@ func (t *TransactionAttempt) setATRCommittedExclusive(
 				DocID:          string(mutation.Key),
 			}
 
-			if mutation.OpType == StagedMutationInsert {
+			switch mutation.OpType {
+			case StagedMutationInsert:
 				insMutations = append(insMutations, jsonMutation)
-			} else if mutation.OpType == StagedMutationReplace {
+			case StagedMutationReplace:
 				repMutations = append(repMutations, jsonMutation)
-			} else if mutation.OpType == StagedMutationRemove {
+			case StagedMutationRemove:
 				remMutations = append(remMutations, jsonMutation)
-			} else {
+			default:
 				return wrapError(ErrIllegalState, "unexpected staged mutation type")
 			}
 		}
@@ -681,13 +682,14 @@ func (t *TransactionAttempt) setATRAbortedExclusive(
 				DocID:          string(mutation.Key),
 			}
 
-			if mutation.OpType == StagedMutationInsert {
+			switch mutation.OpType {
+			case StagedMutationInsert:
 				insMutations = append(insMutations, jsonMutation)
-			} else if mutation.OpType == StagedMutationReplace {
+			case StagedMutationReplace:
 				repMutations = append(repMutations, jsonMutation)
-			} else if mutation.OpType == StagedMutationRemove {
+			case StagedMutationRemove:
 				remMutations = append(remMutations, jsonMutation)
-			} else {
+			default:
 				return wrapError(ErrIllegalState, "unexpected staged mutation type")
 			}
 		}

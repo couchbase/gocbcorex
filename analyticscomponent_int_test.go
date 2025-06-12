@@ -123,7 +123,7 @@ func (aqh *analyticsTestHelper) testQueryBasic(t *testing.T) {
 		}
 		time.Sleep(time.Until(sleepDeadline))
 
-		if sleepDeadline == deadline {
+		if sleepDeadline.Equal(deadline) {
 			t.Errorf("timed out waiting for indexing: %s", lastError)
 			break
 		}

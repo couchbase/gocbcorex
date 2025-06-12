@@ -15,7 +15,7 @@ const OpCodeTypeSrv = 0x1000
 // These constants provide predefined values for all the operations
 // which are supported by this library.
 const (
-	OpCodeGet                        = OpCode(OpCodeTypeCli | 0x00) // nolint:staticcheck
+	OpCodeGet                        = OpCode(OpCodeTypeCli) // | 0x00
 	OpCodeSet                        = OpCode(OpCodeTypeCli | 0x01)
 	OpCodeAdd                        = OpCode(OpCodeTypeCli | 0x02)
 	OpCodeReplace                    = OpCode(OpCodeTypeCli | 0x03)
@@ -230,10 +230,12 @@ func (c OpCode) String() string {
 		return "SrvActiveExternalUsers"
 	}
 
-	if c&OpCodeTypeMask == OpCodeTypeCli {
+	switch c & OpCodeTypeMask {
+	case OpCodeTypeCli:
 		return "x" + hex.EncodeToString([]byte{byte(c)}) + "[Cli]"
-	} else if c&OpCodeTypeMask == OpCodeTypeSrv {
+	case OpCodeTypeSrv:
 		return "x" + hex.EncodeToString([]byte{byte(c)}) + "[Srv]"
+	default:
+		return "x" + hex.EncodeToString([]byte{byte(c << 8), byte(c)}) + "[Unk]"
 	}
-	return "x" + hex.EncodeToString([]byte{byte(c << 8), byte(c)}) + "[Unk]"
 }

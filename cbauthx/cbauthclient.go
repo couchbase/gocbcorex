@@ -290,7 +290,7 @@ func (c *CbAuthClient) internalCloseLocked(reason error) {
 	if c.closeReason == nil {
 		// Record the reason we closed the client for debugging
 		c.closeReason = reason
-		c.rpcCli.Close()
+		_ = c.rpcCli.Close()
 	}
 }
 

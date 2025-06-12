@@ -687,8 +687,8 @@ func TestAnalyzeDocument(t *testing.T) {
 			SourceName: testutilsint.TestOpts.BucketName,
 		},
 	}
-	opts.Index.PlanParams = make(map[string]json.RawMessage)
-	opts.Index.PlanParams["indexPartitions"] = []byte("3")
+	opts.PlanParams = make(map[string]json.RawMessage)
+	opts.PlanParams["indexPartitions"] = []byte("3")
 
 	ctx := context.Background()
 	t.Cleanup(func() {
@@ -751,8 +751,8 @@ func TestAnalyzeDocument(t *testing.T) {
 				SourceName: testutilsint.TestOpts.BucketName,
 			},
 		}
-		opts.Index.PlanParams = make(map[string]json.RawMessage)
-		opts.Index.PlanParams["indexPartitions"] = []byte("3")
+		opts.PlanParams = make(map[string]json.RawMessage)
+		opts.PlanParams["indexPartitions"] = []byte("3")
 
 		err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)

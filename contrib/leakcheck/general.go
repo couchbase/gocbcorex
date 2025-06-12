@@ -6,12 +6,7 @@ func EnableAll() {
 }
 
 func ReportAll() bool {
-	testsPassed := true
-	if !ReportLeakedHttpResponses() {
-		testsPassed = false
-	}
-	if !ReportLeakedGoroutines() {
-		testsPassed = false
-	}
-	return testsPassed
+	httpCheck := ReportLeakedHttpResponses()
+	goroutinesCheck := ReportLeakedGoroutines()
+	return httpCheck && goroutinesCheck
 }

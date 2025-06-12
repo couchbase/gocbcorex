@@ -95,15 +95,17 @@ func Decode(flags uint32) (DataType, CompressionType) {
 	valueType := UnknownType
 	compression := UnknownCompression
 
-	if flags&FmtMask == FmtBinary {
+	switch flags & FmtMask {
+	case FmtBinary:
 		valueType = BinaryType
-	} else if flags&FmtMask == FmtString {
+	case FmtString:
 		valueType = StringType
-	} else if flags&FmtMask == FmtJSON {
+	case FmtJSON:
 		valueType = JSONType
 	}
 
-	if flags&CmprMask == CmprNone {
+	switch flags & CmprMask {
+	case CmprNone:
 		compression = NoCompression
 	}
 

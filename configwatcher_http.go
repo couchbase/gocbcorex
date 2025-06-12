@@ -151,11 +151,7 @@ func (w *ConfigWatcherHttp) watchThread(ctx context.Context, outCh chan<- *Parse
 	var recentEndpoints []string
 	allEndpointsFailed := true
 
-	for {
-		if ctx.Err() != nil {
-			break
-		}
-
+	for ctx.Err() == nil {
 		w.lock.Lock()
 		state := w.state
 		w.lock.Unlock()

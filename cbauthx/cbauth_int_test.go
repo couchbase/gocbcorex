@@ -113,7 +113,8 @@ func TestCbAuthBasicSlow(t *testing.T) {
 	// should include the details on why its unavailable
 	assert.ErrorContains(t, err, "failed to dial")
 
-	auth.Close()
+	err = auth.Close()
+	require.NoError(t, err)
 }
 
 func TestCbauthInvalidations(t *testing.T) {
