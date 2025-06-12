@@ -51,18 +51,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: 1.23
       - name: Initialize deps
         run: go get
       - name: Generate mocks
         run: |
-          go install github.com/matryer/moq@latest
+          go install github.com/matryer/moq@v0.5
           go generate
       - name: Run tests
         timeout-minutes: 40
         env:
-          CBDC_ID: # from above
-          CBDC_CONNSTR: # from above
+          # CBDC_ID: from above
+          # CBDC_CONNSTR: from above
           GCBDINOID: ${{ env.CBDC_ID }}
           GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
         run: |
