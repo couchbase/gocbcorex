@@ -92,6 +92,12 @@ func (o OpsDcp) DcpOpenConnection(
 			return false
 		}
 
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			cb(nil, OpsCrud{}.decodeCommonError(resp))
 			return false
@@ -120,6 +126,12 @@ func (o OpsDcp) DcpControl(d Dispatcher, req *DcpControlRequest, cb func(*DcpCon
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 
@@ -221,6 +233,12 @@ func (o OpsDcp) DcpStreamReq(
 			return false
 		}
 
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
 		switch resp.Status {
 		case StatusKeyExists:
 			cb(nil, ErrDcpDuplicateStream)
@@ -288,6 +306,12 @@ func (o OpsDcp) DcpCloseStream(
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 

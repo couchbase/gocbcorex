@@ -77,6 +77,12 @@ func (o OpsUtils) Stats(
 			return false
 		}
 
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			actionCb(nil, decompErr)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
 			actionCb(nil, OpsCore{}.decodeError(resp))
 			return false
@@ -125,6 +131,12 @@ func (o OpsUtils) GetCollectionID(d Dispatcher, req *GetCollectionIDRequest, cb 
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
 			return false
 		}
 

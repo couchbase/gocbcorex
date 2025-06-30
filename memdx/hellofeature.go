@@ -60,8 +60,8 @@ const (
 	// FeatureCollections indicates support for collections.
 	HelloFeatureCollections = HelloFeature(0x12)
 
-	// FeatureOpenTracing indicates support for OpenTracing.
-	HelloFeatureOpenTracing = HelloFeature(0x13)
+	// FeatureSnappyEverywhere indicates support for snappy on all response payloads.
+	HelloFeatureSnappyEverywhere = HelloFeature(0x13)
 
 	// FeaturePreserveExpiry indicates support for preserve TTL.
 	HelloFeaturePreserveExpiry = HelloFeature(0x14)
@@ -112,8 +112,8 @@ func (f HelloFeature) String() string {
 		return "SyncReplication"
 	case HelloFeatureCollections:
 		return "Collections"
-	case HelloFeatureOpenTracing:
-		return "OpenTracing"
+	case HelloFeatureSnappyEverywhere:
+		return "SnappyEverywhere"
 	case HelloFeaturePreserveExpiry:
 		return "PreserveExpiry"
 	case HelloFeaturePITR:
