@@ -83,13 +83,14 @@ func (e contextualDeadline) Unwrap() error {
 type retrierDeadlineError struct {
 	Cause      error
 	RetryCause error
+	RetryIdx   int
 }
 
 func (e retrierDeadlineError) Error() string {
 	if e.RetryCause != nil {
-		return fmt.Sprintf("timed out during retrying: %s (retry cause: %s)", e.Cause, e.RetryCause)
+		return fmt.Sprintf("timed out in retrier: %s (attempt: %d, retry cause: %s)", e.Cause, e.RetryIdx, e.RetryCause)
 	} else {
-		return fmt.Sprintf("timed out during retrying: %s", e.Cause)
+		return fmt.Sprintf("timed out in retrier: %s (attempt: %d)", e.Cause, e.RetryIdx)
 	}
 }
 

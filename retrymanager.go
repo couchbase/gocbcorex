@@ -21,11 +21,11 @@ func OrchestrateRetries[RespT any](
 ) (RespT, error) {
 	var opRetryController RetryController
 	var lastErr error
-	for {
+	for retryIdx := 0; ; retryIdx++ {
 		res, err := fn()
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				return res, retrierDeadlineError{err, lastErr}
+				return res, retrierDeadlineError{err, lastErr, retryIdx}
 			}
 
 			if opRetryController == nil {
@@ -46,7 +46,7 @@ func OrchestrateRetries[RespT any](
 				case <-ctx.Done():
 					ctxErr := ctx.Err()
 					if errors.Is(ctxErr, context.DeadlineExceeded) {
-						return res, retrierDeadlineError{ctxErr, err}
+						return res, retrierDeadlineError{ctxErr, err, retryIdx}
 					} else {
 						return res, err
 					}
