@@ -259,9 +259,10 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 	var endpoints []string
 	var mu sync.Mutex
-	var sendLock sync.Mutex
-	var returnedResults uint32
 	var numReplicas atomic.Uint32
+
+	returnedResultsChan := make(chan uint32, 1)
+	returnedResultsChan <- 0
 
 	initialReplicas, err := cc.vbs.NumReplicas()
 	if err != nil {
@@ -333,11 +334,22 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 								break
 							}
 
-							sendLock.Lock()
+							returnedResults := <-returnedResultsChan
+
 							// Check another thread hasn't sent a final result so we don't try and send on a closed channel
 							if returnedResults == numReplicas.Load()+1 {
-								sendLock.Unlock()
+								returnedResultsChan <- returnedResults
 								break
+							}
+
+							// In rare cases a replica read will fast fail and return an error before a read of the master copy.
+							// If we send a non-nil error the grpc stream is aborted and no more results can be sent. So we
+							// only return an error from a replica read if we have already returned some document or an error
+							// from the master.
+							if err != nil && returnedResults == 0 && replicaID != 0 {
+								returnedResultsChan <- returnedResults
+								time.Sleep(10 * time.Millisecond)
+								continue
 							}
 
 							returnedResults++
@@ -348,10 +360,10 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 							if returnedResults == numReplicas.Load()+1 {
 								close(result.OutCh)
-								sendLock.Unlock()
+								returnedResultsChan <- returnedResults
 								break
 							}
-							sendLock.Unlock()
+							returnedResultsChan <- returnedResults
 
 							// Although we have returned a result from this thread we wait then continue running in case
 							// there is a rebalance which causes the replicaID of this thread to be routed to a different node.
