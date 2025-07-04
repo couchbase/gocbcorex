@@ -1332,7 +1332,7 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 		})
 }
 
-type GetExOptions struct {
+type GetOrLookupOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
@@ -1342,7 +1342,7 @@ type GetExOptions struct {
 	OnBehalfOf     string
 }
 
-type GetExResult struct {
+type GetOrLookupResult struct {
 	Value    []byte
 	Flags    uint32
 	Datatype memdx.DatatypeFlag
@@ -1350,7 +1350,7 @@ type GetExResult struct {
 	Expiry   uint32
 }
 
-func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExResult, error) {
+func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptions) (*GetOrLookupResult, error) {
 	if len(opts.Project) == 0 && !opts.WithExpiry {
 		resp, err := cc.Get(ctx, &GetOptions{
 			Key:            opts.Key,
@@ -1369,7 +1369,7 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 			flags = 0
 		}
 
-		return &GetExResult{
+		return &GetOrLookupResult{
 			Value:    resp.Value,
 			Flags:    flags,
 			Datatype: resp.Datatype,
@@ -1378,8 +1378,8 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 		}, nil
 	}
 
-	var executeGet func(forceFullDoc bool) (*GetExResult, error)
-	executeGet = func(forceFullDoc bool) (*GetExResult, error) {
+	var executeGet func(forceFullDoc bool) (*GetOrLookupResult, error)
+	executeGet = func(forceFullDoc bool) (*GetOrLookupResult, error) {
 		var opOpts LookupInOptions
 		opOpts.OnBehalfOf = opts.OnBehalfOf
 		opOpts.ScopeName = opts.ScopeName
@@ -1553,7 +1553,7 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 				return nil, err
 			}
 
-			return &GetExResult{
+			return &GetOrLookupResult{
 				Value:    projectedDocValue,
 				Flags:    flags,
 				Datatype: 0,
@@ -1564,7 +1564,7 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 
 		docValue := result.Ops[userProjectOffset].Value
 
-		return &GetExResult{
+		return &GetOrLookupResult{
 			Value:    docValue,
 			Flags:    flags,
 			Datatype: 0,

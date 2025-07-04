@@ -18,8 +18,8 @@ func (agent *Agent) Get(ctx context.Context, opts *GetOptions) (*GetResult, erro
 	return agent.crud.Get(ctx, opts)
 }
 
-func (agent *Agent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExResult, error) {
-	return agent.crud.GetEx(ctx, opts)
+func (agent *Agent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptions) (*GetOrLookupResult, error) {
+	return agent.crud.GetOrLookup(ctx, opts)
 }
 
 func (agent *Agent) GetReplica(ctx context.Context, opts *GetReplicaOptions) (*GetReplicaResult, error) {
