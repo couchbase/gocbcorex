@@ -14,6 +14,7 @@ var (
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
 	ErrServiceNotAvailable        = errors.New("service is not available")
 	ErrRepeatedReplicaRead        = errors.New("a replica has already been returned from this node")
+	ErrNoBucketSelected           = errors.New("no bucket selected, please select a bucket before performing bucket operations")
 )
 
 type placeholderError struct {

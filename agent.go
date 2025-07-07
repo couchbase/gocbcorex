@@ -46,11 +46,12 @@ type Agent struct {
 	memdCfgWatcher   *ConfigWatcherMemd
 	cfgWatcherCancel func()
 
-	crud      *CrudComponent
-	query     *QueryComponent
-	mgmt      *MgmtComponent
-	search    *SearchComponent
-	analytics *AnalyticsComponent
+	crud       *CrudComponent
+	query      *QueryComponent
+	mgmt       *MgmtComponent
+	search     *SearchComponent
+	analytics  *AnalyticsComponent
+	staticInfo *StaticBucketInfoComponent
 }
 
 func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
@@ -296,6 +297,14 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 	)
 
+	agent.staticInfo = NewStaticBucketInfoComponent(
+		agent.mgmt,
+		&agentComponentConfigs.StaticBucketInfoComponentConfig,
+		&StaticBucketInfoComponentOptions{
+			Logger: logger,
+		},
+	)
+
 	agent.startConfigWatcher()
 
 	return agent, nil
@@ -440,6 +449,11 @@ func (agent *Agent) updateStateLocked() {
 	err = agent.analytics.Reconfigure(&agentComponentConfigs.AnalyticsComponentConfig)
 	if err != nil {
 		agent.logger.Error("failed to reconfigure analytics component", zap.Error(err))
+	}
+
+	err = agent.staticInfo.Reconfigure(&agentComponentConfigs.StaticBucketInfoComponentConfig)
+	if err != nil {
+		agent.logger.Error("failed to reconfigure static bucket info component", zap.Error(err))
 	}
 
 	if agent.httpCfgWatcher != nil {

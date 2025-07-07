@@ -598,3 +598,20 @@ func BenchmarkBasicGet(b *testing.B) {
 	}
 	b.ReportAllocs()
 }
+
+func TestAgentStaticInfo(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+	defer cancel()
+	mode, err := agent.GetConflictResolutionMode(ctx)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, cbmgmtx.ConflictResolutionTypeUnset, mode)
+}
