@@ -7,14 +7,15 @@ import (
 )
 
 type AgentComponentConfigs struct {
-	ConfigWatcherHttpConfig  ConfigWatcherHttpConfig
-	ConfigWatcherMemdConfig  ConfigWatcherMemdConfig
-	KvClientManagerClients   map[string]*KvClientConfig
-	VbucketRoutingInfo       *VbucketRoutingInfo
-	QueryComponentConfig     QueryComponentConfig
-	MgmtComponentConfig      MgmtComponentConfig
-	SearchComponentConfig    SearchComponentConfig
-	AnalyticsComponentConfig AnalyticsComponentConfig
+	ConfigWatcherHttpConfig         ConfigWatcherHttpConfig
+	ConfigWatcherMemdConfig         ConfigWatcherMemdConfig
+	KvClientManagerClients          map[string]*KvClientConfig
+	VbucketRoutingInfo              *VbucketRoutingInfo
+	QueryComponentConfig            QueryComponentConfig
+	MgmtComponentConfig             MgmtComponentConfig
+	SearchComponentConfig           SearchComponentConfig
+	AnalyticsComponentConfig        AnalyticsComponentConfig
+	StaticBucketInfoComponentConfig StaticBucketInfoComponentConfig
 }
 
 func GenerateComponentConfigsFromConfig(
@@ -134,6 +135,9 @@ func GenerateComponentConfigsFromConfig(
 			HttpRoundTripper: httpTransport,
 			Endpoints:        analyticsEndpoints,
 			Authenticator:    authenticator,
+		},
+		StaticBucketInfoComponentConfig: StaticBucketInfoComponentConfig{
+			BucketName: bucketName,
 		},
 	}
 }

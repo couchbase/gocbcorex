@@ -10,6 +10,10 @@ import (
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 )
 
+func (agent *Agent) GetConflictResolutionMode(ctx context.Context) (cbmgmtx.ConflictResolutionType, error) {
+	return agent.staticInfo.GetConflictResolutionMode(ctx)
+}
+
 func (agent *Agent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
 	return agent.crud.Upsert(ctx, opts)
 }
