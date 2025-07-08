@@ -333,6 +333,12 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 								break
 							}
 
+							// If we try and read a replica that isn't there wait and try again, it should be soon
+							if errors.Is(err, memdx.ErrDocNotFound) && replicaID != 0 {
+								time.Sleep(10 * time.Millisecond)
+								continue
+							}
+
 							sendLock.Lock()
 							// Check another thread hasn't sent a final result so we don't try and send on a closed channel
 							if returnedResults == numReplicas.Load()+1 {
