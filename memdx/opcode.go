@@ -58,8 +58,9 @@ const (
 	OpCodeGetLocked                  = OpCode(OpCodeTypeCli | 0x94)
 	OpCodeUnlockKey                  = OpCode(OpCodeTypeCli | 0x95)
 	OpCodeGetMeta                    = OpCode(OpCodeTypeCli | 0xa0)
-	OpCodeSetMeta                    = OpCode(OpCodeTypeCli | 0xa2)
-	OpCodeDelMeta                    = OpCode(OpCodeTypeCli | 0xa8)
+	OpCodeSetWithMeta                = OpCode(OpCodeTypeCli | 0xa2)
+	OpCodeAddWithMeta                = OpCode(OpCodeTypeCli | 0xa4)
+	OpCodeDelWithMeta                = OpCode(OpCodeTypeCli | 0xa8)
 	OpCodeGetClusterConfig           = OpCode(OpCodeTypeCli | 0xb5)
 	OpCodeGetRandom                  = OpCode(OpCodeTypeCli | 0xb6)
 	OpCodeCollectionsGetManifest     = OpCode(OpCodeTypeCli | 0xba)
@@ -179,10 +180,12 @@ func (c OpCode) String() string {
 		return "UnlockKey"
 	case OpCodeGetMeta:
 		return "GetMeta"
-	case OpCodeSetMeta:
-		return "SetMeta"
-	case OpCodeDelMeta:
-		return "DelMeta"
+	case OpCodeSetWithMeta:
+		return "SetWithMeta"
+	case OpCodeAddWithMeta:
+		return "AddWithMeta"
+	case OpCodeDelWithMeta:
+		return "DelWithMeta"
 	case OpCodeGetClusterConfig:
 		return "GetClusterConfig"
 	case OpCodeGetRandom:

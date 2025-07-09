@@ -126,12 +126,16 @@ func (c *kvClient) GetMeta(ctx context.Context, req *memdx.GetMetaRequest) (*mem
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetMeta, req)
 }
 
-func (c *kvClient) SetMeta(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
-	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.SetMeta, req)
+func (c *kvClient) AddWithMeta(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.AddWithMeta, req)
 }
 
-func (c *kvClient) DeleteMeta(ctx context.Context, req *memdx.DeleteMetaRequest) (*memdx.DeleteMetaResponse, error) {
-	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.DeleteMeta, req)
+func (c *kvClient) SetWithMeta(ctx context.Context, req *memdx.SetWithMetaRequest) (*memdx.SetWithMetaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.SetWithMeta, req)
+}
+
+func (c *kvClient) DeleteWithMeta(ctx context.Context, req *memdx.DeleteWithMetaRequest) (*memdx.DeleteWithMetaResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.DeleteWithMeta, req)
 }
 
 func (c *kvClient) LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error) {
