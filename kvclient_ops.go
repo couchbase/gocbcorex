@@ -164,3 +164,7 @@ func (c *kvClient) RangeScanContinue(
 func (c *kvClient) RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.RangeScanCancel, req)
 }
+
+func (c *kvClient) DcpGetFailoverLog(ctx context.Context, req *memdx.DcpGetFailoverLogRequest) (*memdx.DcpGetFailoverLogResponse, error) {
+	return kvClient_SimpleUtilsCall(ctx, c, memdx.OpsUtils.DcpGetFailoverLog, req)
+}

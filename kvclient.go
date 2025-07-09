@@ -78,6 +78,7 @@ type KvClientOps interface {
 	RangeScanContinue(ctx context.Context, req *memdx.RangeScanContinueRequest,
 		dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error)
 	RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error)
+	DcpGetFailoverLog(ctx context.Context, req *memdx.DcpGetFailoverLogRequest) (*memdx.DcpGetFailoverLogResponse, error)
 }
 
 // KvClient implements a synchronous wrapper around a memdx.Client.

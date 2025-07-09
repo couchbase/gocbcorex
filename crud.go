@@ -1575,3 +1575,50 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 
 	return executeGet(false)
 }
+
+type DcpGetFailoverLogOptions struct {
+	VbucketId  uint16
+	OnBehalfOf string
+}
+
+type DcpGetFailoverLogEntry struct {
+	VbUuid uint64
+	SeqNo  uint64
+}
+
+type DcpGetFailoverLogResult struct {
+	Entries []DcpGetFailoverLogEntry
+}
+
+// TODO(brett19): This should not be in CRUD component...
+func (cc *CrudComponent) DcpGetFailoverLog(ctx context.Context, opts *DcpGetFailoverLogOptions) (*DcpGetFailoverLogResult, error) {
+	ctx, span := tracer.Start(ctx, "DcpGetFailoverLog")
+	defer span.End()
+
+	return OrchestrateRetries(
+		ctx, cc.retries,
+		func() (*DcpGetFailoverLogResult, error) {
+			return OrchestrateMemdRoutingByVbucketId(ctx, cc.vbs, cc.nmvHandler, opts.VbucketId, 0, func(endpoint string) (*DcpGetFailoverLogResult, error) {
+				return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*DcpGetFailoverLogResult, error) {
+					resp, err := client.DcpGetFailoverLog(ctx, &memdx.DcpGetFailoverLogRequest{
+						VbucketID: opts.VbucketId,
+					})
+					if err != nil {
+						return nil, err
+					}
+
+					entries := make([]DcpGetFailoverLogEntry, len(resp.Entries))
+					for i, entry := range resp.Entries {
+						entries[i] = DcpGetFailoverLogEntry{
+							VbUuid: entry.VbUuid,
+							SeqNo:  entry.SeqNo,
+						}
+					}
+
+					return &DcpGetFailoverLogResult{
+						Entries: entries,
+					}, nil
+				})
+			})
+		})
+}

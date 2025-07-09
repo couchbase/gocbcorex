@@ -297,3 +297,7 @@ func (agent *Agent) GetAnalyticsEndpoint(ctx context.Context) (*GetAnalyticsEndp
 func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
 	return agent.analytics.GetAllEndpoints()
 }
+
+func (agent *Agent) DcpGetFailoverLog(ctx context.Context, opts *DcpGetFailoverLogOptions) (*DcpGetFailoverLogResult, error) {
+	return agent.crud.DcpGetFailoverLog(ctx, opts)
+}
