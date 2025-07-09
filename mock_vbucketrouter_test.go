@@ -20,7 +20,7 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //			DispatchByKeyFunc: func(key []byte, vbServerIdx uint32) (string, uint16, error) {
 //				panic("mock out the DispatchByKey method")
 //			},
-//			DispatchToVbucketFunc: func(vbID uint16) (string, error) {
+//			DispatchToVbucketFunc: func(vbID uint16, vbServerIdx uint32) (string, error) {
 //				panic("mock out the DispatchToVbucket method")
 //			},
 //			NumReplicasFunc: func() (int, error) {
@@ -40,7 +40,7 @@ type VbucketRouterMock struct {
 	DispatchByKeyFunc func(key []byte, vbServerIdx uint32) (string, uint16, error)
 
 	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
-	DispatchToVbucketFunc func(vbID uint16) (string, error)
+	DispatchToVbucketFunc func(vbID uint16, vbServerIdx uint32) (string, error)
 
 	// NumReplicasFunc mocks the NumReplicas method.
 	NumReplicasFunc func() (int, error)
@@ -61,6 +61,8 @@ type VbucketRouterMock struct {
 		DispatchToVbucket []struct {
 			// VbID is the vbID argument value.
 			VbID uint16
+			// VbServerIdx is the vbServerIdx argument value.
+			VbServerIdx uint32
 		}
 		// NumReplicas holds details about calls to the NumReplicas method.
 		NumReplicas []struct {
@@ -114,19 +116,21 @@ func (mock *VbucketRouterMock) DispatchByKeyCalls() []struct {
 }
 
 // DispatchToVbucket calls DispatchToVbucketFunc.
-func (mock *VbucketRouterMock) DispatchToVbucket(vbID uint16) (string, error) {
+func (mock *VbucketRouterMock) DispatchToVbucket(vbID uint16, vbServerIdx uint32) (string, error) {
 	if mock.DispatchToVbucketFunc == nil {
 		panic("VbucketRouterMock.DispatchToVbucketFunc: method is nil but VbucketRouter.DispatchToVbucket was just called")
 	}
 	callInfo := struct {
-		VbID uint16
+		VbID        uint16
+		VbServerIdx uint32
 	}{
-		VbID: vbID,
+		VbID:        vbID,
+		VbServerIdx: vbServerIdx,
 	}
 	mock.lockDispatchToVbucket.Lock()
 	mock.calls.DispatchToVbucket = append(mock.calls.DispatchToVbucket, callInfo)
 	mock.lockDispatchToVbucket.Unlock()
-	return mock.DispatchToVbucketFunc(vbID)
+	return mock.DispatchToVbucketFunc(vbID, vbServerIdx)
 }
 
 // DispatchToVbucketCalls gets all the calls that were made to DispatchToVbucket.
@@ -134,10 +138,12 @@ func (mock *VbucketRouterMock) DispatchToVbucket(vbID uint16) (string, error) {
 //
 //	len(mockedVbucketRouter.DispatchToVbucketCalls())
 func (mock *VbucketRouterMock) DispatchToVbucketCalls() []struct {
-	VbID uint16
+	VbID        uint16
+	VbServerIdx uint32
 } {
 	var calls []struct {
-		VbID uint16
+		VbID        uint16
+		VbServerIdx uint32
 	}
 	mock.lockDispatchToVbucket.RLock()
 	calls = mock.calls.DispatchToVbucket
