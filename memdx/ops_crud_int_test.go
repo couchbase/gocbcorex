@@ -58,8 +58,9 @@ func TestOpsCrudGets(t *testing.T) {
 			Name: "GetMeta",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
 				return opsCrud.GetMeta(cli, &memdx.GetMetaRequest{
-					Key:       key,
-					VbucketID: defaultTestVbucketID,
+					Key:           key,
+					VbucketID:     defaultTestVbucketID,
+					FetchDatatype: true,
 				}, func(resp *memdx.GetMetaResponse, err error) {
 					cb(resp, err)
 				})
@@ -74,9 +75,10 @@ func TestOpsCrudGets(t *testing.T) {
 				assert.NotZero(t, randRes.Cas)
 				assert.Zero(t, randRes.Flags)
 				assert.NotZero(t, randRes.Expiry)
-				assert.NotZero(t, randRes.SeqNo)
-				assert.False(t, randRes.Deleted)
-				assert.Equal(t, datatype, randRes.Datatype)
+				assert.NotZero(t, randRes.RevNo)
+				assert.False(t, randRes.IsDeleted)
+				require.NotNil(t, randRes.Datatype)
+				assert.Equal(t, datatype, *randRes.Datatype)
 			},
 		},
 		{
@@ -309,13 +311,13 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 		},
 		// Server is always responding with exists
 		// {
-		// 	Name: "DeleteMeta",
+		// 	Name: "DeleteWithMeta",
 		// 	Op: func(key []byte, opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
-		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+		// 		return opsCrud.DeleteWithMeta(cli, &DeleteWithMetaRequest{
 		// 			Key:       key,
 		// 			Options:   0x08, // SKIP_CONFLICT_RESOLUTION_FLAG
 		// 			VbucketID: defaultTestVbucketID,
-		// 		}, func(resp *DeleteMetaResponse, err error) {
+		// 		}, func(resp *DeleteWithMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
 		// 	},
@@ -579,27 +581,27 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 			},
 		},
 		{
-			Name: "SetMeta",
+			Name: "SetWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
-				return opsCrud.SetMeta(cli, &memdx.SetMetaRequest{
+				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
 					CollectionID: 2222,
 					Key:          key,
 					Value:        []byte("value"),
-					Cas:          1, // For some reason Cas is required here.
+					StoreCas:     1,
 					VbucketID:    defaultTestVbucketID,
-				}, func(resp *memdx.SetMetaResponse, err error) {
+				}, func(resp *memdx.SetWithMetaResponse, err error) {
 					cb(resp, err)
 				})
 			},
 		},
 		// {
-		// 	Name: "DeleteMeta",
+		// 	Name: "DeleteWithMeta",
 		// 	Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
-		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
+		// 		return opsCrud.DeleteWithMeta(cli, &DeleteWithMetaRequest{
 		// 			CollectionID: 2222,
 		// 			Key:          key,
 		// 			// 			Options:   0x08, // SKIP_CONFLICT_RESOLUTION_FLAG
-		// 		}, func(resp *DeleteMetaResponse, err error) {
+		// 		}, func(resp *DeleteWithMetaResponse, err error) {
 		// 			cb(resp, err)
 		// 		})
 		// 	},
@@ -995,8 +997,9 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 	cli := createTestClient(t)
 
 	type test struct {
-		Op   func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error)
-		Name string
+		Op     func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error)
+		Name   string
+		MetaOp bool
 	}
 
 	tests := []test{
@@ -1039,29 +1042,31 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 			},
 		},
 		{
-			Name: "SetMeta",
+			Name: "SetWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
-				return opsCrud.SetMeta(cli, &memdx.SetMetaRequest{
+				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
 					Key:       key,
 					Value:     []byte("value"),
-					Cas:       1,
+					StoreCas:  1,
 					VbucketID: defaultTestVbucketID,
-				}, func(resp *memdx.SetMetaResponse, err error) {
+				}, func(resp *memdx.SetWithMetaResponse, err error) {
 					cb(resp, err)
 				})
 			},
+			MetaOp: true,
 		},
 		{
-			Name: "DeleteMeta",
+			Name: "DeleteWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
-				return opsCrud.DeleteMeta(cli, &memdx.DeleteMetaRequest{
+				return opsCrud.DeleteWithMeta(cli, &memdx.DeleteWithMetaRequest{
 					Key:       key,
-					Cas:       1,
+					StoreCas:  1,
 					VbucketID: defaultTestVbucketID,
-				}, func(resp *memdx.DeleteMetaResponse, err error) {
+				}, func(resp *memdx.DeleteWithMetaResponse, err error) {
 					cb(resp, err)
 				})
 			},
+			MetaOp: true,
 		},
 		{
 			Name: "MutateIn",
@@ -1132,7 +1137,11 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 				return
 			}
 
-			assert.ErrorIs(tt, <-wait, memdx.ErrCasMismatch)
+			if !test.MetaOp {
+				assert.ErrorIs(tt, <-wait, memdx.ErrCasMismatch)
+			} else {
+				assert.ErrorIs(tt, <-wait, memdx.ErrConflictOrCasMismatch)
+			}
 		})
 	}
 }
@@ -1440,30 +1449,33 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 			},
 			SkipDocCreation: true,
 		},
-		// { TODO(chvck): this is adament it doesn't want to work.
-		// 	Name: "SetMeta",
-		// 	Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
-		// 		return opsCrud.SetMeta(cli, &SetMetaRequest{
-		// 			Key:   key,
-		// 			Value: []byte("value"),
-		// 			Cas:       cas, // For some reason Cas is required here.
-		// 			VbucketID: defaultTestVbucketID,
-		// 		}, func(resp *SetMetaResponse, err error) {
-		// 			cb(resp, err)
-		// 		})
-		// 	},
-		// },
-		// {
-		// 	Name: "DeleteMeta",
-		// 	Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
-		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
-		// 			Key:       key,
-		// 			VbucketID: defaultTestVbucketID,
-		// 		}, func(resp *DeleteMetaResponse, err error) {
-		// 			cb(resp, err)
-		// 		})
-		// 	},
-		// },
+		{
+			Name: "SetWithMeta",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
+					Key:       key,
+					Value:     []byte("value"),
+					StoreCas:  cas + 10,
+					RevNo:     99999,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.SetWithMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
+		{
+			Name: "DeleteWithMeta",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.DeleteWithMeta(cli, &memdx.DeleteWithMetaRequest{
+					Key:       key,
+					StoreCas:  cas + 10,
+					RevNo:     99999,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.DeleteWithMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+		},
 		{
 			Name: "MutateIn",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
@@ -1688,31 +1700,35 @@ func TestOpsCrudMutations(t *testing.T) {
 			SkipDocCreation: true,
 			ExpectedValue:   []byte("3"),
 		},
-		// { TODO(chvck): this is adament it doesn't want to work.
-		// 	Name: "SetMeta",
-		// 	Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
-		// 		return opsCrud.SetMeta(cli, &SetMetaRequest{
-		// 			Key:   key,
-		// 			Value: []byte("value"),
-		// 			Cas:       cas, // For some reason Cas is required here.
-		// 			VbucketID: defaultTestVbucketID,
-		// 		}, func(resp *SetMetaResponse, err error) {
-		// 			cb(resp, err)
-		// 		})
-		// 	},
-		// },
-		// {
-		// 	Name: "DeleteMeta",
-		// 	Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
-		// 		return opsCrud.DeleteMeta(cli, &DeleteMetaRequest{
-		// 			Key:       key,
-		// 			VbucketID: defaultTestVbucketID,
-		// 		}, func(resp *DeleteMetaResponse, err error) {
-		// 			cb(resp, err)
-		// 		})
-		// 	},
-		// 	ExpectDeleted: true,
-		// },
+		{
+			Name: "SetWithMeta",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
+					Key:       key,
+					Value:     usualExpectedValue,
+					StoreCas:  cas + 10,
+					RevNo:     999999,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.SetWithMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectedValue: usualExpectedValue,
+		},
+		{
+			Name: "DeleteWithMeta",
+			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.DeleteWithMeta(cli, &memdx.DeleteWithMetaRequest{
+					Key:       key,
+					StoreCas:  cas + 10,
+					RevNo:     999999,
+					VbucketID: defaultTestVbucketID,
+				}, func(resp *memdx.DeleteWithMetaResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			ExpectDeleted: true,
+		},
 		{
 			Name: "MutateIn",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
@@ -3325,17 +3341,18 @@ func TestOpsCrudValueTooLarge(t *testing.T) {
 			CreateDocFirst: true,
 		},
 		{
-			Name: "SetMeta",
+			Name: "SetWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
-				return opsCrud.SetMeta(cli, &memdx.SetMetaRequest{
+				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
 					Key:       key,
 					Value:     val,
-					Cas:       cas, // For some reason Cas is required here.
+					StoreCas:  cas,
 					VbucketID: defaultTestVbucketID,
-				}, func(resp *memdx.SetMetaResponse, err error) {
+				}, func(resp *memdx.SetWithMetaResponse, err error) {
 					cb(resp, err)
 				})
 			},
+			CreateDocFirst: true,
 		},
 	}
 

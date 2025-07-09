@@ -1700,19 +1700,21 @@ type GetMetaRequest struct {
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
+
+	FetchDatatype bool
 }
 
 func (r GetMetaRequest) OpName() string { return OpCodeGetMeta.String() }
 
 type GetMetaResponse struct {
 	CrudResponseMeta
-	Value    []byte
-	Flags    uint32
-	Cas      uint64
-	Expiry   uint32
-	SeqNo    uint64
-	Datatype uint8
-	Deleted  bool
+	Value     []byte
+	Flags     uint32
+	Cas       uint64
+	Expiry    uint32
+	RevNo     uint64
+	Datatype  *uint8
+	IsDeleted bool
 }
 
 func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResponse, error)) (PendingOp, error) {
@@ -1727,10 +1729,18 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 		return nil, err
 	}
 
+	var reqExtMeta byte = 0
+	if req.FetchDatatype {
+		reqExtMeta = 2
+	}
+
 	// This appears to be necessary to get the server to include the datatype in the response
-	// extras.
-	extraBuf := make([]byte, 1)
-	extraBuf[0] = 2
+	// extras.  We only support Server 5.0+ where this was the norm.
+	var extraBuf []byte
+	if reqExtMeta != 0 {
+		extraBuf = make([]byte, 1)
+		extraBuf[0] = reqExtMeta
+	}
 
 	return d.Dispatch(&Packet{
 		OpCode:        OpCodeGetMeta,
@@ -1761,7 +1771,23 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			return false
 		}
 
-		if len(resp.Extras) != 21 {
+		var isDeleted bool
+		var flags uint32
+		var expiry uint32
+		var seqNo uint64
+		var datatype *byte
+		if len(resp.Extras) == 20 {
+			isDeleted = binary.BigEndian.Uint32(resp.Extras[0:]) != 0
+			flags = binary.BigEndian.Uint32(resp.Extras[4:])
+			expiry = binary.BigEndian.Uint32(resp.Extras[8:])
+			seqNo = binary.BigEndian.Uint64(resp.Extras[12:])
+		} else if len(resp.Extras) == 21 {
+			isDeleted = binary.BigEndian.Uint32(resp.Extras[0:]) != 0
+			flags = binary.BigEndian.Uint32(resp.Extras[4:])
+			expiry = binary.BigEndian.Uint32(resp.Extras[8:])
+			seqNo = binary.BigEndian.Uint64(resp.Extras[12:])
+			datatype = &resp.Extras[20]
+		} else {
 			cb(nil, protocolError{"bad extras length"})
 			return false
 		}
@@ -1773,13 +1799,13 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 		}
 
 		cb(&GetMetaResponse{
-			Value:    resp.Value,
-			Deleted:  binary.BigEndian.Uint32(resp.Extras[0:]) != 0,
-			Flags:    binary.BigEndian.Uint32(resp.Extras[4:]),
-			Expiry:   binary.BigEndian.Uint32(resp.Extras[8:]),
-			SeqNo:    binary.BigEndian.Uint64(resp.Extras[12:]),
-			Datatype: resp.Extras[20],
-			Cas:      resp.Cas,
+			Value:     resp.Value,
+			IsDeleted: isDeleted,
+			Flags:     flags,
+			Expiry:    expiry,
+			RevNo:     seqNo,
+			Datatype:  datatype,
+			Cas:       resp.Cas,
 			CrudResponseMeta: CrudResponseMeta{
 				ServerDuration: serverDuration,
 			},
@@ -1788,30 +1814,34 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 	})
 }
 
-type SetMetaRequest struct {
+type AddWithMetaRequest struct {
 	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
 	Flags        uint32
 	Value        []byte
-	Datatype     uint8
+	Datatype     DatatypeFlag
 	Expiry       uint32
 	Extra        []byte
 	RevNo        uint64
-	Cas          uint64
-	Options      uint32
+	StoreCas     uint64
+	Options      MetaOpFlag
 }
 
-func (r SetMetaRequest) OpName() string { return OpCodeSetMeta.String() }
+func (r AddWithMetaRequest) OpName() string { return OpCodeAddWithMeta.String() }
 
-type SetMetaResponse struct {
+type AddWithMetaResponse struct {
 	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
 
-func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResponse, error)) (PendingOp, error) {
+func (o OpsCrud) AddWithMeta(d Dispatcher, req *AddWithMetaRequest, cb func(*AddWithMetaResponse, error)) (PendingOp, error) {
+	if req.StoreCas == 0 && req.Options&MetaOpFlagRegenerateCas == 0 {
+		return nil, protocolError{"storeCas must be non-zero or regenerate-cas must be true for AddWithMeta"}
+	}
+
 	extFramesBuf := make([]byte, 0, 128)
 	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
@@ -1827,16 +1857,16 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
 	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
 	binary.BigEndian.PutUint64(extraBuf[8:], req.RevNo)
-	binary.BigEndian.PutUint64(extraBuf[16:], req.Cas)
-	binary.BigEndian.PutUint32(extraBuf[24:], req.Options)
+	binary.BigEndian.PutUint64(extraBuf[16:], req.StoreCas)
+	binary.BigEndian.PutUint32(extraBuf[24:], uint32(req.Options))
 	binary.BigEndian.PutUint16(extraBuf[28:], uint16(len(req.Extra)))
 	copy(extraBuf[30:], req.Extra)
 
 	return d.Dispatch(&Packet{
-		OpCode:        OpCodeSetMeta,
+		OpCode:        OpCodeAddWithMeta,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
-		Datatype:      req.Datatype,
+		Datatype:      uint8(req.Datatype),
 		Extras:        extraBuf,
 		Value:         req.Value,
 		FramingExtras: extFramesBuf,
@@ -1855,7 +1885,7 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrCasMismatch)
+			cb(nil, ErrDocExists)
 			return false
 		case StatusTooBig:
 			cb(nil, ErrValueTooLarge)
@@ -1882,7 +1912,7 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 			return false
 		}
 
-		cb(&SetMetaResponse{
+		cb(&AddWithMetaResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
 			CrudResponseMeta: CrudResponseMeta{
@@ -1893,28 +1923,35 @@ func (o OpsCrud) SetMeta(d Dispatcher, req *SetMetaRequest, cb func(*SetMetaResp
 	})
 }
 
-type DeleteMetaRequest struct {
+type SetWithMetaRequest struct {
 	CrudRequestMeta
 	CollectionID uint32
 	Key          []byte
 	VbucketID    uint16
+	CheckCas     uint64
 	Flags        uint32
+	Value        []byte
+	Datatype     DatatypeFlag
 	Expiry       uint32
-	Cas          uint64
 	Extra        []byte
 	RevNo        uint64
-	Options      uint32
+	StoreCas     uint64
+	Options      MetaOpFlag
 }
 
-func (r DeleteMetaRequest) OpName() string { return OpCodeDelMeta.String() }
+func (r SetWithMetaRequest) OpName() string { return OpCodeSetWithMeta.String() }
 
-type DeleteMetaResponse struct {
+type SetWithMetaResponse struct {
 	CrudResponseMeta
 	Cas           uint64
 	MutationToken MutationToken
 }
 
-func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*DeleteMetaResponse, error)) (PendingOp, error) {
+func (o OpsCrud) SetWithMeta(d Dispatcher, req *SetWithMetaRequest, cb func(*SetWithMetaResponse, error)) (PendingOp, error) {
+	if req.StoreCas == 0 && req.Options&MetaOpFlagRegenerateCas == 0 {
+		return nil, protocolError{"storeCas must be non-zero or regenerate-cas must be true for SetWithMeta"}
+	}
+
 	extFramesBuf := make([]byte, 0, 128)
 	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
 	if err != nil {
@@ -1930,17 +1967,20 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
 	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
 	binary.BigEndian.PutUint64(extraBuf[8:], req.RevNo)
-	binary.BigEndian.PutUint64(extraBuf[16:], req.Cas)
-	binary.BigEndian.PutUint32(extraBuf[24:], req.Options)
+	binary.BigEndian.PutUint64(extraBuf[16:], req.StoreCas)
+	binary.BigEndian.PutUint32(extraBuf[24:], uint32(req.Options))
 	binary.BigEndian.PutUint16(extraBuf[28:], uint16(len(req.Extra)))
 	copy(extraBuf[30:], req.Extra)
 
 	return d.Dispatch(&Packet{
-		OpCode:        OpCodeDelMeta,
+		OpCode:        OpCodeSetWithMeta,
 		Key:           reqKey,
 		VbucketID:     req.VbucketID,
-		FramingExtras: extFramesBuf,
+		Datatype:      uint8(req.Datatype),
 		Extras:        extraBuf,
+		Value:         req.Value,
+		FramingExtras: extFramesBuf,
+		Cas:           req.CheckCas,
 	}, func(resp *Packet, err error) bool {
 		if err != nil {
 			cb(nil, err)
@@ -1955,10 +1995,114 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 
 		switch resp.Status {
 		case StatusKeyExists:
-			if req.Cas > 0 {
-				cb(nil, ErrCasMismatch)
-				return false
-			}
+			cb(nil, ErrConflictOrCasMismatch)
+			return false
+		case StatusTooBig:
+			cb(nil, ErrValueTooLarge)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		mutToken := MutationToken{}
+		if len(resp.Extras) == 16 {
+			mutToken.VbUuid = binary.BigEndian.Uint64(resp.Extras[0:])
+			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
+		} else if len(resp.Extras) != 0 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		cb(&SetWithMetaResponse{
+			Cas:           resp.Cas,
+			MutationToken: mutToken,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
+		}, nil)
+		return false
+	})
+}
+
+type DeleteWithMetaRequest struct {
+	CrudRequestMeta
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+	CheckCas     uint64
+	Flags        uint32
+	Expiry       uint32
+	Extra        []byte
+	RevNo        uint64
+	StoreCas     uint64
+	Options      MetaOpFlag
+}
+
+func (r DeleteWithMetaRequest) OpName() string { return OpCodeDelWithMeta.String() }
+
+type DeleteWithMetaResponse struct {
+	CrudResponseMeta
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (o OpsCrud) DeleteWithMeta(d Dispatcher, req *DeleteWithMetaRequest, cb func(*DeleteWithMetaResponse, error)) (PendingOp, error) {
+	if req.StoreCas == 0 && req.Options&MetaOpFlagRegenerateCas == 0 {
+		return nil, protocolError{"storeCas must be non-zero or regenerate-cas must be true for DeleteWithMeta"}
+	}
+
+	extFramesBuf := make([]byte, 0, 128)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	extraBuf := make([]byte, 30+len(req.Extra))
+	binary.BigEndian.PutUint32(extraBuf[0:], req.Flags)
+	binary.BigEndian.PutUint32(extraBuf[4:], req.Expiry)
+	binary.BigEndian.PutUint64(extraBuf[8:], req.RevNo)
+	binary.BigEndian.PutUint64(extraBuf[16:], req.StoreCas)
+	binary.BigEndian.PutUint32(extraBuf[24:], uint32(req.Options))
+	binary.BigEndian.PutUint16(extraBuf[28:], uint16(len(req.Extra)))
+	copy(extraBuf[30:], req.Extra)
+
+	return d.Dispatch(&Packet{
+		OpCode:        OpCodeDelWithMeta,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+		Extras:        extraBuf,
+		Cas:           req.CheckCas,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
+		switch resp.Status {
+		case StatusKeyExists:
+			cb(nil, ErrConflictOrCasMismatch)
+			return false
 		case StatusKeyNotFound:
 			cb(nil, ErrDocNotFound)
 			return false
@@ -1984,7 +2128,7 @@ func (o OpsCrud) DeleteMeta(d Dispatcher, req *DeleteMetaRequest, cb func(*Delet
 			return false
 		}
 
-		cb(&DeleteMetaResponse{
+		cb(&DeleteWithMetaResponse{
 			Cas:           resp.Cas,
 			MutationToken: mutToken,
 			CrudResponseMeta: CrudResponseMeta{

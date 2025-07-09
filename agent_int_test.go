@@ -339,9 +339,12 @@ func TestAgentCrudCompress(t *testing.T) {
 					Key:            key,
 					ScopeName:      "",
 					CollectionName: "",
+					FetchDatatype:  true,
 				})
 				require.NoError(tt, err)
-				assert.Equal(tt, memdx.DatatypeFlagCompressed, get.Datatype)
+
+				require.NotNil(tt, get.Datatype)
+				assert.Equal(tt, memdx.DatatypeFlagCompressed, *get.Datatype)
 			}
 
 			get2, err := agent.Get(context.Background(), &gocbcorex.GetOptions{
