@@ -3720,6 +3720,65 @@ func TestOpsCrudCounterNonNumericDoc(t *testing.T) {
 	require.ErrorIs(t, err, memdx.ErrDeltaBadval)
 }
 
+func TestOpsCrudGetEx(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	key := []byte(uuid.NewString())
+
+	cli := createTestClient(t)
+
+	_, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.Set, cli, &memdx.SetRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Value:        []byte(`{"key":"value"}`),
+	})
+	require.NoError(t, err)
+
+	_, err = memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.MutateIn, cli, &memdx.MutateInRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+		Ops: []memdx.MutateInOp{
+			{
+				Op:    memdx.MutateInOpTypeDictSet,
+				Path:  []byte("_test"),
+				Value: []byte(`{"y":"z"}`),
+				Flags: memdx.SubdocOpFlagXattrPath,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	resp, err := memdx.SyncUnaryCall(memdx.OpsCrud{
+		CollectionsEnabled: true,
+		ExtFramesEnabled:   true,
+	}, memdx.OpsCrud.GetEx, cli, &memdx.GetExRequest{
+		CollectionID: 0,
+		Key:          key,
+		VbucketID:    defaultTestVbucketID,
+	})
+	require.NoError(t, err)
+
+	xattrBlob, docValue, err := memdx.SplitXattrBlob(resp.Value)
+	require.NoError(t, err)
+
+	xattrs := make(map[string]string)
+	err = memdx.IterXattrBlobEntries(xattrBlob, func(name, value []byte) {
+		xattrs[string(name)] = string(value)
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"_test": `{"y":"z"}`}, xattrs)
+
+	require.Equal(t, []byte(`{"key":"value"}`), docValue)
+}
+
 type testCrudDispatcher struct {
 	Pak *memdx.Packet
 }
