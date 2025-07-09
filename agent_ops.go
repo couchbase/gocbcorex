@@ -293,3 +293,7 @@ func (agent *Agent) GetAnalyticsEndpoint(ctx context.Context) (*GetAnalyticsEndp
 func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
 	return agent.analytics.GetAllEndpoints()
 }
+
+func (agent *Agent) StatsByVbucket(ctx context.Context, opts *StatsByVbucketOptions, dataCb func(StatsDataResult)) (*StatsResult, error) {
+	return agent.crud.StatsByVbucket(ctx, opts, dataCb)
+}

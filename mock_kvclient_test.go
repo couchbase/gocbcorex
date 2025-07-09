@@ -114,6 +114,9 @@ var _ KvClient = &KvClientMock{}
 //			SetMetaFunc: func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error) {
 //				panic("mock out the SetMeta method")
 //			},
+//			StatsFunc: func(ctx context.Context, req *memdx.StatsRequest, dataCb func(*memdx.StatsDataResponse) error) (*memdx.StatsActionResponse, error) {
+//				panic("mock out the Stats method")
+//			},
 //			TouchFunc: func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error) {
 //				panic("mock out the Touch method")
 //			},
@@ -219,6 +222,9 @@ type KvClientMock struct {
 
 	// SetMetaFunc mocks the SetMeta method.
 	SetMetaFunc func(ctx context.Context, req *memdx.SetMetaRequest) (*memdx.SetMetaResponse, error)
+
+	// StatsFunc mocks the Stats method.
+	StatsFunc func(ctx context.Context, req *memdx.StatsRequest, dataCb func(*memdx.StatsDataResponse) error) (*memdx.StatsActionResponse, error)
 
 	// TouchFunc mocks the Touch method.
 	TouchFunc func(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error)
@@ -425,6 +431,15 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.SetMetaRequest
 		}
+		// Stats holds details about calls to the Stats method.
+		Stats []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.StatsRequest
+			// DataCb is the dataCb argument value.
+			DataCb func(*memdx.StatsDataResponse) error
+		}
 		// Touch holds details about calls to the Touch method.
 		Touch []struct {
 			// Ctx is the ctx argument value.
@@ -471,6 +486,7 @@ type KvClientMock struct {
 	lockReplace           sync.RWMutex
 	lockSet               sync.RWMutex
 	lockSetMeta           sync.RWMutex
+	lockStats             sync.RWMutex
 	lockTouch             sync.RWMutex
 	lockUnlock            sync.RWMutex
 }
@@ -1543,6 +1559,46 @@ func (mock *KvClientMock) SetMetaCalls() []struct {
 	mock.lockSetMeta.RLock()
 	calls = mock.calls.SetMeta
 	mock.lockSetMeta.RUnlock()
+	return calls
+}
+
+// Stats calls StatsFunc.
+func (mock *KvClientMock) Stats(ctx context.Context, req *memdx.StatsRequest, dataCb func(*memdx.StatsDataResponse) error) (*memdx.StatsActionResponse, error) {
+	if mock.StatsFunc == nil {
+		panic("KvClientMock.StatsFunc: method is nil but KvClient.Stats was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Req    *memdx.StatsRequest
+		DataCb func(*memdx.StatsDataResponse) error
+	}{
+		Ctx:    ctx,
+		Req:    req,
+		DataCb: dataCb,
+	}
+	mock.lockStats.Lock()
+	mock.calls.Stats = append(mock.calls.Stats, callInfo)
+	mock.lockStats.Unlock()
+	return mock.StatsFunc(ctx, req, dataCb)
+}
+
+// StatsCalls gets all the calls that were made to Stats.
+// Check the length with:
+//
+//	len(mockedKvClient.StatsCalls())
+func (mock *KvClientMock) StatsCalls() []struct {
+	Ctx    context.Context
+	Req    *memdx.StatsRequest
+	DataCb func(*memdx.StatsDataResponse) error
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Req    *memdx.StatsRequest
+		DataCb func(*memdx.StatsDataResponse) error
+	}
+	mock.lockStats.RLock()
+	calls = mock.calls.Stats
+	mock.lockStats.RUnlock()
 	return calls
 }
 
