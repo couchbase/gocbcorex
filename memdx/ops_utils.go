@@ -58,7 +58,7 @@ type StatsActionResponse struct {
 func (o OpsUtils) Stats(
 	d Dispatcher,
 	req *StatsRequest,
-	dataCb func(*StatsDataResponse),
+	dataCb func(*StatsDataResponse) error,
 	actionCb func(*StatsActionResponse, error),
 ) (PendingOp, error) {
 	extFramesBuf := make([]byte, 0, 128)
@@ -93,10 +93,15 @@ func (o OpsUtils) Stats(
 			return false
 		}
 
-		dataCb(&StatsDataResponse{
+		err = dataCb(&StatsDataResponse{
 			Key:   string(resp.Key),
 			Value: string(resp.Value),
 		})
+		if err != nil {
+			actionCb(nil, err)
+			return false
+		}
+
 		return true
 	})
 }
