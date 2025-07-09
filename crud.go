@@ -1062,17 +1062,18 @@ type GetMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	FetchDatatype  bool
 	OnBehalfOf     string
 }
 
 type GetMetaResult struct {
-	Value    []byte
-	Flags    uint32
-	Cas      uint64
-	Expiry   uint32
-	SeqNo    uint64
-	Datatype memdx.DatatypeFlag
-	Deleted  bool
+	Value     []byte
+	Flags     uint32
+	Cas       uint64
+	Expiry    uint32
+	RevNo     uint64
+	Datatype  *memdx.DatatypeFlag
+	IsDeleted bool
 }
 
 func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*GetMetaResult, error) {
@@ -1084,9 +1085,10 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
 			resp, err := client.GetMeta(ctx, &memdx.GetMetaRequest{
-				CollectionID: collectionID,
-				Key:          opts.Key,
-				VbucketID:    vbID,
+				CollectionID:  collectionID,
+				Key:           opts.Key,
+				VbucketID:     vbID,
+				FetchDatatype: opts.FetchDatatype,
 				CrudRequestMeta: memdx.CrudRequestMeta{
 					OnBehalfOf: opts.OnBehalfOf,
 				},
@@ -1095,47 +1097,53 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 				return nil, err
 			}
 
+			var datatypePtr *memdx.DatatypeFlag
+			if resp.Datatype != nil {
+				datatype := memdx.DatatypeFlag(*resp.Datatype)
+				datatypePtr = &datatype
+			}
+
 			return &GetMetaResult{
-				Value:    resp.Value,
-				Flags:    resp.Flags,
-				Cas:      resp.Cas,
-				Expiry:   resp.Expiry,
-				SeqNo:    resp.SeqNo,
-				Datatype: memdx.DatatypeFlag(resp.Datatype),
-				Deleted:  resp.Deleted,
+				Value:     resp.Value,
+				Flags:     resp.Flags,
+				Cas:       resp.Cas,
+				Expiry:    resp.Expiry,
+				RevNo:     resp.RevNo,
+				Datatype:  datatypePtr,
+				IsDeleted: resp.IsDeleted,
 			}, nil
 		})
 }
 
-type SetMetaOptions struct {
+type AddWithMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
 	Value          []byte
 	Flags          uint32
-	Datatype       uint8
+	Datatype       memdx.DatatypeFlag
 	Expiry         uint32
 	Extra          []byte
 	RevNo          uint64
-	Cas            uint64
-	Options        uint32
+	StoreCas       uint64
+	Options        memdx.MetaOpFlag
 	OnBehalfOf     string
 }
 
-type SetMetaResult struct {
+type AddWithMetaResult struct {
 	Cas           uint64
 	MutationToken MutationToken
 }
 
-func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*SetMetaResult, error) {
-	ctx, span := tracer.Start(ctx, "SetMeta")
+func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptions) (*AddWithMetaResult, error) {
+	ctx, span := tracer.Start(ctx, "AddWithMeta")
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*SetMetaResult, error) {
-			resp, err := client.SetMeta(ctx, &memdx.SetMetaRequest{
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
+			resp, err := client.AddWithMeta(ctx, &memdx.AddWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
@@ -1145,7 +1153,7 @@ func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*Se
 				Expiry:       opts.Expiry,
 				Extra:        opts.Extra,
 				RevNo:        opts.RevNo,
-				Cas:          opts.Cas,
+				StoreCas:     opts.StoreCas,
 				Options:      opts.Options,
 				CrudRequestMeta: memdx.CrudRequestMeta{
 					OnBehalfOf: opts.OnBehalfOf,
@@ -1155,7 +1163,7 @@ func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*Se
 				return nil, err
 			}
 
-			return &SetMetaResult{
+			return &AddWithMetaResult{
 				Cas: resp.Cas,
 				MutationToken: MutationToken{
 					VbID:   vbID,
@@ -1166,41 +1174,47 @@ func (cc *CrudComponent) SetMeta(ctx context.Context, opts *SetMetaOptions) (*Se
 		})
 }
 
-type DeleteMetaOptions struct {
+type SetWithMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	Value          []byte
 	Flags          uint32
+	Datatype       memdx.DatatypeFlag
 	Expiry         uint32
 	Extra          []byte
 	RevNo          uint64
-	Cas            uint64
-	Options        uint32
+	CheckCas       uint64
+	StoreCas       uint64
+	Options        memdx.MetaOpFlag
 	OnBehalfOf     string
 }
 
-type DeleteMetaResult struct {
+type SetWithMetaResult struct {
 	Cas           uint64
 	MutationToken MutationToken
 }
 
-func (cc *CrudComponent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions) (*DeleteMetaResult, error) {
-	ctx, span := tracer.Start(ctx, "DeleteMeta")
+func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptions) (*SetWithMetaResult, error) {
+	ctx, span := tracer.Start(ctx, "SetWithMeta")
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
 		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteMetaResult, error) {
-			resp, err := client.DeleteMeta(ctx, &memdx.DeleteMetaRequest{
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
+			resp, err := client.SetWithMeta(ctx, &memdx.SetWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				Flags:        opts.Flags,
+				Value:        opts.Value,
+				Datatype:     opts.Datatype,
 				Expiry:       opts.Expiry,
 				Extra:        opts.Extra,
 				RevNo:        opts.RevNo,
-				Cas:          opts.Cas,
+				CheckCas:     opts.CheckCas,
+				StoreCas:     opts.StoreCas,
 				Options:      opts.Options,
 				CrudRequestMeta: memdx.CrudRequestMeta{
 					OnBehalfOf: opts.OnBehalfOf,
@@ -1210,7 +1224,64 @@ func (cc *CrudComponent) DeleteMeta(ctx context.Context, opts *DeleteMetaOptions
 				return nil, err
 			}
 
-			return &DeleteMetaResult{
+			return &SetWithMetaResult{
+				Cas: resp.Cas,
+				MutationToken: MutationToken{
+					VbID:   vbID,
+					VbUuid: resp.MutationToken.VbUuid,
+					SeqNo:  resp.MutationToken.SeqNo,
+				},
+			}, nil
+		})
+}
+
+type DeleteWithMetaOptions struct {
+	Key            []byte
+	ScopeName      string
+	CollectionName string
+	CheckCas       uint64
+	Flags          uint32
+	Expiry         uint32
+	Extra          []byte
+	StoreCas       uint64
+	RevNo          uint64
+	Options        memdx.MetaOpFlag
+	OnBehalfOf     string
+}
+
+type DeleteWithMetaResult struct {
+	Cas           uint64
+	MutationToken MutationToken
+}
+
+func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMetaOptions) (*DeleteWithMetaResult, error) {
+	ctx, span := tracer.Start(ctx, "DeleteWithMeta")
+	defer span.End()
+
+	return OrchestrateSimpleCrud(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
+		opts.ScopeName, opts.CollectionName, opts.Key,
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
+			resp, err := client.DeleteWithMeta(ctx, &memdx.DeleteWithMetaRequest{
+				CollectionID: collectionID,
+				Key:          opts.Key,
+				VbucketID:    vbID,
+				CheckCas:     opts.CheckCas,
+				Flags:        opts.Flags,
+				Expiry:       opts.Expiry,
+				Extra:        opts.Extra,
+				RevNo:        opts.RevNo,
+				StoreCas:     opts.StoreCas,
+				Options:      opts.Options,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			return &DeleteWithMetaResult{
 				Cas: resp.Cas,
 				MutationToken: MutationToken{
 					VbID:   vbID,
