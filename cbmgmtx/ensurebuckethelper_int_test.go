@@ -88,6 +88,24 @@ func TestEnsureBucketDino(t *testing.T) {
 		}, 120*time.Second, 1*time.Second)
 	}
 
+	modifyTestBucket := func() {
+		require.Eventually(t, func() bool {
+			log.Printf("attempting to modify the bucket")
+			err := mgmt.UpdateBucket(ctx, &cbmgmtx.UpdateBucketOptions{
+				BucketName: testBucketName,
+				MutableBucketSettings: cbmgmtx.MutableBucketSettings{
+					RAMQuotaMB: 110,
+				},
+			})
+			if err != nil {
+				log.Printf("bucket modification failed with error: %s", err)
+				return false
+			}
+
+			return true
+		}, 120*time.Second, 1*time.Second)
+	}
+
 	deleteTestBucket := func() {
 		require.Eventually(t, func() bool {
 			log.Printf("attempting to delete the bucket")
@@ -144,6 +162,50 @@ func TestEnsureBucketDino(t *testing.T) {
 	// we should see that the polls eventually succeed
 	require.Eventually(t, func() bool {
 		res, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		require.NoError(t, err)
+
+		return res
+	}, 30*time.Second, 1*time.Second)
+
+	// now lets block traffic again before we modify
+	dino.BlockNodeTraffic(blockHost)
+
+	// modify the bucket
+	modifyTestBucket()
+
+	hlprMod := cbmgmtx.EnsureBucketHelper{
+		Logger:     testutils.MakeTestLogger(t),
+		UserAgent:  "useragent",
+		OnBehalfOf: nil,
+
+		BucketName:  testBucketName,
+		BucketUUID:  "",
+		WantMissing: false,
+		WantSettings: &cbmgmtx.MutableBucketSettings{
+			RAMQuotaMB: 110,
+		},
+	}
+
+	// the first couple of polls should fail, since a node is unavailable
+	require.Never(t, func() bool {
+		res, err := hlprMod.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		require.NoError(t, err)
+
+		return res
+	}, 5*time.Second, 500*time.Millisecond)
+
+	// stop blocking traffic to the node
+	dino.AllowTraffic(blockHost)
+
+	// we should see that the polls eventually succeed
+	require.Eventually(t, func() bool {
+		res, err := hlprMod.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})

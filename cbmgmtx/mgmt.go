@@ -238,11 +238,6 @@ type GetBucketConfigOptions struct {
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 }
 
-func Test() {
-	var x GetBucketConfigOptions
-	x.OnBehalfOf.Username = ""
-}
-
 func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullBucketConfigJson, error) {
 	if opts.BucketName == "" {
 		return nil, errors.New("must specify bucket name when fetching a bucket config")
@@ -823,6 +818,7 @@ func (h Management) decodeBucketSettings(data *bucketSettingsJson) (*BucketSetti
 
 type BucketDef struct {
 	Name string
+	UUID string
 	BucketSettings
 }
 
@@ -834,6 +830,7 @@ func (h Management) decodeBucketDef(data *bucketSettingsJson) (*BucketDef, error
 		return nil, err
 	}
 
+	bucket.UUID = data.UUID
 	bucket.Name = data.Name
 	bucket.BucketSettings = *settings
 
