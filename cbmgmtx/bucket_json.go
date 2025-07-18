@@ -2,6 +2,7 @@ package cbmgmtx
 
 type bucketSettingsJson struct {
 	Name        string `json:"name"`
+	UUID        string `json:"uuid"`
 	Controllers struct {
 		Flush string `json:"flush"`
 	} `json:"controllers"`
