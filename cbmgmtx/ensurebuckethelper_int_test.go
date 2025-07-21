@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -135,7 +136,8 @@ func TestEnsureBucketDino(t *testing.T) {
 	// create the test bucket
 	createTestBucket()
 
-	hlpr := cbmgmtx.EnsureBucketHelper{
+	var syncCreate sync.Mutex
+	hlprCreate := cbmgmtx.EnsureBucketHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
@@ -147,7 +149,10 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// the first couple of polls should fail, since a node is unavailable
 	require.Never(t, func() bool {
-		res, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
+		syncCreate.Lock()
+		defer syncCreate.Unlock()
+
+		res, err := hlprCreate.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
@@ -161,7 +166,10 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// we should see that the polls eventually succeed
 	require.Eventually(t, func() bool {
-		res, err := hlpr.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
+		syncCreate.Lock()
+		defer syncCreate.Unlock()
+
+		res, err := hlprCreate.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
@@ -176,6 +184,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	// modify the bucket
 	modifyTestBucket()
 
+	var syncMod sync.Mutex
 	hlprMod := cbmgmtx.EnsureBucketHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
@@ -191,6 +200,9 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// the first couple of polls should fail, since a node is unavailable
 	require.Never(t, func() bool {
+		syncMod.Lock()
+		defer syncMod.Unlock()
+
 		res, err := hlprMod.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -205,6 +217,9 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// we should see that the polls eventually succeed
 	require.Eventually(t, func() bool {
+		syncMod.Lock()
+		defer syncMod.Unlock()
+
 		res, err := hlprMod.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -220,6 +235,7 @@ func TestEnsureBucketDino(t *testing.T) {
 	// delete the bucket
 	deleteTestBucket()
 
+	var syncDel sync.Mutex
 	hlprDel := cbmgmtx.EnsureBucketHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
@@ -232,6 +248,9 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// the first couple of polls should fail, since a node is unavailable
 	require.Never(t, func() bool {
+		syncDel.Lock()
+		defer syncDel.Unlock()
+
 		res, err := hlprDel.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -246,6 +265,9 @@ func TestEnsureBucketDino(t *testing.T) {
 
 	// we should see that the polls eventually succeed
 	require.Eventually(t, func() bool {
+		syncDel.Lock()
+		defer syncDel.Unlock()
+
 		res, err := hlprDel.Poll(ctx, &cbmgmtx.EnsureBucketPollOptions{
 			Transport: transport,
 			Targets:   targets,
