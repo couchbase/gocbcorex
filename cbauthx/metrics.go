@@ -1,12 +1,15 @@
 package cbauthx
 
 import (
+	"github.com/couchbase/gocbcorex/contrib/buildversion"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
 
 var (
-	meter = otel.Meter("github.com/couchbase/gocbcorex/cbauthx")
+	buildVersion string = buildversion.GetVersion("github.com/couchbase/gocbcorex")
+	meter               = otel.Meter("github.com/couchbase/gocbcorex/cbauthx",
+		metric.WithInstrumentationVersion(buildVersion))
 )
 
 var (

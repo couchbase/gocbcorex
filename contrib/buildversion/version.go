@@ -1,6 +1,8 @@
 package buildversion
 
-import "runtime/debug"
+import (
+	"runtime/debug"
+)
 
 var MainPkgVersion string
 
@@ -43,10 +45,14 @@ func GetVersion(pkg string) string {
 
 	for _, dep := range buildInfo.Deps {
 		if dep.Path == pkg {
+			buildVersion := dep.Version
 			if dep.Replace != nil {
-				return dep.Replace.Version
+				buildVersion = dep.Replace.Version
 			}
-			return dep.Version
+			if buildVersion == "(devel)" {
+				return "devel"
+			}
+			return buildVersion
 		}
 	}
 
