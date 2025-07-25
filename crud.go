@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -176,6 +177,11 @@ type GetAllReplicasResult struct {
 	IsReplica bool
 }
 
+type ReplicaReadResult struct {
+	Result   *GetAllReplicasResult
+	Endpoint string
+}
+
 type ReplicaStreamEntry struct {
 	Err error
 	Res *GetAllReplicasResult
@@ -259,8 +265,6 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 
 	var endpoints []string
 	var mu sync.Mutex
-	var sendLock sync.Mutex
-	var returnedResults uint32
 	var numReplicas atomic.Uint32
 
 	initialReplicas, err := cc.vbs.NumReplicas()
@@ -280,78 +284,65 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 				for i := uint32(0); i <= numReplicas.Load(); i++ {
 					go func(replicaID uint32) {
 						for {
-							res, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connManager, opts.Key, replicaID,
-								func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error) {
-									mu.Lock()
-									if uint32(len(endpoints)) == numReplicas.Load()+1 {
-										mu.Unlock()
-										return nil, nil
-									}
-
-									// The replicaID is being routed to a node from which we have already received a result
-									// the appropriate error returned and the retry manager will retry
-									if slices.Contains(endpoints, ep) {
-										mu.Unlock()
-										return nil, ErrRepeatedReplicaRead
-									}
-									mu.Unlock()
-
-									var res *GetAllReplicasResult
+							readResult, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connManager, opts.Key, replicaID,
+								func(ep string, vbID uint16, client KvClient) (*ReplicaReadResult, error) {
 									var err error
+									res := ReplicaReadResult{
+										Endpoint: ep,
+									}
 
 									if replicaID == 0 {
-										res, err = getFn(collectionID, vbID, client)
+										res.Result, err = getFn(collectionID, vbID, client)
 									} else {
-										res, err = getReplicaFn(collectionID, vbID, client)
+										res.Result, err = getReplicaFn(collectionID, vbID, client)
 									}
 
-									mu.Lock()
-									// If a rebalance occured while we were executing the function to get the doc
-									// a thread with a different replicaID may have been routed to the same endpoint,
-									// fetched the replica and added to the endpoints slice, so we repeat the check
-									if err == nil && !slices.Contains(endpoints, ep) {
-										endpoints = append(endpoints, ep)
-										mu.Unlock()
-										return res, err
-									}
-									mu.Unlock()
-									return nil, err
+									return &res, err
 								})
 
-							// If we read a replica from a node that we have already read from we wait for a short time
-							// before trying this replica again. Since there may be a rebalance where the replicaId is moved to
-							// a new node
-							if errors.Is(err, ErrRepeatedReplicaRead) {
-								time.Sleep(10 * time.Millisecond)
-								continue
-							}
-
-							// If we get invalid replica then the number of replicas has been reduced since we started
+							// If we get invalid replica then the number of replicas has been reduced since we
 							// got numReplicas. Therefore we decrease numReplicas and kill this thread
 							if errors.Is(err, ErrInvalidReplica) {
 								numReplicas.Dec()
 								break
 							}
 
-							sendLock.Lock()
-							// Check another thread hasn't sent a final result so we don't try and send on a closed channel
-							if returnedResults == numReplicas.Load()+1 {
-								sendLock.Unlock()
+							mu.Lock()
+							// Check that we haven't already returned the maximum number of results.
+							if uint32(len(endpoints)) == numReplicas.Load()+1 {
+								mu.Unlock()
 								break
 							}
 
-							returnedResults++
+							// If the result is nil we have encountered an error before we have been able to resolve the
+							// node endpoint. The best we can do is only return one error associated with this replica ID.
+							endpoint := fmt.Sprintf("replica-%d", replicaID)
+							var res *GetAllReplicasResult
+							if readResult != nil {
+								endpoint = readResult.Endpoint
+								res = readResult.Result
+							}
+
+							// Check that we haven't already returned a result for this node.
+							if slices.Contains(endpoints, endpoint) {
+								mu.Unlock()
+								time.Sleep(10 * time.Millisecond)
+								continue
+							}
+
+							endpoints = append(endpoints, endpoint)
 							result.OutCh <- &ReplicaStreamEntry{
 								Err: err,
 								Res: res,
 							}
 
-							if returnedResults == numReplicas.Load()+1 {
+							// Check that we haven't already returned the maximum number of results.
+							if uint32(len(endpoints)) == numReplicas.Load()+1 {
 								close(result.OutCh)
-								sendLock.Unlock()
+								mu.Unlock()
 								break
 							}
-							sendLock.Unlock()
+							mu.Unlock()
 
 							// Although we have returned a result from this thread we wait then continue running in case
 							// there is a rebalance which causes the replicaID of this thread to be routed to a different node.
@@ -380,12 +371,12 @@ func OrchestrateReplicaRead(
 	nkcp KvClientManager,
 	key []byte,
 	replica uint32,
-	fn func(ep string, vbID uint16, client KvClient) (*GetAllReplicasResult, error),
-) (*GetAllReplicasResult, error) {
+	fn func(ep string, vbID uint16, client KvClient) (*ReplicaReadResult, error),
+) (*ReplicaReadResult, error) {
 	rs := NewRetryManagerDefault()
-	return OrchestrateRetries(ctx, rs, func() (*GetAllReplicasResult, error) {
-		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*GetAllReplicasResult, error) {
-			return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (*GetAllReplicasResult, error) {
+	return OrchestrateRetries(ctx, rs, func() (*ReplicaReadResult, error) {
+		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*ReplicaReadResult, error) {
+			return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (*ReplicaReadResult, error) {
 				return fn(endpoint, vbID, client)
 			})
 		})
