@@ -98,6 +98,8 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		err = ErrBucketNotFound
 	} else if strings.Contains(errText, "not yet complete, but will continue") {
 		err = ErrOperationDelayed
+	} else if strings.Contains(errText, "unexpected server error") {
+		err = ErrUnexpectedServerError
 	} else if resp.StatusCode == 400 {
 		sErr := parseForInvalidArg(errText)
 		var ok bool
