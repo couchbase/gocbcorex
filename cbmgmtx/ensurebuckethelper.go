@@ -64,6 +64,12 @@ func (e *EnsureBucketHelper) pollOne(
 			} else {
 				return true, nil
 			}
+		} else if errors.Is(err, ErrUnexpectedServerError) {
+			// BUG(ING-1242): This is a workaround for a server bug.
+			// The server sometimes responds with an unexpected server error when
+			// trying to fetch a bucket that is in the process of being changed.
+			e.Logger.Debug("target responded with an unexpected server error")
+			return false, nil
 		}
 
 		e.Logger.Debug("target responded with an unexpected error", zap.Error(err))
