@@ -2,6 +2,7 @@ package gocbcorex_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -236,12 +237,14 @@ func (nqh *searchTestHelper) testSetupSearch(t *testing.T) {
 	nqh.QueryTestDocs = makeBreweryTestDocs(context.Background(), t, nqh.Agent, "search", nqh.ScopeName, nqh.CollectionName)
 	nqh.IndexName = "a" + uuid.NewString()[:6]
 
-	var bucket string
+	bucket := ""
+	fqIndexName := nqh.IndexName
 	if nqh.ScopeName != "" {
 		bucket = testutilsint.TestOpts.BucketName
+		fqIndexName = fmt.Sprintf("%s.%s.%s", bucket, nqh.ScopeName, nqh.IndexName)
 	}
 
-	err := nqh.Agent.UpsertSearchIndex(context.Background(), &cbsearchx.UpsertIndexOptions{
+	resp, err := nqh.Agent.UpsertSearchIndex(context.Background(), &cbsearchx.UpsertIndexOptions{
 		Index: cbsearchx.Index{
 			Name:       nqh.IndexName,
 			SourceName: testutilsint.TestOpts.BucketName,
@@ -252,6 +255,10 @@ func (nqh *searchTestHelper) testSetupSearch(t *testing.T) {
 		BucketName: bucket,
 	})
 	require.NoError(t, err)
+	assert.NotEmpty(t, resp.UUID)
+	if !testutilsint.IsOlderServerVersion(t, "7.6.0") {
+		assert.Equal(t, fqIndexName, resp.Name)
+	}
 
 	// Due to ING-690, even though we poll the indexes as part of the test, we
 	// need to make sure the index is fully visible before we start.

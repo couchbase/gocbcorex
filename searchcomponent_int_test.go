@@ -14,6 +14,7 @@ import (
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,7 +72,7 @@ func TestEnsureIndex(t *testing.T) {
 	defer cancel()
 
 	indexName := newSearchIndexName()
-	err := sC.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+	resp, err := sC.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
 		Index: cbsearchx.Index{
 			Name:       indexName,
 			Type:       "fulltext-index",
@@ -80,6 +81,7 @@ func TestEnsureIndex(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	assert.NotEmpty(t, resp.UUID)
 
 	t.Run("Success", func(t *testing.T) {
 		err := sC.EnsureIndexCreated(ctx, &gocbcorex.EnsureSearchIndexCreatedOptions{
@@ -101,7 +103,7 @@ func TestEnsureIndex(t *testing.T) {
 	t.Run("ScopedSuccess", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		scopedName := newSearchIndexName()
-		err := sC.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+		resp, err := sC.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
 			BucketName: "someBucket",
 			ScopeName:  "someScope",
 			Index: cbsearchx.Index{
@@ -112,6 +114,7 @@ func TestEnsureIndex(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		assert.NotEmpty(t, resp.UUID)
 
 		err = sC.EnsureIndexCreated(ctx, &gocbcorex.EnsureSearchIndexCreatedOptions{
 			IndexName:  scopedName,

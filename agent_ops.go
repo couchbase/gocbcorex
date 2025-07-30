@@ -202,7 +202,7 @@ func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (c
 	return agent.search.Query(ctx, opts)
 }
 
-func (agent *Agent) UpsertSearchIndex(ctx context.Context, opts *cbsearchx.UpsertIndexOptions) error {
+func (agent *Agent) UpsertSearchIndex(ctx context.Context, opts *cbsearchx.UpsertIndexOptions) (*cbsearchx.UpsertIndexResponse, error) {
 	return agent.search.UpsertIndex(ctx, opts)
 }
 

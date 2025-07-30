@@ -65,7 +65,7 @@ func TestEnsureIndexDino(t *testing.T) {
 	upsertTestIndex := func() {
 		require.Eventually(t, func() bool {
 			log.Printf("attempting to create the index")
-			err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+			_, err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
 				Index: cbsearchx.Index{
 					Name:       indexName,
 					Type:       "fulltext-index",

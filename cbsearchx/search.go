@@ -112,18 +112,26 @@ type UpsertIndexOptions struct {
 	Index
 }
 
+type UpsertIndexResponse struct {
+	UUID string `json:"uuid"`
+
+	// Name is the fully qualified name of the upserted index.
+	// This field is only present in server versions 7.6.0 and later.
+	Name string `json:"name"`
+}
+
 func (h Search) UpsertIndex(
 	ctx context.Context,
 	opts *UpsertIndexOptions,
-) error {
+) (*UpsertIndexResponse, error) {
 	if opts.Name == "" {
-		return errors.New("must specify index name when creating an index")
+		return nil, errors.New("must specify index name when creating an index")
 	}
 	if opts.Type == "" {
-		return errors.New("must specify index type when creating an index")
+		return nil, errors.New("must specify index type when creating an index")
 	}
 	if opts.SourceType == "" {
-		return errors.New("must specify source type when creating an index")
+		return nil, errors.New("must specify source type when creating an index")
 	}
 
 	var reqURI string
@@ -131,14 +139,14 @@ func (h Search) UpsertIndex(
 		reqURI = fmt.Sprintf("/api/index/%s", opts.Name)
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return errors.New("must specify both or neither of scope and bucket names")
+			return nil, errors.New("must specify both or neither of scope and bucket names")
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.Name)
 	}
 
 	iJson, err := h.encodeIndex(&opts.Index)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp, err := h.Execute(
@@ -150,17 +158,22 @@ func (h Search) UpsertIndex(
 		map[string]string{"cache-control": "no-cache"},
 		bytes.NewReader(iJson))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != 200 {
-		return h.DecodeCommonError(resp)
+		return nil, h.DecodeCommonError(resp)
 	}
 
-	return nil
+	data, err := cbhttpx.ReadAsJsonAndClose[*UpsertIndexResponse](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 type DeleteIndexOptions struct {
