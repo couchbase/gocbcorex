@@ -16,9 +16,11 @@ type EnsureIndexHelper struct {
 	UserAgent  string
 	OnBehalfOf *cbhttpx.OnBehalfOfInfo
 
-	BucketName string
-	ScopeName  string
-	IndexName  string
+	BucketName  string
+	ScopeName   string
+	IndexName   string
+	WantMissing bool
+	IndexUUID   string
 
 	confirmedEndpoints []string
 
@@ -37,35 +39,6 @@ type EnsureIndexPollOptions struct {
 	Targets   []NodeTarget
 }
 
-func (e *EnsureIndexHelper) PollCreated(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
-	return e.pollAll(ctx, opts, func(exists bool, target NodeTarget) bool {
-		if !exists {
-			// Due to ING-691, when we receive a not-found error, we need to consider
-			// refreshing the configuration before the index will appear.
-			e.maybeRefreshOne(ctx, opts.Transport, target)
-		}
-
-		if !exists {
-			e.Logger.Debug("target still didn't have the index")
-			return false
-		}
-
-		return true
-	})
-}
-
-func (e *EnsureIndexHelper) PollDropped(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
-	return e.pollAll(ctx, opts, func(exists bool, target NodeTarget) bool {
-		// If there are rows then the endpoint knows the index.
-		if exists {
-			e.Logger.Debug("target still had the index")
-			return false
-		}
-
-		return true
-	})
-}
-
 func (e *EnsureIndexHelper) pollOne(
 	ctx context.Context,
 	httpRoundTripper http.RoundTripper, target NodeTarget,
@@ -74,7 +47,7 @@ func (e *EnsureIndexHelper) pollOne(
 		zap.String("endpoint", target.Endpoint),
 		zap.String("username", target.Username))
 
-	_, err := Search{
+	resp, err := Search{
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
@@ -90,14 +63,32 @@ func (e *EnsureIndexHelper) pollOne(
 	})
 	if err != nil {
 		if errors.Is(err, ErrIndexNotFound) {
-			return false, nil
+			if e.WantMissing {
+				return true, nil
+			} else {
+				// Due to ING-691, when we receive a not-found error, we need to consider
+				// refreshing the configuration before the index will appear.
+				e.maybeRefreshOne(ctx, httpRoundTripper, target)
+
+				return false, nil
+			}
 		}
 
 		e.Logger.Debug("target responded with an unexpected error", zap.Error(err))
 		return false, err
 	}
 
-	return true, nil
+	e.Logger.Debug("target responded successfully")
+
+	if e.IndexUUID != "" && resp.UUID != e.IndexUUID {
+		return false, nil
+	}
+
+	if !e.WantMissing {
+		return true, nil
+	} else {
+		return false, nil
+	}
 }
 
 func (e *EnsureIndexHelper) maybeRefreshOne(
@@ -139,8 +130,7 @@ func (e *EnsureIndexHelper) maybeRefreshOne(
 	e.refreshedEndpoints = append(e.refreshedEndpoints, target.Endpoint)
 }
 
-func (e *EnsureIndexHelper) pollAll(ctx context.Context,
-	opts *EnsureIndexPollOptions, cb func(bool, NodeTarget) bool) (bool, error) {
+func (e *EnsureIndexHelper) Poll(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
 	filteredTargets := make([]NodeTarget, 0, len(opts.Targets))
 	for _, target := range opts.Targets {
 		if !slices.Contains(e.confirmedEndpoints, target.Endpoint) {
@@ -150,16 +140,16 @@ func (e *EnsureIndexHelper) pollAll(ctx context.Context,
 
 	var successEndpoints []string
 	for _, target := range filteredTargets {
-		resp, err := e.pollOne(ctx, opts.Transport, target)
+		res, err := e.pollOne(ctx, opts.Transport, target)
 		if err != nil {
 			return false, err
 		}
 
-		if cb(resp, target) {
-			e.Logger.Debug("target successfully checked")
-
-			successEndpoints = append(successEndpoints, target.Endpoint)
+		if !res {
+			continue
 		}
+
+		successEndpoints = append(successEndpoints, target.Endpoint)
 	}
 
 	e.confirmedEndpoints = append(e.confirmedEndpoints, successEndpoints...)

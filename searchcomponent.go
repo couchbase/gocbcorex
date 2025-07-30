@@ -254,7 +254,7 @@ func (w *SearchComponent) EnsureIndexCreated(ctx context.Context, opts *EnsureSe
 
 	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
 		ensureTargets baseHttpTargets) (bool, error) {
-		return hlpr.PollCreated(ctx, &cbsearchx.EnsureIndexPollOptions{
+		return hlpr.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: roundTripper,
 			Targets:   ensureTargets.ToSearchx(),
 		})
@@ -266,24 +266,27 @@ type EnsureSearchIndexDroppedOptions struct {
 	ScopeName      string
 	CollectionName string
 	IndexName      string
+	IndexUUID      string
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
 func (w *SearchComponent) EnsureIndexDropped(ctx context.Context, opts *EnsureSearchIndexDroppedOptions) error {
 	hlpr := cbsearchx.EnsureIndexHelper{
-		Logger:     w.logger.Named("ensure-index"),
-		UserAgent:  w.userAgent,
-		OnBehalfOf: opts.OnBehalfOf,
-		BucketName: opts.BucketName,
-		ScopeName:  opts.ScopeName,
-		IndexName:  opts.IndexName,
+		Logger:      w.logger.Named("ensure-index"),
+		UserAgent:   w.userAgent,
+		OnBehalfOf:  opts.OnBehalfOf,
+		BucketName:  opts.BucketName,
+		ScopeName:   opts.ScopeName,
+		IndexName:   opts.IndexName,
+		IndexUUID:   opts.IndexUUID,
+		WantMissing: true,
 	}
 
 	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
 
 	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
 		ensureTargets baseHttpTargets) (bool, error) {
-		return hlpr.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
+		return hlpr.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: roundTripper,
 			Targets:   ensureTargets.ToSearchx(),
 		})
