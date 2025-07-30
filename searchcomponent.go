@@ -184,8 +184,8 @@ func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOption
 	})
 }
 
-func (w *SearchComponent) UpsertIndex(ctx context.Context, opts *cbsearchx.UpsertIndexOptions) error {
-	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.UpsertIndex, opts)
+func (w *SearchComponent) UpsertIndex(ctx context.Context, opts *cbsearchx.UpsertIndexOptions) (*cbsearchx.UpsertIndexResponse, error) {
+	return OrchestrateSearchMgmtCall(ctx, w, cbsearchx.Search.UpsertIndex, opts)
 }
 
 func (w *SearchComponent) DeleteIndex(ctx context.Context, opts *cbsearchx.DeleteIndexOptions) error {

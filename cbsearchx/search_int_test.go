@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,8 +85,12 @@ func TestUpsertIndex(t *testing.T) {
 
 	t.Run("SuccessInsert", func(t *testing.T) {
 		opts := defaultOpts(indexName)
-		err := search.UpsertIndex(ctx, &opts)
+		resp, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
+		assert.NotEmpty(t, resp.UUID)
+		if !testutilsint.IsOlderServerVersion(t, "7.6.0") {
+			assert.Equal(t, indexName, resp.Name)
+		}
 	})
 
 	t.Run("SuccessUpdate", func(t *testing.T) {
@@ -95,13 +101,17 @@ func TestUpsertIndex(t *testing.T) {
 
 		opts := defaultOpts(indexName)
 		opts.UUID = index.UUID
-		err = search.UpsertIndex(ctx, &opts)
+		resp, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
+		assert.NotEmpty(t, resp.UUID)
+		if !testutilsint.IsOlderServerVersion(t, "7.6.0") {
+			assert.Equal(t, indexName, resp.Name)
+		}
 	})
 
 	t.Run("UUIDMismatch", func(t *testing.T) {
 		opts := defaultOpts(indexName)
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
@@ -111,28 +121,28 @@ func TestUpsertIndex(t *testing.T) {
 	t.Run("MissingName", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.Name = ""
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NotNil(t, err)
 	})
 
 	t.Run("MissingType", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.Type = ""
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NotNil(t, err)
 	})
 
 	t.Run("MissingIndexSourceType", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.SourceType = ""
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NotNil(t, err)
 	})
 
 	t.Run("IndexSourceTypeIncorrect", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.SourceType = "magma"
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
@@ -142,7 +152,7 @@ func TestUpsertIndex(t *testing.T) {
 	t.Run("IndexTypeInvalid", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.Type = "notAType"
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
@@ -155,7 +165,7 @@ func TestUpsertIndex(t *testing.T) {
 		testutilsint.SkipIfOlderServerVersion(t, "7.2.2")
 		opts := defaultOpts(indexName)
 		opts.SourceName = "sourceNotFound"
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
@@ -165,8 +175,12 @@ func TestUpsertIndex(t *testing.T) {
 	t.Run("SuccessSpecificScope", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts := scopedOpts(scopedIndexName)
-		err := search.UpsertIndex(ctx, &opts)
+		resp, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
+		assert.NotEmpty(t, resp.UUID)
+		assert.Equal(t,
+			fmt.Sprintf("%s.%s.%s", opts.BucketName, opts.ScopeName, scopedIndexName),
+			resp.Name)
 	})
 }
 
@@ -178,7 +192,7 @@ func TestGetIndex(t *testing.T) {
 	indexName := "get" + newSearchIndexName()
 	scopedIndexName := newSearchIndexName()
 	opts := defaultOpts(indexName)
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -228,7 +242,7 @@ func TestGetIndex(t *testing.T) {
 	t.Run("SuccessScopedIndex", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts := scopedOpts(scopedIndexName)
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
 
 		index, err := search.GetIndex(ctx, &cbsearchx.GetIndexOptions{
@@ -262,7 +276,7 @@ func TestDeleteIndex(t *testing.T) {
 	indexName := newSearchIndexName()
 	scopedIndexName := "delete" + newSearchIndexName()
 	opts := defaultOpts(indexName)
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -310,7 +324,7 @@ func TestDeleteIndex(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts.BucketName = "some-bucket"
 		opts.ScopeName = "some-scope"
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
 		err = search.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
 			BucketName: "some-bucket",
@@ -348,7 +362,7 @@ func TestGetAllIndexes(t *testing.T) {
 			SourceName: testutilsint.TestOpts.BucketName,
 		},
 	}
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -388,7 +402,7 @@ func TestGetAllIndexes(t *testing.T) {
 		temp := opts
 		temp.BucketName = "some-bucket"
 		temp.ScopeName = "some-scope"
-		err := search.UpsertIndex(ctx, &temp)
+		_, err := search.UpsertIndex(ctx, &temp)
 		require.NoError(t, err)
 		indexes, err := search.GetAllIndexes(ctx, &cbsearchx.GetAllIndexesOptions{
 			BucketName: "some-bucket",
@@ -438,7 +452,7 @@ func TestPartitionControl(t *testing.T) {
 	})
 
 	opts := defaultOpts(indexName)
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Run("Success", func(t *testing.T) {
@@ -466,7 +480,7 @@ func TestPartitionControl(t *testing.T) {
 	t.Run("ScopedSuccess", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts := scopedOpts(scopedIndexName)
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
 
 		err = search.FreezePlan(ctx, &cbsearchx.FreezePlanOptions{
@@ -513,7 +527,7 @@ func TestIngestControl(t *testing.T) {
 	})
 
 	opts := defaultOpts(indexName)
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Run("Success", func(t *testing.T) {
@@ -546,7 +560,7 @@ func TestIngestControl(t *testing.T) {
 	t.Run("ScopedSuccess", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts := scopedOpts(scopedIndexName)
-		err = search.UpsertIndex(ctx, &opts)
+		_, err = search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
 
 		err = search.PauseIngest(ctx, &cbsearchx.PauseIngestOptions{
@@ -600,7 +614,7 @@ func TestQueryControl(t *testing.T) {
 	})
 
 	opts := defaultOpts(indexName)
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Run("Success", func(t *testing.T) {
@@ -634,7 +648,7 @@ func TestQueryControl(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		scopedName := newSearchIndexName()
 		opts := scopedOpts(scopedName)
-		err = search.UpsertIndex(ctx, &opts)
+		_, err = search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
 
 		err = search.DisallowQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
@@ -698,7 +712,7 @@ func TestAnalyzeDocument(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Run("Success", func(t *testing.T) {
@@ -754,7 +768,7 @@ func TestAnalyzeDocument(t *testing.T) {
 		opts.PlanParams = make(map[string]json.RawMessage)
 		opts.PlanParams["indexPartitions"] = []byte("3")
 
-		err := search.UpsertIndex(ctx, &opts)
+		_, err := search.UpsertIndex(ctx, &opts)
 		require.NoError(t, err)
 
 		// err = searchComponent.EnsureIndexCreated(ctx, &EnsureSearchIndexCreatedOptions{
@@ -811,7 +825,7 @@ func TestGetIndexedDocumentsCount(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	err := search.UpsertIndex(ctx, &opts)
+	_, err := search.UpsertIndex(ctx, &opts)
 	require.NoError(t, err)
 
 	t.Run("Success", func(t *testing.T) {
@@ -851,7 +865,7 @@ func TestGetIndexedDocumentsCount(t *testing.T) {
 	t.Run("ScopedSuccess", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 
-		err := search.UpsertIndex(ctx, &scopedOpts)
+		_, err := search.UpsertIndex(ctx, &scopedOpts)
 		require.NoError(t, err)
 
 		require.Eventually(t, func() bool {
