@@ -61,11 +61,12 @@ func TestEnsureIndexDino(t *testing.T) {
 	}
 
 	indexName := "a" + uuid.NewString()[:6]
+	var indexUuid string
 
-	upsertTestIndex := func() {
+	createTestIndex := func() {
 		require.Eventually(t, func() bool {
 			log.Printf("attempting to create the index")
-			_, err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+			resp, err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
 				Index: cbsearchx.Index{
 					Name:       indexName,
 					Type:       "fulltext-index",
@@ -78,6 +79,29 @@ func TestEnsureIndexDino(t *testing.T) {
 				return false
 			}
 
+			indexUuid = resp.UUID
+			return true
+		}, 120*time.Second, 1*time.Second)
+	}
+
+	updateTestIndex := func() {
+		require.Eventually(t, func() bool {
+			log.Printf("attempting to update the index")
+			resp, err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+				Index: cbsearchx.Index{
+					UUID:       indexUuid,
+					Name:       indexName,
+					Type:       "fulltext-index",
+					SourceType: "couchbase",
+					SourceName: testutilsint.TestOpts.BucketName,
+				},
+			})
+			if err != nil {
+				log.Printf("index creation failed with error: %s", err)
+				return false
+			}
+
+			indexUuid = resp.UUID
 			return true
 		}, 120*time.Second, 1*time.Second)
 	}
@@ -103,9 +127,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	// block access to the first endpoint
 	dino.BlockNodeTraffic(blockHost)
 
-	upsertTestIndex()
+	createTestIndex()
 
-	hlpr := cbsearchx.EnsureIndexHelper{
+	hlprCreate := cbsearchx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
@@ -114,12 +138,12 @@ func TestEnsureIndexDino(t *testing.T) {
 	}
 
 	require.Never(t, func() bool {
-		res, err := hlpr.PollCreated(ctx, &cbsearchx.EnsureIndexPollOptions{
+		res, err := hlprCreate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
 		if err != nil {
-			log.Printf("index creation failed with error: %s", err)
+			log.Printf("index polling failed with error: %s", err)
 			return false
 		}
 
@@ -130,12 +154,55 @@ func TestEnsureIndexDino(t *testing.T) {
 	dino.AllowTraffic(blockHost)
 
 	require.Eventually(t, func() bool {
-		res, err := hlpr.PollCreated(ctx, &cbsearchx.EnsureIndexPollOptions{
+		res, err := hlprCreate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
 		if err != nil {
-			log.Printf("index creation failed with error: %s", err)
+			log.Printf("index polling failed with error: %s", err)
+			return false
+		}
+
+		return res
+	}, 30*time.Second, 1*time.Second)
+
+	// now lets block traffic again before we update
+	dino.BlockNodeTraffic(blockHost)
+
+	updateTestIndex()
+
+	hlprUpdate := cbsearchx.EnsureIndexHelper{
+		Logger:     testutils.MakeTestLogger(t),
+		UserAgent:  "useragent",
+		OnBehalfOf: nil,
+
+		IndexName: indexName,
+		IndexUUID: indexUuid,
+	}
+
+	require.Never(t, func() bool {
+		res, err := hlprUpdate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		if err != nil {
+			log.Printf("index polling failed with error: %s", err)
+			return false
+		}
+
+		return res
+	}, 5*time.Second, 1*time.Second)
+
+	// stop blocking traffic to the node
+	dino.AllowTraffic(blockHost)
+
+	require.Eventually(t, func() bool {
+		res, err := hlprCreate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		if err != nil {
+			log.Printf("index polling failed with error: %s", err)
 			return false
 		}
 
@@ -145,18 +212,19 @@ func TestEnsureIndexDino(t *testing.T) {
 	// now lets block traffic again before we delete
 	dino.BlockNodeTraffic(blockHost)
 
-	hlprOut := cbsearchx.EnsureIndexHelper{
+	hlprDel := cbsearchx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
 
-		IndexName: indexName,
+		IndexName:   indexName,
+		WantMissing: true,
 	}
 
 	deleteTestIndex()
 
 	require.Never(t, func() bool {
-		res, err := hlprOut.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
+		res, err := hlprDel.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
@@ -172,7 +240,7 @@ func TestEnsureIndexDino(t *testing.T) {
 	dino.AllowTraffic(blockHost)
 
 	require.Eventually(t, func() bool {
-		res, err := hlprOut.PollDropped(ctx, &cbsearchx.EnsureIndexPollOptions{
+		res, err := hlprDel.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
 		})
