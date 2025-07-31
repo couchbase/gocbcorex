@@ -84,7 +84,7 @@ func TestEnsureIndex(t *testing.T) {
 	assert.NotEmpty(t, resp.UUID)
 
 	t.Run("Success", func(t *testing.T) {
-		err := sC.EnsureIndexCreated(ctx, &gocbcorex.EnsureSearchIndexCreatedOptions{
+		err := sC.EnsureIndex(ctx, &gocbcorex.EnsureSearchIndexOptions{
 			IndexName: indexName,
 		})
 		require.NoError(t, err)
@@ -94,8 +94,9 @@ func TestEnsureIndex(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = sC.EnsureIndexDropped(ctx, &gocbcorex.EnsureSearchIndexDroppedOptions{
-			IndexName: indexName,
+		err = sC.EnsureIndex(ctx, &gocbcorex.EnsureSearchIndexOptions{
+			IndexName:   indexName,
+			WantMissing: true,
 		})
 		require.NoError(t, err)
 	})
@@ -116,7 +117,7 @@ func TestEnsureIndex(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.UUID)
 
-		err = sC.EnsureIndexCreated(ctx, &gocbcorex.EnsureSearchIndexCreatedOptions{
+		err = sC.EnsureIndex(ctx, &gocbcorex.EnsureSearchIndexOptions{
 			IndexName:  scopedName,
 			BucketName: "someBucket",
 			ScopeName:  "someScope",
@@ -130,10 +131,11 @@ func TestEnsureIndex(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = sC.EnsureIndexDropped(ctx, &gocbcorex.EnsureSearchIndexDroppedOptions{
-			IndexName:  scopedName,
-			BucketName: "someBucket",
-			ScopeName:  "someScope",
+		err = sC.EnsureIndex(ctx, &gocbcorex.EnsureSearchIndexOptions{
+			IndexName:   scopedName,
+			BucketName:  "someBucket",
+			ScopeName:   "someScope",
+			WantMissing: true,
 		})
 		require.NoError(t, err)
 	})
