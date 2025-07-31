@@ -76,6 +76,11 @@ func (e *EnsureBucketHelper) pollOne(
 		return false, err
 	}
 
+	if e.WantMissing {
+		e.Logger.Debug("target responded successfully but we wanted a missing bucket")
+		return false, nil
+	}
+
 	if e.BucketUUID != "" && resp.UUID != e.BucketUUID {
 		e.Logger.Debug("target responded with success, but the bucket uuid did not match")
 		if !e.WantMissing {
@@ -88,27 +93,35 @@ func (e *EnsureBucketHelper) pollOne(
 	if e.WantSettings != nil {
 		if resp.FlushEnabled != e.WantSettings.FlushEnabled {
 			e.Logger.Debug("target responded with success, but the flushEnabled setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.RAMQuotaMB > 0 && resp.RAMQuotaMB != e.WantSettings.RAMQuotaMB {
 			e.Logger.Debug("target responded with success, but the RAMQuotaMB setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.EvictionPolicy != "" && resp.EvictionPolicy != e.WantSettings.EvictionPolicy {
 			e.Logger.Debug("target responded with success, but the evictionPolicy setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.MaxTTL > 0 && resp.MaxTTL != e.WantSettings.MaxTTL {
 			e.Logger.Debug("target responded with success, but the maxTTL setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.CompressionMode != "" && resp.CompressionMode != e.WantSettings.CompressionMode {
 			e.Logger.Debug("target responded with success, but the compressionMode setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.DurabilityMinLevel != DurabilityLevelUnset && resp.DurabilityMinLevel != e.WantSettings.DurabilityMinLevel {
 			e.Logger.Debug("target responded with success, but the durabilityMinLevel setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.HistoryRetentionBytes > 0 && resp.HistoryRetentionBytes != e.WantSettings.HistoryRetentionBytes {
 			e.Logger.Debug("target responded with success, but the historyRetentionBytes setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.HistoryRetentionSeconds > 0 && resp.HistoryRetentionSeconds != e.WantSettings.HistoryRetentionSeconds {
 			e.Logger.Debug("target responded with success, but the historyRetentionSeconds setting did not match")
+			return false, nil
 		}
 		if e.WantSettings.HistoryRetentionCollectionDefault != nil {
 			historyRetentionCollectionDefault := false
@@ -117,17 +130,14 @@ func (e *EnsureBucketHelper) pollOne(
 			}
 			if historyRetentionCollectionDefault != *e.WantSettings.HistoryRetentionCollectionDefault {
 				e.Logger.Debug("target responded with success, but the historyRetentionCollectionDefault setting did not match")
+				return false, nil
 			}
 		}
 	}
 
 	e.Logger.Debug("target responded successfully")
 
-	if !e.WantMissing {
-		return true, nil
-	} else {
-		return false, nil
-	}
+	return true, nil
 }
 
 type EnsureBucketPollOptions struct {
