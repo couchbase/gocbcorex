@@ -262,7 +262,7 @@ func (nqh *searchTestHelper) testSetupSearch(t *testing.T) {
 
 	// Due to ING-690, even though we poll the indexes as part of the test, we
 	// need to make sure the index is fully visible before we start.
-	err = nqh.Agent.EnsureSearchIndexCreated(context.Background(), &gocbcorex.EnsureSearchIndexCreatedOptions{
+	err = nqh.Agent.EnsureSearchIndex(context.Background(), &gocbcorex.EnsureSearchIndexOptions{
 		ScopeName:  nqh.ScopeName,
 		BucketName: bucket,
 		IndexName:  nqh.IndexName,

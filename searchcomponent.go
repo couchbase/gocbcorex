@@ -232,45 +232,17 @@ func (w *SearchComponent) UnfreezePlan(ctx context.Context, opts *cbsearchx.Unfr
 	return OrchestrateNoResSearchMgmtCall(ctx, w, cbsearchx.Search.UnfreezePlan, opts)
 }
 
-type EnsureSearchIndexCreatedOptions struct {
-	BucketName     string
-	ScopeName      string
-	CollectionName string
-	IndexName      string
-	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
-}
-
-func (w *SearchComponent) EnsureIndexCreated(ctx context.Context, opts *EnsureSearchIndexCreatedOptions) error {
-	hlpr := cbsearchx.EnsureIndexHelper{
-		Logger:     w.logger.Named("ensure-index"),
-		UserAgent:  w.userAgent,
-		OnBehalfOf: opts.OnBehalfOf,
-		BucketName: opts.BucketName,
-		ScopeName:  opts.ScopeName,
-		IndexName:  opts.IndexName,
-	}
-
-	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
-
-	return w.ensureResource(ctx, backoff, func(ctx context.Context, roundTripper http.RoundTripper,
-		ensureTargets baseHttpTargets) (bool, error) {
-		return hlpr.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
-			Transport: roundTripper,
-			Targets:   ensureTargets.ToSearchx(),
-		})
-	})
-}
-
-type EnsureSearchIndexDroppedOptions struct {
+type EnsureSearchIndexOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
 	IndexName      string
 	IndexUUID      string
+	WantMissing    bool
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
-func (w *SearchComponent) EnsureIndexDropped(ctx context.Context, opts *EnsureSearchIndexDroppedOptions) error {
+func (w *SearchComponent) EnsureIndex(ctx context.Context, opts *EnsureSearchIndexOptions) error {
 	hlpr := cbsearchx.EnsureIndexHelper{
 		Logger:      w.logger.Named("ensure-index"),
 		UserAgent:   w.userAgent,
@@ -279,7 +251,7 @@ func (w *SearchComponent) EnsureIndexDropped(ctx context.Context, opts *EnsureSe
 		ScopeName:   opts.ScopeName,
 		IndexName:   opts.IndexName,
 		IndexUUID:   opts.IndexUUID,
-		WantMissing: true,
+		WantMissing: opts.WantMissing,
 	}
 
 	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
