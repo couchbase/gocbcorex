@@ -20,6 +20,7 @@ type EnsureBucketHelper struct {
 	BucketName   string
 	BucketUUID   string
 	WantMissing  bool
+	WantHealthy  bool
 	WantSettings *MutableBucketSettings
 
 	confirmedEndpoints []string
@@ -79,6 +80,15 @@ func (e *EnsureBucketHelper) pollOne(
 	if e.WantMissing {
 		e.Logger.Debug("target responded successfully but we wanted a missing bucket")
 		return false, nil
+	}
+
+	if e.WantHealthy {
+		for _, node := range resp.RawConfig.Nodes {
+			if node.Status != "healthy" {
+				e.Logger.Debug("target responded with a bucket that has unhealthy nodes")
+				return false, nil
+			}
+		}
 	}
 
 	if e.BucketUUID != "" && resp.UUID != e.BucketUUID {

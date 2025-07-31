@@ -144,6 +144,7 @@ func TestEnsureBucketDino(t *testing.T) {
 
 		BucketName:  testBucketName,
 		BucketUUID:  "",
+		WantHealthy: true,
 		WantMissing: false,
 	}
 

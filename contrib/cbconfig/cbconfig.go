@@ -12,6 +12,7 @@ type ConfigDDocsJson struct {
 }
 
 type FullNodeJson struct {
+	Status            string                                  `json:"status,omitempty"`
 	ClusterMembership string                                  `json:"clusterMembership,omitempty"`
 	ThisNode          bool                                    `json:"thisNode,omitempty"`
 	CouchApiBase      string                                  `json:"couchApiBase,omitempty"`
@@ -35,6 +36,26 @@ type FullBucketConfigJson struct {
 	DDocs                  *ConfigDDocsJson      `json:"ddocs,omitempty"`
 	VBucketServerMap       *VBucketServerMapJson `json:"vBucketServerMap,omitempty"`
 	Nodes                  []FullNodeJson        `json:"nodes,omitempty"`
+
+	Controllers struct {
+		Flush string `json:"flush"`
+	} `json:"controllers"`
+	ReplicaIndex bool `json:"replicaIndex"`
+	Quota        struct {
+		RAM    uint64 `json:"ram"`
+		RawRAM uint64 `json:"rawRAM"`
+	} `json:"quota"`
+	ReplicaNumber                     uint32 `json:"replicaNumber"`
+	BucketType                        string `json:"bucketType"`
+	ConflictResolutionType            string `json:"conflictResolutionType"`
+	EvictionPolicy                    string `json:"evictionPolicy"`
+	MaxTTL                            uint32 `json:"maxTTL"`
+	CompressionMode                   string `json:"compressionMode"`
+	MinimumDurabilityLevel            string `json:"durabilityMinLevel"`
+	StorageBackend                    string `json:"storageBackend"`
+	HistoryRetentionCollectionDefault *bool  `json:"historyRetentionCollectionDefault"`
+	HistoryRetentionBytes             uint64 `json:"historyRetentionBytes"`
+	HistoryRetentionSeconds           uint32 `json:"historyRetentionSeconds"`
 }
 
 type BucketNamesJson struct {
