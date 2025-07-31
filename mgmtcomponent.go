@@ -187,6 +187,7 @@ type EnsureBucketOptions struct {
 	BucketName  string
 	BucketUUID  string
 	WantMissing bool
+	WantHealthy bool
 	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
 }
 
@@ -197,6 +198,7 @@ func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOpti
 		OnBehalfOf:  opts.OnBehalfOf,
 		BucketName:  opts.BucketName,
 		BucketUUID:  opts.BucketUUID,
+		WantHealthy: opts.WantHealthy,
 		WantMissing: opts.WantMissing,
 	}
 

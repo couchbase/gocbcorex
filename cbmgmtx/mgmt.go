@@ -743,7 +743,7 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 	return nil
 }
 
-func (h Management) decodeMutableBucketSettings(data *bucketSettingsJson) (*MutableBucketSettings, error) {
+func (h Management) decodeMutableBucketSettings(data *cbconfig.FullBucketConfigJson) (*MutableBucketSettings, error) {
 	settings := MutableBucketSettings{}
 
 	settings.FlushEnabled = data.Controllers.Flush != ""
@@ -801,7 +801,7 @@ func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings
 	return nil
 }
 
-func (h Management) decodeBucketSettings(data *bucketSettingsJson) (*BucketSettings, error) {
+func (h Management) decodeBucketSettings(data *cbconfig.FullBucketConfigJson) (*BucketSettings, error) {
 	settings := &BucketSettings{}
 
 	mutSettings, err := h.decodeMutableBucketSettings(data)
@@ -822,9 +822,11 @@ type BucketDef struct {
 	Name string
 	UUID string
 	BucketSettings
+
+	RawConfig *cbconfig.FullBucketConfigJson
 }
 
-func (h Management) decodeBucketDef(data *bucketSettingsJson) (*BucketDef, error) {
+func (h Management) decodeBucketDef(data *cbconfig.FullBucketConfigJson) (*BucketDef, error) {
 	bucket := &BucketDef{}
 
 	settings, err := h.decodeBucketSettings(data)
@@ -835,6 +837,7 @@ func (h Management) decodeBucketDef(data *bucketSettingsJson) (*BucketDef, error
 	bucket.UUID = data.UUID
 	bucket.Name = data.Name
 	bucket.BucketSettings = *settings
+	bucket.RawConfig = data
 
 	return bucket, nil
 }
@@ -860,7 +863,7 @@ func (h Management) GetAllBuckets(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	bucketsData, err := cbhttpx.ReadAsJsonAndClose[[]bucketSettingsJson](resp.Body)
+	bucketsData, err := cbhttpx.ReadAsJsonAndClose[[]cbconfig.FullBucketConfigJson](resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -904,7 +907,7 @@ func (h Management) GetBucket(
 		return nil, h.DecodeCommonError(resp)
 	}
 
-	bucketData, err := cbhttpx.ReadAsJsonAndClose[bucketSettingsJson](resp.Body)
+	bucketData, err := cbhttpx.ReadAsJsonAndClose[cbconfig.FullBucketConfigJson](resp.Body)
 	if err != nil {
 		return nil, err
 	}
