@@ -184,22 +184,24 @@ func (w *MgmtComponent) CheckBucketExists(ctx context.Context, opts *cbmgmtx.Che
 }
 
 type EnsureBucketOptions struct {
-	BucketName  string
-	BucketUUID  string
-	WantMissing bool
-	WantHealthy bool
-	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+	BucketName   string
+	BucketUUID   string
+	WantMissing  bool
+	WantHealthy  bool
+	WantSettings *cbmgmtx.MutableBucketSettings
+	OnBehalfOf   *cbhttpx.OnBehalfOfInfo
 }
 
 func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOptions) error {
 	hlpr := cbmgmtx.EnsureBucketHelper{
-		Logger:      w.logger.Named("ensure-bucket"),
-		UserAgent:   w.userAgent,
-		OnBehalfOf:  opts.OnBehalfOf,
-		BucketName:  opts.BucketName,
-		BucketUUID:  opts.BucketUUID,
-		WantHealthy: opts.WantHealthy,
-		WantMissing: opts.WantMissing,
+		Logger:       w.logger.Named("ensure-bucket"),
+		UserAgent:    w.userAgent,
+		OnBehalfOf:   opts.OnBehalfOf,
+		BucketName:   opts.BucketName,
+		BucketUUID:   opts.BucketUUID,
+		WantHealthy:  opts.WantHealthy,
+		WantMissing:  opts.WantMissing,
+		WantSettings: opts.WantSettings,
 	}
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
