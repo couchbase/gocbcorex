@@ -714,6 +714,9 @@ func (h Management) encodeMutableBucketSettings(posts *url.Values, opts *Mutable
 	if opts.RAMQuotaMB > 0 {
 		posts.Add("ramQuotaMB", fmt.Sprintf("%d", opts.RAMQuotaMB))
 	}
+	if opts.ReplicaNumber > 0 {
+		posts.Add("replicaNumber", fmt.Sprintf("%d", opts.ReplicaNumber))
+	}
 	if opts.EvictionPolicy != "" {
 		posts.Add("evictionPolicy", string(opts.EvictionPolicy))
 	}
@@ -787,12 +790,6 @@ func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings
 		posts.Add("replicaIndex", "1")
 	} else if opts.BucketType != BucketTypeEphemeral {
 		posts.Add("replicaIndex", "0")
-	}
-	if opts.BucketType != BucketTypeMemcached {
-		// we always write the replicaNumber since 0 means "default"
-		posts.Add("replicaNumber", fmt.Sprintf("%d", opts.ReplicaNumber))
-	} else if opts.ReplicaNumber > 0 {
-		return errors.New("cannot specify ReplicaNumber for Memcached buckets")
 	}
 	if opts.StorageBackend != "" {
 		posts.Add("storageBackend", string(opts.StorageBackend))

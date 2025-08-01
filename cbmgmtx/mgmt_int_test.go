@@ -185,6 +185,7 @@ func TestHttpMgmtBuckets(t *testing.T) {
 			EvictionPolicy:     cbmgmtx.EvictionPolicyTypeValueOnly,
 			CompressionMode:    cbmgmtx.CompressionModePassive,
 			DurabilityMinLevel: cbmgmtx.DurabilityLevelNone,
+			ReplicaNumber:      1,
 		},
 		ConflictResolutionType: cbmgmtx.ConflictResolutionTypeSequenceNumber,
 		BucketType:             cbmgmtx.BucketTypeCouchbase,
