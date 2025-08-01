@@ -58,9 +58,6 @@ func TestQueryIndexExists(t *testing.T) {
 		{
 			Code: 4300,
 			Msg:  fmt.Sprintf("The index %s already exists.", index),
-			Reason: map[string]interface{}{
-				"name": index,
-			},
 		},
 	})
 	body, err := json.Marshal(expectedResult)
@@ -95,9 +92,6 @@ func TestQueryIndexNotFound(t *testing.T) {
 		{
 			Code: 12016,
 			Msg:  fmt.Sprintf("Index Not Found - cause: GSI index %s not found.", index),
-			Reason: map[string]interface{}{
-				"name": index,
-			},
 		},
 	})
 	body, err := json.Marshal(expectedResult)

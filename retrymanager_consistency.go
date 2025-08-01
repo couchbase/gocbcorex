@@ -81,6 +81,26 @@ func (rc *retryControllerConsistency) ShouldRetry(ctx context.Context, err error
 		}
 	}
 
+	if errors.Is(err, cbqueryx.ErrBucketNotFound) {
+		var queryResErr *cbqueryx.ResourceError
+		if errors.As(err, &queryResErr) {
+			exists, existsErr := rc.parent.BucketChecker.HasBucket(ctx,
+				queryResErr.BucketName)
+			if existsErr != nil {
+				return 0, false, &contextualError{
+					Message: "failed to double-check query whether bucket exists",
+					Cause:   existsErr,
+				}
+			}
+
+			if exists {
+				return 500 * time.Millisecond, true, nil
+			}
+		} else {
+			return 0, false, errors.New("failed to double-check query whether bucket exists due to missing resource context")
+		}
+	}
+
 	if errors.Is(err, cbqueryx.ErrScopeNotFound) {
 		var queryResErr *cbqueryx.ResourceError
 		if errors.As(err, &queryResErr) {
