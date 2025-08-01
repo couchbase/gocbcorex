@@ -54,8 +54,14 @@ type queryWarningJson struct {
 }
 
 type queryErrorJson struct {
-	Code   uint32                 `json:"code,omitempty"`
-	Msg    string                 `json:"msg,omitempty"`
-	Reason map[string]interface{} `json:"reason,omitempty"`
-	Retry  bool                   `json:"retry,omitempty"`
+	Code   uint32                `json:"code,omitempty"`
+	Msg    string                `json:"msg,omitempty"`
+	Reason *queryErrorReasonJson `json:"reason,omitempty"`
+	Retry  bool                  `json:"retry,omitempty"`
+}
+
+type queryErrorReasonJson struct {
+	Code    uint32 `json:"code,omitempty"`
+	Key     string `json:"key,omitempty"`
+	Message string `json:"message,omitempty"`
 }

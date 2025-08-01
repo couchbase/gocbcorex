@@ -6,16 +6,18 @@ import (
 	"strings"
 )
 
+var indexExistsRegex = regexp.MustCompile(`(?i)index .*? already exist`)
+
 func parseError(errJson *queryErrorJson) *ServerError {
 	var err error
 
 	errCode := errJson.Code
 	errCodeGroup := errCode / 1000
 
-	if errCodeGroup == 4 {
+	switch errCodeGroup {
+	case 4:
 		err = ErrPlanningFailure
-	}
-	if errCodeGroup == 5 {
+	case 5:
 		err = ErrInternalServerError
 		lowerMsg := strings.ToLower(errJson.Msg)
 		if strings.Contains(lowerMsg, "not enough") &&
@@ -31,68 +33,57 @@ func parseError(errJson *queryErrorJson) *ServerError {
 		if strings.Contains(lowerMsg, "build index fails") && strings.Contains(lowerMsg, "index will be retried building") {
 			err = ErrBuildFails
 		}
-		if match, matchErr := regexp.MatchString(".*?ndex .*? already exist.*", lowerMsg); matchErr == nil && match {
+		if indexExistsRegex.MatchString(lowerMsg) {
 			err = ErrIndexExists
 		}
-	}
-	if errCodeGroup == 12 || errCodeGroup == 14 {
+	case 12, 14:
 		err = ErrIndexFailure
-	}
-	if errCodeGroup == 10 {
+	case 10:
 		err = ErrAuthenticationFailure
 	}
 
-	if errCode == 1000 {
+	switch errCode {
+	case 1000:
 		err = ErrWriteInReadOnlyQuery
-	}
-	if errCode == 1080 {
+	case 1080:
 		err = ErrTimeout
-	}
-	if errCode == 3000 {
+	case 3000:
 		err = ErrParsingFailure
-	}
-	if errCode == 4040 || errCode == 4050 || errCode == 4060 || errCode == 4070 || errCode == 4080 || errCode == 4090 {
+	case 4040, 4050, 4060, 4070, 4080, 4090:
 		err = ErrPreparedStatementFailure
-	}
-	if errCode == 4300 {
+	case 4300:
 		err = createResourceError(errJson.Msg, ErrIndexExists)
-	}
-	if errCode == 12003 {
-		err = createResourceError(errJson.Msg, ErrCollectionNotFound)
-	}
-	if errCode == 12004 {
+	case 12003:
+		lowerMsg := strings.ToLower(errJson.Msg)
+		if strings.Contains(lowerMsg, "bucket") {
+			err = createResourceError(errJson.Msg, ErrBucketNotFound)
+		} else {
+			err = createResourceError(errJson.Msg, ErrCollectionNotFound)
+		}
+	case 12004:
 		err = createResourceError(errJson.Msg, ErrIndexNotFound)
-	}
-	if errCode == 12009 {
+	case 12009:
 		err = ErrDmlFailure
 
-		if len(errJson.Reason) > 0 {
-			if code, ok := errJson.Reason["code"]; ok {
-				code = int(code.(float64))
-				switch code {
-				case 12033:
-					err = ErrCasMismatch
-				case 17014:
-					err = ErrDocumentNotFound
-				case 17012:
-					err = ErrDocumentExists
-				}
+		if errJson.Reason != nil {
+			switch errJson.Reason.Code {
+			case 12033:
+				err = ErrCasMismatch
+			case 17014:
+				err = ErrDocumentNotFound
+			case 17012:
+				err = ErrDocumentExists
 			}
 		}
 
 		if strings.Contains(strings.ToLower(errJson.Msg), "cas mismatch") {
 			err = ErrCasMismatch
 		}
-	}
-	if errCode == 12016 {
+	case 12016:
 		err = createResourceError(errJson.Msg, ErrIndexNotFound)
-	}
-
-	if errCode == 12021 {
+	case 12021:
 		err = createResourceError(errJson.Msg, ErrScopeNotFound)
-	}
-
-	if errCode == 13014 {
+	case 13014:
 		err = createResourceError(errJson.Msg, ErrAuthenticationFailure)
 	}
 
@@ -112,7 +103,10 @@ func createResourceError(msg string, cause error) *ResourceError {
 		Cause: cause,
 	}
 
-	if errors.Is(err, ErrScopeNotFound) || errors.Is(err, ErrCollectionNotFound) {
+	if errors.Is(err, ErrKeyspaceNotFound) ||
+		errors.Is(err, ErrBucketNotFound) ||
+		errors.Is(err, ErrScopeNotFound) ||
+		errors.Is(err, ErrCollectionNotFound) {
 		parseResourceNotFoundMsg(err, msg)
 	}
 
@@ -143,23 +137,35 @@ func parseResourceNotFoundMsg(err *ResourceError, msg string) {
 	var path string
 	fields := strings.Fields(msg)
 	for _, f := range fields {
-		// Resource path is of the form bucket:bucket.scope.collection
-		if strings.Contains(f, ".") && strings.Contains(f, ":") {
-			path = f
-			break
+		// Resource path is of the forms:
+		//   namespace:bucket
+		//   namespace:bucket.name.with.dots
+		//   namespace:bucket.scope.collection
+
+		colonIdx := strings.Index(f, ":")
+		if colonIdx == -1 || colonIdx == 0 || colonIdx == len(f)-1 {
+			continue
 		}
+
+		path = f
+		break
 	}
 
 	_, trimmedPath, found := strings.Cut(path, ":")
 	if !found {
 		return
 	}
+
 	fields = strings.Split(trimmedPath, ".")
+
+	if errors.Is(err, ErrBucketNotFound) {
+		err.BucketName = strings.Join(fields, ".")
+	}
+
 	if errors.Is(err, ErrScopeNotFound) {
 		// Bucket names are the only one that can contain `.`, which is why we need to reconstruct the name if split
 		err.BucketName = strings.Join(fields[:len(fields)-1], ".")
 		err.ScopeName = fields[len(fields)-1]
-		return
 	}
 
 	if errors.Is(err, ErrCollectionNotFound) {

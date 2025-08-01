@@ -20,11 +20,14 @@ var (
 	ErrIndexExists              = errors.New("index exists")
 	ErrIndexNotFound            = errors.New("index not found")
 	ErrWriteInReadOnlyQuery     = errors.New("write statement used in a read-only query")
+	ErrKeyspaceNotFound         = errors.New("keyspace not found")
 	ErrScopeNotFound            = errors.New("scope not found")
-	ErrCollectionNotFound       = errors.New("collection not found")
 	ErrServerInvalidArg         = errors.New("invalid argument")
 	ErrBuildAlreadyInProgress   = errors.New("build already in progress")
 	ErrBuildFails               = errors.New("build fails, will be retried by query engine")
+
+	ErrBucketNotFound     = fmt.Errorf("bucket not found: %w", ErrKeyspaceNotFound)
+	ErrCollectionNotFound = fmt.Errorf("collection not found: %w", ErrKeyspaceNotFound)
 )
 
 type Error struct {
