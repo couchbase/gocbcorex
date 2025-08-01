@@ -47,6 +47,8 @@ func parseError(errJson *queryErrorJson) *ServerError {
 		err = ErrWriteInReadOnlyQuery
 	case 1080:
 		err = ErrTimeout
+	case 2120:
+		err = ErrAuthenticationFailure
 	case 3000:
 		err = ErrParsingFailure
 	case 4040, 4050, 4060, 4070, 4080, 4090:
