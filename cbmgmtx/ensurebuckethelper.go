@@ -89,6 +89,13 @@ func (e *EnsureBucketHelper) pollOne(
 				return false, nil
 			}
 		}
+
+		if resp.RawConfig.VBucketServerMap != nil {
+			if len(resp.RawConfig.VBucketServerMap.VBucketMap) == 0 {
+				e.Logger.Debug("target responded with a bucket that has no vBuckets")
+				return false, nil
+			}
+		}
 	}
 
 	if e.BucketUUID != "" && resp.UUID != e.BucketUUID {
