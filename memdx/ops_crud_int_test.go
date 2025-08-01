@@ -672,11 +672,25 @@ func TestOpsCrudDocLocked(t *testing.T) {
 	cli := createTestClient(t)
 
 	type test struct {
-		Op   func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error)
-		Name string
+		Op       func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error)
+		Name     string
+		IsReadOp bool
 	}
 
 	tests := []test{
+		{
+			Name: "Get",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.Get(cli, &memdx.GetRequest{
+					CollectionID: 0,
+					Key:          key,
+					VbucketID:    defaultTestVbucketID,
+				}, func(resp *memdx.GetResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			IsReadOp: true,
+		},
 		{
 			Name: "Set",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
@@ -784,6 +798,24 @@ func TestOpsCrudDocLocked(t *testing.T) {
 			},
 		},
 		{
+			Name: "LookupIn",
+			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				return opsCrud.LookupIn(cli, &memdx.LookupInRequest{
+					CollectionID: 0,
+					Key:          key,
+					VbucketID:    defaultTestVbucketID,
+					Ops: []memdx.LookupInOp{
+						{
+							Op: memdx.LookupInOpTypeGetDoc,
+						},
+					},
+				}, func(resp *memdx.LookupInResponse, err error) {
+					cb(resp, err)
+				})
+			},
+			IsReadOp: true,
+		},
+		{
 			Name: "MutateIn",
 			Op: func(opsCrud memdx.OpsCrud, cb func(interface{}, error)) (memdx.PendingOp, error) {
 				return opsCrud.MutateIn(cli, &memdx.MutateInRequest{
@@ -840,7 +872,23 @@ func TestOpsCrudDocLocked(t *testing.T) {
 			})
 			require.NoError(tt, err)
 
-			require.ErrorIs(tt, <-wait, memdx.ErrDocLocked)
+			err = <-wait
+			if !test.IsReadOp {
+				// writes should fail with document locked error
+				require.ErrorIs(tt, err, memdx.ErrDocLocked)
+			} else {
+				if testutilsint.IsOlderServerVersion(t, "8.0.0") {
+					if test.Name == "LookupIn" {
+						// On server version before 8.0.0, LookupIn returns document locked
+						// error when trying to read a locked document.
+						require.ErrorIs(tt, err, memdx.ErrDocLocked)
+						return
+					}
+				}
+
+				// reads should succeed
+				require.NoError(tt, err)
+			}
 		})
 	}
 
