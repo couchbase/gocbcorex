@@ -1,4 +1,7 @@
 name: Run Tests
+permissions:
+  contents: read
+  packages: read
 
 on:
   push:
@@ -15,6 +18,7 @@ jobs:
     strategy:
       matrix:
         server:
+          - 8.0.0-3534
           - 7.6.3
           - 7.2.6
           - 7.1.6
@@ -31,6 +35,8 @@ jobs:
       - name: Initialize cbdinocluster
         run: |
           cbdinocluster -v init --auto
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Start couchbase cluster
         env:
           CLUSTERCONFIG: |
@@ -40,6 +46,8 @@ jobs:
                 services: [kv, n1ql, index, fts, cbas]
             docker:
               kv-memory: 512
+              index-memory: 1024
+              fts-memory: 1024
         run: |
           CBDC_ID=$(cbdinocluster -v alloc --def="${CLUSTERCONFIG}")
           cbdinocluster -v buckets add ${CBDC_ID} default --ram-quota-mb=100 --flush-enabled=true --num-replicas=2
