@@ -531,6 +531,7 @@ type CreateCollectionOptions struct {
 	ScopeName      string
 	CollectionName string
 	MaxTTL         int32
+	HistoryEnabled *bool
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
 }
 
@@ -557,6 +558,10 @@ func (h Management) CreateCollection(
 
 	if opts.MaxTTL != 0 {
 		posts.Add("maxTTL", fmt.Sprintf("%d", int(opts.MaxTTL)))
+	}
+
+	if opts.HistoryEnabled != nil {
+		posts.Add("history", fmt.Sprintf("%t", *opts.HistoryEnabled))
 	}
 
 	resp, err := h.Execute(
