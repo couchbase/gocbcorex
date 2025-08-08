@@ -80,6 +80,9 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		err = ErrBucketNotFound
 	} else if strings.Contains(errText, "not found") && strings.Contains(errText, "user") {
 		err = ErrUserNotFound
+	} else if strings.Contains(errText, "unknown user") {
+		// 8.0.0 now returns "unknown user" rather than "not found" for user not found.
+		err = ErrUserNotFound
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "collection") {
 		err = ErrCollectionExists
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "scope") {
