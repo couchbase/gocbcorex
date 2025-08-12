@@ -235,6 +235,88 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 	})
 }
 
+type GetExRequest struct {
+	CrudRequestMeta
+	CollectionID uint32
+	Key          []byte
+	VbucketID    uint16
+}
+
+func (r GetExRequest) OpName() string { return OpCodeGetEx.String() }
+
+type GetExResponse struct {
+	CrudResponseMeta
+	Cas      uint64
+	Flags    uint32
+	Value    []byte
+	Datatype uint8
+}
+
+func (o OpsCrud) GetEx(d Dispatcher, req *GetExRequest, cb func(*GetExResponse, error)) (PendingOp, error) {
+	extFramesBuf := make([]byte, 0, 128)
+	extFramesBuf, err := o.encodeReqExtFrames(req.OnBehalfOf, 0, 0, false, extFramesBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return d.Dispatch(&Packet{
+		OpCode:        OpCodeGetEx,
+		Key:           reqKey,
+		VbucketID:     req.VbucketID,
+		FramingExtras: extFramesBuf,
+	}, func(resp *Packet, err error) bool {
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		decompErr := OpsCore{}.maybeDecompressPacket(resp)
+		if decompErr != nil {
+			cb(nil, decompErr)
+			return false
+		}
+
+		if resp.Status == StatusKeyNotFound {
+			cb(nil, ErrDocNotFound)
+			return false
+		}
+
+		if resp.Status != StatusSuccess {
+			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			return false
+		}
+
+		if len(resp.Extras) != 4 {
+			cb(nil, protocolError{"bad extras length"})
+			return false
+		}
+
+		flags := binary.BigEndian.Uint32(resp.Extras[0:])
+
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		cb(&GetExResponse{
+			Cas:      resp.Cas,
+			Flags:    flags,
+			Value:    resp.Value,
+			Datatype: resp.Datatype,
+			CrudResponseMeta: CrudResponseMeta{
+				ServerDuration: serverDuration,
+			},
+		}, nil)
+		return false
+	})
+}
+
 type GetAndTouchRequest struct {
 	CrudRequestMeta
 	CollectionID uint32
