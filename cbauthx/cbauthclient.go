@@ -2,6 +2,7 @@ package cbauthx
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,14 +26,17 @@ type CbAuthClient struct {
 	rpcCli      *RevRpcClient
 	authChecker *AuthCheckHttp
 	authCache   *AuthCheckCached
+	certChecker *CertCheckHttp
+	certCache   *CertCheckCached
 
 	lastCommTs     atomic.Int64
 	heartbeatTimer *time.Timer
 
-	lock        sync.Mutex
-	nodeUuid    string
-	clusterUuid string
-	authVersion string
+	lock                  sync.Mutex
+	nodeUuid              string
+	clusterUuid           string
+	authVersion           string
+	clientCertAuthVersion string
 
 	initOpts    *UpdateDBExtOptions
 	initSigCh   chan struct{}
@@ -49,6 +53,8 @@ type CbAuthClientOptions struct {
 	NewRevRpcClient    func(context.Context, string, RevRpcHandlers, *RevRpcClientOptions) (*RevRpcClient, error)
 	NewAuthCheckHttp   func(*AuthCheckHttpOptions) *AuthCheckHttp
 	NewAuthCheckCached func(AuthCheck) *AuthCheckCached
+	NewCertCheckHttp   func(*CertCheckHttpOptions) *CertCheckHttp
+	NewCertCheckCached func(CertCheck) *CertCheckCached
 
 	Endpoint    string
 	ServiceName string
@@ -174,9 +180,29 @@ func NewCbAuthClient(ctx context.Context, opts *CbAuthClientOptions) (*CbAuthCli
 	}
 	authCache := newAuthCheckCached(authChecker)
 
+	newCertCheckHttp := NewCertCheckHttp
+	if opts.NewCertCheckHttp != nil {
+		newCertCheckHttp = opts.NewCertCheckHttp
+	}
+	certChecker := newCertCheckHttp(&CertCheckHttpOptions{
+		Transport:   httpTransport,
+		Uri:         opts.Endpoint + initOpts.ExtractUserFromCertEndpoint,
+		ClusterUuid: cli.clusterUuid,
+		Username:    opts.Username,
+		Password:    opts.Password,
+	})
+
+	newCertCheckCached := NewCertCheckCached
+	if opts.NewCertCheckCached != nil {
+		newCertCheckCached = opts.NewCertCheckCached
+	}
+	certCache := newCertCheckCached(certChecker)
+
 	cli.rpcCli = rpcCli
 	cli.authChecker = authChecker
 	cli.authCache = authCache
+	cli.certChecker = certChecker
+	cli.certCache = certCache
 
 	// we need to mark this as the current time as an immediate CheckUserPass
 	// call should succeed and not trigger the connection to be destroyed due
@@ -260,6 +286,14 @@ func (c *CbAuthClient) rpcUpdateDBExt(opts *UpdateDBExtOptions) (bool, error) {
 		}
 	}
 
+	// If the client cert version has changed, we need to invalidate our cache
+	if c.clientCertAuthVersion != opts.ClientCertAuthVersion {
+		c.clientCertAuthVersion = opts.ClientCertAuthVersion
+		if c.certCache != nil {
+			c.certCache.Invalidate()
+		}
+	}
+
 	// If the client wasn't marked as initialized yet.  Lets signal that.
 	if c.initOpts == nil {
 		c.initOpts = opts
@@ -316,4 +350,24 @@ func (a *CbAuthClient) CheckUserPass(ctx context.Context, username string, passw
 	}
 
 	return authCache.CheckUserPass(ctx, username, password)
+}
+
+func (a *CbAuthClient) getCertCache(_ context.Context) (*CertCheckCached, error) {
+	lastCommTs := a.lastCommTs.Load()
+	lastCommTime := time.Unix(lastCommTs, 0)
+	if time.Since(lastCommTime) > a.livenessTimeout {
+		return nil, ErrLivenessTimeout
+	}
+
+	// once we've passed the last comm check, we can use the cache
+	return a.certCache, nil
+}
+
+func (a *CbAuthClient) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+	certCache, err := a.getCertCache(ctx)
+	if err != nil {
+		return UserInfo{}, err
+	}
+
+	return certCache.CheckCertificate(ctx, connState)
 }

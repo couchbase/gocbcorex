@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	ErrNoCert          = errors.New("no cert specified")
 	ErrInvalidAuth     = errors.New("invalid auth")
 	ErrClosed          = errors.New("already closed")
 	ErrLivenessTimeout = errors.New("cache is stale")
