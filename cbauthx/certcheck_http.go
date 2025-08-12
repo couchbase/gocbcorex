@@ -1,7 +1,9 @@
 package cbauthx
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,39 +16,53 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-type AuthCheckHttp struct {
+type CertCheckResponse struct {
+	User   string `json:"user"`
+	Domain string `json:"domain"`
+	Uuid   string `json:"uuid"`
+}
+
+type CertCheckHttp struct {
 	transport   http.RoundTripper
 	hostPort    string
 	uri         string
 	clusterUuid string
+	username    string
+	password    string
 }
 
-var _ AuthCheck = (*AuthCheckHttp)(nil)
+var _ CertCheck = (*CertCheckHttp)(nil)
 
-type AuthCheckHttpOptions struct {
+type CertCheckHttpOptions struct {
 	Transport   http.RoundTripper
 	Uri         string
 	ClusterUuid string
+	Username    string
+	Password    string
 }
 
-func NewAuthCheckHttp(opts *AuthCheckHttpOptions) *AuthCheckHttp {
+func NewCertCheckHttp(opts *CertCheckHttpOptions) *CertCheckHttp {
 	parsedEndpoint, _ := url.Parse(opts.Uri)
 
-	return &AuthCheckHttp{
+	return &CertCheckHttp{
 		transport:   opts.Transport,
 		hostPort:    parsedEndpoint.Host,
 		uri:         opts.Uri,
 		clusterUuid: opts.ClusterUuid,
+		username:    opts.Username,
+		password:    opts.Password,
 	}
 }
 
-func (a *AuthCheckHttp) checkUserPass(ctx context.Context, username string, password string) (UserInfo, error) {
-	qs := make(url.Values)
-	if a.clusterUuid != "" {
-		qs.Set("uuid", a.clusterUuid)
+func (a *CertCheckHttp) checkCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+	if len(connState.PeerCertificates) == 0 {
+		return UserInfo{}, ErrNoCert
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", a.uri+"?"+qs.Encode(), nil)
+	clientCert := connState.PeerCertificates[0]
+
+	req, err := http.NewRequestWithContext(ctx, "POST", a.uri, bytes.NewReader(clientCert.Raw))
+	req.SetBasicAuth(a.username, a.password)
 	if err != nil {
 		return UserInfo{}, &contextualError{
 			Message: "failed to create request",
@@ -54,12 +70,10 @@ func (a *AuthCheckHttp) checkUserPass(ctx context.Context, username string, pass
 		}
 	}
 
-	req.SetBasicAuth(username, password)
-
 	resp, err := a.transport.RoundTrip(req)
 	if err != nil {
 		return UserInfo{}, &contextualError{
-			Message: "failed to execute auth request",
+			Message: "failed to execute cert check request",
 			Cause:   err,
 		}
 	}
@@ -83,24 +97,24 @@ func (a *AuthCheckHttp) checkUserPass(ctx context.Context, username string, pass
 		}
 	}
 
-	// In the interest of mitigating the impact of an incorrect auth check url
+	// In the interest of mitigating the impact of an incorrect cert check url
 	// being used, we validate some expected state of the response which has the
-	// effect of significantly reducing the chances we accept auth from those
-	// urls which do not actually check auth.
-	if authResp.User != username {
-		return UserInfo{}, errors.New("user field in auth response did not match request")
+	// effect of significantly reducing the chances we accept certs from those
+	// urls which do not actually check certs.
+	if authResp.User == "" {
+		return UserInfo{}, errors.New("user field missing from cert check response")
 	}
 	if authResp.Domain == "" {
-		return UserInfo{}, errors.New("domain field missing from auth response")
+		return UserInfo{}, errors.New("domain field missing from cert check response")
 	}
 
 	return authResp, nil
 }
 
-func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, password string) (UserInfo, error) {
+func (a *CertCheckHttp) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
 	stime := time.Now()
 
-	userInfo, err := a.checkUserPass(ctx, username, password)
+	userInfo, err := a.checkCertificate(ctx, connState)
 
 	etime := time.Now()
 	dtime := etime.Sub(stime)
@@ -117,7 +131,7 @@ func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, pass
 		strResult = "success"
 	}
 
-	authCheckLatencies.Record(ctx, dtimeSecs,
+	certCheckLatencies.Record(ctx, dtimeSecs,
 		metric.WithAttributes(
 			attribute.String("server_address", a.hostPort),
 			attribute.String("result", strResult),
