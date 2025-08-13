@@ -13,11 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	ErrNoClientsAvailable = errors.New("no clients available")
-	ErrInvalidClient      = errors.New("invalid client requested")
-)
-
 type KvClientManager interface {
 	ShutdownClient(endpoint string, client KvClient)
 	GetClient(ctx context.Context, endpoint string) (KvClient, error)
