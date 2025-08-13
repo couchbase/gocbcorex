@@ -56,6 +56,7 @@ type GetOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	AcceptSnappy   bool
 	OnBehalfOf     string
 }
 
@@ -86,9 +87,13 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 				return nil, err
 			}
 
-			value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
-			if err != nil {
-				return nil, err
+			value := resp.Value
+			datatype := memdx.DatatypeFlag(resp.Datatype)
+			if !opts.AcceptSnappy {
+				value, datatype, err = cc.compression.Decompress(datatype, value)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			return &GetResult{
@@ -153,6 +158,7 @@ type GetReplicaOptions struct {
 	ScopeName      string
 	CollectionName string
 	ReplicaIdx     uint32
+	AcceptSnappy   bool
 	OnBehalfOf     string
 }
 
@@ -180,9 +186,13 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 			return nil, err
 		}
 
-		value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
-		if err != nil {
-			return nil, err
+		value := resp.Value
+		datatype := memdx.DatatypeFlag(resp.Datatype)
+		if !opts.AcceptSnappy {
+			value, datatype, err = cc.compression.Decompress(datatype, value)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return &GetReplicaResult{
