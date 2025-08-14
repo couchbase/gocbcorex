@@ -1452,11 +1452,18 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 		{
 			Name: "SetWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				gmr, err := memdx.SyncUnaryCall(opsCrud, memdx.OpsCrud.GetMeta, cli, &memdx.GetMetaRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+				})
+				require.NoError(t, err)
+				revNo := gmr.RevNo
+
 				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
 					Key:       key,
 					Value:     []byte("value"),
 					StoreCas:  cas + 10,
-					RevNo:     99999,
+					RevNo:     revNo + 10,
 					VbucketID: defaultTestVbucketID,
 				}, func(resp *memdx.SetWithMetaResponse, err error) {
 					cb(resp, err)
@@ -1466,10 +1473,17 @@ func TestOpsCrudMutationTokens(t *testing.T) {
 		{
 			Name: "DeleteWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				gmr, err := memdx.SyncUnaryCall(opsCrud, memdx.OpsCrud.GetMeta, cli, &memdx.GetMetaRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+				})
+				require.NoError(t, err)
+				revNo := gmr.RevNo
+
 				return opsCrud.DeleteWithMeta(cli, &memdx.DeleteWithMetaRequest{
 					Key:       key,
 					StoreCas:  cas + 10,
-					RevNo:     99999,
+					RevNo:     revNo + 10,
 					VbucketID: defaultTestVbucketID,
 				}, func(resp *memdx.DeleteWithMetaResponse, err error) {
 					cb(resp, err)
@@ -1703,11 +1717,18 @@ func TestOpsCrudMutations(t *testing.T) {
 		{
 			Name: "SetWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				gmr, err := memdx.SyncUnaryCall(opsCrud, memdx.OpsCrud.GetMeta, cli, &memdx.GetMetaRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+				})
+				require.NoError(t, err)
+				revNo := gmr.RevNo
+
 				return opsCrud.SetWithMeta(cli, &memdx.SetWithMetaRequest{
 					Key:       key,
 					Value:     usualExpectedValue,
 					StoreCas:  cas + 10,
-					RevNo:     999999,
+					RevNo:     revNo + 10,
 					VbucketID: defaultTestVbucketID,
 				}, func(resp *memdx.SetWithMetaResponse, err error) {
 					cb(resp, err)
@@ -1718,10 +1739,17 @@ func TestOpsCrudMutations(t *testing.T) {
 		{
 			Name: "DeleteWithMeta",
 			Op: func(opsCrud memdx.OpsCrud, key []byte, cas uint64, cb func(interface{}, error)) (memdx.PendingOp, error) {
+				gmr, err := memdx.SyncUnaryCall(opsCrud, memdx.OpsCrud.GetMeta, cli, &memdx.GetMetaRequest{
+					Key:       key,
+					VbucketID: defaultTestVbucketID,
+				})
+				require.NoError(t, err)
+				revNo := gmr.RevNo
+
 				return opsCrud.DeleteWithMeta(cli, &memdx.DeleteWithMetaRequest{
 					Key:       key,
 					StoreCas:  cas + 10,
-					RevNo:     999999,
+					RevNo:     revNo + 10,
 					VbucketID: defaultTestVbucketID,
 				}, func(resp *memdx.DeleteWithMetaResponse, err error) {
 					cb(resp, err)
