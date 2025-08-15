@@ -17,8 +17,9 @@ type memdxPendingOpMock struct {
 	cancelledCh chan error
 }
 
-func (mpo memdxPendingOpMock) Cancel(err error) {
+func (mpo memdxPendingOpMock) Cancel(err error) bool {
 	mpo.cancelledCh <- err
+	return true
 }
 
 func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {

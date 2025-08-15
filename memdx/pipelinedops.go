@@ -66,11 +66,12 @@ func OpPipelineAdd[T any](
 	handler func(opCb func(res T, err error)) (PendingOp, error),
 	cb func(res T, err error) bool,
 ) {
-	OpPipelineAddWithNext(p, func(nextFn func(), opCb func(res T, err error)) (PendingOp, error) {
+	wrappedHandler := func(nextFn func(), opCb func(res T, err error)) (PendingOp, error) {
 		op, err := handler(opCb)
 		nextFn()
 		return op, err
-	}, cb)
+	}
+	OpPipelineAddWithNext(p, wrappedHandler, cb)
 }
 
 func OpPipelineAddSync(
