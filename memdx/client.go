@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net"
 	"os"
-	"sync"
 
 	"go.uber.org/zap"
 )
@@ -21,14 +20,7 @@ type Client struct {
 	closeHandler       func(error)
 	logger             *zap.Logger
 
-	// opaqueMapLock control access to the opaque map itself and is used for all access to it.
-	opaqueMapLock sync.Mutex
-	// handlerInvokeLock controls being able to call handlers from the opaque map, and is not used on the write side.
-	// This allows us to coordinate between Close, cancelHandler, and dispatchCallback without having to lock for longer
-	// in Dispatch.
-	handlerInvokeLock sync.Mutex
-	opaqueCtr         uint32
-	opaqueMap         map[uint32]DispatchCallback
+	opaqueMap *OpaqueMap
 }
 
 var _ Dispatcher = (*Client)(nil)
@@ -56,8 +48,7 @@ func NewClient(conn *Conn, opts *ClientOptions) *Client {
 		closeHandler:       opts.CloseHandler,
 		logger:             logger,
 
-		opaqueCtr: 1,
-		opaqueMap: make(map[uint32]DispatchCallback),
+		opaqueMap: NewOpaqueMap(),
 	}
 	go c.run()
 
@@ -85,43 +76,21 @@ func (c *Client) run() {
 	if c.closeHandler != nil {
 		c.closeHandler(closeErr)
 	}
+
+	c.opaqueMap.CancelAll(ErrClosedInFlight)
 }
 
-func (c *Client) registerHandler(handler DispatchCallback) uint32 {
-	c.opaqueMapLock.Lock()
-
-	opaqueID := c.opaqueCtr
-	c.opaqueCtr++
-
-	c.opaqueMap[opaqueID] = handler
-
-	c.opaqueMapLock.Unlock()
-
-	return opaqueID
-}
-
-func (c *Client) cancelHandler(opaqueID uint32, err error) {
-	c.handlerInvokeLock.Lock()
-	defer c.handlerInvokeLock.Unlock()
-	c.opaqueMapLock.Lock()
-
-	handler, handlerIsValid := c.opaqueMap[opaqueID]
-	if !handlerIsValid {
-		c.opaqueMapLock.Unlock()
-		return
-	}
-
-	delete(c.opaqueMap, opaqueID)
-	c.opaqueMapLock.Unlock()
-
+func (c *Client) cancelOp(opaqueID uint32, err error) bool {
 	c.logger.Debug("cancelling operation",
 		zap.Uint32("opaque", opaqueID),
 	)
 
-	hasMorePackets := handler(nil, &requestCancelledError{cause: err})
+	hasMorePackets, wasInvoked := c.opaqueMap.Invoke(opaqueID, nil, err)
 	if hasMorePackets {
 		c.logger.DPanic("memd packet handler returned hasMorePackets after an error", zap.Uint32("opaque", opaqueID))
 	}
+
+	return wasInvoked
 }
 
 func (c *Client) dispatchCallback(pak *Packet) error {
@@ -141,9 +110,6 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 		)
 	}
 
-	c.handlerInvokeLock.Lock()
-	defer c.handlerInvokeLock.Unlock()
-
 	if !pak.IsResponse {
 		unsolicitedHandler := c.unsolicitedHandler
 
@@ -155,11 +121,9 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 		return nil
 	}
 
-	c.opaqueMapLock.Lock()
-	handler, handlerIsValid := c.opaqueMap[pak.Opaque]
-	if !handlerIsValid {
+	_, wasInvoked := c.opaqueMap.Invoke(pak.Opaque, pak, nil)
+	if !wasInvoked {
 		orphanHandler := c.orphanHandler
-		c.opaqueMapLock.Unlock()
 
 		if orphanHandler == nil {
 			return errors.New("invalid opaque on response packet")
@@ -167,15 +131,6 @@ func (c *Client) dispatchCallback(pak *Packet) error {
 
 		orphanHandler(pak)
 		return nil
-	}
-	c.opaqueMapLock.Unlock()
-
-	hasMorePackets := handler(pak, nil)
-
-	if !hasMorePackets {
-		c.opaqueMapLock.Lock()
-		delete(c.opaqueMap, pak.Opaque)
-		c.opaqueMapLock.Unlock()
 	}
 
 	return nil
@@ -191,18 +146,6 @@ func (c *Client) Close() error {
 		return err
 	}
 
-	c.handlerInvokeLock.Lock()
-	c.opaqueMapLock.Lock()
-	handlers := c.opaqueMap
-	c.opaqueMap = map[uint32]DispatchCallback{}
-	c.opaqueMapLock.Unlock()
-
-	for _, handler := range handlers {
-		handler(nil, ErrClosedInFlight)
-	}
-
-	c.handlerInvokeLock.Unlock()
-
 	return nil
 }
 
@@ -216,7 +159,7 @@ func (c *Client) WritePacket(pak *Packet) error {
 // of order invocation can also happen in cancel cases.  You are guarenteed however
 // to either receive callbacks OR receive an error from this call, never both.
 func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, error) {
-	opaqueID := c.registerHandler(handler)
+	opaqueID := c.opaqueMap.Register(handler)
 	req.Opaque = opaqueID
 
 	if enablePacketLogging {
@@ -243,18 +186,14 @@ func (c *Client) Dispatch(req *Packet, handler DispatchCallback) (PendingOp, err
 			zap.String("opcode", req.OpCode.String()),
 		)
 
-		c.opaqueMapLock.Lock()
-		if _, ok := c.opaqueMap[opaqueID]; !ok {
-			// if the handler isn't in the opaque map anymore, we can assume that
-			// we've been cancelled by someone while we were waiting for the Write.
-			// We pretend that the write was successful in this case, since the
-			// callback will already have been invoked with errors by someone else.
-			c.opaqueMapLock.Unlock()
+		wasInvalidated := c.opaqueMap.Invalidate(opaqueID)
+		if !wasInvalidated {
+			// if we fail to invalidate this entry, we can assume that the handler
+			// has already been invoked by a cancellation, and thus we pretend that
+			// the write was successful to maintain our guarantee about error and
+			// callback invocation.
 			return PendingOpNoop{}, nil
 		}
-
-		delete(c.opaqueMap, opaqueID)
-		c.opaqueMapLock.Unlock()
 
 		return nil, err
 	}
