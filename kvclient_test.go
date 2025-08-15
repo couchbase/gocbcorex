@@ -248,7 +248,7 @@ func TestKvClientConnCloseHandlerDefault(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	cli.handleConnectionClose(errors.New("some error"))
+	cli.handleConnectionReadError(errors.New("some error"))
 	assert.Equal(t, 1, int(cli.closed))
 }
 
@@ -285,7 +285,7 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 	require.NoError(t, err)
 
 	err = errors.New("some error")
-	cli.handleConnectionClose(err)
+	cli.handleConnectionReadError(err)
 	assert.Equal(t, cli, closedCli)
 	assert.Equal(t, err, closeErr)
 }
