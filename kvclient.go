@@ -211,7 +211,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	memdxClientOpts := &memdx.ClientOptions{
 		UnsolicitedHandler: kvCli.handleUnsolicitedPacket,
 		OrphanHandler:      kvCli.handleOrphanResponse,
-		CloseHandler:       kvCli.handleConnectionClose,
+		ReadErrorHandler:   kvCli.handleConnectionReadError,
 		Logger:             logger,
 	}
 	if opts.NewMemdxClient == nil {
@@ -391,7 +391,7 @@ func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
 	)
 }
 
-func (c *kvClient) handleConnectionClose(err error) {
+func (c *kvClient) handleConnectionReadError(err error) {
 	// Just mark ourselves as closed. The connection is already
 	// closed so there's no actual work to do, and we might already actually be closed.
 	atomic.StoreUint32(&c.closed, 1)

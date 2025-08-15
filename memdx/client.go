@@ -17,7 +17,7 @@ type Client struct {
 	conn               *Conn
 	unsolicitedHandler func(*Packet)
 	orphanHandler      func(*Packet)
-	closeHandler       func(error)
+	readErrorHandler   func(error)
 	logger             *zap.Logger
 
 	opaqueMap *OpaqueMap
@@ -28,7 +28,7 @@ var _ Dispatcher = (*Client)(nil)
 type ClientOptions struct {
 	UnsolicitedHandler func(*Packet)
 	OrphanHandler      func(*Packet)
-	CloseHandler       func(error)
+	ReadErrorHandler   func(error)
 	Logger             *zap.Logger
 }
 
@@ -45,7 +45,7 @@ func NewClient(conn *Conn, opts *ClientOptions) *Client {
 		conn:               conn,
 		unsolicitedHandler: opts.UnsolicitedHandler,
 		orphanHandler:      opts.OrphanHandler,
-		closeHandler:       opts.CloseHandler,
+		readErrorHandler:   opts.ReadErrorHandler,
 		logger:             logger,
 
 		opaqueMap: NewOpaqueMap(),
@@ -57,24 +57,24 @@ func NewClient(conn *Conn, opts *ClientOptions) *Client {
 
 func (c *Client) run() {
 	pak := &Packet{}
-	var closeErr error
+	var readErr error
 	for {
 		err := c.conn.ReadPacket(pak)
 		if err != nil {
-			closeErr = err
+			readErr = err
 			break
 		}
 
 		err = c.dispatchCallback(pak)
 		if err != nil {
 			c.logger.Debug("failed to dispatch callback", zap.Error(err))
-			closeErr = err
+			readErr = err
 			break
 		}
 	}
 
-	if c.closeHandler != nil {
-		c.closeHandler(closeErr)
+	if c.readErrorHandler != nil {
+		c.readErrorHandler(readErr)
 	}
 
 	c.opaqueMap.CancelAll(ErrClosedInFlight)
