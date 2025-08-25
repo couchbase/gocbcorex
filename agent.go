@@ -427,7 +427,7 @@ func (agent *Agent) updateStateLocked() {
 	err := agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            oldClients,
-	}, func(error) {})
+	})
 	if err != nil {
 		agent.logger.Error("failed to reconfigure connection manager (old clients)", zap.Error(err))
 	}
@@ -444,7 +444,7 @@ func (agent *Agent) updateStateLocked() {
 	err = agent.connMgr.Reconfigure(&KvClientManagerConfig{
 		NumPoolConnections: agent.state.numPoolConnections,
 		Clients:            agentComponentConfigs.KvClientManagerClients,
-	}, func(error) {})
+	})
 	if err != nil {
 		agent.logger.Error("failed to reconfigure connection manager (updated clients)", zap.Error(err))
 	}

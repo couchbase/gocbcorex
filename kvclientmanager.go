@@ -16,7 +16,7 @@ import (
 type KvClientManager interface {
 	ShutdownClient(endpoint string, client KvClient)
 	GetClient(ctx context.Context, endpoint string) (KvClient, error)
-	Reconfigure(opts *KvClientManagerConfig, cb func(error)) error
+	Reconfigure(opts *KvClientManagerConfig) error
 	GetRandomClient(ctx context.Context) (KvClient, error)
 	Close() error
 }
@@ -81,7 +81,7 @@ func NewKvClientManager(
 
 	// we just call Reconfigure.  Since we know there are no pools that
 	// exist, we know that Reconfigure is guarenteed not to block.
-	err := mgr.Reconfigure(config, func(error) {})
+	err := mgr.Reconfigure(config)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (m *kvClientManager) newKvClientProvider(poolOpts *KvClientPoolConfig) (KvC
 	})
 }
 
-func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(error)) error {
+func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
 	if config == nil {
 		return errors.New("invalid arguments: cant reconfigure kvClientManager to nil")
 	}
@@ -132,7 +132,7 @@ func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig, cb func(err
 
 		oldPool := oldPools[endpoint]
 		if oldPool != nil {
-			err := oldPool.Pool.Reconfigure(poolConfig, func(error) {})
+			err := oldPool.Pool.Reconfigure(poolConfig)
 			if err != nil {
 				m.logger.Debug("failed to reconfigure pool", zap.Error(err))
 			} else {
