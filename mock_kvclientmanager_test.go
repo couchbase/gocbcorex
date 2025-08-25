@@ -27,7 +27,7 @@ var _ KvClientManager = &KvClientManagerMock{}
 //			GetRandomClientFunc: func(ctx context.Context) (KvClient, error) {
 //				panic("mock out the GetRandomClient method")
 //			},
-//			ReconfigureFunc: func(opts *KvClientManagerConfig, cb func(error)) error {
+//			ReconfigureFunc: func(opts *KvClientManagerConfig) error {
 //				panic("mock out the Reconfigure method")
 //			},
 //			ShutdownClientFunc: func(endpoint string, client KvClient)  {
@@ -50,7 +50,7 @@ type KvClientManagerMock struct {
 	GetRandomClientFunc func(ctx context.Context) (KvClient, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(opts *KvClientManagerConfig, cb func(error)) error
+	ReconfigureFunc func(opts *KvClientManagerConfig) error
 
 	// ShutdownClientFunc mocks the ShutdownClient method.
 	ShutdownClientFunc func(endpoint string, client KvClient)
@@ -76,8 +76,6 @@ type KvClientManagerMock struct {
 		Reconfigure []struct {
 			// Opts is the opts argument value.
 			Opts *KvClientManagerConfig
-			// Cb is the cb argument value.
-			Cb func(error)
 		}
 		// ShutdownClient holds details about calls to the ShutdownClient method.
 		ShutdownClient []struct {
@@ -190,21 +188,19 @@ func (mock *KvClientManagerMock) GetRandomClientCalls() []struct {
 }
 
 // Reconfigure calls ReconfigureFunc.
-func (mock *KvClientManagerMock) Reconfigure(opts *KvClientManagerConfig, cb func(error)) error {
+func (mock *KvClientManagerMock) Reconfigure(opts *KvClientManagerConfig) error {
 	if mock.ReconfigureFunc == nil {
 		panic("KvClientManagerMock.ReconfigureFunc: method is nil but KvClientManager.Reconfigure was just called")
 	}
 	callInfo := struct {
 		Opts *KvClientManagerConfig
-		Cb   func(error)
 	}{
 		Opts: opts,
-		Cb:   cb,
 	}
 	mock.lockReconfigure.Lock()
 	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
 	mock.lockReconfigure.Unlock()
-	return mock.ReconfigureFunc(opts, cb)
+	return mock.ReconfigureFunc(opts)
 }
 
 // ReconfigureCalls gets all the calls that were made to Reconfigure.
@@ -213,11 +209,9 @@ func (mock *KvClientManagerMock) Reconfigure(opts *KvClientManagerConfig, cb fun
 //	len(mockedKvClientManager.ReconfigureCalls())
 func (mock *KvClientManagerMock) ReconfigureCalls() []struct {
 	Opts *KvClientManagerConfig
-	Cb   func(error)
 } {
 	var calls []struct {
 		Opts *KvClientManagerConfig
-		Cb   func(error)
 	}
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure

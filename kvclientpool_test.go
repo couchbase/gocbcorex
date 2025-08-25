@@ -162,7 +162,7 @@ func TestKvClientPoolReconfigure(t *testing.T) {
 	err = pool.Reconfigure(&KvClientPoolConfig{
 		NumConnections: 1,
 		ClientConfig:   clientConfig,
-	}, func(error) {})
+	})
 	require.NoError(t, err)
 
 	cli, err = pool.GetClient(context.Background())

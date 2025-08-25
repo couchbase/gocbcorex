@@ -89,8 +89,6 @@ func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 			SelectedBucket: testutilsint.TestOpts.BucketName,
 			Authenticator:  auth,
 		},
-	}, func(err error) {
-		// We don't need to wait for all of the clients to be fully reconfigured.
 	})
 	require.NoError(t, err)
 

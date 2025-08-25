@@ -22,7 +22,7 @@ var (
 type NewKvClientFunc func(context.Context, *KvClientConfig) (KvClient, error)
 
 type KvClientPool interface {
-	Reconfigure(config *KvClientPoolConfig, cb func(error)) error
+	Reconfigure(config *KvClientPoolConfig) error
 	GetClient(ctx context.Context) (KvClient, error)
 	ShutdownClient(client KvClient)
 	Close() error
@@ -443,7 +443,7 @@ func (p *kvClientPool) handleClientClosed(client KvClient, err error) {
 	p.checkConnectionsLocked()
 }
 
-func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) error {
+func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig) error {
 	if config == nil {
 		return errors.New("invalid arguments: cant reconfigure kvClientPool to nil")
 	}
@@ -458,18 +458,6 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 
 	p.config = *config
 	p.poolName = newPoolName
-
-	numClientsReconfiguring := int64(len(p.currentClients))
-	markClientReconfigureDone := func() {
-		if (atomic.AddInt64(&numClientsReconfiguring, -1)) == 0 {
-			// once we are done reconfiguring all the connections, we need to
-			// wait until the list of defunct connections reaches 0.
-			go func() {
-				err := p.WaitUntilNoDefunctClients(context.Background())
-				cb(err)
-			}()
-		}
-	}
 
 	clientsToReconfigure := make([]KvClient, len(p.currentClients))
 	copy(clientsToReconfigure, p.currentClients)
@@ -491,14 +479,12 @@ func (p *kvClientPool) Reconfigure(config *KvClientPoolConfig, cb func(error)) e
 
 				p.addDefunctClientLocked(client)
 				p.checkConnectionsLocked()
-				markClientReconfigureDone()
 			}()
 		})
 		if err != nil {
 			// we can't reconfigure this client so we need to replace it
 			p.removeCurrentClientLocked(client)
 			p.addDefunctClientLocked(client)
-			markClientReconfigureDone()
 			continue
 		}
 
