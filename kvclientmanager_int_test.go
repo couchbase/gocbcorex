@@ -105,8 +105,6 @@ func TestClientManagerCloseAfterReconfigure(t *testing.T) {
 				Authenticator:  auth,
 			},
 		},
-	}, func(err error) {
-		// We don't want to wait for reconfigure to complete.
 	})
 	require.NoError(t, err)
 

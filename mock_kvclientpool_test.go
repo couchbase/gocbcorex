@@ -24,7 +24,7 @@ var _ KvClientPool = &KvClientPoolMock{}
 //			GetClientFunc: func(ctx context.Context) (KvClient, error) {
 //				panic("mock out the GetClient method")
 //			},
-//			ReconfigureFunc: func(config *KvClientPoolConfig, cb func(error)) error {
+//			ReconfigureFunc: func(config *KvClientPoolConfig) error {
 //				panic("mock out the Reconfigure method")
 //			},
 //			ShutdownClientFunc: func(client KvClient)  {
@@ -44,7 +44,7 @@ type KvClientPoolMock struct {
 	GetClientFunc func(ctx context.Context) (KvClient, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(config *KvClientPoolConfig, cb func(error)) error
+	ReconfigureFunc func(config *KvClientPoolConfig) error
 
 	// ShutdownClientFunc mocks the ShutdownClient method.
 	ShutdownClientFunc func(client KvClient)
@@ -63,8 +63,6 @@ type KvClientPoolMock struct {
 		Reconfigure []struct {
 			// Config is the config argument value.
 			Config *KvClientPoolConfig
-			// Cb is the cb argument value.
-			Cb func(error)
 		}
 		// ShutdownClient holds details about calls to the ShutdownClient method.
 		ShutdownClient []struct {
@@ -138,21 +136,19 @@ func (mock *KvClientPoolMock) GetClientCalls() []struct {
 }
 
 // Reconfigure calls ReconfigureFunc.
-func (mock *KvClientPoolMock) Reconfigure(config *KvClientPoolConfig, cb func(error)) error {
+func (mock *KvClientPoolMock) Reconfigure(config *KvClientPoolConfig) error {
 	if mock.ReconfigureFunc == nil {
 		panic("KvClientPoolMock.ReconfigureFunc: method is nil but KvClientPool.Reconfigure was just called")
 	}
 	callInfo := struct {
 		Config *KvClientPoolConfig
-		Cb     func(error)
 	}{
 		Config: config,
-		Cb:     cb,
 	}
 	mock.lockReconfigure.Lock()
 	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
 	mock.lockReconfigure.Unlock()
-	return mock.ReconfigureFunc(config, cb)
+	return mock.ReconfigureFunc(config)
 }
 
 // ReconfigureCalls gets all the calls that were made to Reconfigure.
@@ -161,11 +157,9 @@ func (mock *KvClientPoolMock) Reconfigure(config *KvClientPoolConfig, cb func(er
 //	len(mockedKvClientPool.ReconfigureCalls())
 func (mock *KvClientPoolMock) ReconfigureCalls() []struct {
 	Config *KvClientPoolConfig
-	Cb     func(error)
 } {
 	var calls []struct {
 		Config *KvClientPoolConfig
-		Cb     func(error)
 	}
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure
