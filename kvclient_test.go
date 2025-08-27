@@ -32,16 +32,16 @@ func TestKvClientReconfigureBucketOverExistingBucket(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -66,16 +66,16 @@ func TestKvClientReconfigureTLSConfig(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -100,16 +100,16 @@ func TestKvClientReconfigureUsername(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -134,16 +134,16 @@ func TestKvClientReconfigurePassword(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -168,16 +168,16 @@ func TestKvClientReconfigureAddress(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -206,16 +206,16 @@ func TestKvClientOrphanResponseHandler(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -235,16 +235,16 @@ func TestKvClientConnCloseHandlerDefault(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -267,11 +267,6 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 	var closeErr error
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
@@ -281,6 +276,11 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 			closedCli = client
 			closeErr = err
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -303,16 +303,16 @@ func TestKvClientWrapsDispatchError(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 
@@ -336,16 +336,16 @@ func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
 
 	cli, err := NewKvClient(context.Background(), &KvClientConfig{
 		Address: "endpoint1",
-
-		// we set these to avoid bootstrapping
-		DisableBootstrap:       true,
-		DisableDefaultFeatures: true,
-		DisableErrorMap:        true,
 	}, &KvClientOptions{
 		Logger: logger,
 		NewMemdxClient: func(opts *memdx.ClientOptions) MemdxClient {
 			return memdxCli
 		},
+
+		// we set these to avoid bootstrapping
+		DisableBootstrap:       true,
+		DisableDefaultFeatures: true,
+		DisableErrorMap:        true,
 	})
 	require.NoError(t, err)
 

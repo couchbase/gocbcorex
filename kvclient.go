@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -20,18 +22,28 @@ import (
 
 type GetMemdxClientFunc func(opts *memdx.ClientOptions) MemdxClient
 
-type KvClientConfig struct {
-	Address                string
-	TlsConfig              *tls.Config
-	ClientName             string
-	Authenticator          Authenticator
-	SelectedBucket         string
-	DisableDefaultFeatures bool
-	DisableErrorMap        bool
+type DcpClientEventsHandlers struct {
+	SnapshotMarker     func(req *memdx.DcpSnapshotMarkerEvent) error
+	Mutation           func(req *memdx.DcpMutationEvent) error
+	Deletion           func(req *memdx.DcpDeletionEvent) error
+	Expiration         func(req *memdx.DcpExpirationEvent) error
+	CollectionCreation func(req *memdx.DcpCollectionCreationEvent) error
+	CollectionDeletion func(req *memdx.DcpCollectionDeletionEvent) error
+	CollectionFlush    func(req *memdx.DcpCollectionFlushEvent) error
+	ScopeCreation      func(req *memdx.DcpScopeCreationEvent) error
+	ScopeDeletion      func(req *memdx.DcpScopeDeletionEvent) error
+	CollectionChanged  func(req *memdx.DcpCollectionModificationEvent) error
+	StreamEnd          func(req *memdx.DcpStreamEndEvent) error
+	OSOSnapshot        func(req *memdx.DcpOSOSnapshotEvent) error
+	SeqNoAdvanced      func(req *memdx.DcpSeqNoAdvancedEvent) error
+}
 
-	// DisableBootstrap provides a simple way to validate that all bootstrapping
-	// is disabled on the client, mainly used for testing.
-	DisableBootstrap bool
+type KvClientConfig struct {
+	Address        string
+	TlsConfig      *tls.Config
+	ClientName     string
+	Authenticator  Authenticator
+	SelectedBucket string
 }
 
 func (o KvClientConfig) Equals(b *KvClientConfig) bool {
@@ -39,16 +51,55 @@ func (o KvClientConfig) Equals(b *KvClientConfig) bool {
 		o.TlsConfig == b.TlsConfig &&
 		o.ClientName == b.ClientName &&
 		o.Authenticator == b.Authenticator &&
-		o.SelectedBucket == b.SelectedBucket &&
-		o.DisableDefaultFeatures == b.DisableDefaultFeatures &&
-		o.DisableErrorMap == b.DisableErrorMap &&
-		o.DisableBootstrap == b.DisableBootstrap
+		o.SelectedBucket == b.SelectedBucket
+}
+
+type KvClientDcpConfig struct {
+	Handlers DcpClientEventsHandlers
+
+	ConnectionName        string
+	ConsumerName          string
+	ConnectionFlags       memdx.DcpConnectionFlags
+	NoopInterval          time.Duration
+	Priority              string
+	ForceValueCompression bool
+	EnableExpiryEvents    bool
+	EnableStreamIds       bool
+	EnableOso             bool
+	EnableSeqNoAdvance    bool
+	BackfillOrder         string
+	EnableChangeStreams   bool
+}
+
+func (o KvClientDcpConfig) Equals(b *KvClientDcpConfig) bool {
+	return o.Handlers == b.Handlers &&
+		o.ConnectionName == b.ConnectionName &&
+		o.ConsumerName == b.ConsumerName &&
+		o.ConnectionFlags == b.ConnectionFlags &&
+		o.NoopInterval == b.NoopInterval &&
+		o.Priority == b.Priority &&
+		o.ForceValueCompression == b.ForceValueCompression &&
+		o.EnableExpiryEvents == b.EnableExpiryEvents &&
+		o.EnableStreamIds == b.EnableStreamIds &&
+		o.EnableOso == b.EnableOso &&
+		o.EnableSeqNoAdvance == b.EnableSeqNoAdvance &&
+		o.BackfillOrder == b.BackfillOrder &&
+		o.EnableChangeStreams == b.EnableChangeStreams
 }
 
 type KvClientOptions struct {
 	Logger         *zap.Logger
 	NewMemdxClient GetMemdxClientFunc
 	CloseHandler   func(KvClient, error)
+
+	DisableDefaultFeatures bool
+	DisableErrorMap        bool
+
+	// DisableBootstrap provides a simple way to validate that all bootstrapping
+	// is disabled on the client, mainly used for testing.
+	DisableBootstrap bool
+
+	DcpOptions *KvClientDcpOptions
 }
 
 type KvClientOps interface {
@@ -111,7 +162,17 @@ type kvClient struct {
 	lock          sync.Mutex
 	currentConfig KvClientConfig
 
-	supportedFeatures []memdx.HelloFeature
+	supportedFeatures               []memdx.HelloFeature
+	dcpNoopEnabled                  bool
+	dcpStreamEndOnCloseEnabled      bool
+	dcpPriority                     string
+	dcpForceValueCompressionEnabled bool
+	dcpExpiryEventsEnabled          bool
+	dcpStreamIdsEnabled             bool
+	dcpOsoEnabled                   bool
+	dcpSeqNoAdvancedEnabled         bool
+	dcpBackfillOrder                string
+	dcpChangeStreamsEnabled         bool
 
 	// selectedBucket atomically stores the currently selected bucket,
 	// so that we can use it in our errors.  Note that it is set before
@@ -142,7 +203,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	logger.Debug("id assigned for " + config.Address)
 
 	var requestedFeatures []memdx.HelloFeature
-	if !config.DisableDefaultFeatures {
+	if !opts.DisableDefaultFeatures {
 		requestedFeatures = []memdx.HelloFeature{
 			memdx.HelloFeatureDatatype,
 			memdx.HelloFeatureSeqNo,
@@ -171,7 +232,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 	}
 
 	var bootstrapGetErrorMap *memdx.GetErrorMapRequest
-	if !config.DisableErrorMap {
+	if !opts.DisableErrorMap {
 		bootstrapGetErrorMap = &memdx.GetErrorMapRequest{
 			Version: 2,
 		}
@@ -200,9 +261,23 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 		}
 	}
 
-	shouldBootstrap := bootstrapHello != nil || bootstrapAuth != nil || bootstrapGetErrorMap != nil
+	if opts.DcpOptions != nil {
+		dcpOptions := opts.DcpOptions
 
-	if shouldBootstrap && config.DisableBootstrap {
+		if dcpOptions.ConnectionName == "" {
+			return nil, errors.New("connection name must be specified")
+		}
+		if config.SelectedBucket == "" {
+			return nil, errors.New("bucket name must be specified")
+		}
+		if (dcpOptions.ConnectionFlags & memdx.DcpConnectionFlagsProducer) == 0 {
+			return nil, errors.New("dcp client only supports producer mode")
+		}
+	}
+
+	shouldBootstrap := bootstrapHello != nil || bootstrapAuth != nil || bootstrapGetErrorMap != nil || opts.DcpOptions != nil
+
+	if shouldBootstrap && opts.DisableBootstrap {
 		return nil, errors.New("bootstrap was disabled but options requiring bootstrap were specified")
 	}
 
@@ -230,6 +305,12 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			kvCli.selectedBucket.Store(ptr.To(bootstrapSelectBucket.BucketName))
 		}
 
+		closeConnection := func() {
+			if closeErr := kvCli.Close(); closeErr != nil {
+				kvCli.logger.Debug("failed to close connection for DcpClient", zap.Error(closeErr))
+			}
+		}
+
 		kvCli.logger.Debug("bootstrapping")
 		res, err := kvCli.bootstrap(ctx, &memdx.BootstrapOptions{
 			Hello:            bootstrapHello,
@@ -240,9 +321,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 		})
 		if err != nil {
 			kvCli.logger.Debug("bootstrap failed", zap.Error(err))
-			if closeErr := kvCli.Close(); closeErr != nil {
-				kvCli.logger.Debug("failed to close connection for KvClient", zap.Error(closeErr))
-			}
+			closeConnection()
 
 			return nil, contextualError{
 				Message: "failed to bootstrap",
@@ -256,6 +335,152 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 
 		kvCli.logger.Debug("successfully bootstrapped new KvClient",
 			zap.Stringers("features", kvCli.supportedFeatures))
+
+		if opts.DcpOptions != nil {
+			dcpOpts := opts.DcpOptions
+
+			_, err = kvCli.dcpOpenConnection(ctx, &memdx.DcpOpenConnectionRequest{
+				ConnectionName: dcpOpts.ConnectionName,
+				ConsumerName:   dcpOpts.ConsumerName,
+				Flags:          dcpOpts.ConnectionFlags,
+			})
+			if err != nil {
+				closeConnection()
+				return nil, contextualError{
+					Message: "dcp openconnection failed",
+					Cause:   err,
+				}
+			}
+
+			_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+				Key:   "send_stream_end_on_client_close_stream",
+				Value: "true",
+			})
+			if err != nil {
+				kvCli.logger.Debug("failed to enable stream-end-on-close feature", zap.Error(err))
+			} else {
+				kvCli.dcpStreamEndOnCloseEnabled = true
+			}
+
+			if dcpOpts.NoopInterval > 0 {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "set_noop_interval",
+					Value: fmt.Sprintf("%d", dcpOpts.NoopInterval/time.Second),
+				})
+				if err == nil {
+					_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+						Key:   "enable_noop",
+						Value: "true",
+					})
+				}
+				if err != nil {
+					kvCli.logger.Debug("noop requested, but could not be enabled", zap.Error(err))
+				} else {
+					kvCli.dcpNoopEnabled = true
+				}
+			}
+
+			if dcpOpts.Priority != "" {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "set_priority",
+					Value: dcpOpts.Priority,
+				})
+				if err != nil {
+					kvCli.logger.Debug("failed to set dcp priority", zap.Error(err))
+				} else {
+					kvCli.dcpPriority = dcpOpts.Priority
+				}
+			}
+
+			if dcpOpts.ForceValueCompression {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "force_value_compression",
+					Value: "true",
+				})
+				if err != nil {
+					kvCli.logger.Debug("failed to enable forced value compression", zap.Error(err))
+				} else {
+					kvCli.dcpForceValueCompressionEnabled = true
+				}
+			}
+
+			if dcpOpts.EnableExpiryEvents {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "enable_expiry_opcode",
+					Value: "true",
+				})
+				if err != nil {
+					kvCli.logger.Debug("failed to enable expiry events feature", zap.Error(err))
+				} else {
+					kvCli.dcpExpiryEventsEnabled = true
+				}
+			}
+
+			if dcpOpts.EnableStreamIds {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "enable_stream_id",
+					Value: "true",
+				})
+				if err != nil {
+					kvCli.logger.Debug("failed to enable stream ids", zap.Error(err))
+				} else {
+					kvCli.dcpStreamIdsEnabled = true
+				}
+			}
+
+			if dcpOpts.EnableOso {
+				if dcpOpts.EnableSeqNoAdvance {
+					_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+						Key:   "enable_out_of_order_snapshots",
+						Value: "true_with_seqno_advanced",
+					})
+					if err != nil {
+						kvCli.logger.Debug("failed to enable oso with seqno advanced", zap.Error(err))
+					} else {
+						kvCli.dcpOsoEnabled = true
+						kvCli.dcpSeqNoAdvancedEnabled = true
+					}
+				}
+
+				if !kvCli.dcpOsoEnabled {
+					_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+						Key:   "enable_out_of_order_snapshots",
+						Value: "true",
+					})
+					if err != nil {
+						kvCli.logger.Debug("failed to enable oso", zap.Error(err))
+					} else {
+						kvCli.dcpOsoEnabled = true
+					}
+				}
+			}
+
+			if dcpOpts.BackfillOrder != "" {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "backfill_order",
+					Value: dcpOpts.BackfillOrder,
+				})
+				if err != nil {
+					kvCli.logger.Debug("failed to set backfill order", zap.Error(err))
+				} else {
+					kvCli.dcpBackfillOrder = dcpOpts.BackfillOrder
+				}
+			}
+
+			if dcpOpts.EnableChangeStreams {
+				_, err = kvCli.dcpControl(ctx, &memdx.DcpControlRequest{
+					Key:   "change_streams",
+					Value: "true",
+				})
+				if err != nil {
+					kvCli.logger.Debug("failed to enable change streams", zap.Error(err))
+				} else {
+					kvCli.dcpChangeStreamsEnabled = true
+				}
+			}
+
+			kvCli.logger.Debug("successfully configured new DcpClient")
+		}
 	} else {
 		kvCli.logger.Debug("skipped bootstrapping new KvClient")
 	}
@@ -276,10 +501,7 @@ func (c *kvClient) Reconfigure(config *KvClientConfig, cb func(error)) error {
 	if c.currentConfig.Address != config.Address ||
 		c.currentConfig.TlsConfig != config.TlsConfig ||
 		c.currentConfig.ClientName != config.ClientName ||
-		c.currentConfig.Authenticator != config.Authenticator ||
-		c.currentConfig.DisableDefaultFeatures != config.DisableDefaultFeatures ||
-		c.currentConfig.DisableErrorMap != config.DisableErrorMap ||
-		c.currentConfig.DisableBootstrap != config.DisableBootstrap {
+		c.currentConfig.Authenticator != config.Authenticator {
 		// pretty much everything triggers a reconfigure
 		return errors.New("cannot reconfigure due to conflicting options")
 	}
