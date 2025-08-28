@@ -2,8 +2,8 @@ package gocbcorex_test
 
 import (
 	"context"
+	"net"
 	"testing"
-	"time"
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/testutilsint"
@@ -15,25 +15,25 @@ import (
 func TestKvClientPoolClose(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	auth := &gocbcorex.PasswordAuthenticator{
-		Username: testutilsint.TestOpts.Username,
-		Password: testutilsint.TestOpts.Password,
-	}
-	clientConfig := gocbcorex.KvClientConfig{
-		Address:        testutilsint.TestOpts.MemdAddrs[0],
-		TlsConfig:      nil,
-		SelectedBucket: testutilsint.TestOpts.BucketName,
-		Authenticator:  auth,
-	}
-
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 
-	pool, err := gocbcorex.NewKvClientPool(&gocbcorex.KvClientPoolConfig{
-		NumConnections: 5,
-		ClientConfig:   clientConfig,
-	}, &gocbcorex.KvClientPoolOptions{
+	pool, err := gocbcorex.NewKvClientPool(&gocbcorex.KvClientPoolOptions{
 		Logger: logger,
+
+		NumConnections: 5,
+		KvClientPoolConfig: gocbcorex.KvClientPoolConfig{
+			KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
+
+				Address:        testutilsint.TestOpts.MemdAddrs[0],
+				TlsConfig:      nil,
+				SelectedBucket: testutilsint.TestOpts.BucketName,
+				Authenticator: &gocbcorex.PasswordAuthenticator{
+					Username: testutilsint.TestOpts.Username,
+					Password: testutilsint.TestOpts.Password,
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -50,30 +50,32 @@ func TestKvClientPoolClose(t *testing.T) {
 
 	// Check that getting a client fails after close.
 	_, err = pool.GetClient(context.Background())
-	require.Error(t, err)
+	require.ErrorIs(t, err, net.ErrClosed)
 }
 
 func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
 	auth := &gocbcorex.PasswordAuthenticator{
 		Username: testutilsint.TestOpts.Username,
 		Password: testutilsint.TestOpts.Password,
 	}
-	clientConfig := gocbcorex.KvClientConfig{
-		Address:       testutilsint.TestOpts.MemdAddrs[0],
-		TlsConfig:     nil,
-		Authenticator: auth,
-	}
 
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-
-	pool, err := gocbcorex.NewKvClientPool(&gocbcorex.KvClientPoolConfig{
-		NumConnections: 5,
-		ClientConfig:   clientConfig,
-	}, &gocbcorex.KvClientPoolOptions{
+	pool, err := gocbcorex.NewKvClientPool(&gocbcorex.KvClientPoolOptions{
 		Logger: logger,
+
+		NumConnections: 5,
+		KvClientPoolConfig: gocbcorex.KvClientPoolConfig{
+			KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
+				Address:        testutilsint.TestOpts.MemdAddrs[0],
+				TlsConfig:      nil,
+				SelectedBucket: testutilsint.TestOpts.BucketName,
+				Authenticator:  auth,
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -81,16 +83,14 @@ func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 	_, err = pool.GetClient(context.Background())
 	require.NoError(t, err)
 
-	err = pool.Reconfigure(&gocbcorex.KvClientPoolConfig{
-		NumConnections: 5,
-		ClientConfig: gocbcorex.KvClientConfig{
+	pool.Reconfigure(gocbcorex.KvClientPoolConfig{
+		KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
 			Address:        testutilsint.TestOpts.MemdAddrs[0],
 			TlsConfig:      nil,
-			SelectedBucket: testutilsint.TestOpts.BucketName,
+			SelectedBucket: "invalid-bucket",
 			Authenticator:  auth,
 		},
 	})
-	require.NoError(t, err)
 
 	err = pool.Close()
 	require.NoError(t, err)
@@ -99,26 +99,31 @@ func TestKvClientPoolCloseAfterReconfigure(t *testing.T) {
 func TestKvClientPoolHandleClientClose(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	auth := &gocbcorex.PasswordAuthenticator{
-		Username: testutilsint.TestOpts.Username,
-		Password: testutilsint.TestOpts.Password,
-	}
-	clientConfig := &gocbcorex.KvClientConfig{
-		Address:       testutilsint.TestOpts.MemdAddrs[0],
-		TlsConfig:     nil,
-		Authenticator: auth,
-	}
-
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 
-	pool, err := gocbcorex.NewKvClientPool(&gocbcorex.KvClientPoolConfig{
-		NumConnections: 1,
-		ClientConfig:   *clientConfig,
-	}, &gocbcorex.KvClientPoolOptions{
+	pool, err := gocbcorex.NewKvClientPool(&gocbcorex.KvClientPoolOptions{
 		Logger: logger,
+
+		NumConnections: 1,
+		KvClientPoolConfig: gocbcorex.KvClientPoolConfig{
+			KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
+
+				Address:        testutilsint.TestOpts.MemdAddrs[0],
+				TlsConfig:      nil,
+				SelectedBucket: testutilsint.TestOpts.BucketName,
+				Authenticator: &gocbcorex.PasswordAuthenticator{
+					Username: testutilsint.TestOpts.Username,
+					Password: testutilsint.TestOpts.Password,
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := pool.Close()
+		require.NoError(t, err)
+	})
 
 	cli, err := pool.GetClient(context.Background())
 	require.NoError(t, err)
@@ -127,18 +132,15 @@ func TestKvClientPoolHandleClientClose(t *testing.T) {
 	err = cli.Close()
 	require.NoError(t, err)
 
+	// Explicit close calls against the client will propagate synchronously to the
+	// pool, so we should immediately get a different client on the next GetClient call.
 	// The read side close handling happens in a different goroutine to Close so we need
 	// to Eventually this.
-	require.Eventually(t, func() bool {
-		cli2, err := pool.GetClient(context.Background())
-		if err != nil {
-			t.Logf("failed to get client %s", err)
-			return false
-		}
+	cli2, err := pool.GetClient(context.Background())
+	if err != nil {
+		require.NoError(t, err)
+	}
 
-		return cli2 != cli
-	}, 10*time.Second, 100*time.Millisecond)
+	require.NotEqual(t, cli, cli2)
 
-	err = pool.Close()
-	require.NoError(t, err)
 }

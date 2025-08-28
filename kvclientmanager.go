@@ -2,64 +2,86 @@ package gocbcorex
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
-	"fmt"
-	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
-
 	"go.uber.org/zap"
 )
 
 type KvClientManager interface {
-	ShutdownClient(endpoint string, client KvClient)
-	GetClient(ctx context.Context, endpoint string) (KvClient, error)
-	Reconfigure(opts *KvClientManagerConfig) error
-	GetRandomClient(ctx context.Context) (KvClient, error)
+	KvClientProvider
+
+	Reconfigure(opts KvClientManagerConfig)
 	Close() error
 }
 
-type NewKvClientProviderFunc func(clientOpts *KvClientPoolConfig) (KvClientPool, error)
+type KvClientManagerStateChangeFn func(KvClientManager, KvClient, error)
 
-type KvClientManagerConfig struct {
-	NumPoolConnections uint
-	Clients            map[string]*KvClientConfig
-}
-
-type KvClientManagerOptions struct {
-	Logger                *zap.Logger
-	NewKvClientProviderFn NewKvClientProviderFunc
-}
-
-type kvClientManagerPool struct {
-	Config *KvClientPoolConfig
-	Pool   KvClientPool
-}
+type NewKvClientFunc func(context.Context, *KvClientOptions) (KvClient, error)
 
 type kvClientManagerState struct {
-	ClientPools map[string]*kvClientManagerPool
+	Err    error
+	Client KvClient
+}
+
+type KvClientManagerConfig struct {
+	Address        string
+	TlsConfig      *tls.Config
+	Authenticator  Authenticator
+	SelectedBucket string
+	BootstrapOpts  KvClientBootstrapOptions
+}
+
+func (v KvClientManagerConfig) Equals(o KvClientManagerConfig) bool {
+	return v.Address == o.Address &&
+		v.TlsConfig == o.TlsConfig &&
+		v.Authenticator == o.Authenticator &&
+		v.SelectedBucket == o.SelectedBucket &&
+		v.BootstrapOpts.Equals(o.BootstrapOpts)
 }
 
 type kvClientManager struct {
-	logger                *zap.Logger
-	newKvClientProviderFn NewKvClientProviderFunc
+	logger                   *zap.Logger
+	newKvClient              NewKvClientFunc
+	connectTimeout           time.Duration
+	connectErrThrottlePeriod time.Duration
+	onDemandConnect          bool
+	stateChangeHandler       KvClientManagerStateChangeFn
 
-	lock          sync.Mutex
-	currentConfig KvClientManagerConfig
-	state         atomic.Pointer[kvClientManagerState]
+	client atomic.Pointer[kvClientManagerState]
+
+	lock              sync.Mutex
+	isBuilding        bool
+	isClosed          bool
+	stateChangeWaitCh chan struct{}
+	buildCancelFn     func()
+	buildDoneCh       chan struct{}
+	currentClient     KvClient
+	currentConfig     *KvClientManagerConfig
+	desiredConfig     *KvClientManagerConfig
+	connectErr        error
+	activeClient      KvClient
 }
 
-var _ (KvClientManager) = (*kvClientManager)(nil)
+var _ KvClientManager = (*kvClientManager)(nil)
 
-func NewKvClientManager(
-	config *KvClientManagerConfig,
-	opts *KvClientManagerOptions,
-) (*kvClientManager, error) {
-	if config == nil {
-		return nil, errors.New("must pass config for KvClientManager")
-	}
+type KvClientManagerOptions struct {
+	Logger      *zap.Logger
+	NewKvClient NewKvClientFunc
+
+	OnDemandConnect          bool
+	ConnectTimeout           time.Duration
+	ConnectErrThrottlePeriod time.Duration
+	StateChangeHandler       KvClientManagerStateChangeFn
+
+	KvClientManagerConfig
+}
+
+func NewKvClientManager(opts *KvClientManagerOptions) KvClientManager {
 	if opts == nil {
 		opts = &KvClientManagerOptions{}
 	}
@@ -67,301 +89,362 @@ func NewKvClientManager(
 	logger := loggerOrNop(opts.Logger)
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
-		zap.String("mgrId", uuid.NewString()[:8]),
+		zap.String("providerId", uuid.NewString()[:8]),
 	)
 
-	mgr := &kvClientManager{
-		logger:                logger,
-		newKvClientProviderFn: opts.NewKvClientProviderFn,
+	connectTimeout := opts.ConnectTimeout
+	if connectTimeout == 0 {
+		connectTimeout = 10 * time.Second
 	}
 
-	// initialize the client manager to having no clients
-	mgr.currentConfig = KvClientManagerConfig{}
-	mgr.state.Store(&kvClientManagerState{})
-
-	// we just call Reconfigure.  Since we know there are no pools that
-	// exist, we know that Reconfigure is guarenteed not to block.
-	err := mgr.Reconfigure(config)
-	if err != nil {
-		return nil, err
+	connectErrThrottlePeriod := opts.ConnectErrThrottlePeriod
+	if connectErrThrottlePeriod == 0 {
+		connectErrThrottlePeriod = 1 * time.Second
 	}
 
-	return mgr, nil
+	newKvClient := opts.NewKvClient
+	if opts.NewKvClient == nil {
+		newKvClient = NewKvClient
+	}
+
+	p := &kvClientManager{
+		logger:                   logger,
+		newKvClient:              newKvClient,
+		connectTimeout:           connectTimeout,
+		connectErrThrottlePeriod: connectErrThrottlePeriod,
+		onDemandConnect:          opts.OnDemandConnect,
+		stateChangeHandler:       opts.StateChangeHandler,
+		stateChangeWaitCh:        make(chan struct{}),
+		desiredConfig:            &opts.KvClientManagerConfig,
+	}
+
+	if !p.onDemandConnect {
+		p.maybeBeginClientBuildLocked()
+	}
+
+	return p
 }
 
-func (m *kvClientManager) newKvClientProvider(poolOpts *KvClientPoolConfig) (KvClientPool, error) {
-	if m.newKvClientProviderFn != nil {
-		return m.newKvClientProviderFn(poolOpts)
+func (p *kvClientManager) Reconfigure(newConfig KvClientManagerConfig) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if p.desiredConfig.Equals(newConfig) {
+		return
 	}
-	return NewKvClientPool(poolOpts, &KvClientPoolOptions{
-		Logger: m.logger.Named("pool"),
+
+	p.desiredConfig = &newConfig
+	p.updateActiveClientLocked()
+	p.rebuildFastLookupLocked()
+	p.maybeBeginClientBuildLocked()
+}
+
+func (p *kvClientManager) updateActiveClientLocked() {
+	// if there is no current client, we obviously can't use it
+	if p.currentClient == nil {
+		p.activeClient = nil
+		return
+	}
+
+	// if we previously had no bucket selected, but now do, we cannot use
+	// the client to prevent a race condition where the bucket is not
+	// actually selected yet.  Note that the converse is not true, if we
+	// had a bucket selected, but now do not, that is safe to use still.
+	if p.currentConfig.SelectedBucket == "" && p.desiredConfig.SelectedBucket != "" {
+		p.activeClient = nil
+		return
+	}
+
+	p.activeClient = p.currentClient
+}
+
+func (p *kvClientManager) rebuildFastLookupLocked() {
+	p.client.Store(&kvClientManagerState{
+		Err:    p.connectErr,
+		Client: p.activeClient,
 	})
 }
 
-func (m *kvClientManager) Reconfigure(config *KvClientManagerConfig) error {
-	if config == nil {
-		return errors.New("invalid arguments: cant reconfigure kvClientManager to nil")
+func (p *kvClientManager) maybeBeginClientBuildLocked() {
+	if p.isClosed {
+		return
+	}
+	if p.isBuilding {
+		return
 	}
 
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	state := m.state.Load()
-	if state == nil {
-		return illegalStateError{"kvClientManager reconfigure expected state"}
+	if p.activeClient != nil &&
+		p.currentConfig.Equals(*p.currentConfig) {
+		// already have a client with the desired config
+		return
 	}
 
-	m.logger.Debug("reconfiguring")
+	buildCtx, buildCancelFn := context.WithCancel(context.Background())
+	buildDoneCh := make(chan struct{}, 1)
 
-	oldPools := make(map[string]*kvClientManagerPool)
-	for poolName, pool := range state.ClientPools {
-		oldPools[poolName] = pool
-	}
+	p.isBuilding = true
+	p.buildCancelFn = buildCancelFn
+	p.buildDoneCh = buildDoneCh
 
-	newState := &kvClientManagerState{
-		ClientPools: make(map[string]*kvClientManagerPool),
-	}
+	go func() {
+		p.clientBuildThread(buildCtx)
 
-	for endpoint, endpointConfig := range config.Clients {
-		poolConfig := &KvClientPoolConfig{
-			NumConnections: config.NumPoolConnections,
-			ClientConfig:   *endpointConfig,
+		p.lock.Lock()
+		p.isBuilding = false
+		p.buildCancelFn = nil
+		p.buildDoneCh = nil
+		p.lock.Unlock()
+
+		buildCancelFn()
+		close(buildDoneCh)
+	}()
+}
+
+func (p *kvClientManager) clientBuildThread(
+	ctx context.Context,
+) {
+	p.logger.Info("client build thread started")
+
+	lastErrTime := time.Time{}
+
+	// we are the only writer to these values, so it is safe to read them
+	// without a lock, and we do not need to refresh them while we are working.
+	currentConfig := p.currentConfig
+	currentClient := p.currentClient
+
+	p.lock.Lock()
+	desiredConfig := p.desiredConfig
+	p.lock.Unlock()
+
+ClientBuildLoop:
+	for {
+		if desiredConfig == nil {
+			p.logger.DPanic("desired config is nil in client build thread")
+		}
+		if currentClient != nil && currentConfig == nil {
+			p.logger.DPanic("current client is non-nil but current config is nil in client build thread")
 		}
 
-		var pool KvClientPool
+		if ctx.Err() != nil {
+			p.logger.Debug("client build thread exiting due to context done", zap.Error(ctx.Err()))
+			return
+		}
 
-		oldPool := oldPools[endpoint]
-		if oldPool != nil {
-			err := oldPool.Pool.Reconfigure(poolConfig)
+		if currentConfig != nil && desiredConfig.Equals(*currentConfig) {
+			// we have reached the desired config
+			break
+		}
+
+		if currentClient != nil {
+			bucketChangeConfig := *currentConfig
+			bucketChangeConfig.SelectedBucket = desiredConfig.SelectedBucket
+			if desiredConfig.Equals(bucketChangeConfig) {
+				// if changing the bucket is enough to match the desired config, do that
+
+				err := currentClient.SelectBucket(ctx, desiredConfig.SelectedBucket)
+				if err == nil {
+					currentConfig = desiredConfig
+
+					p.lock.Lock()
+					p.currentConfig = currentConfig
+					p.updateActiveClientLocked()
+					p.rebuildFastLookupLocked()
+					p.lock.Unlock()
+					continue
+				} else {
+					p.logger.Warn("failed to reconfigure existing kv client", zap.Error(err))
+				}
+			}
+		}
+
+		p.logger.Info("creating new client kv client",
+			zap.Any("config", desiredConfig))
+
+		for {
+			connectWaitPeriod := p.connectErrThrottlePeriod - time.Since(lastErrTime)
+			if connectWaitPeriod > 0 {
+				p.logger.Debug("throttling client connection due to recent error",
+					zap.Duration("throttlePeriod", p.connectErrThrottlePeriod),
+					zap.Duration("waitPeriod", connectWaitPeriod))
+
+				select {
+				case <-ctx.Done():
+					break ClientBuildLoop
+				case <-time.After(connectWaitPeriod):
+				}
+
+				continue
+			}
+
+			break
+		}
+
+		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, p.connectTimeout)
+		newClient, err := p.newKvClient(timeoutCtx, &KvClientOptions{
+			Logger: p.logger,
+
+			Address:        desiredConfig.Address,
+			BootstrapOpts:  desiredConfig.BootstrapOpts,
+			TlsConfig:      desiredConfig.TlsConfig,
+			Authenticator:  desiredConfig.Authenticator,
+			SelectedBucket: desiredConfig.SelectedBucket,
+
+			CloseHandler: p.handleClientClosed,
+		})
+		timeoutCancel()
+
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				p.logger.Warn("failed to create new kv client", zap.Error(err))
+			}
+
+			p.lock.Lock()
+			p.connectErr = err
+			p.rebuildFastLookupLocked()
+			p.sendStateChangeLocked()
+			desiredConfig = p.desiredConfig
+			p.lock.Unlock()
+
+			lastErrTime = time.Now()
+			continue
+		}
+
+		existingClient := currentClient
+		currentClient = newClient
+		currentConfig = desiredConfig
+
+		p.lock.Lock()
+		p.currentClient = currentClient
+		p.currentConfig = currentConfig
+		p.connectErr = nil
+		p.updateActiveClientLocked()
+		p.rebuildFastLookupLocked()
+		p.sendStateChangeLocked()
+		desiredConfig = p.desiredConfig
+		p.lock.Unlock()
+
+		if existingClient != nil {
+			err = existingClient.Close()
 			if err != nil {
-				m.logger.Debug("failed to reconfigure pool", zap.Error(err))
+				p.logger.Warn("failed to close old kv client", zap.Error(err))
+			}
+		}
+	}
+}
+
+func (p *kvClientManager) sendStateChangeLocked() {
+	if p.stateChangeHandler != nil {
+		p.stateChangeHandler(p, p.activeClient, p.connectErr)
+	}
+
+	// state channel is basically a constant event feed
+	close(p.stateChangeWaitCh)
+	p.stateChangeWaitCh = make(chan struct{})
+}
+
+func (p *kvClientManager) handleClientClosed(client KvClient, err error) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if client != p.currentClient {
+		return
+	}
+
+	p.currentConfig = nil
+	p.currentClient = nil
+	p.activeClient = nil
+
+	if !p.onDemandConnect {
+		p.maybeBeginClientBuildLocked()
+	}
+
+	p.rebuildFastLookupLocked()
+	p.sendStateChangeLocked()
+}
+
+// GetClient will wait until a client is available to use, or an explicit
+// failure to connect to the client is known (in which case, the error is returned).
+func (p *kvClientManager) GetClient(ctx context.Context) (KvClient, error) {
+	wrapper := p.client.Load()
+	if wrapper != nil {
+		if wrapper.Client != nil {
+			return wrapper.Client, nil
+		} else if wrapper.Err != nil {
+			return nil, wrapper.Err
+		}
+	}
+
+	for {
+		p.lock.Lock()
+		isClosed := p.isClosed
+		client := p.activeClient
+		connectErr := p.connectErr
+		p.maybeBeginClientBuildLocked()
+		waitCh := p.stateChangeWaitCh
+		p.lock.Unlock()
+
+		if isClosed {
+			return nil, errors.New("client provider is closed")
+		}
+		if client != nil {
+			return client, nil
+		}
+		if connectErr != nil {
+			return nil, connectErr
+		}
+
+		select {
+		case <-waitCh:
+			// continue
+		case <-ctx.Done():
+			ctxErr := ctx.Err()
+			p.logger.Debug("context Done triggered during get client slow", zap.Error(ctxErr))
+			if errors.Is(ctxErr, context.DeadlineExceeded) {
+				return nil, ErrClientStillConnecting
 			} else {
-				pool = oldPool.Pool
-				delete(oldPools, endpoint)
+				return nil, ctxErr
 			}
 		}
 
-		if pool == nil {
-			newPool, err := m.newKvClientProvider(poolConfig)
-			if err != nil {
-				return err
-			}
+	}
+}
 
-			pool = newPool
+func (p *kvClientManager) Close() error {
+	p.logger.Debug("closing kv client manager")
+
+	p.lock.Lock()
+
+	p.isClosed = true
+	p.activeClient = nil
+	isBuilding := p.isBuilding
+	buildCancelFn := p.buildCancelFn
+	buildDoneCh := p.buildDoneCh
+
+	if isBuilding {
+		p.lock.Unlock()
+
+		if buildCancelFn == nil || buildDoneCh == nil {
+			p.logger.DPanic("inconsistent state in kv client manager close")
 		}
 
-		newState.ClientPools[endpoint] = &kvClientManagerPool{
-			Config: poolConfig,
-			Pool:   pool,
-		}
+		buildCancelFn()
+		<-buildDoneCh
+
+		p.lock.Lock()
 	}
 
-	for _, pool := range oldPools {
-		if err := pool.Pool.Close(); err != nil {
-			m.logger.Debug("failed to close pool", zap.Error(err))
+	currentClient := p.currentClient
+	p.currentConfig = nil
+	p.currentClient = nil
+
+	p.lock.Unlock()
+
+	if currentClient != nil {
+		closeErr := currentClient.Close()
+		if closeErr != nil {
+			return closeErr
 		}
 	}
-
-	m.state.Store(newState)
 
 	return nil
-}
-
-func (m *kvClientManager) getState() (*kvClientManagerState, error) {
-	state := m.state.Load()
-	if state == nil {
-		return nil, illegalStateError{"no state data for KvClientManager"}
-	}
-
-	return state, nil
-}
-
-func (m *kvClientManager) GetRandomEndpoint() (KvClientPool, error) {
-	state, err := m.getState()
-	if err != nil {
-		return nil, err
-	}
-
-	// Just pick one at random for now
-	for _, pool := range state.ClientPools {
-		return pool.Pool, nil
-	}
-
-	return nil, placeholderError{"no endpoints known, shutdown?"}
-}
-
-func (m *kvClientManager) GetEndpoint(endpoint string) (KvClientPool, error) {
-	if endpoint == "" {
-		return nil, placeholderError{"endpoint must be specified for GetEndpoint"}
-	}
-
-	state, err := m.getState()
-	if err != nil {
-		return nil, err
-	}
-
-	pool, ok := state.ClientPools[endpoint]
-	if !ok {
-		var validKeys []string
-		for validEndpoint := range state.ClientPools {
-			validKeys = append(validKeys, validEndpoint)
-		}
-		return nil, placeholderError{fmt.Sprintf("endpoint not known `%s` in %+v", endpoint, validKeys)}
-	}
-
-	return pool.Pool, nil
-}
-
-func (m *kvClientManager) shutdownRandomClient(client KvClient) {
-	state, err := m.getState()
-	if err != nil {
-		return
-	}
-
-	for _, endpoint := range state.ClientPools {
-		endpoint.Pool.ShutdownClient(client)
-	}
-}
-
-func (m *kvClientManager) ShutdownClient(endpoint string, client KvClient) {
-	if endpoint == "" {
-		// we don't know which endpoint this belongs to, so we need to send the
-		// shutdown request to all of the possibilities...
-		m.shutdownRandomClient(client)
-		return
-	}
-
-	connProvider, err := m.GetEndpoint(endpoint)
-	if err != nil {
-		return
-	}
-
-	connProvider.ShutdownClient(client)
-}
-
-func (m *kvClientManager) GetRandomClient(ctx context.Context) (KvClient, error) {
-	connProvider, err := m.GetRandomEndpoint()
-	if err != nil {
-		return nil, err
-	}
-
-	return connProvider.GetClient(ctx)
-}
-
-func (m *kvClientManager) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
-	connProvider, err := m.GetEndpoint(endpoint)
-	if err != nil {
-		return nil, err
-	}
-
-	return connProvider.GetClient(ctx)
-}
-func (m *kvClientManager) Close() error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	state := m.state.Load()
-	if state == nil {
-		return nil
-	}
-
-	m.logger.Info("closing kv client manager")
-
-	m.state.Store(nil)
-
-	for _, pool := range state.ClientPools {
-		if err := pool.Pool.Close(); err != nil {
-			m.logger.Debug("Failed to close kv client pool", zap.Error(err))
-		}
-
-	}
-
-	m.logger.Info("closed kv client manager")
-
-	return nil
-}
-
-type KvClientError struct {
-	Cause          error
-	RemoteHostname string
-	RemoteAddr     net.Addr
-	LocalAddr      net.Addr
-}
-
-func (e *KvClientError) Error() string {
-	return fmt.Sprintf("kv client error: %s (remote-host: %s, remote-addr: %s, local-addr: %s)",
-		e.Cause, e.RemoteHostname, e.RemoteAddr, e.LocalAddr)
-}
-
-func (e *KvClientError) Unwrap() error {
-	return e.Cause
-}
-
-func OrchestrateMemdClient[RespT any](
-	ctx context.Context,
-	cm KvClientManager,
-	endpoint string,
-	fn func(client KvClient) (RespT, error),
-) (RespT, error) {
-	for {
-		cli, err := cm.GetClient(ctx, endpoint)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		res, err := fn(cli)
-		if err != nil {
-			var dispatchErr *MemdClientDispatchError
-			if errors.As(err, &dispatchErr) {
-				// this was a dispatch error, so we can just try with
-				// a different client instead...
-				cm.ShutdownClient(endpoint, cli)
-				continue
-			}
-
-			return res, &KvClientError{
-				Cause:          err,
-				RemoteHostname: cli.RemoteHostname(),
-				RemoteAddr:     cli.RemoteAddr(),
-				LocalAddr:      cli.LocalAddr(),
-			}
-		}
-
-		return res, nil
-	}
-}
-
-func OrchestrateRandomMemdClient[RespT any](
-	ctx context.Context,
-	cm KvClientManager,
-	fn func(client KvClient) (RespT, error),
-) (RespT, error) {
-	for {
-		cli, err := cm.GetRandomClient(ctx)
-		if err != nil {
-			var emptyResp RespT
-			return emptyResp, err
-		}
-
-		res, err := fn(cli)
-		if err != nil {
-			var dispatchErr *MemdClientDispatchError
-			if errors.As(err, &dispatchErr) {
-				// this was a dispatch error, so we can just try with
-				// a different client instead...
-				cm.ShutdownClient("", cli)
-				continue
-			}
-
-			return res, &KvClientError{
-				Cause:          err,
-				RemoteHostname: cli.RemoteHostname(),
-				RemoteAddr:     cli.RemoteAddr(),
-				LocalAddr:      cli.LocalAddr(),
-			}
-		}
-
-		return res, nil
-	}
 }

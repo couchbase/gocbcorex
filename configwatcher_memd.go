@@ -16,9 +16,9 @@ type ConfigWatcherMemdConfig struct {
 }
 
 type ConfigWatcherMemdOptions struct {
-	Logger          *zap.Logger
-	KvClientManager KvClientManager
-	PollingPeriod   time.Duration
+	Logger         *zap.Logger
+	ClientProvider KvEndpointClientProvider
+	PollingPeriod  time.Duration
 }
 
 type configWatcherMemdState struct {
@@ -26,9 +26,9 @@ type configWatcherMemdState struct {
 }
 
 type ConfigWatcherMemd struct {
-	logger          *zap.Logger
-	kvClientManager KvClientManager
-	pollingPeriod   time.Duration
+	logger         *zap.Logger
+	clientProvider KvEndpointClientProvider
+	pollingPeriod  time.Duration
 
 	lock  sync.Mutex
 	state *configWatcherMemdState
@@ -36,9 +36,9 @@ type ConfigWatcherMemd struct {
 
 func NewConfigWatcherMemd(config *ConfigWatcherMemdConfig, opts *ConfigWatcherMemdOptions) (*ConfigWatcherMemd, error) {
 	return &ConfigWatcherMemd{
-		logger:          opts.Logger,
-		kvClientManager: opts.KvClientManager,
-		pollingPeriod:   opts.PollingPeriod,
+		logger:         opts.Logger,
+		clientProvider: opts.ClientProvider,
+		pollingPeriod:  opts.PollingPeriod,
 		state: &configWatcherMemdState{
 			endpoints: config.Endpoints,
 		},
@@ -57,10 +57,10 @@ func (w *ConfigWatcherMemd) Reconfigure(config *ConfigWatcherMemdConfig) error {
 func configWatcherMemd_pollOne(
 	ctx context.Context,
 	logger *zap.Logger,
-	kvClientManager KvClientManager,
+	clientProvider KvEndpointClientProvider,
 	endpoint string,
 ) (*ParsedConfig, error) {
-	client, err := kvClientManager.GetClient(ctx, endpoint)
+	client, err := clientProvider.GetEndpointClient(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (w *ConfigWatcherMemd) watchThread(ctx context.Context, outCh chan<- *Parse
 		parsedConfig, err := configWatcherMemd_pollOne(
 			pollCtx,
 			w.logger,
-			w.kvClientManager,
+			w.clientProvider,
 			endpoint)
 		cancel()
 		if err != nil {

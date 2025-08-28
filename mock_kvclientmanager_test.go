@@ -21,17 +21,11 @@ var _ KvClientManager = &KvClientManagerMock{}
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
 //			},
-//			GetClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
+//			GetClientFunc: func(ctx context.Context) (KvClient, error) {
 //				panic("mock out the GetClient method")
 //			},
-//			GetRandomClientFunc: func(ctx context.Context) (KvClient, error) {
-//				panic("mock out the GetRandomClient method")
-//			},
-//			ReconfigureFunc: func(opts *KvClientManagerConfig) error {
+//			ReconfigureFunc: func(opts KvClientManagerConfig)  {
 //				panic("mock out the Reconfigure method")
-//			},
-//			ShutdownClientFunc: func(endpoint string, client KvClient)  {
-//				panic("mock out the ShutdownClient method")
 //			},
 //		}
 //
@@ -44,16 +38,10 @@ type KvClientManagerMock struct {
 	CloseFunc func() error
 
 	// GetClientFunc mocks the GetClient method.
-	GetClientFunc func(ctx context.Context, endpoint string) (KvClient, error)
-
-	// GetRandomClientFunc mocks the GetRandomClient method.
-	GetRandomClientFunc func(ctx context.Context) (KvClient, error)
+	GetClientFunc func(ctx context.Context) (KvClient, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(opts *KvClientManagerConfig) error
-
-	// ShutdownClientFunc mocks the ShutdownClient method.
-	ShutdownClientFunc func(endpoint string, client KvClient)
+	ReconfigureFunc func(opts KvClientManagerConfig)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -64,32 +52,16 @@ type KvClientManagerMock struct {
 		GetClient []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// Endpoint is the endpoint argument value.
-			Endpoint string
-		}
-		// GetRandomClient holds details about calls to the GetRandomClient method.
-		GetRandomClient []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
 		}
 		// Reconfigure holds details about calls to the Reconfigure method.
 		Reconfigure []struct {
 			// Opts is the opts argument value.
-			Opts *KvClientManagerConfig
-		}
-		// ShutdownClient holds details about calls to the ShutdownClient method.
-		ShutdownClient []struct {
-			// Endpoint is the endpoint argument value.
-			Endpoint string
-			// Client is the client argument value.
-			Client KvClient
+			Opts KvClientManagerConfig
 		}
 	}
-	lockClose           sync.RWMutex
-	lockGetClient       sync.RWMutex
-	lockGetRandomClient sync.RWMutex
-	lockReconfigure     sync.RWMutex
-	lockShutdownClient  sync.RWMutex
+	lockClose       sync.RWMutex
+	lockGetClient   sync.RWMutex
+	lockReconfigure sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -120,21 +92,19 @@ func (mock *KvClientManagerMock) CloseCalls() []struct {
 }
 
 // GetClient calls GetClientFunc.
-func (mock *KvClientManagerMock) GetClient(ctx context.Context, endpoint string) (KvClient, error) {
+func (mock *KvClientManagerMock) GetClient(ctx context.Context) (KvClient, error) {
 	if mock.GetClientFunc == nil {
 		panic("KvClientManagerMock.GetClientFunc: method is nil but KvClientManager.GetClient was just called")
 	}
 	callInfo := struct {
-		Ctx      context.Context
-		Endpoint string
+		Ctx context.Context
 	}{
-		Ctx:      ctx,
-		Endpoint: endpoint,
+		Ctx: ctx,
 	}
 	mock.lockGetClient.Lock()
 	mock.calls.GetClient = append(mock.calls.GetClient, callInfo)
 	mock.lockGetClient.Unlock()
-	return mock.GetClientFunc(ctx, endpoint)
+	return mock.GetClientFunc(ctx)
 }
 
 // GetClientCalls gets all the calls that were made to GetClient.
@@ -142,12 +112,10 @@ func (mock *KvClientManagerMock) GetClient(ctx context.Context, endpoint string)
 //
 //	len(mockedKvClientManager.GetClientCalls())
 func (mock *KvClientManagerMock) GetClientCalls() []struct {
-	Ctx      context.Context
-	Endpoint string
+	Ctx context.Context
 } {
 	var calls []struct {
-		Ctx      context.Context
-		Endpoint string
+		Ctx context.Context
 	}
 	mock.lockGetClient.RLock()
 	calls = mock.calls.GetClient
@@ -155,52 +123,20 @@ func (mock *KvClientManagerMock) GetClientCalls() []struct {
 	return calls
 }
 
-// GetRandomClient calls GetRandomClientFunc.
-func (mock *KvClientManagerMock) GetRandomClient(ctx context.Context) (KvClient, error) {
-	if mock.GetRandomClientFunc == nil {
-		panic("KvClientManagerMock.GetRandomClientFunc: method is nil but KvClientManager.GetRandomClient was just called")
-	}
-	callInfo := struct {
-		Ctx context.Context
-	}{
-		Ctx: ctx,
-	}
-	mock.lockGetRandomClient.Lock()
-	mock.calls.GetRandomClient = append(mock.calls.GetRandomClient, callInfo)
-	mock.lockGetRandomClient.Unlock()
-	return mock.GetRandomClientFunc(ctx)
-}
-
-// GetRandomClientCalls gets all the calls that were made to GetRandomClient.
-// Check the length with:
-//
-//	len(mockedKvClientManager.GetRandomClientCalls())
-func (mock *KvClientManagerMock) GetRandomClientCalls() []struct {
-	Ctx context.Context
-} {
-	var calls []struct {
-		Ctx context.Context
-	}
-	mock.lockGetRandomClient.RLock()
-	calls = mock.calls.GetRandomClient
-	mock.lockGetRandomClient.RUnlock()
-	return calls
-}
-
 // Reconfigure calls ReconfigureFunc.
-func (mock *KvClientManagerMock) Reconfigure(opts *KvClientManagerConfig) error {
+func (mock *KvClientManagerMock) Reconfigure(opts KvClientManagerConfig) {
 	if mock.ReconfigureFunc == nil {
 		panic("KvClientManagerMock.ReconfigureFunc: method is nil but KvClientManager.Reconfigure was just called")
 	}
 	callInfo := struct {
-		Opts *KvClientManagerConfig
+		Opts KvClientManagerConfig
 	}{
 		Opts: opts,
 	}
 	mock.lockReconfigure.Lock()
 	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
 	mock.lockReconfigure.Unlock()
-	return mock.ReconfigureFunc(opts)
+	mock.ReconfigureFunc(opts)
 }
 
 // ReconfigureCalls gets all the calls that were made to Reconfigure.
@@ -208,49 +144,13 @@ func (mock *KvClientManagerMock) Reconfigure(opts *KvClientManagerConfig) error 
 //
 //	len(mockedKvClientManager.ReconfigureCalls())
 func (mock *KvClientManagerMock) ReconfigureCalls() []struct {
-	Opts *KvClientManagerConfig
+	Opts KvClientManagerConfig
 } {
 	var calls []struct {
-		Opts *KvClientManagerConfig
+		Opts KvClientManagerConfig
 	}
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure
 	mock.lockReconfigure.RUnlock()
-	return calls
-}
-
-// ShutdownClient calls ShutdownClientFunc.
-func (mock *KvClientManagerMock) ShutdownClient(endpoint string, client KvClient) {
-	if mock.ShutdownClientFunc == nil {
-		panic("KvClientManagerMock.ShutdownClientFunc: method is nil but KvClientManager.ShutdownClient was just called")
-	}
-	callInfo := struct {
-		Endpoint string
-		Client   KvClient
-	}{
-		Endpoint: endpoint,
-		Client:   client,
-	}
-	mock.lockShutdownClient.Lock()
-	mock.calls.ShutdownClient = append(mock.calls.ShutdownClient, callInfo)
-	mock.lockShutdownClient.Unlock()
-	mock.ShutdownClientFunc(endpoint, client)
-}
-
-// ShutdownClientCalls gets all the calls that were made to ShutdownClient.
-// Check the length with:
-//
-//	len(mockedKvClientManager.ShutdownClientCalls())
-func (mock *KvClientManagerMock) ShutdownClientCalls() []struct {
-	Endpoint string
-	Client   KvClient
-} {
-	var calls []struct {
-		Endpoint string
-		Client   KvClient
-	}
-	mock.lockShutdownClient.RLock()
-	calls = mock.calls.ShutdownClient
-	mock.lockShutdownClient.RUnlock()
 	return calls
 }

@@ -19,13 +19,12 @@ import (
 var buildVersion string = buildversion.GetVersion("github.com/couchbase/gocbcorex")
 
 type agentState struct {
-	bucket             string
-	tlsConfig          *tls.Config
-	authenticator      Authenticator
-	numPoolConnections uint
-	httpTransport      *http.Transport
+	bucket        string
+	tlsConfig     *tls.Config
+	authenticator Authenticator
+	httpTransport *http.Transport
 
-	lastClients  map[string]*KvClientConfig
+	lastClients  map[string]KvEndpointClientManagerConfigClient
 	latestConfig *ParsedConfig
 }
 
@@ -37,7 +36,7 @@ type Agent struct {
 	state agentState
 
 	cfgWatcher  ConfigWatcher
-	connMgr     KvClientManager
+	connMgr     KvEndpointClientManager
 	collections CollectionResolver
 	retries     RetryManager
 	vbRouter    VbucketRouter
@@ -148,12 +147,11 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		networkType: networkType,
 
 		state: agentState{
-			bucket:             opts.BucketName,
-			tlsConfig:          opts.TLSConfig,
-			authenticator:      opts.Authenticator,
-			numPoolConnections: connectionPoolSize,
-			latestConfig:       bootstrapConfig,
-			httpTransport:      httpTransport,
+			bucket:        opts.BucketName,
+			tlsConfig:     opts.TLSConfig,
+			authenticator: opts.Authenticator,
+			latestConfig:  bootstrapConfig,
+			httpTransport: httpTransport,
 		},
 	}
 	if opts.RetryManager == nil {
@@ -164,11 +162,10 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 	agentComponentConfigs := agent.genAgentComponentConfigsLocked()
 
-	connMgr, err := NewKvClientManager(&KvClientManagerConfig{
-		NumPoolConnections: agent.state.numPoolConnections,
-		Clients:            agentComponentConfigs.KvClientManagerClients,
-	}, &KvClientManagerOptions{
-		Logger: agent.logger.Named("client-manager"),
+	connMgr, err := NewKvEndpointClientManager(&KvEndpointClientManagerOptions{
+		Logger:                        agent.logger.Named("client-manager"),
+		NumPoolConnections:            connectionPoolSize,
+		KvEndpointClientManagerConfig: agentComponentConfigs.KvEndpointClientManagerConfig,
 	})
 	if err != nil {
 		return nil, handleAgentCreateErr(err)
@@ -176,8 +173,8 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	agent.connMgr = connMgr
 
 	coreCollections, err := NewCollectionResolverMemd(&CollectionResolverMemdOptions{
-		Logger:  agent.logger,
-		ConnMgr: agent.connMgr,
+		Logger:       agent.logger,
+		ConnProvider: agent.connMgr,
 	})
 	if err != nil {
 		return nil, handleAgentCreateErr(err)
@@ -213,9 +210,9 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		configWatcher, err := NewConfigWatcherMemd(
 			&agentComponentConfigs.ConfigWatcherMemdConfig,
 			&ConfigWatcherMemdOptions{
-				Logger:          logger.Named("memd-config-watcher"),
-				KvClientManager: connMgr,
-				PollingPeriod:   2500 * time.Millisecond,
+				Logger:         logger.Named("memd-config-watcher"),
+				ClientProvider: connMgr,
+				PollingPeriod:  2500 * time.Millisecond,
 			},
 		)
 		if err != nil {
@@ -258,12 +255,12 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	agent.crud = &CrudComponent{
-		logger:      agent.logger,
-		collections: agent.collections,
-		retries:     consistencyRetryMgr,
-		connManager: agent.connMgr,
-		nmvHandler:  &agentNmvHandler{agent},
-		vbs:         agent.vbRouter,
+		logger:       agent.logger,
+		collections:  agent.collections,
+		retries:      consistencyRetryMgr,
+		connProvider: agent.connMgr,
+		nmvHandler:   &agentNmvHandler{agent},
+		vbs:          agent.vbRouter,
 		compression: &CompressionManagerDefault{
 			disableCompression:   !useCompression,
 			compressionMinSize:   compressionMinSize,
@@ -412,44 +409,36 @@ func (agent *Agent) updateStateLocked() {
 	// the routing table.  Then go back and remove the old entries from
 	// the connection manager list.
 
-	oldClients := make(map[string]*KvClientConfig)
+	mixedClients := make(map[string]KvEndpointClientManagerConfigClient)
 	if agent.state.lastClients != nil {
 		for clientName, client := range agent.state.lastClients {
-			oldClients[clientName] = client
+			mixedClients[clientName] = client
 		}
 	}
-	for clientName, client := range agentComponentConfigs.KvClientManagerClients {
-		if oldClients[clientName] == nil {
-			oldClients[clientName] = client
+	for clientName, clientConfig := range agentComponentConfigs.KvEndpointClientManagerConfig.Clients {
+		if _, ok := mixedClients[clientName]; ok {
+			mixedClients[clientName] = clientConfig
 		}
 	}
 
-	err := agent.connMgr.Reconfigure(&KvClientManagerConfig{
-		NumPoolConnections: agent.state.numPoolConnections,
-		Clients:            oldClients,
-	})
-	if err != nil {
-		agent.logger.Error("failed to reconfigure connection manager (old clients)", zap.Error(err))
-	}
+	mixedConfig := agentComponentConfigs.KvEndpointClientManagerConfig
+	mixedConfig.Clients = mixedClients
+
+	agent.connMgr.Reconfigure(mixedConfig)
 
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
 	if agent.memdCfgWatcher != nil {
-		err = agent.memdCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherMemdConfig)
+		err := agent.memdCfgWatcher.Reconfigure(&agentComponentConfigs.ConfigWatcherMemdConfig)
 		if err != nil {
 			agent.logger.Error("failed to reconfigure memd config watcher component", zap.Error(err))
 		}
 	}
 
-	err = agent.connMgr.Reconfigure(&KvClientManagerConfig{
-		NumPoolConnections: agent.state.numPoolConnections,
-		Clients:            agentComponentConfigs.KvClientManagerClients,
-	})
-	if err != nil {
-		agent.logger.Error("failed to reconfigure connection manager (updated clients)", zap.Error(err))
-	}
+	agent.connMgr.Reconfigure(agentComponentConfigs.KvEndpointClientManagerConfig)
+	agent.state.lastClients = agentComponentConfigs.KvEndpointClientManagerConfig.Clients
 
-	err = agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
+	err := agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
 	if err != nil {
 		agent.logger.Error("failed to reconfigure query component", zap.Error(err))
 	}

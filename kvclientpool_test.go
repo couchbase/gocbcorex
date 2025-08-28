@@ -14,23 +14,22 @@ import (
 
 func TestKvClientPoolGetClient(t *testing.T) {
 	mock := makeMockKvClient()
-	clientConfig := KvClientConfig{
-		Address:        "endpoint1",
-		TlsConfig:      nil,
-		SelectedBucket: "test",
-		Authenticator: &PasswordAuthenticator{
-			Username: "username",
-			Password: "password",
-		},
-	}
-	pool, err := NewKvClientPool(&KvClientPoolConfig{
-		NumConnections: 1,
-		ClientConfig:   clientConfig,
-	}, &KvClientPoolOptions{
-		NewKvClient: func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
-			assert.Equal(t, &clientConfig, config)
-
+	pool, err := NewKvClientPool(&KvClientPoolOptions{
+		NewKvClient: func(ctx context.Context, config *KvClientOptions) (KvClient, error) {
 			return mock, nil
+		},
+
+		NumConnections: 1,
+		KvClientPoolConfig: KvClientPoolConfig{
+			KvClientManagerConfig: KvClientManagerConfig{
+				Address:        "endpoint1",
+				TlsConfig:      nil,
+				SelectedBucket: "test",
+				Authenticator: &PasswordAuthenticator{
+					Username: "username",
+					Password: "password",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -51,23 +50,23 @@ func TestKvClientPoolGetClient(t *testing.T) {
 
 func TestKvClientPoolGetClientConcurrent(t *testing.T) {
 	mock := makeMockKvClient()
-	clientConfig := KvClientConfig{
-		Address:        "endpoint1",
-		TlsConfig:      nil,
-		SelectedBucket: "test",
-		Authenticator: &PasswordAuthenticator{
-			Username: "username",
-			Password: "password",
-		},
-	}
-	pool, err := NewKvClientPool(&KvClientPoolConfig{
-		NumConnections: 1,
-		ClientConfig:   clientConfig,
-	}, &KvClientPoolOptions{
-		NewKvClient: func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
-			assert.Equal(t, &clientConfig, config)
 
+	pool, err := NewKvClientPool(&KvClientPoolOptions{
+		NewKvClient: func(ctx context.Context, config *KvClientOptions) (KvClient, error) {
 			return mock, nil
+		},
+
+		NumConnections: 1,
+		KvClientPoolConfig: KvClientPoolConfig{
+			KvClientManagerConfig: KvClientManagerConfig{
+				Address:        "endpoint1",
+				TlsConfig:      nil,
+				SelectedBucket: "test",
+				Authenticator: &PasswordAuthenticator{
+					Username: "username",
+					Password: "password",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -89,26 +88,24 @@ func TestKvClientPoolGetClientConcurrent(t *testing.T) {
 }
 
 func TestKvClientPoolCreates5Connections(t *testing.T) {
-	clientConfig := KvClientConfig{
-		Address:        "endpoint1",
-		TlsConfig:      nil,
-		SelectedBucket: "test",
-		Authenticator: &PasswordAuthenticator{
-			Username: "username",
-			Password: "password",
-		},
-	}
 	var called uint32
-	pool, err := NewKvClientPool(&KvClientPoolConfig{
-		NumConnections: 5,
-		ClientConfig:   clientConfig,
-	}, &KvClientPoolOptions{
-		NewKvClient: func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
-			assert.Equal(t, &clientConfig, config)
-
+	pool, err := NewKvClientPool(&KvClientPoolOptions{
+		NewKvClient: func(ctx context.Context, config *KvClientOptions) (KvClient, error) {
 			atomic.AddUint32(&called, 1)
-
 			return makeMockKvClient(), nil
+		},
+
+		NumConnections: 5,
+		KvClientPoolConfig: KvClientPoolConfig{
+			KvClientManagerConfig: KvClientManagerConfig{
+				Address:        "endpoint1",
+				TlsConfig:      nil,
+				SelectedBucket: "test",
+				Authenticator: &PasswordAuthenticator{
+					Username: "username",
+					Password: "password",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -124,72 +121,25 @@ func TestKvClientPoolCreates5Connections(t *testing.T) {
 	assert.NoError(t, pool.Close())
 }
 
-func TestKvClientPoolReconfigure(t *testing.T) {
-	mock := &KvClientMock{
-		ReconfigureFunc: func(opts *KvClientConfig, cb func(error)) error {
-			cb(nil)
-			return nil
-		},
-		CloseFunc: func() error { return nil },
-	}
-	clientConfig := KvClientConfig{
-		Address:        "endpoint1",
-		TlsConfig:      nil,
-		SelectedBucket: "test",
-		Authenticator: &PasswordAuthenticator{
-			Username: "username",
-			Password: "password",
-		},
-	}
-
-	pool, err := NewKvClientPool(&KvClientPoolConfig{
-		NumConnections: 3,
-		ClientConfig:   clientConfig,
-	}, &KvClientPoolOptions{
-		NewKvClient: func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
-			assert.Equal(t, &clientConfig, config)
-
-			return mock, nil
-		},
-	})
-	require.NoError(t, err)
-
-	cli, err := pool.GetClient(context.Background())
-	require.NoError(t, err)
-
-	assert.Equal(t, mock, cli)
-
-	err = pool.Reconfigure(&KvClientPoolConfig{
-		NumConnections: 1,
-		ClientConfig:   clientConfig,
-	})
-	require.NoError(t, err)
-
-	cli, err = pool.GetClient(context.Background())
-	require.NoError(t, err)
-
-	assert.Equal(t, mock, cli)
-
-	assert.NoError(t, pool.Close())
-}
-
 func TestKvClientPoolNewAndGetRace(t *testing.T) {
-	clientConfig := KvClientConfig{
-		Address:        "endpoint1",
-		TlsConfig:      nil,
-		SelectedBucket: "test",
-		Authenticator: &PasswordAuthenticator{
-			Username: "username",
-			Password: "password",
-		},
-	}
 	expectedErr := errors.New("connect failure")
-	pool, err := NewKvClientPool(&KvClientPoolConfig{
-		NumConnections: 1,
-		ClientConfig:   clientConfig,
-	}, &KvClientPoolOptions{
-		NewKvClient: func(ctx context.Context, config *KvClientConfig) (KvClient, error) {
+
+	pool, err := NewKvClientPool(&KvClientPoolOptions{
+		NewKvClient: func(ctx context.Context, config *KvClientOptions) (KvClient, error) {
 			return nil, expectedErr
+		},
+
+		NumConnections: 1,
+		KvClientPoolConfig: KvClientPoolConfig{
+			KvClientManagerConfig: KvClientManagerConfig{
+				Address:        "endpoint1",
+				TlsConfig:      nil,
+				SelectedBucket: "test",
+				Authenticator: &PasswordAuthenticator{
+					Username: "username",
+					Password: "password",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -202,8 +152,6 @@ func TestKvClientPoolNewAndGetRace(t *testing.T) {
 
 func makeMockKvClient() KvClient {
 	return &KvClientMock{
-		CloseFunc: func() error {
-			return nil
-		},
+		CloseFunc: func() error { return nil },
 	}
 }

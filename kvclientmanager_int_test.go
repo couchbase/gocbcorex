@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestClientManagerClose(t *testing.T) {
+func TestEndpointClientManagerClose(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
 	logger, err := zap.NewDevelopment()
@@ -23,22 +23,25 @@ func TestClientManagerClose(t *testing.T) {
 
 	endpointName := "endpoint1"
 
-	mgr, err := gocbcorex.NewKvClientManager(
-		&gocbcorex.KvClientManagerConfig{
-			NumPoolConnections: 3,
-			Clients: map[string]*gocbcorex.KvClientConfig{
+	mgr, err := gocbcorex.NewKvEndpointClientManager(&gocbcorex.KvEndpointClientManagerOptions{
+		Logger: logger,
+
+		NumPoolConnections: 3,
+		KvEndpointClientManagerConfig: gocbcorex.KvEndpointClientManagerConfig{
+			Clients: map[string]gocbcorex.KvEndpointClientManagerConfigClient{
 				endpointName: {
-					Address:        testutilsint.TestOpts.MemdAddrs[0],
-					TlsConfig:      nil,
-					SelectedBucket: testutilsint.TestOpts.BucketName,
-					Authenticator:  auth,
+					KvClientPoolConfig: gocbcorex.KvClientPoolConfig{
+						KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
+							Address:        testutilsint.TestOpts.MemdAddrs[0],
+							TlsConfig:      nil,
+							SelectedBucket: testutilsint.TestOpts.BucketName,
+							Authenticator:  auth,
+						},
+					},
 				},
 			},
 		},
-		&gocbcorex.KvClientManagerOptions{
-			Logger: logger,
-		},
-	)
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := mgr.Close()
@@ -46,18 +49,18 @@ func TestClientManagerClose(t *testing.T) {
 	})
 
 	// Check that we've connected at least 1 client
-	_, err = mgr.GetClient(context.Background(), endpointName)
+	_, err = mgr.GetEndpointClient(context.Background(), endpointName)
 	require.NoError(t, err)
 
 	err = mgr.Close()
 	require.NoError(t, err)
 
 	// Check that getting a client fails after close.
-	_, err = mgr.GetClient(context.Background(), endpointName)
+	_, err = mgr.GetEndpointClient(context.Background(), endpointName)
 	require.Error(t, err)
 }
 
-func TestClientManagerCloseAfterReconfigure(t *testing.T) {
+func TestEndpointClientManagerCloseAfterReconfigure(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
 	logger, err := zap.NewDevelopment()
@@ -70,21 +73,25 @@ func TestClientManagerCloseAfterReconfigure(t *testing.T) {
 
 	endpointName := "endpoint1"
 
-	mgr, err := gocbcorex.NewKvClientManager(
-		&gocbcorex.KvClientManagerConfig{
-			NumPoolConnections: 3,
-			Clients: map[string]*gocbcorex.KvClientConfig{
+	mgr, err := gocbcorex.NewKvEndpointClientManager(&gocbcorex.KvEndpointClientManagerOptions{
+		Logger: logger,
+
+		NumPoolConnections: 3,
+		KvEndpointClientManagerConfig: gocbcorex.KvEndpointClientManagerConfig{
+			Clients: map[string]gocbcorex.KvEndpointClientManagerConfigClient{
 				endpointName: {
-					Address:       testutilsint.TestOpts.MemdAddrs[0],
-					TlsConfig:     nil,
-					Authenticator: auth,
+					KvClientPoolConfig: gocbcorex.KvClientPoolConfig{
+						KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
+							Address:        testutilsint.TestOpts.MemdAddrs[0],
+							TlsConfig:      nil,
+							SelectedBucket: testutilsint.TestOpts.BucketName,
+							Authenticator:  auth,
+						},
+					},
 				},
 			},
 		},
-		&gocbcorex.KvClientManagerOptions{
-			Logger: logger,
-		},
-	)
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := mgr.Close()
@@ -92,17 +99,20 @@ func TestClientManagerCloseAfterReconfigure(t *testing.T) {
 	})
 
 	// Check that we've connected at least 1 client
-	_, err = mgr.GetClient(context.Background(), endpointName)
+	_, err = mgr.GetEndpointClient(context.Background(), endpointName)
 	require.NoError(t, err)
 
-	err = mgr.Reconfigure(&gocbcorex.KvClientManagerConfig{
-		NumPoolConnections: 3,
-		Clients: map[string]*gocbcorex.KvClientConfig{
+	mgr.Reconfigure(gocbcorex.KvEndpointClientManagerConfig{
+		Clients: map[string]gocbcorex.KvEndpointClientManagerConfigClient{
 			endpointName: {
-				Address:        testutilsint.TestOpts.MemdAddrs[0],
-				TlsConfig:      nil,
-				SelectedBucket: testutilsint.TestOpts.BucketName,
-				Authenticator:  auth,
+				KvClientPoolConfig: gocbcorex.KvClientPoolConfig{
+					KvClientManagerConfig: gocbcorex.KvClientManagerConfig{
+						Address:        testutilsint.TestOpts.MemdAddrs[0],
+						TlsConfig:      nil,
+						SelectedBucket: "invalid-bucket",
+						Authenticator:  auth,
+					},
+				},
 			},
 		},
 	})
@@ -112,6 +122,6 @@ func TestClientManagerCloseAfterReconfigure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that getting a client fails after close.
-	_, err = mgr.GetClient(context.Background(), endpointName)
+	_, err = mgr.GetEndpointClient(context.Background(), endpointName)
 	require.Error(t, err)
 }

@@ -24,11 +24,8 @@ var _ KvClientPool = &KvClientPoolMock{}
 //			GetClientFunc: func(ctx context.Context) (KvClient, error) {
 //				panic("mock out the GetClient method")
 //			},
-//			ReconfigureFunc: func(config *KvClientPoolConfig) error {
+//			ReconfigureFunc: func(opts KvClientPoolConfig)  {
 //				panic("mock out the Reconfigure method")
-//			},
-//			ShutdownClientFunc: func(client KvClient)  {
-//				panic("mock out the ShutdownClient method")
 //			},
 //		}
 //
@@ -44,10 +41,7 @@ type KvClientPoolMock struct {
 	GetClientFunc func(ctx context.Context) (KvClient, error)
 
 	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(config *KvClientPoolConfig) error
-
-	// ShutdownClientFunc mocks the ShutdownClient method.
-	ShutdownClientFunc func(client KvClient)
+	ReconfigureFunc func(opts KvClientPoolConfig)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -61,19 +55,13 @@ type KvClientPoolMock struct {
 		}
 		// Reconfigure holds details about calls to the Reconfigure method.
 		Reconfigure []struct {
-			// Config is the config argument value.
-			Config *KvClientPoolConfig
-		}
-		// ShutdownClient holds details about calls to the ShutdownClient method.
-		ShutdownClient []struct {
-			// Client is the client argument value.
-			Client KvClient
+			// Opts is the opts argument value.
+			Opts KvClientPoolConfig
 		}
 	}
-	lockClose          sync.RWMutex
-	lockGetClient      sync.RWMutex
-	lockReconfigure    sync.RWMutex
-	lockShutdownClient sync.RWMutex
+	lockClose       sync.RWMutex
+	lockGetClient   sync.RWMutex
+	lockReconfigure sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -136,19 +124,19 @@ func (mock *KvClientPoolMock) GetClientCalls() []struct {
 }
 
 // Reconfigure calls ReconfigureFunc.
-func (mock *KvClientPoolMock) Reconfigure(config *KvClientPoolConfig) error {
+func (mock *KvClientPoolMock) Reconfigure(opts KvClientPoolConfig) {
 	if mock.ReconfigureFunc == nil {
 		panic("KvClientPoolMock.ReconfigureFunc: method is nil but KvClientPool.Reconfigure was just called")
 	}
 	callInfo := struct {
-		Config *KvClientPoolConfig
+		Opts KvClientPoolConfig
 	}{
-		Config: config,
+		Opts: opts,
 	}
 	mock.lockReconfigure.Lock()
 	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
 	mock.lockReconfigure.Unlock()
-	return mock.ReconfigureFunc(config)
+	mock.ReconfigureFunc(opts)
 }
 
 // ReconfigureCalls gets all the calls that were made to Reconfigure.
@@ -156,45 +144,13 @@ func (mock *KvClientPoolMock) Reconfigure(config *KvClientPoolConfig) error {
 //
 //	len(mockedKvClientPool.ReconfigureCalls())
 func (mock *KvClientPoolMock) ReconfigureCalls() []struct {
-	Config *KvClientPoolConfig
+	Opts KvClientPoolConfig
 } {
 	var calls []struct {
-		Config *KvClientPoolConfig
+		Opts KvClientPoolConfig
 	}
 	mock.lockReconfigure.RLock()
 	calls = mock.calls.Reconfigure
 	mock.lockReconfigure.RUnlock()
-	return calls
-}
-
-// ShutdownClient calls ShutdownClientFunc.
-func (mock *KvClientPoolMock) ShutdownClient(client KvClient) {
-	if mock.ShutdownClientFunc == nil {
-		panic("KvClientPoolMock.ShutdownClientFunc: method is nil but KvClientPool.ShutdownClient was just called")
-	}
-	callInfo := struct {
-		Client KvClient
-	}{
-		Client: client,
-	}
-	mock.lockShutdownClient.Lock()
-	mock.calls.ShutdownClient = append(mock.calls.ShutdownClient, callInfo)
-	mock.lockShutdownClient.Unlock()
-	mock.ShutdownClientFunc(client)
-}
-
-// ShutdownClientCalls gets all the calls that were made to ShutdownClient.
-// Check the length with:
-//
-//	len(mockedKvClientPool.ShutdownClientCalls())
-func (mock *KvClientPoolMock) ShutdownClientCalls() []struct {
-	Client KvClient
-} {
-	var calls []struct {
-		Client KvClient
-	}
-	mock.lockShutdownClient.RLock()
-	calls = mock.calls.ShutdownClient
-	mock.lockShutdownClient.RUnlock()
 	return calls
 }
