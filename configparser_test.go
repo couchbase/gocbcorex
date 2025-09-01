@@ -29,12 +29,12 @@ func LoadTestTerseConfig(t *testing.T, path string) *ParsedConfig {
 func TestConfigParserAltAddresses(t *testing.T) {
 	cfg := LoadTestTerseConfig(t, "bucket_config_with_external_addresses.json")
 
-	assert.Equal(t, cfg.RevID, int64(1073))
-	assert.Equal(t, cfg.RevEpoch, int64(0))
+	assert.Equal(t, int64(1073), cfg.RevID)
+	assert.Equal(t, int64(0), cfg.RevEpoch)
 
-	assert.Equal(t, cfg.BucketName, "default")
-	assert.Equal(t, cfg.BucketUUID, "ee7160b1f5392bcdbfc085c98b460999")
-	assert.Equal(t, cfg.BucketType, bktTypeCouchbase)
+	assert.Equal(t, "default", cfg.BucketName)
+	assert.Equal(t, "ee7160b1f5392bcdbfc085c98b460999", cfg.BucketUUID)
+	assert.Equal(t, bktTypeCouchbase, cfg.BucketType)
 	assert.NotNil(t, cfg.VbucketMap)
 
 	assert.ElementsMatch(t, cfg.Nodes, []ParsedConfigNode{

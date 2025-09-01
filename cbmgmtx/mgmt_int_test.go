@@ -293,8 +293,8 @@ func TestHttpMgmtUsers(t *testing.T) {
 		return user.Name == testUsername
 	})
 	require.GreaterOrEqual(t, userIdx, 0)
-	assert.Equal(t, users[userIdx].Name, testUsername)
-	assert.Equal(t, users[userIdx].Domain, cbmgmtx.AuthDomainLocal)
+	assert.Equal(t, testUsername, users[userIdx].Name)
+	assert.Equal(t, cbmgmtx.AuthDomainLocal, users[userIdx].Domain)
 
 	err = getHttpMgmt().DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
 		Username: testUsername,

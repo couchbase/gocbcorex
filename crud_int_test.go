@@ -85,7 +85,7 @@ func replicaCount(t *testing.T, agent *gocbcorex.Agent, docKey string) int {
 	count := 0
 	for result != nil {
 		require.NoError(t, err)
-		require.Equal(t, result.Value, []byte(`{"foo": "bar"}`))
+		require.Equal(t, []byte(`{"foo": "bar"}`), result.Value)
 		count += 1
 		result, err = stream.Next()
 	}

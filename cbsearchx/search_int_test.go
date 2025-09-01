@@ -115,7 +115,7 @@ func TestUpsertIndex(t *testing.T) {
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
-		require.Equal(t, sErr.Cause, cbsearchx.ErrIndexExists)
+		require.Equal(t, cbsearchx.ErrIndexExists, sErr.Cause)
 	})
 
 	t.Run("MissingName", func(t *testing.T) {
@@ -146,7 +146,7 @@ func TestUpsertIndex(t *testing.T) {
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
-		require.Equal(t, sErr.Cause, cbsearchx.ErrSourceTypeIncorrect)
+		require.Equal(t, cbsearchx.ErrSourceTypeIncorrect, sErr.Cause)
 	})
 
 	t.Run("IndexTypeInvalid", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestUpsertIndex(t *testing.T) {
 
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
-		require.Equal(t, sErr.Cause, cbsearchx.ErrUnknownIndexType)
+		require.Equal(t, cbsearchx.ErrUnknownIndexType, sErr.Cause)
 	})
 
 	t.Run("IndexSourceNotFound", func(t *testing.T) {
@@ -219,7 +219,7 @@ func TestGetIndex(t *testing.T) {
 
 	t.Run("MissingIndexName", func(t *testing.T) {
 		_, err := search.GetIndex(ctx, &cbsearchx.GetIndexOptions{})
-		require.Equal(t, err, errors.New("must specify index name when getting an index"))
+		require.Equal(t, errors.New("must specify index name when getting an index"), err)
 	})
 
 	t.Run("MissingBucketName", func(t *testing.T) {
@@ -394,7 +394,7 @@ func TestGetAllIndexes(t *testing.T) {
 		_, err := search.GetAllIndexes(ctx, &cbsearchx.GetAllIndexesOptions{
 			BucketName: testutilsint.TestOpts.BucketName,
 		})
-		require.Equal(t, err, errors.New("must specify both or neither of scope and bucket names"))
+		require.Equal(t, errors.New("must specify both or neither of scope and bucket names"), err)
 	})
 
 	t.Run("SuccessScopedSearch", func(t *testing.T) {

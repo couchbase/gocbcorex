@@ -225,19 +225,19 @@ func TestCollectionResolverUnknownCollectionNewerManifestRev(t *testing.T) {
 
 	firstCid, firstManifestRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 	require.NoError(t, err)
-	require.Equal(t, resolveCount, 1)
+	require.Equal(t, 1, resolveCount)
 	require.Equal(t, baseCollectionId, firstCid)
 	require.Equal(t, baseManifestRev, firstManifestRev)
 
 	resolver.InvalidateCollectionID(context.Background(), scope, collection, "", 100)
-	require.Equal(t, invalidateCount, 1)
+	require.Equal(t, 1, invalidateCount)
 
 	cid, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
 	assert.Nil(t, err)
 	assert.Equal(t, baseCollectionId+1, cid)
 	assert.Equal(t, baseManifestRev+1, mRev)
 
-	require.Equal(t, resolveCount, 2)
+	require.Equal(t, 2, resolveCount)
 }
 
 // We expect an unknown collection with a older manifest rev to not send any requests.

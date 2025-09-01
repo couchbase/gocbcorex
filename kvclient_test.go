@@ -285,8 +285,8 @@ func TestKvClientConnCloseHandlerCallsUpstream(t *testing.T) {
 
 	err = errors.New("some error")
 	cli.handleConnectionClose(err)
-	assert.Equal(t, cli, closedCli)
-	assert.Equal(t, err, closeErr)
+	assert.Equal(t, closedCli, cli)
+	assert.Equal(t, closeErr, err)
 }
 
 func TestKvClientWrapsDispatchError(t *testing.T) {
