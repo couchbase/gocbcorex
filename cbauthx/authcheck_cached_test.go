@@ -29,12 +29,12 @@ func TestAuthCheckCache_NoCacheExternal(t *testing.T) {
 	// check that 'local' domain is cached
 	info, err := auth.CheckUserPass(context.Background(), "local", "valid")
 	require.NoError(t, err)
-	assert.Equal(t, info.Domain, "local")
+	assert.Equal(t, "local", info.Domain)
 	assert.Equal(t, 1, authChecks)
 
 	info, err = auth.CheckUserPass(context.Background(), "local", "valid")
 	require.NoError(t, err)
-	assert.Equal(t, info.Domain, "local")
+	assert.Equal(t, "local", info.Domain)
 	assert.Equal(t, 1, authChecks)
 
 	info, err = auth.CheckUserPass(context.Background(), "local", "invalid")
@@ -44,12 +44,12 @@ func TestAuthCheckCache_NoCacheExternal(t *testing.T) {
 	// check that 'admin' domain is cached
 	info, err = auth.CheckUserPass(context.Background(), "admin", "valid")
 	require.NoError(t, err)
-	assert.Equal(t, info.Domain, "admin")
+	assert.Equal(t, "admin", info.Domain)
 	assert.Equal(t, 2, authChecks)
 
 	info, err = auth.CheckUserPass(context.Background(), "admin", "valid")
 	require.NoError(t, err)
-	assert.Equal(t, info.Domain, "admin")
+	assert.Equal(t, "admin", info.Domain)
 	assert.Equal(t, 2, authChecks)
 
 	info, err = auth.CheckUserPass(context.Background(), "admin", "invalid")
@@ -59,12 +59,12 @@ func TestAuthCheckCache_NoCacheExternal(t *testing.T) {
 	// check that 'external' auth is not cached
 	info, err = auth.CheckUserPass(context.Background(), "ldap", "valid")
 	require.NoError(t, err)
-	assert.Equal(t, info.Domain, "ldap")
+	assert.Equal(t, "ldap", info.Domain)
 	assert.Equal(t, 3, authChecks)
 
 	info, err = auth.CheckUserPass(context.Background(), "ldap", "valid")
 	require.NoError(t, err)
-	assert.Equal(t, info.Domain, "ldap")
+	assert.Equal(t, "ldap", info.Domain)
 	assert.Equal(t, 4, authChecks)
 
 	// check that invalid user auth is not cached

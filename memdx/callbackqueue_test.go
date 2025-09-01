@@ -63,9 +63,9 @@ func TestCallbackQueueSingle(t *testing.T) {
 
 	cb1(10, nil)
 
-	assert.Equal(t, invocations, []callbackQueueTestRecord{
+	assert.Equal(t, []callbackQueueTestRecord{
 		{ID: 1, Res: 10, Err: nil},
-	})
+	}, invocations)
 }
 
 func TestCallbackQueueBackwards(t *testing.T) {
@@ -98,9 +98,9 @@ func TestCallbackQueueBackwards(t *testing.T) {
 	cb2(20, nil)
 	cb1(10, nil)
 
-	assert.Equal(t, invocations, []callbackQueueTestRecord{
+	assert.Equal(t, []callbackQueueTestRecord{
 		{ID: 1, Res: 10, Err: nil},
 		{ID: 2, Res: 20, Err: nil},
 		{ID: 3, Res: 30, Err: nil},
-	})
+	}, invocations)
 }

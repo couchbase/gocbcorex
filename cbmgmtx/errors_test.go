@@ -25,10 +25,10 @@ func Test_parseForInvalidArg(t *testing.T) {
 		sErr := parseForInvalidArg(errText)
 		isFirstError := sErr.Argument == "fieldOne"
 		if isFirstError {
-			assert.Equal(t, sErr.Reason, "reasonOne")
+			assert.Equal(t, "reasonOne", sErr.Reason)
 		} else {
-			assert.Equal(t, sErr.Argument, "fieldTwo")
-			assert.Equal(t, sErr.Reason, "reasonTwo")
+			assert.Equal(t, "fieldTwo", sErr.Argument)
+			assert.Equal(t, "reasonTwo", sErr.Reason)
 		}
 	})
 
@@ -44,10 +44,10 @@ func Test_parseForInvalidArg(t *testing.T) {
 		sErr := parseForInvalidArg(errText)
 		isFirstError := sErr.Argument == "fieldOne"
 		if isFirstError {
-			assert.Equal(t, sErr.Reason, "reasonOne, something else")
+			assert.Equal(t, "reasonOne, something else", sErr.Reason)
 		} else {
-			assert.Equal(t, sErr.Argument, "fieldTwo")
-			assert.Equal(t, sErr.Reason, "reason, something")
+			assert.Equal(t, "fieldTwo", sErr.Argument)
+			assert.Equal(t, "reason, something", sErr.Reason)
 		}
 	})
 }
