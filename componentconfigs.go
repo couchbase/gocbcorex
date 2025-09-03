@@ -7,15 +7,16 @@ import (
 )
 
 type AgentComponentConfigs struct {
-	ConfigWatcherHttpConfig         ConfigWatcherHttpConfig
-	ConfigWatcherMemdConfig         ConfigWatcherMemdConfig
-	KvEndpointClientManagerConfig   KvEndpointClientManagerConfig
-	VbucketRoutingInfo              *VbucketRoutingInfo
-	QueryComponentConfig            QueryComponentConfig
-	MgmtComponentConfig             MgmtComponentConfig
-	SearchComponentConfig           SearchComponentConfig
-	AnalyticsComponentConfig        AnalyticsComponentConfig
-	StaticBucketInfoComponentConfig StaticBucketInfoComponentConfig
+	ConfigWatcherHttpConfig            ConfigWatcherHttpConfig
+	ConfigWatcherMemdConfig            ConfigWatcherMemdConfig
+	KvEndpointClientManagerConfig      KvEndpointClientManagerConfig
+	MultiKvEndpointClientManagerConfig MultiKvEndpointClientManagerConfig
+	VbucketRoutingInfo                 *VbucketRoutingInfo
+	QueryComponentConfig               QueryComponentConfig
+	MgmtComponentConfig                MgmtComponentConfig
+	SearchComponentConfig              SearchComponentConfig
+	AnalyticsComponentConfig           AnalyticsComponentConfig
+	StaticBucketInfoComponentConfig    StaticBucketInfoComponentConfig
 }
 
 func GenerateComponentConfigsFromConfig(
@@ -84,6 +85,7 @@ func GenerateComponentConfigsFromConfig(
 	}
 
 	clients := make(map[string]KvEndpointClientManagerConfigClient, len(kvDataHosts))
+	mclients := make(map[string]MultiKvEndpointClientManagerConfigClient, len(kvDataHosts))
 	for nodeId, addr := range kvDataHosts {
 		clients[nodeId] = KvEndpointClientManagerConfigClient{
 			KvClientPoolConfig: KvClientPoolConfig{
@@ -97,6 +99,12 @@ func GenerateComponentConfigsFromConfig(
 					},
 				},
 			},
+		}
+
+		mclients[nodeId] = MultiKvEndpointClientManagerConfigClient{
+			Address:       addr,
+			TlsConfig:     tlsConfig,
+			Authenticator: authenticator,
 		}
 	}
 
@@ -118,6 +126,9 @@ func GenerateComponentConfigsFromConfig(
 		},
 		KvEndpointClientManagerConfig: KvEndpointClientManagerConfig{
 			Clients: clients,
+		},
+		MultiKvEndpointClientManagerConfig: MultiKvEndpointClientManagerConfig{
+			Clients: mclients,
 		},
 		VbucketRoutingInfo: &VbucketRoutingInfo{
 			VbMap:      config.VbucketMap,

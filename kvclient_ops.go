@@ -71,6 +71,19 @@ func kvClient_SimpleCrudCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	}, execFn, req)
 }
 
+func kvClient_SimpleDcpCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
+	ctx context.Context,
+	c *kvClient,
+	execFn func(o memdx.OpsDcp, d memdx.Dispatcher, req ReqT, cb func(RespT, error)) (memdx.PendingOp, error),
+	req ReqT,
+) (RespT, error) {
+	return memdClient_SimpleCall(ctx, c, memdx.OpsDcp{
+		ExtFramesEnabled:   c.HasFeature(memdx.HelloFeatureAltRequests),
+		CollectionsEnabled: c.HasFeature(memdx.HelloFeatureCollections),
+		StreamIdsEnabled:   false,
+	}, execFn, req)
+}
+
 func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) (*memdx.BootstrapResult, error) {
 	return memdClient_SimpleCall(ctx, c, memdx.OpBootstrap{
 		Encoder: memdx.OpsCore{},
@@ -79,6 +92,14 @@ func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) 
 
 func (c *kvClient) selectBucket(ctx context.Context, req *memdx.SelectBucketRequest) (*memdx.SelectBucketResponse, error) {
 	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.SelectBucket, req)
+}
+
+func (c *kvClient) dcpOpenConnection(ctx context.Context, req *memdx.DcpOpenConnectionRequest) (*memdx.DcpOpenConnectionResponse, error) {
+	return kvClient_SimpleDcpCall(ctx, c, memdx.OpsDcp.DcpOpenConnection, req)
+}
+
+func (c *kvClient) dcpControl(ctx context.Context, req *memdx.DcpControlRequest) (*memdx.DcpControlResponse, error) {
+	return kvClient_SimpleDcpCall(ctx, c, memdx.OpsDcp.DcpControl, req)
 }
 
 func (c *kvClient) GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error) {
@@ -213,4 +234,27 @@ func (c *kvClient) Stats(
 		) (memdx.PendingOp, error) {
 			return o.Stats(d, req, dataCb, cb)
 		}, req)
+}
+
+func (c *kvClient) DcpStreamReq(ctx context.Context,
+	req *memdx.DcpStreamReqRequest,
+	syncCb func(*memdx.DcpStreamReqResponse, error),
+) (*memdx.DcpStreamReqResponse, error) {
+	return kvClient_SimpleDcpCall(ctx, c,
+		func(o memdx.OpsDcp,
+			d memdx.Dispatcher,
+			req *memdx.DcpStreamReqRequest,
+			cb func(*memdx.DcpStreamReqResponse, error),
+		) (memdx.PendingOp, error) {
+			return memdx.OpsDcp.DcpStreamReq(o, d, req, func(resp *memdx.DcpStreamReqResponse, err error) {
+				if syncCb != nil {
+					syncCb(resp, err)
+				}
+				cb(resp, err)
+			})
+		}, req)
+}
+
+func (c *kvClient) DcpCloseStream(ctx context.Context, req *memdx.DcpCloseStreamRequest) (*memdx.DcpCloseStreamResponse, error) {
+	return kvClient_SimpleDcpCall(ctx, c, memdx.OpsDcp.DcpCloseStream, req)
 }

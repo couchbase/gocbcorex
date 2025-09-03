@@ -24,7 +24,6 @@ func (e InvalidEndpointError) Unwrap() error {
 }
 
 type KvEndpointClientProvider interface {
-	KvClientProvider
 	GetEndpointClient(ctx context.Context, endpoint string) (KvClient, error)
 }
 

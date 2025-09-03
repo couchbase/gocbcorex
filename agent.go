@@ -37,6 +37,7 @@ type Agent struct {
 
 	cfgWatcher  ConfigWatcher
 	connMgr     KvEndpointClientManager
+	mconnMgr    MultiKvEndpointClientManager
 	collections CollectionResolver
 	retries     RetryManager
 	vbRouter    VbucketRouter
@@ -171,6 +172,15 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		return nil, handleAgentCreateErr(err)
 	}
 	agent.connMgr = connMgr
+
+	mconnMgr, err := NewMultiKvEndpointClientManager(&MultiKvEndpointClientManagerOptions{
+		Logger:                             agent.logger.Named("multi-client-manager"),
+		MultiKvEndpointClientManagerConfig: agentComponentConfigs.MultiKvEndpointClientManagerConfig,
+	})
+	if err != nil {
+		return nil, handleAgentCreateErr(err)
+	}
+	agent.mconnMgr = mconnMgr
 
 	coreCollections, err := NewCollectionResolverMemd(&CollectionResolverMemdOptions{
 		Logger:       agent.logger,
@@ -369,6 +379,10 @@ func (agent *Agent) NumVbuckets() int {
 func (agent *Agent) Close() error {
 	if err := agent.connMgr.Close(); err != nil {
 		agent.logger.Debug("Failed to close conn mgr", zap.Error(err))
+	}
+
+	if err := agent.mconnMgr.Close(); err != nil {
+		agent.logger.Debug("Failed to close multi conn mgr", zap.Error(err))
 	}
 
 	agent.cfgWatcherCancel()

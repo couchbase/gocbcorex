@@ -3,14 +3,33 @@ package gocbcorex
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+type KvTargetTlsConfig struct {
+	RootCAs            *x509.CertPool
+	InsecureSkipVerify bool
+	CipherSuites       []uint16
+}
+
+type KvTarget struct {
+	Address   string
+	TLSConfig *KvTargetTlsConfig
+}
+
+type KvClientAuth struct {
+	Username          string
+	Password          string
+	ClientCertificate *tls.Certificate
+}
 
 type KvClientManager interface {
 	KvClientProvider
@@ -34,6 +53,7 @@ type KvClientManagerConfig struct {
 	Authenticator  Authenticator
 	SelectedBucket string
 	BootstrapOpts  KvClientBootstrapOptions
+	DcpOpts        *KvClientDcpOptions
 }
 
 func (v KvClientManagerConfig) Equals(o KvClientManagerConfig) bool {
@@ -51,6 +71,7 @@ type kvClientManager struct {
 	connectErrThrottlePeriod time.Duration
 	onDemandConnect          bool
 	stateChangeHandler       KvClientManagerStateChangeFn
+	dcpHandlers              KvClientDcpEventsHandlers
 
 	client atomic.Pointer[kvClientManagerState]
 
@@ -77,6 +98,7 @@ type KvClientManagerOptions struct {
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
 	StateChangeHandler       KvClientManagerStateChangeFn
+	DcpHandlers              KvClientDcpEventsHandlers
 
 	KvClientManagerConfig
 }
@@ -116,6 +138,7 @@ func NewKvClientManager(opts *KvClientManagerOptions) KvClientManager {
 		stateChangeHandler:       opts.StateChangeHandler,
 		stateChangeWaitCh:        make(chan struct{}),
 		desiredConfig:            &opts.KvClientManagerConfig,
+		dcpHandlers:              opts.DcpHandlers,
 	}
 
 	if !p.onDemandConnect {
@@ -279,21 +302,7 @@ ClientBuildLoop:
 			break
 		}
 
-		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, p.connectTimeout)
-		newClient, err := p.newKvClient(timeoutCtx, &KvClientOptions{
-			Logger: p.logger,
-
-			Address:        desiredConfig.Address,
-			BootstrapOpts:  desiredConfig.BootstrapOpts,
-			TlsConfig:      desiredConfig.TlsConfig,
-			Authenticator:  desiredConfig.Authenticator,
-			SelectedBucket: desiredConfig.SelectedBucket,
-
-			CloseHandler: p.handleClientClosed,
-		})
-		timeoutCancel()
-
-		if err != nil {
+		handleError := func(err error) {
 			if !errors.Is(err, context.Canceled) {
 				p.logger.Warn("failed to create new kv client", zap.Error(err))
 			}
@@ -306,6 +315,39 @@ ClientBuildLoop:
 			p.lock.Unlock()
 
 			lastErrTime = time.Now()
+		}
+
+		username, password, err := desiredConfig.Authenticator.GetCredentials(
+			ServiceTypeMemd, desiredConfig.Address)
+		if err != nil {
+			handleError(err)
+			continue
+		}
+
+		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, p.connectTimeout)
+		newClient, err := p.newKvClient(timeoutCtx, &KvClientOptions{
+			Logger: p.logger,
+
+			Address:   desiredConfig.Address,
+			TlsConfig: desiredConfig.TlsConfig,
+			Auth: &memdx.SaslAuthAutoOptions{
+				Username: username,
+				Password: password,
+				EnabledMechs: []memdx.AuthMechanism{
+					memdx.ScramSha512AuthMechanism,
+					memdx.ScramSha256AuthMechanism},
+			},
+			SelectedBucket: desiredConfig.SelectedBucket,
+			BootstrapOpts:  desiredConfig.BootstrapOpts,
+			DcpOpts:        desiredConfig.DcpOpts,
+
+			DcpHandlers:  p.dcpHandlers,
+			CloseHandler: p.handleClientClosed,
+		})
+		timeoutCancel()
+
+		if err != nil {
+			handleError(err)
 			continue
 		}
 

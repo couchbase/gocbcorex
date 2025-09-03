@@ -12,6 +12,7 @@ import (
 )
 
 type KvEndpointClientManager interface {
+	KvClientProvider
 	KvEndpointClientProvider
 
 	Reconfigure(config KvEndpointClientManagerConfig)
@@ -31,6 +32,7 @@ type KvEndpointClientManagerConfig struct {
 type KvEndpointClientManagerOptions struct {
 	Logger          *zap.Logger
 	NewKvClientPool NewKvClientPoolFunc
+	OnCloseHandler  func(KvEndpointClientManager)
 
 	NumPoolConnections       uint
 	OnDemandConnect          bool
@@ -52,6 +54,7 @@ type kvEndpointClientManagerState struct {
 type kvEndpointClientManager struct {
 	logger             *zap.Logger
 	newKvClientPool    NewKvClientPoolFunc
+	onCloseHandler     func(KvEndpointClientManager)
 	numPoolConnections uint
 
 	lock          sync.Mutex
@@ -86,6 +89,7 @@ func NewKvEndpointClientManager(
 	mgr := &kvEndpointClientManager{
 		logger:             logger,
 		newKvClientPool:    newKvClientPool,
+		onCloseHandler:     opts.OnCloseHandler,
 		numPoolConnections: opts.NumPoolConnections,
 	}
 
@@ -216,7 +220,10 @@ func (m *kvEndpointClientManager) Close() error {
 		if err := pool.Pool.Close(); err != nil {
 			m.logger.Debug("Failed to close kv client pool", zap.Error(err))
 		}
+	}
 
+	if m.onCloseHandler != nil {
+		m.onCloseHandler(m)
 	}
 
 	m.logger.Info("closed kv endpoint client manager")

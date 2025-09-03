@@ -18,15 +18,16 @@ func TestKvClientSelectBucket(t *testing.T) {
 
 	logger, _ := zap.NewDevelopment()
 
-	auth := &gocbcorex.PasswordAuthenticator{
-		Username: testutilsint.TestOpts.Username,
-		Password: testutilsint.TestOpts.Password,
-	}
-
 	cli, err := gocbcorex.NewKvClient(context.Background(), &gocbcorex.KvClientOptions{
-		Logger:        logger,
-		Address:       testutilsint.TestOpts.MemdAddrs[0],
-		Authenticator: auth,
+		Logger:  logger,
+		Address: testutilsint.TestOpts.MemdAddrs[0],
+		Auth: &memdx.SaslAuthAutoOptions{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+			EnabledMechs: []memdx.AuthMechanism{
+				memdx.ScramSha512AuthMechanism,
+				memdx.ScramSha256AuthMechanism},
+		},
 	})
 	require.NoError(t, err)
 
@@ -55,19 +56,20 @@ func TestKvClientSelectBucket(t *testing.T) {
 func TestKvClientCloseAfterSelectBucket(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	auth := &gocbcorex.PasswordAuthenticator{
-		Username: testutilsint.TestOpts.Username,
-		Password: testutilsint.TestOpts.Password,
-	}
-
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 
 	cli, err := gocbcorex.NewKvClient(context.Background(), &gocbcorex.KvClientOptions{
-		Logger:        logger,
-		Address:       testutilsint.TestOpts.MemdAddrs[0],
-		TlsConfig:     nil,
-		Authenticator: auth,
+		Logger:    logger,
+		Address:   testutilsint.TestOpts.MemdAddrs[0],
+		TlsConfig: nil,
+		Auth: &memdx.SaslAuthAutoOptions{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+			EnabledMechs: []memdx.AuthMechanism{
+				memdx.ScramSha512AuthMechanism,
+				memdx.ScramSha256AuthMechanism},
+		},
 	})
 	require.NoError(t, err)
 
@@ -81,19 +83,20 @@ func TestKvClientCloseAfterSelectBucket(t *testing.T) {
 func TestKvClientSelectBucketOverExistingBucket(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	auth := &gocbcorex.PasswordAuthenticator{
-		Username: testutilsint.TestOpts.Username,
-		Password: testutilsint.TestOpts.Password,
-	}
-
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 
 	cli, err := gocbcorex.NewKvClient(context.Background(), &gocbcorex.KvClientOptions{
-		Logger:         logger,
-		Address:        testutilsint.TestOpts.MemdAddrs[0],
-		TlsConfig:      nil,
-		Authenticator:  auth,
+		Logger:    logger,
+		Address:   testutilsint.TestOpts.MemdAddrs[0],
+		TlsConfig: nil,
+		Auth: &memdx.SaslAuthAutoOptions{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+			EnabledMechs: []memdx.AuthMechanism{
+				memdx.ScramSha512AuthMechanism,
+				memdx.ScramSha256AuthMechanism},
+		},
 		SelectedBucket: testutilsint.TestOpts.BucketName,
 	})
 	require.NoError(t, err)
