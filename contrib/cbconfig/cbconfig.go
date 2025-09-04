@@ -14,6 +14,7 @@ type ConfigDDocsJson struct {
 type FullNodeJson struct {
 	Status            string                                  `json:"status,omitempty"`
 	ClusterMembership string                                  `json:"clusterMembership,omitempty"`
+	Version           string                                  `json:"version,omitempty"`
 	ThisNode          bool                                    `json:"thisNode,omitempty"`
 	CouchApiBase      string                                  `json:"couchApiBase,omitempty"`
 	Hostname          string                                  `json:"hostname,omitempty"`
