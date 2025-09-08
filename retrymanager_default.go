@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
+	"github.com/couchbase/gocbcorex/cbsearchx"
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
@@ -38,7 +39,8 @@ func (rc *retryControllerDefault) isRetriableError(err error) bool {
 		errors.Is(err, memdx.ErrSyncWriteReCommitInProgress) ||
 		errors.Is(err, cbhttpx.ErrConnectError) ||
 		errors.Is(err, ErrVbucketMapOutdated) ||
-		errors.Is(err, ErrCollectionManifestOutdated)
+		errors.Is(err, ErrCollectionManifestOutdated) ||
+		errors.Is(err, cbsearchx.ErrNoIndexPartitionsPlanned)
 }
 
 func (rc *retryControllerDefault) ShouldRetry(ctx context.Context, err error) (time.Duration, bool, error) {
