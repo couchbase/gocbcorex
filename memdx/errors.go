@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 var (
@@ -259,4 +260,20 @@ func (e DcpRollbackError) Error() string {
 
 func (e DcpRollbackError) Unwrap() error {
 	return ErrDcpRollback
+}
+
+type ErrorWithServerDuration struct {
+	Cause          error
+	ServerDuration time.Duration
+}
+
+func (e ErrorWithServerDuration) Error() string {
+	return fmt.Sprintf(
+		"%s (server duration: %s)",
+		e.Cause,
+		e.ServerDuration)
+}
+
+func (e ErrorWithServerDuration) Unwrap() error {
+	return e.Cause
 }

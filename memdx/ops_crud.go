@@ -155,6 +155,17 @@ func (o OpsCrud) decodeCommonError(resp *Packet) error {
 	return OpsCore{}.decodeError(resp)
 }
 
+func (o OpsCrud) wrapErrorWithServerDuration(err error, serverDuration time.Duration) error {
+	if serverDuration == 0 {
+		return err
+	}
+
+	return &ErrorWithServerDuration{
+		Cause:          err,
+		ServerDuration: serverDuration,
+	}
+}
+
 type GetRequest struct {
 	CrudRequestMeta
 	CollectionID uint32
@@ -198,14 +209,20 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 		// We intentionally do not decompress the packet as gocbcorex has always
 		// been implemented with the Snappy hello feature enabled.
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -215,12 +232,6 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 		}
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
 
 		cb(&GetResponse{
 			Cas:      resp.Cas,
@@ -283,17 +294,23 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 		// We intentionally do not decompress the packet as gocbcorex has always
 		// been implemented with the Snappy hello feature enabled.
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -303,12 +320,6 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 		}
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
 
 		cb(&GetAndTouchResponse{
 			Cas:      resp.Cas,
@@ -366,14 +377,20 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 		// We intentionally do not decompress the packet as gocbcorex has always
 		// been implemented with the Snappy hello feature enabled.
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -383,12 +400,6 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 		}
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
 
 		cb(&GetReplicaResponse{
 			Cas:      resp.Cas,
@@ -451,17 +462,23 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 		// We intentionally do not decompress the packet as gocbcorex has always
 		// been implemented with the Snappy hello feature enabled.
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -471,12 +488,6 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 		}
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
 
 		cb(&GetAndLockResponse{
 			Cas:      resp.Cas,
@@ -539,8 +550,14 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 		// We intentionally do not decompress the packet as gocbcorex has always
 		// been implemented with the Snappy hello feature enabled.
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -550,12 +567,6 @@ func (o OpsCrud) GetRandom(d Dispatcher, req *GetRandomRequest, cb func(*GetRand
 		}
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
 
 		cb(&GetRandomResponse{
 			Key:      resp.Key,
@@ -630,6 +641,12 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -638,30 +655,30 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrCasMismatch)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -671,12 +688,6 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -730,6 +741,12 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -738,18 +755,18 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrCasMismatch)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 			return false
 		case StatusNotLocked:
-			cb(nil, ErrDocNotLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotLocked, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -759,12 +776,6 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -820,6 +831,12 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -828,26 +845,20 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
 		if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -907,6 +918,12 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -915,30 +932,30 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrCasMismatch)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 			return false
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -948,12 +965,6 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1023,6 +1034,12 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1031,27 +1048,27 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrDocExists)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocExists, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1061,12 +1078,6 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1143,6 +1154,12 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1151,33 +1168,33 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrCasMismatch)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 			return false
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1187,12 +1204,6 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1257,6 +1268,12 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1266,34 +1283,34 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		switch resp.Status {
 		case StatusKeyExists:
 			if req.Cas > 0 {
-				cb(nil, ErrCasMismatch)
+				cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 				return false
 			}
 		case StatusNotStored:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1303,12 +1320,6 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1373,6 +1384,12 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1382,34 +1399,34 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 		switch resp.Status {
 		case StatusKeyExists:
 			if req.Cas > 0 {
-				cb(nil, ErrCasMismatch)
+				cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 				return false
 			}
 		case StatusNotStored:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1419,12 +1436,6 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1499,6 +1510,12 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1507,30 +1524,30 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusDeltaBadval:
-			cb(nil, ErrDeltaBadval)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDeltaBadval, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1546,12 +1563,6 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1627,6 +1638,12 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1635,30 +1652,30 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusDeltaBadval:
-			cb(nil, ErrDeltaBadval)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDeltaBadval, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1674,12 +1691,6 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1754,6 +1765,12 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1762,12 +1779,12 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1789,12 +1806,6 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 			datatype = &resp.Extras[20]
 		} else {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1877,6 +1888,12 @@ func (o OpsCrud) AddWithMeta(d Dispatcher, req *AddWithMetaRequest, cb func(*Add
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1885,15 +1902,15 @@ func (o OpsCrud) AddWithMeta(d Dispatcher, req *AddWithMetaRequest, cb func(*Add
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrDocExists)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocExists, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -1903,12 +1920,6 @@ func (o OpsCrud) AddWithMeta(d Dispatcher, req *AddWithMetaRequest, cb func(*Add
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -1987,6 +1998,12 @@ func (o OpsCrud) SetWithMeta(d Dispatcher, req *SetWithMetaRequest, cb func(*Set
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -1995,15 +2012,15 @@ func (o OpsCrud) SetWithMeta(d Dispatcher, req *SetWithMetaRequest, cb func(*Set
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrConflictOrCasMismatch)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrConflictOrCasMismatch, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -2013,12 +2030,6 @@ func (o OpsCrud) SetWithMeta(d Dispatcher, req *SetWithMetaRequest, cb func(*Set
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -2093,6 +2104,12 @@ func (o OpsCrud) DeleteWithMeta(d Dispatcher, req *DeleteWithMetaRequest, cb fun
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -2101,15 +2118,15 @@ func (o OpsCrud) DeleteWithMeta(d Dispatcher, req *DeleteWithMetaRequest, cb fun
 
 		switch resp.Status {
 		case StatusKeyExists:
-			cb(nil, ErrConflictOrCasMismatch)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrConflictOrCasMismatch, serverDuration))
 			return false
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -2119,12 +2136,6 @@ func (o OpsCrud) DeleteWithMeta(d Dispatcher, req *DeleteWithMetaRequest, cb fun
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 
@@ -2210,6 +2221,15 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			return false
 		}
 
+		// We intentionally do not decompress the packet as gocbcorex has always
+		// been implemented with the Snappy hello feature enabled.
+
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -2218,22 +2238,22 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusSubDocInvalidCombo:
-			cb(nil, ErrSubDocInvalidCombo)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocInvalidCombo, serverDuration))
 			return false
 		case StatusSubDocInvalidXattrOrder:
-			cb(nil, ErrSubDocInvalidXattrOrder)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocInvalidXattrOrder, serverDuration))
 			return false
 		case StatusSubDocXattrInvalidKeyCombo:
-			cb(nil, ErrSubDocXattrInvalidKeyCombo)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrInvalidKeyCombo, serverDuration))
 			return false
 		case StatusSubDocXattrInvalidFlagCombo:
-			cb(nil, ErrSubDocXattrInvalidFlagCombo)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrInvalidFlagCombo, serverDuration))
 			return false
 		}
 
@@ -2242,7 +2262,7 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 			docIsDeleted = true
 			// considered a success still
 		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocMultiPathFailure {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -2296,12 +2316,6 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 					OpIndex: i,
 				}
 			}
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
 		}
 
 		res := &LookupInResponse{
@@ -2414,6 +2428,12 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			return false
 		}
 
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
 		decompErr := OpsCore{}.maybeDecompressPacket(resp)
 		if decompErr != nil {
 			cb(nil, decompErr)
@@ -2422,68 +2442,68 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 
 		switch resp.Status {
 		case StatusKeyNotFound:
-			cb(nil, ErrDocNotFound)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
 			return false
 		case StatusKeyExists:
 			if req.Cas > 0 {
-				cb(nil, ErrCasMismatch)
+				cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasMismatch, serverDuration))
 				return false
 			} else {
-				cb(nil, ErrDocExists)
+				cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocExists, serverDuration))
 				return false
 			}
 		case StatusLocked:
-			cb(nil, ErrDocLocked)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocLocked, serverDuration))
 			return false
 		case StatusTooBig:
-			cb(nil, ErrValueTooLarge)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
 		case StatusSubDocInvalidCombo:
-			cb(nil, ErrSubDocInvalidCombo)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocInvalidCombo, serverDuration))
 			return false
 		case StatusSubDocInvalidXattrOrder:
-			cb(nil, ErrSubDocInvalidXattrOrder)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocInvalidXattrOrder, serverDuration))
 			return false
 		case StatusSubDocXattrInvalidKeyCombo:
-			cb(nil, ErrSubDocXattrInvalidKeyCombo)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrInvalidKeyCombo, serverDuration))
 			return false
 		case StatusSubDocXattrInvalidFlagCombo:
-			cb(nil, ErrSubDocXattrInvalidFlagCombo)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrInvalidFlagCombo, serverDuration))
 			return false
 		case StatusSubDocXattrUnknownMacro:
-			cb(nil, ErrSubDocXattrUnknownMacro)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrUnknownMacro, serverDuration))
 			return false
 		case StatusSubDocXattrUnknownVattrMacro:
-			cb(nil, ErrSubDocXattrUnknownVattrMacro)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrUnknownVattrMacro, serverDuration))
 			return false
 		case StatusSubDocXattrCannotModifyVAttr:
-			cb(nil, ErrSubDocXattrCannotModifyVAttr)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocXattrCannotModifyVAttr, serverDuration))
 			return false
 		case StatusSubDocCanOnlyReviveDeletedDocuments:
-			cb(nil, ErrSubDocCanOnlyReviveDeletedDocuments)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocCanOnlyReviveDeletedDocuments, serverDuration))
 			return false
 		case StatusSubDocDeletedDocumentCantHaveValue:
-			cb(nil, ErrSubDocDeletedDocumentCantHaveValue)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSubDocDeletedDocumentCantHaveValue, serverDuration))
 			return false
 		case StatusDurabilityImpossible:
-			cb(nil, ErrDurabilityImpossible)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDurabilityImpossible, serverDuration))
 			return false
 		case StatusSyncWriteAmbiguous:
-			cb(nil, ErrSyncWriteAmbiguous)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteAmbiguous, serverDuration))
 			return false
 		case StatusSyncWriteInProgress:
-			cb(nil, ErrSyncWriteInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteInProgress, serverDuration))
 			return false
 		case StatusSyncWriteReCommitInProgress:
-			cb(nil, ErrSyncWriteReCommitInProgress)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrSyncWriteReCommitInProgress, serverDuration))
 			return false
 		case StatusNotStored:
 			if req.Flags == SubdocDocFlagAddDoc {
-				cb(nil, ErrDocExists)
+				cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocExists, serverDuration))
 				return false
 			}
 
-			cb(nil, ErrDocNotStored)
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotStored, serverDuration))
 			return false
 		case StatusSubDocMultiPathFailure:
 			if len(resp.Value) != 3 {
@@ -2534,7 +2554,7 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			docIsDeleted = true
 			// considered a success still
 		} else if resp.Status != StatusSuccess && resp.Status != StatusSubDocMultiPathFailure {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -2561,12 +2581,6 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 			mutToken.SeqNo = binary.BigEndian.Uint64(resp.Extras[8:])
 		} else if len(resp.Extras) != 0 {
 			cb(nil, protocolError{"bad extras length"})
-			return false
-		}
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
 			return false
 		}
 

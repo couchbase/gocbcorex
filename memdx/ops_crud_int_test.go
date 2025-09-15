@@ -375,7 +375,13 @@ func TestOpsCrudKeyNotFound(t *testing.T) {
 				return
 			}
 
-			assert.ErrorIs(tt, <-wait, memdx.ErrDocNotFound)
+			opErr := <-wait
+			assert.ErrorIs(tt, opErr, memdx.ErrDocNotFound)
+
+			var serverDurationErr *memdx.ErrorWithServerDuration
+			if assert.ErrorAs(tt, opErr, &serverDurationErr) {
+				assert.NotZero(tt, serverDurationErr.ServerDuration)
+			}
 		})
 	}
 }
@@ -659,7 +665,13 @@ func TestOpsCrudCollectionNotKnown(t *testing.T) {
 				return
 			}
 
-			assert.ErrorIs(tt, <-wait, memdx.ErrUnknownCollectionID)
+			opErr := <-wait
+			assert.ErrorIs(tt, opErr, memdx.ErrUnknownCollectionID)
+
+			var serverDurationErr *memdx.ErrorWithServerDuration
+			if assert.ErrorAs(tt, opErr, &serverDurationErr) {
+				assert.NotZero(tt, serverDurationErr.ServerDuration)
+			}
 		})
 	}
 }
@@ -878,12 +890,22 @@ func TestOpsCrudDocLocked(t *testing.T) {
 			if !test.IsReadOp {
 				// writes should fail with document locked error
 				require.ErrorIs(tt, err, memdx.ErrDocLocked)
+
+				var serverDurationErr *memdx.ErrorWithServerDuration
+				if assert.ErrorAs(tt, err, &serverDurationErr) {
+					assert.NotZero(tt, serverDurationErr.ServerDuration)
+				}
 			} else {
 				if testutilsint.IsOlderServerVersion(t, "8.0.0") {
 					if test.Name == "LookupIn" {
 						// On server version before 8.0.0, LookupIn returns document locked
 						// error when trying to read a locked document.
 						require.ErrorIs(tt, err, memdx.ErrDocLocked)
+
+						var serverDurationErr *memdx.ErrorWithServerDuration
+						if assert.ErrorAs(tt, err, &serverDurationErr) {
+							assert.NotZero(tt, serverDurationErr.ServerDuration)
+						}
 						return
 					}
 				}
@@ -982,7 +1004,13 @@ func TestOpsCrudDocExists(t *testing.T) {
 				return
 			}
 
-			assert.ErrorIs(tt, <-wait, memdx.ErrDocExists)
+			opErr := <-wait
+			assert.ErrorIs(tt, opErr, memdx.ErrDocExists)
+
+			var serverDurationErr *memdx.ErrorWithServerDuration
+			if assert.ErrorAs(tt, opErr, &serverDurationErr) {
+				assert.NotZero(tt, serverDurationErr.ServerDuration)
+			}
 		})
 	}
 }
@@ -1138,9 +1166,21 @@ func TestOpsCrudCollectionCasMismatch(t *testing.T) {
 			}
 
 			if !test.MetaOp {
-				assert.ErrorIs(tt, <-wait, memdx.ErrCasMismatch)
+				opErr := <-wait
+				assert.ErrorIs(tt, opErr, memdx.ErrCasMismatch)
+
+				var serverDurationErr *memdx.ErrorWithServerDuration
+				if assert.ErrorAs(tt, opErr, &serverDurationErr) {
+					assert.NotZero(tt, serverDurationErr.ServerDuration)
+				}
 			} else {
-				assert.ErrorIs(tt, <-wait, memdx.ErrConflictOrCasMismatch)
+				opErr := <-wait
+				assert.ErrorIs(tt, opErr, memdx.ErrConflictOrCasMismatch)
+
+				var serverDurationErr *memdx.ErrorWithServerDuration
+				if assert.ErrorAs(tt, opErr, &serverDurationErr) {
+					assert.NotZero(tt, serverDurationErr.ServerDuration)
+				}
 			}
 		})
 	}
