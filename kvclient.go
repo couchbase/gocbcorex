@@ -159,6 +159,7 @@ func NewKvClient(ctx context.Context, config *KvClientConfig, opts *KvClientOpti
 			memdx.HelloFeatureCreateAsDeleted,
 			memdx.HelloFeatureAltRequests,
 			memdx.HelloFeatureCollections,
+			memdx.HelloFeatureSnappyEverywhere,
 		}
 	}
 
