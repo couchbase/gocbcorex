@@ -55,6 +55,7 @@ type KvClientOps interface {
 	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
 	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error)
 	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
+	GetEx(ctx context.Context, req *memdx.GetExRequest) (*memdx.GetExResponse, error)
 	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
 	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
 	GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error)
