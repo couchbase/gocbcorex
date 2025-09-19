@@ -178,7 +178,7 @@ func getServerVersion(t *testing.T) string {
 		t.Error("cannot get server version during short testing")
 	}
 
-	clusterInfo, err := getTestMgmt().GetClusterInfo(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
+	clusterInfo, err := getTestMgmt().GetClusterInfo(context.Background(), &cbmgmtx.GetClusterInfoOptions{})
 	require.NoError(t, err)
 
 	// strip the meta-info like -enterprise or build numbers
