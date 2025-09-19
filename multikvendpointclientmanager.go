@@ -1,7 +1,6 @@
 package gocbcorex
 
 import (
-	"crypto/tls"
 	"sync"
 	"time"
 
@@ -10,36 +9,23 @@ import (
 
 type MultiKvEndpointClientManager interface {
 	NewManager(opts NewManagerOptions) (KvEndpointClientManager, error)
-	Reconfigure(newConfig MultiKvEndpointClientManagerConfig)
+	UpdateEndpoints(endpoints map[string]KvTarget, addOnly bool) error
 	Close() error
-}
-
-type multiKvEndpointClientManagerEntry struct {
-	Manager KvEndpointClientManager
-	Options NewManagerOptions
-}
-
-type MultiKvEndpointClientManagerConfigClient struct {
-	Address       string
-	TlsConfig     *tls.Config
-	Authenticator Authenticator
-}
-
-type MultiKvEndpointClientManagerConfig struct {
-	Clients map[string]MultiKvEndpointClientManagerConfigClient
 }
 
 type MultiKvEndpointClientManagerOptions struct {
 	Logger *zap.Logger
 
-	MultiKvEndpointClientManagerConfig
+	Endpoints map[string]KvTarget
+	Auth      KvClientAuth
 }
 
 type multiKvEndpointClientManager struct {
-	logger        *zap.Logger
-	lock          sync.Mutex
-	currentConfig *MultiKvEndpointClientManagerConfig
-	managers      []*multiKvEndpointClientManagerEntry
+	logger    *zap.Logger
+	lock      sync.Mutex
+	endpoints map[string]KvTarget
+	auth      KvClientAuth
+	managers  []KvEndpointClientManager
 }
 
 var _ MultiKvEndpointClientManager = (*multiKvEndpointClientManager)(nil)
@@ -54,8 +40,10 @@ func NewMultiKvEndpointClientManager(opts *MultiKvEndpointClientManagerOptions) 
 	}
 
 	mgr := &multiKvEndpointClientManager{
-		logger:        logger,
-		currentConfig: &opts.MultiKvEndpointClientManagerConfig,
+		logger:    logger,
+		endpoints: opts.Endpoints,
+		auth:      opts.Auth,
+		managers:  make([]KvEndpointClientManager, 0),
 	}
 
 	return mgr, nil
@@ -67,39 +55,15 @@ type NewManagerOptions struct {
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
 
-	BucketName    string
-	BootstrapOpts KvClientBootstrapOptions
-	DcpOpts       *KvClientDcpOptions
-	DcpHandlers   *KvClientDcpEventsHandlers
-}
-
-func (m *multiKvEndpointClientManager) generateManagerConfigLocked(opts NewManagerOptions) KvEndpointClientManagerConfig {
-	clients := make(map[string]KvEndpointClientManagerConfigClient, len(m.currentConfig.Clients))
-	for name, client := range m.currentConfig.Clients {
-		clients[name] = KvEndpointClientManagerConfigClient{
-			KvClientPoolConfig: KvClientPoolConfig{
-				KvClientManagerConfig: KvClientManagerConfig{
-					Address:        client.Address,
-					TlsConfig:      client.TlsConfig,
-					Authenticator:  client.Authenticator,
-					SelectedBucket: opts.BucketName,
-					BootstrapOpts:  opts.BootstrapOpts,
-					DcpOpts:        opts.DcpOpts,
-				},
-			},
-		}
-	}
-
-	return KvEndpointClientManagerConfig{
-		Clients: clients,
-	}
+	SelectedBucket string
+	BootstrapOpts  KvClientBootstrapOptions
+	DcpOpts        *KvClientDcpOptions
+	DcpHandlers    KvClientDcpEventsHandlers
 }
 
 func (m *multiKvEndpointClientManager) NewManager(opts NewManagerOptions) (KvEndpointClientManager, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-
-	mgrConfig := m.generateManagerConfigLocked(opts)
 
 	mgr, err := NewKvEndpointClientManager(&KvEndpointClientManagerOptions{
 		Logger:         m.logger,
@@ -109,40 +73,56 @@ func (m *multiKvEndpointClientManager) NewManager(opts NewManagerOptions) (KvEnd
 		OnDemandConnect:          opts.OnDemandConnect,
 		ConnectTimeout:           opts.ConnectTimeout,
 		ConnectErrThrottlePeriod: opts.ConnectErrThrottlePeriod,
+		BootstrapOpts:            opts.BootstrapOpts,
+		DcpOpts:                  opts.DcpOpts,
+		DcpHandlers:              opts.DcpHandlers,
 
-		KvEndpointClientManagerConfig: mgrConfig,
+		Endpoints:      m.endpoints,
+		Auth:           m.auth,
+		SelectedBucket: opts.SelectedBucket,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	m.managers = append(m.managers, &multiKvEndpointClientManagerEntry{
-		Manager: mgr,
-		Options: opts,
-	})
+	m.managers = append(m.managers, mgr)
 
 	return mgr, nil
 }
 
-func (m *multiKvEndpointClientManager) Reconfigure(newConfig MultiKvEndpointClientManagerConfig) {
+func (m *multiKvEndpointClientManager) UpdateEndpoints(endpoints map[string]KvTarget, addOnly bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	m.currentConfig = &newConfig
+	m.endpoints = endpoints
 
 	for _, manager := range m.managers {
-		manager.Manager.Reconfigure(
-			m.generateManagerConfigLocked(manager.Options))
+		manager.UpdateEndpoints(endpoints, addOnly)
+	}
+
+	return nil
+}
+
+func (m *multiKvEndpointClientManager) UpdateAuth(newAuth KvClientAuth) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	m.auth = newAuth
+
+	for _, manager := range m.managers {
+		manager.UpdateAuth(newAuth)
 	}
 }
 
 func (m *multiKvEndpointClientManager) Close() error {
 	m.lock.Lock()
-	defer m.lock.Unlock()
+	managers := m.managers
+	m.managers = nil
+	m.lock.Unlock()
 
 	var firstErr error
-	for _, manager := range m.managers {
-		closeErr := manager.Manager.Close()
+	for _, manager := range managers {
+		closeErr := manager.Close()
 		if closeErr != nil {
 			m.logger.Debug("failed to close manager", zap.Error(closeErr))
 			if firstErr == nil {
@@ -151,8 +131,6 @@ func (m *multiKvEndpointClientManager) Close() error {
 		}
 	}
 
-	m.managers = nil
-
 	return firstErr
 }
 
@@ -160,10 +138,10 @@ func (m *multiKvEndpointClientManager) handleManagerClosed(manager KvEndpointCli
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	newManagers := make([]*multiKvEndpointClientManagerEntry, 0, len(m.managers)-1)
+	newManagers := make([]KvEndpointClientManager, 0, len(m.managers))
 
 	for _, mgr := range m.managers {
-		if mgr.Manager != manager {
+		if mgr != manager {
 			newManagers = append(newManagers, mgr)
 		}
 	}

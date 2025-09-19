@@ -301,3 +301,7 @@ func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
 func (agent *Agent) StatsByVbucket(ctx context.Context, opts *StatsByVbucketOptions, dataCb func(StatsDataResult)) (*StatsResult, error) {
 	return agent.crud.StatsByVbucket(ctx, opts, dataCb)
 }
+
+func (agent *Agent) NewStreamSet(opts NewStreamSetOptions) (*DcpStreamSet, error) {
+	return agent.dcp.NewStreamSet(opts)
+}

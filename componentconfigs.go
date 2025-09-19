@@ -7,16 +7,17 @@ import (
 )
 
 type AgentComponentConfigs struct {
-	ConfigWatcherHttpConfig            ConfigWatcherHttpConfig
-	ConfigWatcherMemdConfig            ConfigWatcherMemdConfig
-	KvEndpointClientManagerConfig      KvEndpointClientManagerConfig
-	MultiKvEndpointClientManagerConfig MultiKvEndpointClientManagerConfig
-	VbucketRoutingInfo                 *VbucketRoutingInfo
-	QueryComponentConfig               QueryComponentConfig
-	MgmtComponentConfig                MgmtComponentConfig
-	SearchComponentConfig              SearchComponentConfig
-	AnalyticsComponentConfig           AnalyticsComponentConfig
-	StaticBucketInfoComponentConfig    StaticBucketInfoComponentConfig
+	ConfigWatcherHttpConfig         ConfigWatcherHttpConfig
+	ConfigWatcherMemdConfig         ConfigWatcherMemdConfig
+	KvTargets                       map[string]KvTarget
+	KvAuth                          KvClientAuth
+	KvSelectedBucket                string
+	VbucketRoutingInfo              *VbucketRoutingInfo
+	QueryComponentConfig            QueryComponentConfig
+	MgmtComponentConfig             MgmtComponentConfig
+	SearchComponentConfig           SearchComponentConfig
+	AnalyticsComponentConfig        AnalyticsComponentConfig
+	StaticBucketInfoComponentConfig StaticBucketInfoComponentConfig
 }
 
 func GenerateComponentConfigsFromConfig(
@@ -84,27 +85,20 @@ func GenerateComponentConfigsFromConfig(
 		}
 	}
 
-	clients := make(map[string]KvEndpointClientManagerConfigClient, len(kvDataHosts))
-	mclients := make(map[string]MultiKvEndpointClientManagerConfigClient, len(kvDataHosts))
-	for nodeId, addr := range kvDataHosts {
-		clients[nodeId] = KvEndpointClientManagerConfigClient{
-			KvClientPoolConfig: KvClientPoolConfig{
-				KvClientManagerConfig: KvClientManagerConfig{
-					Address:        addr,
-					TlsConfig:      tlsConfig,
-					SelectedBucket: bucketName,
-					Authenticator:  authenticator,
-					BootstrapOpts: KvClientBootstrapOptions{
-						ClientName: clientName,
-					},
-				},
-			},
+	var kvTlsConfig *KvTargetTlsConfig
+	if tlsConfig != nil {
+		kvTlsConfig = &KvTargetTlsConfig{
+			InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+			RootCAs:            tlsConfig.RootCAs,
+			CipherSuites:       tlsConfig.CipherSuites,
 		}
+	}
 
-		mclients[nodeId] = MultiKvEndpointClientManagerConfigClient{
-			Address:       addr,
-			TlsConfig:     tlsConfig,
-			Authenticator: authenticator,
+	kvTargets := make(map[string]KvTarget, len(kvDataHosts))
+	for nodeId, addr := range kvDataHosts {
+		kvTargets[nodeId] = KvTarget{
+			Address:   addr,
+			TLSConfig: kvTlsConfig,
 		}
 	}
 
@@ -124,12 +118,12 @@ func GenerateComponentConfigsFromConfig(
 		ConfigWatcherMemdConfig: ConfigWatcherMemdConfig{
 			Endpoints: kvDataNodeIds,
 		},
-		KvEndpointClientManagerConfig: KvEndpointClientManagerConfig{
-			Clients: clients,
+		KvTargets: kvTargets,
+		// TODO(brett19): This does not support swapping of authenticators...
+		KvAuth: &kvClientAuth{
+			Authenticator: authenticator,
 		},
-		MultiKvEndpointClientManagerConfig: MultiKvEndpointClientManagerConfig{
-			Clients: mclients,
-		},
+		KvSelectedBucket: bucketName,
 		VbucketRoutingInfo: &VbucketRoutingInfo{
 			VbMap:      config.VbucketMap,
 			ServerList: kvDataNodeIds,

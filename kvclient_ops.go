@@ -35,6 +35,9 @@ type KvClientOps interface {
 		dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error)
 	RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error)
 	Stats(ctx context.Context, req *memdx.StatsRequest, dataCb func(*memdx.StatsDataResponse) error) (*memdx.StatsActionResponse, error)
+	DcpStreamReq(ctx context.Context, req *memdx.DcpStreamReqRequest,
+		syncCb func(*memdx.DcpStreamReqResponse, error)) (*memdx.DcpStreamReqResponse, error)
+	DcpCloseStream(ctx context.Context, req *memdx.DcpCloseStreamRequest) (*memdx.DcpCloseStreamResponse, error)
 }
 
 func kvClient_SimpleCoreCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](

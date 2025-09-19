@@ -24,7 +24,6 @@ type agentState struct {
 	authenticator Authenticator
 	httpTransport *http.Transport
 
-	lastClients  map[string]KvEndpointClientManagerConfigClient
 	latestConfig *ParsedConfig
 }
 
@@ -51,6 +50,7 @@ type Agent struct {
 	mgmt       *MgmtComponent
 	search     *SearchComponent
 	analytics  *AnalyticsComponent
+	dcp        *DcpStreamSetManager
 	staticInfo *StaticBucketInfoComponent
 }
 
@@ -163,24 +163,25 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 
 	agentComponentConfigs := agent.genAgentComponentConfigsLocked()
 
-	connMgr, err := NewKvEndpointClientManager(&KvEndpointClientManagerOptions{
-		Logger:                        agent.logger.Named("client-manager"),
-		NumPoolConnections:            connectionPoolSize,
-		KvEndpointClientManagerConfig: agentComponentConfigs.KvEndpointClientManagerConfig,
-	})
-	if err != nil {
-		return nil, handleAgentCreateErr(err)
-	}
-	agent.connMgr = connMgr
-
 	mconnMgr, err := NewMultiKvEndpointClientManager(&MultiKvEndpointClientManagerOptions{
-		Logger:                             agent.logger.Named("multi-client-manager"),
-		MultiKvEndpointClientManagerConfig: agentComponentConfigs.MultiKvEndpointClientManagerConfig,
+		Logger:    agent.logger.Named("multi-client-manager"),
+		Endpoints: agentComponentConfigs.KvTargets,
+		Auth:      agentComponentConfigs.KvAuth,
 	})
 	if err != nil {
 		return nil, handleAgentCreateErr(err)
 	}
 	agent.mconnMgr = mconnMgr
+
+	connMgr, err := mconnMgr.NewManager(NewManagerOptions{
+		NumPoolConnections: connectionPoolSize,
+		OnDemandConnect:    false,
+		SelectedBucket:     agentComponentConfigs.KvSelectedBucket,
+	})
+	if err != nil {
+		return nil, handleAgentCreateErr(err)
+	}
+	agent.connMgr = connMgr
 
 	coreCollections, err := NewCollectionResolverMemd(&CollectionResolverMemdOptions{
 		Logger:       agent.logger,
@@ -304,6 +305,16 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 	)
 
+	agent.dcp = &DcpStreamSetManager{
+		Logger:     logger,
+		Retries:    consistencyRetryMgr,
+		MconnMgr:   agent.mconnMgr,
+		NmvHandler: &agentNmvHandler{agent},
+		Vbs:        agent.vbRouter,
+		// TODO(brett19): Bad...
+		BucketName: agent.state.bucket,
+	}
+
 	agent.staticInfo = NewStaticBucketInfoComponent(
 		agent.mgmt,
 		&agentComponentConfigs.StaticBucketInfoComponentConfig,
@@ -377,10 +388,6 @@ func (agent *Agent) NumVbuckets() int {
 }
 
 func (agent *Agent) Close() error {
-	if err := agent.connMgr.Close(); err != nil {
-		agent.logger.Debug("Failed to close conn mgr", zap.Error(err))
-	}
-
 	if err := agent.mconnMgr.Close(); err != nil {
 		agent.logger.Debug("Failed to close multi conn mgr", zap.Error(err))
 	}
@@ -423,22 +430,10 @@ func (agent *Agent) updateStateLocked() {
 	// the routing table.  Then go back and remove the old entries from
 	// the connection manager list.
 
-	mixedClients := make(map[string]KvEndpointClientManagerConfigClient)
-	if agent.state.lastClients != nil {
-		for clientName, client := range agent.state.lastClients {
-			mixedClients[clientName] = client
-		}
+	err := agent.mconnMgr.UpdateEndpoints(agentComponentConfigs.KvTargets, true)
+	if err != nil {
+		agent.logger.Error("failed to add-only update kv connection manager endpoint", zap.Error(err))
 	}
-	for clientName, clientConfig := range agentComponentConfigs.KvEndpointClientManagerConfig.Clients {
-		if _, ok := mixedClients[clientName]; ok {
-			mixedClients[clientName] = clientConfig
-		}
-	}
-
-	mixedConfig := agentComponentConfigs.KvEndpointClientManagerConfig
-	mixedConfig.Clients = mixedClients
-
-	agent.connMgr.Reconfigure(mixedConfig)
 
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
@@ -449,10 +444,12 @@ func (agent *Agent) updateStateLocked() {
 		}
 	}
 
-	agent.connMgr.Reconfigure(agentComponentConfigs.KvEndpointClientManagerConfig)
-	agent.state.lastClients = agentComponentConfigs.KvEndpointClientManagerConfig.Clients
+	err = agent.mconnMgr.UpdateEndpoints(agentComponentConfigs.KvTargets, false)
+	if err != nil {
+		agent.logger.Error("failed to update kv connection manager endpoint", zap.Error(err))
+	}
 
-	err := agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
+	err = agent.query.Reconfigure(&agentComponentConfigs.QueryComponentConfig)
 	if err != nil {
 		agent.logger.Error("failed to reconfigure query component", zap.Error(err))
 	}

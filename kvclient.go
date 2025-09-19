@@ -44,6 +44,7 @@ type KvClientBootstrapOptions struct {
 
 	DisableDefaultFeatures bool
 	DisableErrorMap        bool
+	DisableOutOfOrderExec  bool
 
 	// DisableBootstrap provides a simple way to validate that all bootstrapping
 	// is disabled on the client, mainly used for testing.
@@ -54,6 +55,7 @@ func (v KvClientBootstrapOptions) Equals(o KvClientBootstrapOptions) bool {
 	return v.ClientName == o.ClientName &&
 		v.DisableDefaultFeatures == o.DisableDefaultFeatures &&
 		v.DisableErrorMap == o.DisableErrorMap &&
+		v.DisableOutOfOrderExec == o.DisableOutOfOrderExec &&
 		v.DisableBootstrap == o.DisableBootstrap
 }
 
@@ -154,7 +156,6 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 			memdx.HelloFeatureXerror,
 			memdx.HelloFeatureSnappy,
 			memdx.HelloFeatureJSON,
-			memdx.HelloFeatureUnorderedExec,
 			memdx.HelloFeatureDurations,
 			memdx.HelloFeaturePreserveExpiry,
 			memdx.HelloFeatureSyncReplication,
@@ -163,6 +164,11 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 			memdx.HelloFeatureCreateAsDeleted,
 			memdx.HelloFeatureAltRequests,
 			memdx.HelloFeatureCollections,
+		}
+
+		if !opts.BootstrapOpts.DisableOutOfOrderExec {
+			requestedFeatures = append(requestedFeatures,
+				memdx.HelloFeatureUnorderedExec)
 		}
 	}
 

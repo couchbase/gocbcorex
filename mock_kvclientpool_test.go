@@ -24,8 +24,14 @@ var _ KvClientPool = &KvClientPoolMock{}
 //			GetClientFunc: func(ctx context.Context) (KvClient, error) {
 //				panic("mock out the GetClient method")
 //			},
-//			ReconfigureFunc: func(opts KvClientPoolConfig)  {
-//				panic("mock out the Reconfigure method")
+//			UpdateAuthFunc: func(newAuth KvClientAuth)  {
+//				panic("mock out the UpdateAuth method")
+//			},
+//			UpdateSelectedBucketFunc: func(newBucket string)  {
+//				panic("mock out the UpdateSelectedBucket method")
+//			},
+//			UpdateTargetFunc: func(newTarget KvTarget)  {
+//				panic("mock out the UpdateTarget method")
 //			},
 //		}
 //
@@ -40,8 +46,14 @@ type KvClientPoolMock struct {
 	// GetClientFunc mocks the GetClient method.
 	GetClientFunc func(ctx context.Context) (KvClient, error)
 
-	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(opts KvClientPoolConfig)
+	// UpdateAuthFunc mocks the UpdateAuth method.
+	UpdateAuthFunc func(newAuth KvClientAuth)
+
+	// UpdateSelectedBucketFunc mocks the UpdateSelectedBucket method.
+	UpdateSelectedBucketFunc func(newBucket string)
+
+	// UpdateTargetFunc mocks the UpdateTarget method.
+	UpdateTargetFunc func(newTarget KvTarget)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -53,15 +65,27 @@ type KvClientPoolMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 		}
-		// Reconfigure holds details about calls to the Reconfigure method.
-		Reconfigure []struct {
-			// Opts is the opts argument value.
-			Opts KvClientPoolConfig
+		// UpdateAuth holds details about calls to the UpdateAuth method.
+		UpdateAuth []struct {
+			// NewAuth is the newAuth argument value.
+			NewAuth KvClientAuth
+		}
+		// UpdateSelectedBucket holds details about calls to the UpdateSelectedBucket method.
+		UpdateSelectedBucket []struct {
+			// NewBucket is the newBucket argument value.
+			NewBucket string
+		}
+		// UpdateTarget holds details about calls to the UpdateTarget method.
+		UpdateTarget []struct {
+			// NewTarget is the newTarget argument value.
+			NewTarget KvTarget
 		}
 	}
-	lockClose       sync.RWMutex
-	lockGetClient   sync.RWMutex
-	lockReconfigure sync.RWMutex
+	lockClose                sync.RWMutex
+	lockGetClient            sync.RWMutex
+	lockUpdateAuth           sync.RWMutex
+	lockUpdateSelectedBucket sync.RWMutex
+	lockUpdateTarget         sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -123,34 +147,98 @@ func (mock *KvClientPoolMock) GetClientCalls() []struct {
 	return calls
 }
 
-// Reconfigure calls ReconfigureFunc.
-func (mock *KvClientPoolMock) Reconfigure(opts KvClientPoolConfig) {
-	if mock.ReconfigureFunc == nil {
-		panic("KvClientPoolMock.ReconfigureFunc: method is nil but KvClientPool.Reconfigure was just called")
+// UpdateAuth calls UpdateAuthFunc.
+func (mock *KvClientPoolMock) UpdateAuth(newAuth KvClientAuth) {
+	if mock.UpdateAuthFunc == nil {
+		panic("KvClientPoolMock.UpdateAuthFunc: method is nil but KvClientPool.UpdateAuth was just called")
 	}
 	callInfo := struct {
-		Opts KvClientPoolConfig
+		NewAuth KvClientAuth
 	}{
-		Opts: opts,
+		NewAuth: newAuth,
 	}
-	mock.lockReconfigure.Lock()
-	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
-	mock.lockReconfigure.Unlock()
-	mock.ReconfigureFunc(opts)
+	mock.lockUpdateAuth.Lock()
+	mock.calls.UpdateAuth = append(mock.calls.UpdateAuth, callInfo)
+	mock.lockUpdateAuth.Unlock()
+	mock.UpdateAuthFunc(newAuth)
 }
 
-// ReconfigureCalls gets all the calls that were made to Reconfigure.
+// UpdateAuthCalls gets all the calls that were made to UpdateAuth.
 // Check the length with:
 //
-//	len(mockedKvClientPool.ReconfigureCalls())
-func (mock *KvClientPoolMock) ReconfigureCalls() []struct {
-	Opts KvClientPoolConfig
+//	len(mockedKvClientPool.UpdateAuthCalls())
+func (mock *KvClientPoolMock) UpdateAuthCalls() []struct {
+	NewAuth KvClientAuth
 } {
 	var calls []struct {
-		Opts KvClientPoolConfig
+		NewAuth KvClientAuth
 	}
-	mock.lockReconfigure.RLock()
-	calls = mock.calls.Reconfigure
-	mock.lockReconfigure.RUnlock()
+	mock.lockUpdateAuth.RLock()
+	calls = mock.calls.UpdateAuth
+	mock.lockUpdateAuth.RUnlock()
+	return calls
+}
+
+// UpdateSelectedBucket calls UpdateSelectedBucketFunc.
+func (mock *KvClientPoolMock) UpdateSelectedBucket(newBucket string) {
+	if mock.UpdateSelectedBucketFunc == nil {
+		panic("KvClientPoolMock.UpdateSelectedBucketFunc: method is nil but KvClientPool.UpdateSelectedBucket was just called")
+	}
+	callInfo := struct {
+		NewBucket string
+	}{
+		NewBucket: newBucket,
+	}
+	mock.lockUpdateSelectedBucket.Lock()
+	mock.calls.UpdateSelectedBucket = append(mock.calls.UpdateSelectedBucket, callInfo)
+	mock.lockUpdateSelectedBucket.Unlock()
+	mock.UpdateSelectedBucketFunc(newBucket)
+}
+
+// UpdateSelectedBucketCalls gets all the calls that were made to UpdateSelectedBucket.
+// Check the length with:
+//
+//	len(mockedKvClientPool.UpdateSelectedBucketCalls())
+func (mock *KvClientPoolMock) UpdateSelectedBucketCalls() []struct {
+	NewBucket string
+} {
+	var calls []struct {
+		NewBucket string
+	}
+	mock.lockUpdateSelectedBucket.RLock()
+	calls = mock.calls.UpdateSelectedBucket
+	mock.lockUpdateSelectedBucket.RUnlock()
+	return calls
+}
+
+// UpdateTarget calls UpdateTargetFunc.
+func (mock *KvClientPoolMock) UpdateTarget(newTarget KvTarget) {
+	if mock.UpdateTargetFunc == nil {
+		panic("KvClientPoolMock.UpdateTargetFunc: method is nil but KvClientPool.UpdateTarget was just called")
+	}
+	callInfo := struct {
+		NewTarget KvTarget
+	}{
+		NewTarget: newTarget,
+	}
+	mock.lockUpdateTarget.Lock()
+	mock.calls.UpdateTarget = append(mock.calls.UpdateTarget, callInfo)
+	mock.lockUpdateTarget.Unlock()
+	mock.UpdateTargetFunc(newTarget)
+}
+
+// UpdateTargetCalls gets all the calls that were made to UpdateTarget.
+// Check the length with:
+//
+//	len(mockedKvClientPool.UpdateTargetCalls())
+func (mock *KvClientPoolMock) UpdateTargetCalls() []struct {
+	NewTarget KvTarget
+} {
+	var calls []struct {
+		NewTarget KvTarget
+	}
+	mock.lockUpdateTarget.RLock()
+	calls = mock.calls.UpdateTarget
+	mock.lockUpdateTarget.RUnlock()
 	return calls
 }

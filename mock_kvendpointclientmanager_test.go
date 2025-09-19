@@ -27,8 +27,14 @@ var _ KvEndpointClientManager = &KvEndpointClientManagerMock{}
 //			GetEndpointClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
 //				panic("mock out the GetEndpointClient method")
 //			},
-//			ReconfigureFunc: func(config KvEndpointClientManagerConfig)  {
-//				panic("mock out the Reconfigure method")
+//			UpdateAuthFunc: func(newAuth KvClientAuth)  {
+//				panic("mock out the UpdateAuth method")
+//			},
+//			UpdateEndpointsFunc: func(endpoints map[string]KvTarget, addOnly bool) error {
+//				panic("mock out the UpdateEndpoints method")
+//			},
+//			UpdateSelectedBucketFunc: func(newBucket string)  {
+//				panic("mock out the UpdateSelectedBucket method")
 //			},
 //		}
 //
@@ -46,8 +52,14 @@ type KvEndpointClientManagerMock struct {
 	// GetEndpointClientFunc mocks the GetEndpointClient method.
 	GetEndpointClientFunc func(ctx context.Context, endpoint string) (KvClient, error)
 
-	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(config KvEndpointClientManagerConfig)
+	// UpdateAuthFunc mocks the UpdateAuth method.
+	UpdateAuthFunc func(newAuth KvClientAuth)
+
+	// UpdateEndpointsFunc mocks the UpdateEndpoints method.
+	UpdateEndpointsFunc func(endpoints map[string]KvTarget, addOnly bool) error
+
+	// UpdateSelectedBucketFunc mocks the UpdateSelectedBucket method.
+	UpdateSelectedBucketFunc func(newBucket string)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -66,16 +78,30 @@ type KvEndpointClientManagerMock struct {
 			// Endpoint is the endpoint argument value.
 			Endpoint string
 		}
-		// Reconfigure holds details about calls to the Reconfigure method.
-		Reconfigure []struct {
-			// Config is the config argument value.
-			Config KvEndpointClientManagerConfig
+		// UpdateAuth holds details about calls to the UpdateAuth method.
+		UpdateAuth []struct {
+			// NewAuth is the newAuth argument value.
+			NewAuth KvClientAuth
+		}
+		// UpdateEndpoints holds details about calls to the UpdateEndpoints method.
+		UpdateEndpoints []struct {
+			// Endpoints is the endpoints argument value.
+			Endpoints map[string]KvTarget
+			// AddOnly is the addOnly argument value.
+			AddOnly bool
+		}
+		// UpdateSelectedBucket holds details about calls to the UpdateSelectedBucket method.
+		UpdateSelectedBucket []struct {
+			// NewBucket is the newBucket argument value.
+			NewBucket string
 		}
 	}
-	lockClose             sync.RWMutex
-	lockGetClient         sync.RWMutex
-	lockGetEndpointClient sync.RWMutex
-	lockReconfigure       sync.RWMutex
+	lockClose                sync.RWMutex
+	lockGetClient            sync.RWMutex
+	lockGetEndpointClient    sync.RWMutex
+	lockUpdateAuth           sync.RWMutex
+	lockUpdateEndpoints      sync.RWMutex
+	lockUpdateSelectedBucket sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -173,34 +199,102 @@ func (mock *KvEndpointClientManagerMock) GetEndpointClientCalls() []struct {
 	return calls
 }
 
-// Reconfigure calls ReconfigureFunc.
-func (mock *KvEndpointClientManagerMock) Reconfigure(config KvEndpointClientManagerConfig) {
-	if mock.ReconfigureFunc == nil {
-		panic("KvEndpointClientManagerMock.ReconfigureFunc: method is nil but KvEndpointClientManager.Reconfigure was just called")
+// UpdateAuth calls UpdateAuthFunc.
+func (mock *KvEndpointClientManagerMock) UpdateAuth(newAuth KvClientAuth) {
+	if mock.UpdateAuthFunc == nil {
+		panic("KvEndpointClientManagerMock.UpdateAuthFunc: method is nil but KvEndpointClientManager.UpdateAuth was just called")
 	}
 	callInfo := struct {
-		Config KvEndpointClientManagerConfig
+		NewAuth KvClientAuth
 	}{
-		Config: config,
+		NewAuth: newAuth,
 	}
-	mock.lockReconfigure.Lock()
-	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
-	mock.lockReconfigure.Unlock()
-	mock.ReconfigureFunc(config)
+	mock.lockUpdateAuth.Lock()
+	mock.calls.UpdateAuth = append(mock.calls.UpdateAuth, callInfo)
+	mock.lockUpdateAuth.Unlock()
+	mock.UpdateAuthFunc(newAuth)
 }
 
-// ReconfigureCalls gets all the calls that were made to Reconfigure.
+// UpdateAuthCalls gets all the calls that were made to UpdateAuth.
 // Check the length with:
 //
-//	len(mockedKvEndpointClientManager.ReconfigureCalls())
-func (mock *KvEndpointClientManagerMock) ReconfigureCalls() []struct {
-	Config KvEndpointClientManagerConfig
+//	len(mockedKvEndpointClientManager.UpdateAuthCalls())
+func (mock *KvEndpointClientManagerMock) UpdateAuthCalls() []struct {
+	NewAuth KvClientAuth
 } {
 	var calls []struct {
-		Config KvEndpointClientManagerConfig
+		NewAuth KvClientAuth
 	}
-	mock.lockReconfigure.RLock()
-	calls = mock.calls.Reconfigure
-	mock.lockReconfigure.RUnlock()
+	mock.lockUpdateAuth.RLock()
+	calls = mock.calls.UpdateAuth
+	mock.lockUpdateAuth.RUnlock()
+	return calls
+}
+
+// UpdateEndpoints calls UpdateEndpointsFunc.
+func (mock *KvEndpointClientManagerMock) UpdateEndpoints(endpoints map[string]KvTarget, addOnly bool) error {
+	if mock.UpdateEndpointsFunc == nil {
+		panic("KvEndpointClientManagerMock.UpdateEndpointsFunc: method is nil but KvEndpointClientManager.UpdateEndpoints was just called")
+	}
+	callInfo := struct {
+		Endpoints map[string]KvTarget
+		AddOnly   bool
+	}{
+		Endpoints: endpoints,
+		AddOnly:   addOnly,
+	}
+	mock.lockUpdateEndpoints.Lock()
+	mock.calls.UpdateEndpoints = append(mock.calls.UpdateEndpoints, callInfo)
+	mock.lockUpdateEndpoints.Unlock()
+	return mock.UpdateEndpointsFunc(endpoints, addOnly)
+}
+
+// UpdateEndpointsCalls gets all the calls that were made to UpdateEndpoints.
+// Check the length with:
+//
+//	len(mockedKvEndpointClientManager.UpdateEndpointsCalls())
+func (mock *KvEndpointClientManagerMock) UpdateEndpointsCalls() []struct {
+	Endpoints map[string]KvTarget
+	AddOnly   bool
+} {
+	var calls []struct {
+		Endpoints map[string]KvTarget
+		AddOnly   bool
+	}
+	mock.lockUpdateEndpoints.RLock()
+	calls = mock.calls.UpdateEndpoints
+	mock.lockUpdateEndpoints.RUnlock()
+	return calls
+}
+
+// UpdateSelectedBucket calls UpdateSelectedBucketFunc.
+func (mock *KvEndpointClientManagerMock) UpdateSelectedBucket(newBucket string) {
+	if mock.UpdateSelectedBucketFunc == nil {
+		panic("KvEndpointClientManagerMock.UpdateSelectedBucketFunc: method is nil but KvEndpointClientManager.UpdateSelectedBucket was just called")
+	}
+	callInfo := struct {
+		NewBucket string
+	}{
+		NewBucket: newBucket,
+	}
+	mock.lockUpdateSelectedBucket.Lock()
+	mock.calls.UpdateSelectedBucket = append(mock.calls.UpdateSelectedBucket, callInfo)
+	mock.lockUpdateSelectedBucket.Unlock()
+	mock.UpdateSelectedBucketFunc(newBucket)
+}
+
+// UpdateSelectedBucketCalls gets all the calls that were made to UpdateSelectedBucket.
+// Check the length with:
+//
+//	len(mockedKvEndpointClientManager.UpdateSelectedBucketCalls())
+func (mock *KvEndpointClientManagerMock) UpdateSelectedBucketCalls() []struct {
+	NewBucket string
+} {
+	var calls []struct {
+		NewBucket string
+	}
+	mock.lockUpdateSelectedBucket.RLock()
+	calls = mock.calls.UpdateSelectedBucket
+	mock.lockUpdateSelectedBucket.RUnlock()
 	return calls
 }

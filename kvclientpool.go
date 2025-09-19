@@ -18,27 +18,27 @@ var (
 	ErrPoolStillConnecting = contextualDeadline{"still waiting for a pool connection to be established"}
 )
 
+type NewKvClientManagerFunc func(*KvClientManagerOptions) KvClientManager
+
 type KvClientPool interface {
-	KvClientProvider
-
-	Reconfigure(opts KvClientPoolConfig)
-	Close() error
-}
-
-type KvClientPoolConfig struct {
-	KvClientManagerConfig
+	KvClientManager
 }
 
 type KvClientPoolOptions struct {
-	Logger      *zap.Logger
-	NewKvClient NewKvClientFunc
+	Logger             *zap.Logger
+	NewKvClientManager NewKvClientManagerFunc
 
 	NumConnections           uint
 	OnDemandConnect          bool
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
+	BootstrapOpts            KvClientBootstrapOptions
+	DcpOpts                  *KvClientDcpOptions
+	DcpHandlers              KvClientDcpEventsHandlers
 
-	KvClientPoolConfig
+	Target         KvTarget
+	Auth           KvClientAuth
+	SelectedBucket string
 }
 
 type kvClientPoolFastMap struct {
@@ -52,10 +52,7 @@ type kvClientPoolEntry struct {
 }
 
 type kvClientPool struct {
-	logger                   *zap.Logger
-	newKvClient              NewKvClientFunc
-	connectTimeout           time.Duration
-	connectErrThrottlePeriod time.Duration
+	logger *zap.Logger
 
 	clientIdx uint64
 	fastMap   atomic.Pointer[kvClientPoolFastMap]
@@ -92,34 +89,36 @@ func NewKvClientPool(opts *KvClientPoolOptions) (KvClientPool, error) {
 		connectErrThrottlePeriod = 1 * time.Second
 	}
 
-	newKvClient := opts.NewKvClient
-	if newKvClient == nil {
-		newKvClient = NewKvClient
+	newKvClientManager := opts.NewKvClientManager
+	if newKvClientManager == nil {
+		newKvClientManager = NewKvClientManager
 	}
 
-	poolName := opts.Address
+	// TODO(brett19): rewrite this
+	poolName := opts.Target.Address
 	if opts.SelectedBucket != "" {
 		poolName += "/" + opts.SelectedBucket
 	}
 
 	p := &kvClientPool{
-		logger:                   logger,
-		newKvClient:              newKvClient,
-		connectTimeout:           connectTimeout,
-		connectErrThrottlePeriod: connectErrThrottlePeriod,
+		logger: logger,
 
 		poolName: poolName,
 	}
 
 	for clientIdx := uint(0); clientIdx < opts.NumConnections; clientIdx++ {
-		manager := NewKvClientManager(&KvClientManagerOptions{
+		manager := newKvClientManager(&KvClientManagerOptions{
 			Logger:                   p.logger,
-			NewKvClient:              p.newKvClient,
 			OnDemandConnect:          opts.OnDemandConnect,
-			ConnectTimeout:           p.connectTimeout,
-			ConnectErrThrottlePeriod: p.connectErrThrottlePeriod,
+			ConnectTimeout:           opts.ConnectTimeout,
+			ConnectErrThrottlePeriod: opts.ConnectErrThrottlePeriod,
 			StateChangeHandler:       p.handleProviderStateChange,
-			KvClientManagerConfig:    opts.KvClientManagerConfig,
+			DcpHandlers:              opts.DcpHandlers,
+			BootstrapOpts:            opts.BootstrapOpts,
+			DcpOpts:                  opts.DcpOpts,
+			Target:                   opts.Target,
+			Auth:                     opts.Auth,
+			SelectedBucket:           opts.SelectedBucket,
 		})
 
 		p.managers = append(p.managers, &kvClientPoolEntry{
@@ -166,9 +165,21 @@ func (p *kvClientPool) rebuildFastMapLocked() {
 	})
 }
 
-func (p *kvClientPool) Reconfigure(newConfig KvClientPoolConfig) {
+func (p *kvClientPool) UpdateTarget(newTarget KvTarget) {
 	for _, entry := range p.managers {
-		entry.Manager.Reconfigure(newConfig.KvClientManagerConfig)
+		entry.Manager.UpdateTarget(newTarget)
+	}
+}
+
+func (p *kvClientPool) UpdateAuth(newAuth KvClientAuth) {
+	for _, entry := range p.managers {
+		entry.Manager.UpdateAuth(newAuth)
+	}
+}
+
+func (p *kvClientPool) UpdateSelectedBucket(newBucket string) {
+	for _, entry := range p.managers {
+		entry.Manager.UpdateSelectedBucket(newBucket)
 	}
 }
 

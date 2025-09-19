@@ -32,6 +32,12 @@ var _ KvClient = &KvClientMock{}
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
 //			},
+//			DcpCloseStreamFunc: func(ctx context.Context, req *memdx.DcpCloseStreamRequest) (*memdx.DcpCloseStreamResponse, error) {
+//				panic("mock out the DcpCloseStream method")
+//			},
+//			DcpStreamReqFunc: func(ctx context.Context, req *memdx.DcpStreamReqRequest, syncCb func(*memdx.DcpStreamReqResponse, error)) (*memdx.DcpStreamReqResponse, error) {
+//				panic("mock out the DcpStreamReq method")
+//			},
 //			DecrementFunc: func(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error) {
 //				panic("mock out the Decrement method")
 //			},
@@ -140,6 +146,12 @@ type KvClientMock struct {
 
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
+
+	// DcpCloseStreamFunc mocks the DcpCloseStream method.
+	DcpCloseStreamFunc func(ctx context.Context, req *memdx.DcpCloseStreamRequest) (*memdx.DcpCloseStreamResponse, error)
+
+	// DcpStreamReqFunc mocks the DcpStreamReq method.
+	DcpStreamReqFunc func(ctx context.Context, req *memdx.DcpStreamReqRequest, syncCb func(*memdx.DcpStreamReqResponse, error)) (*memdx.DcpStreamReqResponse, error)
 
 	// DecrementFunc mocks the Decrement method.
 	DecrementFunc func(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error)
@@ -256,6 +268,22 @@ type KvClientMock struct {
 		}
 		// Close holds details about calls to the Close method.
 		Close []struct {
+		}
+		// DcpCloseStream holds details about calls to the DcpCloseStream method.
+		DcpCloseStream []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.DcpCloseStreamRequest
+		}
+		// DcpStreamReq holds details about calls to the DcpStreamReq method.
+		DcpStreamReq []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.DcpStreamReqRequest
+			// SyncCb is the syncCb argument value.
+			SyncCb func(*memdx.DcpStreamReqResponse, error)
 		}
 		// Decrement holds details about calls to the Decrement method.
 		Decrement []struct {
@@ -462,6 +490,8 @@ type KvClientMock struct {
 	lockAddWithMeta       sync.RWMutex
 	lockAppend            sync.RWMutex
 	lockClose             sync.RWMutex
+	lockDcpCloseStream    sync.RWMutex
+	lockDcpStreamReq      sync.RWMutex
 	lockDecrement         sync.RWMutex
 	lockDelete            sync.RWMutex
 	lockDeleteWithMeta    sync.RWMutex
@@ -626,6 +656,82 @@ func (mock *KvClientMock) CloseCalls() []struct {
 	mock.lockClose.RLock()
 	calls = mock.calls.Close
 	mock.lockClose.RUnlock()
+	return calls
+}
+
+// DcpCloseStream calls DcpCloseStreamFunc.
+func (mock *KvClientMock) DcpCloseStream(ctx context.Context, req *memdx.DcpCloseStreamRequest) (*memdx.DcpCloseStreamResponse, error) {
+	if mock.DcpCloseStreamFunc == nil {
+		panic("KvClientMock.DcpCloseStreamFunc: method is nil but KvClient.DcpCloseStream was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.DcpCloseStreamRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockDcpCloseStream.Lock()
+	mock.calls.DcpCloseStream = append(mock.calls.DcpCloseStream, callInfo)
+	mock.lockDcpCloseStream.Unlock()
+	return mock.DcpCloseStreamFunc(ctx, req)
+}
+
+// DcpCloseStreamCalls gets all the calls that were made to DcpCloseStream.
+// Check the length with:
+//
+//	len(mockedKvClient.DcpCloseStreamCalls())
+func (mock *KvClientMock) DcpCloseStreamCalls() []struct {
+	Ctx context.Context
+	Req *memdx.DcpCloseStreamRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.DcpCloseStreamRequest
+	}
+	mock.lockDcpCloseStream.RLock()
+	calls = mock.calls.DcpCloseStream
+	mock.lockDcpCloseStream.RUnlock()
+	return calls
+}
+
+// DcpStreamReq calls DcpStreamReqFunc.
+func (mock *KvClientMock) DcpStreamReq(ctx context.Context, req *memdx.DcpStreamReqRequest, syncCb func(*memdx.DcpStreamReqResponse, error)) (*memdx.DcpStreamReqResponse, error) {
+	if mock.DcpStreamReqFunc == nil {
+		panic("KvClientMock.DcpStreamReqFunc: method is nil but KvClient.DcpStreamReq was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Req    *memdx.DcpStreamReqRequest
+		SyncCb func(*memdx.DcpStreamReqResponse, error)
+	}{
+		Ctx:    ctx,
+		Req:    req,
+		SyncCb: syncCb,
+	}
+	mock.lockDcpStreamReq.Lock()
+	mock.calls.DcpStreamReq = append(mock.calls.DcpStreamReq, callInfo)
+	mock.lockDcpStreamReq.Unlock()
+	return mock.DcpStreamReqFunc(ctx, req, syncCb)
+}
+
+// DcpStreamReqCalls gets all the calls that were made to DcpStreamReq.
+// Check the length with:
+//
+//	len(mockedKvClient.DcpStreamReqCalls())
+func (mock *KvClientMock) DcpStreamReqCalls() []struct {
+	Ctx    context.Context
+	Req    *memdx.DcpStreamReqRequest
+	SyncCb func(*memdx.DcpStreamReqResponse, error)
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Req    *memdx.DcpStreamReqRequest
+		SyncCb func(*memdx.DcpStreamReqResponse, error)
+	}
+	mock.lockDcpStreamReq.RLock()
+	calls = mock.calls.DcpStreamReq
+	mock.lockDcpStreamReq.RUnlock()
 	return calls
 }
 

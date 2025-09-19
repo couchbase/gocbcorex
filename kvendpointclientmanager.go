@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -15,19 +16,13 @@ type KvEndpointClientManager interface {
 	KvClientProvider
 	KvEndpointClientProvider
 
-	Reconfigure(config KvEndpointClientManagerConfig)
+	UpdateEndpoints(endpoints map[string]KvTarget, addOnly bool) error
+	UpdateAuth(newAuth KvClientAuth)
+	UpdateSelectedBucket(newBucket string)
 	Close() error
 }
 
 type NewKvClientPoolFunc func(opts *KvClientPoolOptions) (KvClientPool, error)
-
-type KvEndpointClientManagerConfigClient struct {
-	KvClientPoolConfig
-}
-
-type KvEndpointClientManagerConfig struct {
-	Clients map[string]KvEndpointClientManagerConfigClient
-}
 
 type KvEndpointClientManagerOptions struct {
 	Logger          *zap.Logger
@@ -38,28 +33,43 @@ type KvEndpointClientManagerOptions struct {
 	OnDemandConnect          bool
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
+	BootstrapOpts            KvClientBootstrapOptions
+	DcpOpts                  *KvClientDcpOptions
+	DcpHandlers              KvClientDcpEventsHandlers
 
-	KvEndpointClientManagerConfig
-}
-
-type kvEndpointClientManagerPool struct {
-	Config KvEndpointClientManagerConfigClient
-	Pool   KvClientPool
+	Endpoints      map[string]KvTarget
+	Auth           KvClientAuth
+	SelectedBucket string
 }
 
 type kvEndpointClientManagerState struct {
-	ClientPools map[string]*kvEndpointClientManagerPool
+	ClientPools map[string]KvClientPool
+}
+
+type kvEndpointClientManagerConfig struct {
+	Endpoints      map[string]KvTarget
+	Auth           KvClientAuth
+	SelectedBucket string
 }
 
 type kvEndpointClientManager struct {
-	logger             *zap.Logger
-	newKvClientPool    NewKvClientPoolFunc
-	onCloseHandler     func(KvEndpointClientManager)
-	numPoolConnections uint
+	logger                   *zap.Logger
+	newKvClientPool          NewKvClientPoolFunc
+	onCloseHandler           func(KvEndpointClientManager)
+	numPoolConnections       uint
+	onDemandConnect          bool
+	connectTimeout           time.Duration
+	connectErrThrottlePeriod time.Duration
+	bootstrapOpts            KvClientBootstrapOptions
+	dcpOpts                  *KvClientDcpOptions
+	dcpHandlers              KvClientDcpEventsHandlers
 
-	lock          sync.Mutex
-	currentConfig KvEndpointClientManagerConfig
-	state         atomic.Pointer[kvEndpointClientManagerState]
+	lock           sync.Mutex
+	auth           KvClientAuth
+	selectedBucket string
+	clientPools    map[string]KvClientPool
+
+	state atomic.Pointer[kvEndpointClientManagerState]
 }
 
 var _ (KvEndpointClientManager) = (*kvEndpointClientManager)(nil)
@@ -87,53 +97,64 @@ func NewKvEndpointClientManager(
 	}
 
 	mgr := &kvEndpointClientManager{
-		logger:             logger,
-		newKvClientPool:    newKvClientPool,
-		onCloseHandler:     opts.OnCloseHandler,
-		numPoolConnections: opts.NumPoolConnections,
+		logger:                   logger,
+		newKvClientPool:          newKvClientPool,
+		onCloseHandler:           opts.OnCloseHandler,
+		numPoolConnections:       opts.NumPoolConnections,
+		onDemandConnect:          opts.OnDemandConnect,
+		connectTimeout:           opts.ConnectTimeout,
+		connectErrThrottlePeriod: opts.ConnectErrThrottlePeriod,
+		bootstrapOpts:            opts.BootstrapOpts,
+		dcpOpts:                  opts.DcpOpts,
+		dcpHandlers:              opts.DcpHandlers,
+
+		clientPools: make(map[string]KvClientPool),
 	}
 
-	// initialize the client manager to having no clients
-	mgr.currentConfig = KvEndpointClientManagerConfig{}
-	mgr.Reconfigure(opts.KvEndpointClientManagerConfig)
+	mgr.auth = opts.Auth
+	mgr.selectedBucket = opts.SelectedBucket
+	err := mgr.UpdateEndpoints(opts.Endpoints, false)
+	if err != nil {
+		return nil, err
+	}
 
 	return mgr, nil
 }
 
-func (m *kvEndpointClientManager) Reconfigure(config KvEndpointClientManagerConfig) {
+func (m *kvEndpointClientManager) UpdateEndpoints(endpoints map[string]KvTarget, addOnly bool) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	state := m.state.Load()
-	if state == nil {
-		state = &kvEndpointClientManagerState{}
-	}
-
-	m.logger.Debug("reconfiguring")
-
-	oldPools := make(map[string]*kvEndpointClientManagerPool)
-	for poolName, pool := range state.ClientPools {
+	oldPools := make(map[string]KvClientPool)
+	for poolName, pool := range m.clientPools {
 		oldPools[poolName] = pool
 	}
 
-	newState := &kvEndpointClientManagerState{
-		ClientPools: make(map[string]*kvEndpointClientManagerPool),
-	}
+	newPools := make(map[string]KvClientPool)
 
-	for endpoint, endpointConfig := range config.Clients {
+	for endpoint, target := range endpoints {
 		var pool KvClientPool
 
 		oldPool := oldPools[endpoint]
 		if oldPool != nil {
-			oldPool.Pool.Reconfigure(endpointConfig.KvClientPoolConfig)
+			oldPool.UpdateTarget(target)
 
-			pool = oldPool.Pool
+			pool = oldPool
 			delete(oldPools, endpoint)
 		} else {
 			newPool, err := m.newKvClientPool(&KvClientPoolOptions{
-				Logger:             m.logger.Named("pool"),
-				NumConnections:     m.numPoolConnections,
-				KvClientPoolConfig: endpointConfig.KvClientPoolConfig,
+				Logger:                   m.logger.Named("pool"),
+				NumConnections:           m.numPoolConnections,
+				OnDemandConnect:          m.onDemandConnect,
+				ConnectTimeout:           m.connectTimeout,
+				ConnectErrThrottlePeriod: m.connectErrThrottlePeriod,
+				BootstrapOpts:            m.bootstrapOpts,
+				DcpOpts:                  m.dcpOpts,
+				DcpHandlers:              m.dcpHandlers,
+
+				Target:         target,
+				Auth:           m.auth,
+				SelectedBucket: m.selectedBucket,
 			})
 			if err != nil {
 				m.logger.Debug("failed to create pool", zap.Error(err))
@@ -143,25 +164,55 @@ func (m *kvEndpointClientManager) Reconfigure(config KvEndpointClientManagerConf
 			pool = newPool
 		}
 
-		newState.ClientPools[endpoint] = &kvEndpointClientManagerPool{
-			Config: endpointConfig,
-			Pool:   pool,
+		newPools[endpoint] = pool
+	}
+
+	if addOnly {
+		// in add-only mode, we keep any existing pools that aren't in the new set
+		// this is useful for making sure all routers still work until we've updated
+		// the routers separately...
+		for endpoint, pool := range oldPools {
+			newPools[endpoint] = pool
+			delete(oldPools, endpoint)
 		}
 	}
 
 	for _, pool := range oldPools {
-		if err := pool.Pool.Close(); err != nil {
+		if err := pool.Close(); err != nil {
 			m.logger.Debug("failed to close pool", zap.Error(err))
 		}
 	}
 
-	m.state.Store(newState)
+	m.clientPools = newPools
+	m.state.Store(&kvEndpointClientManagerState{
+		ClientPools: newPools,
+	})
+
+	return nil
+}
+
+func (m *kvEndpointClientManager) UpdateAuth(newAuth KvClientAuth) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	for _, pool := range m.clientPools {
+		pool.UpdateAuth(newAuth)
+	}
+}
+
+func (m *kvEndpointClientManager) UpdateSelectedBucket(newBucket string) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	for _, pool := range m.clientPools {
+		pool.UpdateSelectedBucket(newBucket)
+	}
 }
 
 func (m *kvEndpointClientManager) getState() (*kvEndpointClientManagerState, error) {
 	state := m.state.Load()
 	if state == nil {
-		return nil, illegalStateError{"no state data for KvClientManager"}
+		return nil, errors.New("kv endpoint client manager is closed")
 	}
 
 	return state, nil
@@ -175,7 +226,7 @@ func (m *kvEndpointClientManager) GetClient(ctx context.Context) (KvClient, erro
 
 	// Just pick one at random for now
 	for _, pool := range state.ClientPools {
-		return pool.Pool.GetClient(ctx)
+		return pool.GetClient(ctx)
 	}
 
 	return nil, ErrInvalidEndpoint
@@ -200,27 +251,25 @@ func (m *kvEndpointClientManager) GetEndpointClient(ctx context.Context, endpoin
 		return nil, placeholderError{fmt.Sprintf("endpoint not known `%s` in %+v", endpoint, validKeys)}
 	}
 
-	return pool.Pool.GetClient(ctx)
+	return pool.GetClient(ctx)
 }
 
 func (m *kvEndpointClientManager) Close() error {
 	m.logger.Info("closing kv endpoint client manager")
 
+	m.state.Store(nil)
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	state := m.state.Load()
-	if state == nil {
-		return nil
-	}
-
 	m.state.Store(nil)
 
-	for _, pool := range state.ClientPools {
-		if err := pool.Pool.Close(); err != nil {
+	for _, pool := range m.clientPools {
+		if err := pool.Close(); err != nil {
 			m.logger.Debug("Failed to close kv client pool", zap.Error(err))
 		}
 	}
+	m.clientPools = make(map[string]KvClientPool)
 
 	if m.onCloseHandler != nil {
 		m.onCloseHandler(m)

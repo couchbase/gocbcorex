@@ -12,6 +12,7 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 type KvTargetTlsConfig struct {
@@ -20,21 +21,60 @@ type KvTargetTlsConfig struct {
 	CipherSuites       []uint16
 }
 
+func (v KvTargetTlsConfig) Equals(o *KvTargetTlsConfig) bool {
+	return v.RootCAs.Equal(o.RootCAs) &&
+		v.InsecureSkipVerify == o.InsecureSkipVerify &&
+		slices.Equal(v.CipherSuites, o.CipherSuites)
+}
+
 type KvTarget struct {
 	Address   string
 	TLSConfig *KvTargetTlsConfig
 }
 
-type KvClientAuth struct {
-	Username          string
-	Password          string
-	ClientCertificate *tls.Certificate
+func (v KvTarget) Equals(o KvTarget) bool {
+	if v.Address != o.Address {
+		return false
+	}
+
+	if v.TLSConfig == nil && o.TLSConfig == nil {
+		// both nil, so equal
+	} else if v.TLSConfig != nil && o.TLSConfig != nil {
+		if !v.TLSConfig.Equals(o.TLSConfig) {
+			// both not nil, but not equal
+			return false
+		}
+
+		// both not nil, and equal
+	} else {
+		// one is nil and the other is not, not equal
+		return false
+	}
+	return true
+}
+
+type KvClientAuth interface {
+	GetAuth(address string) (username, password string, clientCert *tls.Certificate, err error)
+}
+
+type kvClientManagerClientConfig struct {
+	Target         KvTarget
+	Auth           KvClientAuth
+	SelectedBucket string
+}
+
+func (v kvClientManagerClientConfig) Equals(o kvClientManagerClientConfig) bool {
+	return v.Target.Equals(o.Target) &&
+		v.Auth == o.Auth &&
+		v.SelectedBucket == o.SelectedBucket
 }
 
 type KvClientManager interface {
 	KvClientProvider
 
-	Reconfigure(opts KvClientManagerConfig)
+	UpdateTarget(newTarget KvTarget)
+	UpdateAuth(newAuth KvClientAuth)
+	UpdateSelectedBucket(newBucket string)
 	Close() error
 }
 
@@ -47,31 +87,16 @@ type kvClientManagerState struct {
 	Client KvClient
 }
 
-type KvClientManagerConfig struct {
-	Address        string
-	TlsConfig      *tls.Config
-	Authenticator  Authenticator
-	SelectedBucket string
-	BootstrapOpts  KvClientBootstrapOptions
-	DcpOpts        *KvClientDcpOptions
-}
-
-func (v KvClientManagerConfig) Equals(o KvClientManagerConfig) bool {
-	return v.Address == o.Address &&
-		v.TlsConfig == o.TlsConfig &&
-		v.Authenticator == o.Authenticator &&
-		v.SelectedBucket == o.SelectedBucket &&
-		v.BootstrapOpts.Equals(o.BootstrapOpts)
-}
-
 type kvClientManager struct {
 	logger                   *zap.Logger
 	newKvClient              NewKvClientFunc
 	connectTimeout           time.Duration
 	connectErrThrottlePeriod time.Duration
 	onDemandConnect          bool
+	bootstrapOpts            KvClientBootstrapOptions
 	stateChangeHandler       KvClientManagerStateChangeFn
 	dcpHandlers              KvClientDcpEventsHandlers
+	dcpOpts                  *KvClientDcpOptions
 
 	client atomic.Pointer[kvClientManagerState]
 
@@ -82,8 +107,8 @@ type kvClientManager struct {
 	buildCancelFn     func()
 	buildDoneCh       chan struct{}
 	currentClient     KvClient
-	currentConfig     *KvClientManagerConfig
-	desiredConfig     *KvClientManagerConfig
+	currentConfig     *kvClientManagerClientConfig
+	desiredConfig     *kvClientManagerClientConfig
 	connectErr        error
 	activeClient      KvClient
 }
@@ -99,8 +124,12 @@ type KvClientManagerOptions struct {
 	ConnectErrThrottlePeriod time.Duration
 	StateChangeHandler       KvClientManagerStateChangeFn
 	DcpHandlers              KvClientDcpEventsHandlers
+	BootstrapOpts            KvClientBootstrapOptions
+	DcpOpts                  *KvClientDcpOptions
 
-	KvClientManagerConfig
+	Target         KvTarget
+	Auth           KvClientAuth
+	SelectedBucket string
 }
 
 func NewKvClientManager(opts *KvClientManagerOptions) KvClientManager {
@@ -135,10 +164,16 @@ func NewKvClientManager(opts *KvClientManagerOptions) KvClientManager {
 		connectTimeout:           connectTimeout,
 		connectErrThrottlePeriod: connectErrThrottlePeriod,
 		onDemandConnect:          opts.OnDemandConnect,
+		bootstrapOpts:            opts.BootstrapOpts,
 		stateChangeHandler:       opts.StateChangeHandler,
-		stateChangeWaitCh:        make(chan struct{}),
-		desiredConfig:            &opts.KvClientManagerConfig,
+		dcpOpts:                  opts.DcpOpts,
 		dcpHandlers:              opts.DcpHandlers,
+		stateChangeWaitCh:        make(chan struct{}),
+		desiredConfig: &kvClientManagerClientConfig{
+			Target:         opts.Target,
+			Auth:           opts.Auth,
+			SelectedBucket: opts.SelectedBucket,
+		},
 	}
 
 	if !p.onDemandConnect {
@@ -148,15 +183,43 @@ func NewKvClientManager(opts *KvClientManagerOptions) KvClientManager {
 	return p
 }
 
-func (p *kvClientManager) Reconfigure(newConfig KvClientManagerConfig) {
+func (p *kvClientManager) UpdateTarget(newTarget KvTarget) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	if p.desiredConfig.Equals(newConfig) {
+	if p.desiredConfig.Target.Equals(newTarget) {
 		return
 	}
 
-	p.desiredConfig = &newConfig
+	p.desiredConfig.Target = newTarget
+	p.updateActiveClientLocked()
+	p.rebuildFastLookupLocked()
+	p.maybeBeginClientBuildLocked()
+}
+
+func (p *kvClientManager) UpdateAuth(newAuth KvClientAuth) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if p.desiredConfig.Auth == newAuth {
+		return
+	}
+
+	p.desiredConfig.Auth = newAuth
+	p.updateActiveClientLocked()
+	p.rebuildFastLookupLocked()
+	p.maybeBeginClientBuildLocked()
+}
+
+func (p *kvClientManager) UpdateSelectedBucket(newBucket string) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	if p.desiredConfig.SelectedBucket == newBucket {
+		return
+	}
+
+	p.desiredConfig.SelectedBucket = newBucket
 	p.updateActiveClientLocked()
 	p.rebuildFastLookupLocked()
 	p.maybeBeginClientBuildLocked()
@@ -317,19 +380,31 @@ ClientBuildLoop:
 			lastErrTime = time.Now()
 		}
 
-		username, password, err := desiredConfig.Authenticator.GetCredentials(
-			ServiceTypeMemd, desiredConfig.Address)
+		username, password, clientCert, err := desiredConfig.Auth.GetAuth(desiredConfig.Target.Address)
 		if err != nil {
 			handleError(err)
 			continue
+		}
+
+		var tlsConfig *tls.Config
+		if desiredConfig.Target.TLSConfig != nil {
+			tlsConfig = &tls.Config{
+				RootCAs:            desiredConfig.Target.TLSConfig.RootCAs,
+				InsecureSkipVerify: desiredConfig.Target.TLSConfig.InsecureSkipVerify,
+				CipherSuites:       desiredConfig.Target.TLSConfig.CipherSuites,
+			}
+
+			if clientCert != nil {
+				tlsConfig.Certificates = []tls.Certificate{*clientCert}
+			}
 		}
 
 		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, p.connectTimeout)
 		newClient, err := p.newKvClient(timeoutCtx, &KvClientOptions{
 			Logger: p.logger,
 
-			Address:   desiredConfig.Address,
-			TlsConfig: desiredConfig.TlsConfig,
+			Address:   desiredConfig.Target.Address,
+			TlsConfig: tlsConfig,
 			Auth: &memdx.SaslAuthAutoOptions{
 				Username: username,
 				Password: password,
@@ -338,8 +413,8 @@ ClientBuildLoop:
 					memdx.ScramSha256AuthMechanism},
 			},
 			SelectedBucket: desiredConfig.SelectedBucket,
-			BootstrapOpts:  desiredConfig.BootstrapOpts,
-			DcpOpts:        desiredConfig.DcpOpts,
+			BootstrapOpts:  p.bootstrapOpts,
+			DcpOpts:        p.dcpOpts,
 
 			DcpHandlers:  p.dcpHandlers,
 			CloseHandler: p.handleClientClosed,
