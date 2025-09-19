@@ -40,7 +40,7 @@ func TestHttpMgmtTerseClusterInfo(t *testing.T) {
 func TestHttpMgmtClusterInfo(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	resp, err := getHttpMgmt().GetClusterInfo(context.Background(), &cbmgmtx.GetClusterConfigOptions{})
+	resp, err := getHttpMgmt().GetClusterInfo(context.Background(), &cbmgmtx.GetClusterInfoOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.NotEmpty(t, resp.ImplementationVersion)

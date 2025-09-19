@@ -131,6 +131,10 @@ func (w *MgmtComponent) GetEndpoint(ctx context.Context) (*GetMgmtEndpointResult
 		})
 }
 
+func (w *MgmtComponent) GetClusterInfo(ctx context.Context, opts *cbmgmtx.GetClusterInfoOptions) (*cbmgmtx.ClusterInfoResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetClusterInfo, opts)
+}
+
 func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetCollectionManifest, opts)
 }

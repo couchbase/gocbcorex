@@ -60,6 +60,9 @@ var _ KvClient = &KvClientMock{}
 //			GetCollectionIDFunc: func(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error) {
 //				panic("mock out the GetCollectionID method")
 //			},
+//			GetExFunc: func(ctx context.Context, req *memdx.GetExRequest) (*memdx.GetExResponse, error) {
+//				panic("mock out the GetEx method")
+//			},
 //			GetMetaFunc: func(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error) {
 //				panic("mock out the GetMeta method")
 //			},
@@ -171,6 +174,9 @@ type KvClientMock struct {
 
 	// GetCollectionIDFunc mocks the GetCollectionID method.
 	GetCollectionIDFunc func(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
+
+	// GetExFunc mocks the GetEx method.
+	GetExFunc func(ctx context.Context, req *memdx.GetExRequest) (*memdx.GetExResponse, error)
 
 	// GetMetaFunc mocks the GetMeta method.
 	GetMetaFunc func(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error)
@@ -327,6 +333,13 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.GetCollectionIDRequest
 		}
+		// GetEx holds details about calls to the GetEx method.
+		GetEx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req *memdx.GetExRequest
+		}
 		// GetMeta holds details about calls to the GetMeta method.
 		GetMeta []struct {
 			// Ctx is the ctx argument value.
@@ -481,6 +494,7 @@ type KvClientMock struct {
 	lockGetAndTouch       sync.RWMutex
 	lockGetClusterConfig  sync.RWMutex
 	lockGetCollectionID   sync.RWMutex
+	lockGetEx             sync.RWMutex
 	lockGetMeta           sync.RWMutex
 	lockGetRandom         sync.RWMutex
 	lockGetReplica        sync.RWMutex
@@ -961,6 +975,42 @@ func (mock *KvClientMock) GetCollectionIDCalls() []struct {
 	mock.lockGetCollectionID.RLock()
 	calls = mock.calls.GetCollectionID
 	mock.lockGetCollectionID.RUnlock()
+	return calls
+}
+
+// GetEx calls GetExFunc.
+func (mock *KvClientMock) GetEx(ctx context.Context, req *memdx.GetExRequest) (*memdx.GetExResponse, error) {
+	if mock.GetExFunc == nil {
+		panic("KvClientMock.GetExFunc: method is nil but KvClient.GetEx was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Req *memdx.GetExRequest
+	}{
+		Ctx: ctx,
+		Req: req,
+	}
+	mock.lockGetEx.Lock()
+	mock.calls.GetEx = append(mock.calls.GetEx, callInfo)
+	mock.lockGetEx.Unlock()
+	return mock.GetExFunc(ctx, req)
+}
+
+// GetExCalls gets all the calls that were made to GetEx.
+// Check the length with:
+//
+//	len(mockedKvClient.GetExCalls())
+func (mock *KvClientMock) GetExCalls() []struct {
+	Ctx context.Context
+	Req *memdx.GetExRequest
+} {
+	var calls []struct {
+		Ctx context.Context
+		Req *memdx.GetExRequest
+	}
+	mock.lockGetEx.RLock()
+	calls = mock.calls.GetEx
+	mock.lockGetEx.RUnlock()
 	return calls
 }
 

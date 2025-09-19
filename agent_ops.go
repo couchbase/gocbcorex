@@ -22,6 +22,10 @@ func (agent *Agent) Get(ctx context.Context, opts *GetOptions) (*GetResult, erro
 	return agent.crud.Get(ctx, opts)
 }
 
+func (agent *Agent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExResult, error) {
+	return agent.crud.GetEx(ctx, opts)
+}
+
 func (agent *Agent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptions) (*GetOrLookupResult, error) {
 	return agent.crud.GetOrLookup(ctx, opts)
 }
@@ -144,6 +148,10 @@ func (agent *Agent) EnsureQueryIndexCreated(ctx context.Context, opts *EnsureQue
 
 func (agent *Agent) EnsureQueryIndexDropped(ctx context.Context, opts *EnsureQueryIndexDroppedOptions) error {
 	return agent.query.EnsureIndexDropped(ctx, opts)
+}
+
+func (agent *Agent) GetClusterInfo(ctx context.Context, opts *cbmgmtx.GetClusterInfoOptions) (*cbmgmtx.ClusterInfoResponse, error) {
+	return agent.mgmt.GetClusterInfo(ctx, opts)
 }
 
 func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {

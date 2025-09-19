@@ -33,6 +33,8 @@ const (
 	OpCodeSASLAuth                   = OpCode(OpCodeTypeCli | 0x21)
 	OpCodeSASLStep                   = OpCode(OpCodeTypeCli | 0x22)
 	OpCodeGetAllVBSeqnos             = OpCode(OpCodeTypeCli | 0x48)
+	OpCodeGetEx                      = OpCode(OpCodeTypeCli | 0x49)
+	OpCodeGetExReplica               = OpCode(OpCodeTypeCli | 0x4a)
 	OpCodeDcpOpenConnection          = OpCode(OpCodeTypeCli | 0x50)
 	OpCodeDcpAddStream               = OpCode(OpCodeTypeCli | 0x51)
 	OpCodeDcpCloseStream             = OpCode(OpCodeTypeCli | 0x52)

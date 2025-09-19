@@ -66,6 +66,10 @@ func (c *kvClient) Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetRe
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.Get, req)
 }
 
+func (c *kvClient) GetEx(ctx context.Context, req *memdx.GetExRequest) (*memdx.GetExResponse, error) {
+	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetEx, req)
+}
+
 func (c *kvClient) GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error) {
 	return kvClient_SimpleCrudCall(ctx, c, memdx.OpsCrud.GetAndLock, req)
 }
