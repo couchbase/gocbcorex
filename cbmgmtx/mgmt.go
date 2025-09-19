@@ -366,7 +366,7 @@ type ClusterInfoResponse struct {
 	// Settings
 }
 
-func (h Management) GetClusterInfo(ctx context.Context, opts *GetClusterConfigOptions) (*ClusterInfoResponse, error) {
+func (h Management) GetClusterInfo(ctx context.Context, opts *GetClusterInfoOptions) (*ClusterInfoResponse, error) {
 	resp, err := h.Execute(ctx, "GET", "/pools", "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err

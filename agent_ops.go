@@ -146,6 +146,10 @@ func (agent *Agent) EnsureQueryIndexDropped(ctx context.Context, opts *EnsureQue
 	return agent.query.EnsureIndexDropped(ctx, opts)
 }
 
+func (agent *Agent) GetClusterInfo(ctx context.Context, opts *cbmgmtx.GetClusterInfoOptions) (*cbmgmtx.ClusterInfoResponse, error) {
+	return agent.mgmt.GetClusterInfo(ctx, opts)
+}
+
 func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return agent.mgmt.GetCollectionManifest(ctx, opts)
 }
