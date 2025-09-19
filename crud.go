@@ -100,6 +100,54 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 		})
 }
 
+type GetExOptions struct {
+	Key            []byte
+	ScopeName      string
+	CollectionName string
+	OnBehalfOf     string
+}
+
+type GetExResult struct {
+	Value    []byte
+	Flags    uint32
+	Datatype memdx.DatatypeFlag
+	Cas      uint64
+}
+
+func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExResult, error) {
+	ctx, span := tracer.Start(ctx, "GetEx")
+	defer span.End()
+
+	return OrchestrateSimpleCrud(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
+		opts.ScopeName, opts.CollectionName, opts.Key,
+		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetExResult, error) {
+			resp, err := client.GetEx(ctx, &memdx.GetExRequest{
+				CollectionID: collectionID,
+				Key:          opts.Key,
+				VbucketID:    vbID,
+				CrudRequestMeta: memdx.CrudRequestMeta{
+					OnBehalfOf: opts.OnBehalfOf,
+				},
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			value, datatype, err := cc.compression.Decompress(memdx.DatatypeFlag(resp.Datatype), resp.Value)
+			if err != nil {
+				return nil, err
+			}
+
+			return &GetExResult{
+				Value:    value,
+				Flags:    resp.Flags,
+				Datatype: datatype,
+				Cas:      resp.Cas,
+			}, nil
+		})
+}
+
 type GetReplicaOptions struct {
 	Key            []byte
 	ScopeName      string
