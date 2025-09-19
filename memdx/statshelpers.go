@@ -10,9 +10,11 @@ import (
 // stats entries returned by the server.
 
 type VbucketDetailsStatsParser_Vbucket struct {
+	Uuid      uint64
 	HighSeqno uint64
 	MaxCas    uint64
 
+	UuidParsed      bool
 	HighSeqnoParsed bool
 	MaxCasParsed    bool
 }
@@ -56,6 +58,15 @@ func (p *VbucketDetailsStatsParser) HandleEntry(key string, value string) {
 	entry := p.getVbEntry(vbId)
 
 	switch subKey {
+	case "uuid":
+		uuid, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return
+		}
+
+		entry.Uuid = uuid
+		entry.UuidParsed = true
+		return
 	case "high_seqno":
 		highSeqno, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
@@ -73,6 +84,74 @@ func (p *VbucketDetailsStatsParser) HandleEntry(key string, value string) {
 
 		entry.MaxCas = maxCas
 		entry.MaxCasParsed = true
+		return
+	}
+}
+
+type VbucketSeqNoStatsParser_Vbucket struct {
+	Uuid      uint64
+	HighSeqno uint64
+
+	UuidParsed      bool
+	HighSeqnoParsed bool
+}
+
+type VbucketSeqNoStatsParser struct {
+	VbucketID *uint16
+
+	Vbuckets map[uint16]*VbucketSeqNoStatsParser_Vbucket
+}
+
+func (p *VbucketSeqNoStatsParser) GroupName() string {
+	if p.VbucketID != nil {
+		return fmt.Sprintf("vbucket-seqno %d", *p.VbucketID)
+	} else {
+		return "vbucket-seqno"
+	}
+}
+
+func (p *VbucketSeqNoStatsParser) getVbEntry(vbucketID uint16) *VbucketSeqNoStatsParser_Vbucket {
+	if p.Vbuckets == nil {
+		p.Vbuckets = make(map[uint16]*VbucketSeqNoStatsParser_Vbucket)
+	}
+
+	entry := p.Vbuckets[vbucketID]
+	if entry == nil {
+		entry = &VbucketSeqNoStatsParser_Vbucket{}
+		p.Vbuckets[vbucketID] = entry
+	}
+
+	return entry
+}
+
+func (p *VbucketSeqNoStatsParser) HandleEntry(key string, value string) {
+	var vbId uint16
+	var subKey string
+	_, err := fmt.Sscanf(key, "vb_%d:%s", &vbId, &subKey)
+	if err != nil {
+		return
+	}
+
+	entry := p.getVbEntry(vbId)
+
+	switch subKey {
+	case "uuid":
+		uuid, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return
+		}
+
+		entry.Uuid = uuid
+		entry.UuidParsed = true
+		return
+	case "high_seqno":
+		highSeqno, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return
+		}
+
+		entry.HighSeqno = highSeqno
+		entry.HighSeqnoParsed = true
 		return
 	}
 }
