@@ -35,7 +35,7 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 		func() (*RangeScanCreateResult, error) {
 			return OrchestrateMemdCollectionID(
 				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
-				func(collectionID uint32, manifestID uint64) (*RangeScanCreateResult, error) {
+				func(collectionID uint32) (*RangeScanCreateResult, error) {
 					endpoint, err := cc.vbs.DispatchToVbucket(opts.VbucketID, 0)
 					if err != nil {
 						return nil, err

@@ -27,11 +27,10 @@ func TestOrchestrateMemdCollectionID(t *testing.T) {
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32, manifestID uint64) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
-		assert.Equal(t, rev, manifestID)
 
 		return 1, nil
 	})
@@ -58,11 +57,10 @@ func TestOrchestrateMemdCollectionIDReturnError(t *testing.T) {
 	var called int
 	expectedErr := errors.New("imanerror")
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32, manifestID uint64) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
-		assert.Equal(t, rev, manifestID)
 
 		return 0, expectedErr
 	})
@@ -88,7 +86,7 @@ func TestOrchestrateMemdCollectionIDResolverReturnError(t *testing.T) {
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32, manifestID uint64) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
 		called++
 
 		return 0, errors.New("shouldnt have reached here")
@@ -122,11 +120,10 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundError(t *testing.T) {
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32, manifestID uint64) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
-		assert.Equal(t, rev, manifestID)
 
 		return 0, memdx.ErrUnknownCollectionID
 	})
@@ -171,11 +168,10 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundErrorServerHasOlderManifes
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32, manifestID uint64) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
-		assert.Equal(t, rev, manifestID)
 
 		return 0, &memdx.ServerErrorWithContext{
 			Cause: memdx.ServerError{
