@@ -15,8 +15,9 @@ type CollectionResolver interface {
 func OrchestrateMemdCollectionID[RespT any](
 	ctx context.Context,
 	cr CollectionResolver,
-	scopeName, collectionName string,
-	fn func(collectionID uint32, manifestID uint64) (RespT, error),
+	scopeName,
+	collectionName string,
+	fn func(collectionID uint32) (RespT, error),
 ) (RespT, error) {
 	collectionID, manifestRev, err := cr.ResolveCollectionID(ctx, scopeName, collectionName)
 	if err != nil {
@@ -25,7 +26,7 @@ func OrchestrateMemdCollectionID[RespT any](
 	}
 
 	for {
-		res, err := fn(collectionID, manifestRev)
+		res, err := fn(collectionID)
 		if err != nil {
 			if errors.Is(err, memdx.ErrUnknownCollectionID) {
 				invalidatingEndpoint := ""
