@@ -15,18 +15,48 @@ type CollectionResolver interface {
 func OrchestrateMemdCollectionID[RespT any](
 	ctx context.Context,
 	cr CollectionResolver,
-	scopeName,
-	collectionName string,
+	scopeName, collectionName string,
+	collectionID uint32,
 	fn func(collectionID uint32) (RespT, error),
 ) (RespT, error) {
-	collectionID, manifestRev, err := cr.ResolveCollectionID(ctx, scopeName, collectionName)
+	if collectionID > 0 && collectionName == "" && scopeName == "" {
+		// If there's an unknown collection ID error then we'll just propagate it.
+		return fn(collectionID)
+	}
+
+	resolvedCid, manifestRev, err := cr.ResolveCollectionID(ctx, scopeName, collectionName)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
 	}
 
+	if collectionID > 0 && resolvedCid != collectionID {
+		cr.InvalidateCollectionID(
+			ctx,
+			scopeName, collectionName,
+			"", 0)
+
+		newCollectionID, newManifestRev, newResolveErr :=
+			cr.ResolveCollectionID(ctx, scopeName, collectionName)
+		if newResolveErr != nil {
+			var emptyResp RespT
+			return emptyResp, newResolveErr
+		}
+
+		if newCollectionID != collectionID {
+			// If we still don't match after resolution, then we can confidently say that we have the latest
+			// so the callee must have an out of date collection ID.
+			var emptyResp RespT
+			return emptyResp, &CollectionIDMismatchError{
+				CollectionID:       collectionID,
+				ServerCollectionID: newCollectionID,
+				ManifestUid:        newManifestRev,
+			}
+		}
+	}
+
 	for {
-		res, err := fn(collectionID)
+		res, err := fn(resolvedCid)
 		if err != nil {
 			if errors.Is(err, memdx.ErrUnknownCollectionID) {
 				invalidatingEndpoint := ""
@@ -60,7 +90,7 @@ func OrchestrateMemdCollectionID[RespT any](
 					return emptyResp, newResolveErr
 				}
 
-				if newCollectionID == collectionID {
+				if newCollectionID == resolvedCid {
 					// if resolution yielded the same response, this means that our ability
 					// to fetch an updated collection id is compromised, or the server is in
 					// an older state.  In both instances, we no longer have a deterministic
@@ -74,7 +104,7 @@ func OrchestrateMemdCollectionID[RespT any](
 					}
 				}
 
-				collectionID = newCollectionID
+				resolvedCid = newCollectionID
 				manifestRev = newManifestRev
 				continue
 			}

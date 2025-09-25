@@ -27,7 +27,7 @@ func TestOrchestrateMemdCollectionID(t *testing.T) {
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, 0, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
@@ -57,7 +57,7 @@ func TestOrchestrateMemdCollectionIDReturnError(t *testing.T) {
 	var called int
 	expectedErr := errors.New("imanerror")
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, 0, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
@@ -86,7 +86,7 @@ func TestOrchestrateMemdCollectionIDResolverReturnError(t *testing.T) {
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, 0, func(collectionID uint32) (int, error) {
 		called++
 
 		return 0, errors.New("shouldnt have reached here")
@@ -120,7 +120,7 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundError(t *testing.T) {
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, 0, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
@@ -168,7 +168,7 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundErrorServerHasOlderManifes
 
 	var called int
 	ctx := context.Background()
-	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, func(collectionID uint32) (int, error) {
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, 0, func(collectionID uint32) (int, error) {
 		called++
 
 		assert.Equal(t, cid, collectionID)
@@ -191,4 +191,134 @@ func TestOrchestrateMemdCollectionIDCollectionNotFoundErrorServerHasOlderManifes
 	assert.Equal(t, 1, called)
 	assert.Equal(t, 0, numInvalidateCalls)
 	assert.Zero(t, res)
+}
+
+func TestOrchestrateMemdCollectionIDIDSpecified(t *testing.T) {
+	cid := uint32(5)
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			t.Fatalf("Resolve should not have been called")
+			return 0, 0, nil
+		},
+	}
+
+	var called int
+	ctx := context.Background()
+	res, err := OrchestrateMemdCollectionID(ctx, mock, "", "", cid, func(collectionID uint32) (int, error) {
+		called++
+
+		assert.Equal(t, cid, collectionID)
+
+		return 1, nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, called)
+	assert.Equal(t, 1, res)
+}
+
+func TestOrchestrateMemdCollectionIDIDANdName(t *testing.T) {
+	cid := uint32(5)
+	rev := uint64(2)
+	expectedScopeName := "testScope"
+	expectedCollectionName := "testCol"
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			return cid, rev, nil
+		},
+	}
+
+	var called int
+	ctx := context.Background()
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, cid, func(collectionID uint32) (int, error) {
+		called++
+
+		assert.Equal(t, cid, collectionID)
+
+		return 1, nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, called)
+	assert.Equal(t, 1, res)
+}
+
+func TestOrchestrateMemdCollectionIDIDAndNameIDMismatch(t *testing.T) {
+	cid := uint32(5)
+	rev := uint64(2)
+	var numInvalidateCalls int
+	expectedScopeName := "testScope"
+	expectedCollectionName := "testCol"
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			return cid, rev, nil
+		},
+		InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			numInvalidateCalls++
+		},
+	}
+
+	var called int
+	ctx := context.Background()
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, 7, func(collectionID uint32) (int, error) {
+		called++
+		return 0, nil
+	})
+	require.ErrorIs(t, err, ErrCollectionIDMismatch)
+
+	assert.Zero(t, called)
+	assert.Equal(t, 1, numInvalidateCalls)
+	assert.Zero(t, res)
+}
+
+func TestOrchestrateMemdCollectionIDIDAndNameIDMismatchReresolve(t *testing.T) {
+	firstResolvedCid := uint32(5)
+	secondResolvedCid := uint32(7)
+	rev := uint64(2)
+	var numInvalidateCalls int
+	var numResolvedCalls int
+	expectedScopeName := "testScope"
+	expectedCollectionName := "testCol"
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			numResolvedCalls++
+
+			if numResolvedCalls == 1 {
+				return firstResolvedCid, rev, nil
+			}
+
+			return secondResolvedCid, rev, nil
+		},
+		InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
+			assert.Equal(t, expectedScopeName, scopeName)
+			assert.Equal(t, expectedCollectionName, collectionName)
+
+			numInvalidateCalls++
+		},
+	}
+
+	var called int
+	ctx := context.Background()
+	res, err := OrchestrateMemdCollectionID(ctx, mock, expectedScopeName, expectedCollectionName, secondResolvedCid, func(collectionID uint32) (int, error) {
+		called++
+		return 1, nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, called)
+	assert.Equal(t, 1, res)
+	assert.Equal(t, 1, numInvalidateCalls)
+	assert.Equal(t, 2, numResolvedCalls)
 }

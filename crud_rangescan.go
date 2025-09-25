@@ -10,6 +10,7 @@ import (
 type RangeScanCreateOptions struct {
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	VbucketID      uint16
 
 	Scan     json.RawMessage
@@ -34,7 +35,8 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 		ctx, cc.retries,
 		func() (*RangeScanCreateResult, error) {
 			return OrchestrateMemdCollectionID(
-				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
+				ctx, cc.collections,
+				opts.ScopeName, opts.CollectionName, opts.CollectionID,
 				func(collectionID uint32) (*RangeScanCreateResult, error) {
 					endpoint, err := cc.vbs.DispatchToVbucket(opts.VbucketID, 0)
 					if err != nil {
