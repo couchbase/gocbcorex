@@ -62,21 +62,14 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 		return &UpsertResult{}, nil
 	}
 
-	res, err := OrchestrateSimpleCrud[*UpsertResult](
-		context.Background(),
-		rs,
-		cr,
-		vb,
-		nil,
-		nkcp,
-		"scope",
-		"collection",
-		[]byte("somekey"),
-		fn,
-	)
+	res, err := OrchestrateSimpleCrud[*UpsertResult](context.Background(), rs, cr, vb, nil, nkcp, "scope", "collection", 0, []byte("somekey"), fn)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
 	assert.Equal(t, 2, collectionCalls)
 	assert.Equal(t, 2, fnCalls)
+}
+
+func TestSimpleCrudCollectionIDOnlyReturnsImmediately(t *testing.T) {
+
 }
