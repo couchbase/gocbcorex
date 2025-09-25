@@ -10,6 +10,7 @@ import (
 type RangeScanCreateOptions struct {
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	VbucketID      uint16
 
 	Scan     json.RawMessage
@@ -33,38 +34,36 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 	return OrchestrateRetries(
 		ctx, cc.retries,
 		func() (*RangeScanCreateResult, error) {
-			return OrchestrateMemdCollectionID(
-				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
-				func(collectionID uint32) (*RangeScanCreateResult, error) {
-					endpoint, err := cc.vbs.DispatchToVbucket(opts.VbucketID, 0)
+			return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID, func(collectionID uint32) (*RangeScanCreateResult, error) {
+				endpoint, err := cc.vbs.DispatchToVbucket(opts.VbucketID, 0)
+				if err != nil {
+					return nil, err
+				}
+				return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanCreateResult, error) {
+					res, err := client.RangeScanCreate(ctx, &memdx.RangeScanCreateRequest{
+						CollectionID: collectionID,
+						VbucketID:    opts.VbucketID,
+						Scan:         opts.Scan,
+						KeysOnly:     opts.KeysOnly,
+						Range:        opts.Range,
+						Sampling:     opts.Sampling,
+						Snapshot:     opts.Snapshot,
+						CrudRequestMeta: memdx.CrudRequestMeta{
+							OnBehalfOf: opts.OnBehalfOf,
+						},
+					})
 					if err != nil {
 						return nil, err
 					}
-					return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanCreateResult, error) {
-						res, err := client.RangeScanCreate(ctx, &memdx.RangeScanCreateRequest{
-							CollectionID: collectionID,
-							VbucketID:    opts.VbucketID,
-							Scan:         opts.Scan,
-							KeysOnly:     opts.KeysOnly,
-							Range:        opts.Range,
-							Sampling:     opts.Sampling,
-							Snapshot:     opts.Snapshot,
-							CrudRequestMeta: memdx.CrudRequestMeta{
-								OnBehalfOf: opts.OnBehalfOf,
-							},
-						})
-						if err != nil {
-							return nil, err
-						}
 
-						return &RangeScanCreateResult{
-							ScanUUID:  res.ScanUUUID,
-							client:    client,
-							vbucketID: opts.VbucketID,
-							parent:    cc,
-						}, nil
-					})
+					return &RangeScanCreateResult{
+						ScanUUID:  res.ScanUUUID,
+						client:    client,
+						vbucketID: opts.VbucketID,
+						parent:    cc,
+					}, nil
 				})
+			})
 		})
 }
 

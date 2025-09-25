@@ -12,6 +12,7 @@ var (
 	ErrInternalServerError        = errors.New("internal server error")
 	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
+	ErrCollectionIDMismatch       = errors.New("the provided collection id does not match")
 	ErrServiceNotAvailable        = errors.New("service is not available")
 	ErrNoBucketSelected           = errors.New("no bucket selected, please select a bucket before performing bucket operations")
 )
@@ -54,6 +55,22 @@ func (e CollectionManifestOutdatedError) Error() string {
 
 func (e CollectionManifestOutdatedError) Unwrap() error {
 	return ErrCollectionManifestOutdated
+}
+
+type CollectionIDMismatchError struct {
+	Cause              error
+	CollectionID       uint32
+	ServerCollectionID uint32
+	ManifestUid        uint64
+}
+
+func (e CollectionIDMismatchError) Error() string {
+	return fmt.Sprintf("provided collection id mismatch: provided collection id: %d, sdk collection id: %d, "+
+		"manifest uid: %d", e.CollectionID, e.ServerCollectionID, e.ManifestUid)
+}
+
+func (e CollectionIDMismatchError) Unwrap() error {
+	return ErrCollectionIDMismatch
 }
 
 type VbucketMapOutdatedError struct {
