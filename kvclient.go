@@ -97,6 +97,10 @@ type KvClient interface {
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
 
+	// Baggage provides a way to store arbitrary state on the client.
+	Baggage(key any) (any, bool)
+	AddBaggage(key any, value any)
+
 	KvClientOps
 	memdx.Dispatcher
 }
@@ -104,6 +108,8 @@ type KvClient interface {
 type kvClient struct {
 	logger         *zap.Logger
 	remoteHostname string
+
+	baggage sync.Map
 
 	pendingOperations uint64
 	cli               MemdxClient
@@ -375,6 +381,14 @@ func (c *kvClient) SelectedBucket() string {
 
 func (c *kvClient) Telemetry() MemdClientTelem {
 	return c.telemetry
+}
+
+func (c *kvClient) Baggage(key any) (any, bool) {
+	return c.baggage.Load(key)
+}
+
+func (c *kvClient) AddBaggage(key, value any) {
+	c.baggage.Store(key, value)
 }
 
 func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {
