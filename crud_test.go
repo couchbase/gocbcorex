@@ -69,7 +69,3 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 	assert.Equal(t, 2, collectionCalls)
 	assert.Equal(t, 2, fnCalls)
 }
-
-func TestSimpleCrudCollectionIDOnlyReturnsImmediately(t *testing.T) {
-
-}

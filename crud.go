@@ -24,6 +24,7 @@ type CrudComponent struct {
 	connManager KvClientManager
 	compression CompressionManager
 	vbs         VbucketRouter
+	vbc         VbucketUuidConsistency
 }
 
 func OrchestrateSimpleCrud[RespT any](
@@ -47,6 +48,37 @@ func OrchestrateSimpleCrud[RespT any](
 					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
 						return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
 							return fn(collectionID, endpoint, vbID, client)
+						})
+					})
+				})
+		})
+}
+
+func OrchestrateSimpleCrudMeta[RespT any](
+	ctx context.Context,
+	rs RetryManager,
+	cr CollectionResolver,
+	vb VbucketRouter,
+	ch NotMyVbucketConfigHandler,
+	nkcp KvClientManager,
+	vbc VbucketUuidConsistency,
+	scopeName, collectionName string,
+	collectionID uint32,
+	key []byte,
+	vbuuid uint64,
+	fn func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (RespT, error),
+) (RespT, error) {
+	return OrchestrateRetries(
+		ctx, rs,
+		func() (RespT, error) {
+			return OrchestrateMemdCollectionID(
+				ctx, cr, scopeName, collectionName, collectionID,
+				func(collectionID uint32) (RespT, error) {
+					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
+						return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
+							return OrchestrateVBucketConsistency(ctx, vbc, client, vbID, vbuuid, func(client KvClient) (RespT, error) {
+								return fn(collectionID, endpoint, vbID, client)
+							})
 						})
 					})
 				})
@@ -1129,6 +1161,7 @@ type GetMetaOptions struct {
 	CollectionName string
 	CollectionID   uint32
 	FetchDatatype  bool
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1146,9 +1179,9 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 	ctx, span := tracer.Start(ctx, "GetMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
 			resp, err := client.GetMeta(ctx, &memdx.GetMetaRequest{
 				CollectionID:  collectionID,
@@ -1194,6 +1227,7 @@ type AddWithMetaOptions struct {
 	RevNo          uint64
 	StoreCas       uint64
 	Options        memdx.MetaOpFlag
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1206,9 +1240,9 @@ func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptio
 	ctx, span := tracer.Start(ctx, "AddWithMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
 			resp, err := client.AddWithMeta(ctx, &memdx.AddWithMetaRequest{
 				CollectionID: collectionID,
@@ -1255,6 +1289,7 @@ type SetWithMetaOptions struct {
 	CheckCas       uint64
 	StoreCas       uint64
 	Options        memdx.MetaOpFlag
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1267,9 +1302,9 @@ func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptio
 	ctx, span := tracer.Start(ctx, "SetWithMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
 			resp, err := client.SetWithMeta(ctx, &memdx.SetWithMetaRequest{
 				CollectionID: collectionID,
@@ -1315,6 +1350,7 @@ type DeleteWithMetaOptions struct {
 	StoreCas       uint64
 	RevNo          uint64
 	Options        memdx.MetaOpFlag
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1327,9 +1363,9 @@ func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMet
 	ctx, span := tracer.Start(ctx, "DeleteWithMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
 			resp, err := client.DeleteWithMeta(ctx, &memdx.DeleteWithMetaRequest{
 				CollectionID: collectionID,

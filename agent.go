@@ -36,11 +36,12 @@ type Agent struct {
 	lock  sync.Mutex
 	state agentState
 
-	cfgWatcher  ConfigWatcher
-	connMgr     KvClientManager
-	collections CollectionResolver
-	retries     RetryManager
-	vbRouter    VbucketRouter
+	cfgWatcher        ConfigWatcher
+	connMgr           KvClientManager
+	collections       CollectionResolver
+	retries           RetryManager
+	vbRouter          VbucketRouter
+	vbuuidConsistency VbucketUuidConsistency
 
 	httpCfgWatcher   *ConfigWatcherHttp
 	memdCfgWatcher   *ConfigWatcherMemd
@@ -197,6 +198,10 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	})
 	agent.vbRouter.UpdateRoutingInfo(agentComponentConfigs.VbucketRoutingInfo)
 
+	agent.vbuuidConsistency = newVbucketConsistencyComponent(&vbucketConsistencyComponentOptions{
+		logger: logger.Named("vbuuid-consistency"),
+	})
+
 	if opts.BucketName == "" {
 		configWatcher, err := NewConfigWatcherHttp(
 			&agentComponentConfigs.ConfigWatcherHttpConfig,
@@ -264,6 +269,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		connManager: agent.connMgr,
 		nmvHandler:  &agentNmvHandler{agent},
 		vbs:         agent.vbRouter,
+		vbc:         agent.vbuuidConsistency,
 		compression: &CompressionManagerDefault{
 			disableCompression:   !useCompression,
 			compressionMinSize:   compressionMinSize,
