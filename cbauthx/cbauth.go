@@ -415,55 +415,11 @@ func (a *CbAuth) CheckUserPass(ctx context.Context, username string, password st
 	cli := a.currentClient.Load()
 	info, err := cli.CheckUserPass(ctx, username, password)
 	if err != nil {
-		if errors.Is(err, ErrInvalidAuth) {
-			return UserInfo{}, ErrInvalidAuth
-		}
-
-		a.logger.Debug("failed to check user with cbauth", zap.Error(err))
-
-		a.lock.Lock()
-
-		newCli := a.currentClient.Load()
-		if newCli != cli {
-			// if a new client is available already, we can immediately
-			// retry the request with the new client.
-			a.lock.Unlock()
+		checkFunc := func() (UserInfo, error) {
 			return a.CheckUserPass(ctx, username, password)
 		}
 
-		connectErr := a.connectError
-		if connectErr != nil {
-			a.lock.Unlock()
-			return UserInfo{}, &contextualError{
-				Message: "cannot check auth due to cbauth unavailability",
-				Cause:   connectErr,
-			}
-		}
-
-		if a.connectWaitCh == nil {
-			a.connectWaitCh = make(chan struct{})
-		}
-		connectWaitCh := a.connectWaitCh
-
-		a.lock.Unlock()
-
-		// if the error was a liveness error, the client is never going to
-		// recover, so don't bother retrying on a timer basis, we MUST wait
-		// for a new client in this case.  If it was some other kind of error
-		// we can try again after waiting a little bit of time.
-		var timeWaitCh <-chan time.Time
-		if !errors.Is(err, ErrLivenessTimeout) {
-			timeWaitCh = time.After(100 * time.Millisecond)
-		}
-
-		select {
-		case <-timeWaitCh:
-		case <-connectWaitCh:
-		case <-ctx.Done():
-			return UserInfo{}, err
-		}
-
-		return a.CheckUserPass(ctx, username, password)
+		return a.handleAuthCheckErr(ctx, err, cli, checkFunc)
 	}
 
 	return info, nil
@@ -473,58 +429,71 @@ func (a *CbAuth) CheckCertificate(ctx context.Context, connState *tls.Connection
 	cli := a.currentClient.Load()
 	info, err := cli.CheckCertificate(ctx, connState)
 	if err != nil {
-		if errors.Is(err, ErrInvalidAuth) {
-			return UserInfo{}, ErrInvalidAuth
-		}
-
-		a.logger.Debug("failed to check certificate with cbauth", zap.Error(err))
-
-		a.lock.Lock()
-
-		newCli := a.currentClient.Load()
-		if newCli != cli {
-			// if a new client is available already, we can immediately
-			// retry the request with the new client.
-			a.lock.Unlock()
+		checkFunc := func() (UserInfo, error) {
 			return a.CheckCertificate(ctx, connState)
 		}
 
-		connectErr := a.connectError
-		if connectErr != nil {
-			a.lock.Unlock()
-			return UserInfo{}, &contextualError{
-				Message: "cannot check auth due to cbauth unavailability",
-				Cause:   connectErr,
-			}
-		}
-
-		if a.connectWaitCh == nil {
-			a.connectWaitCh = make(chan struct{})
-		}
-		connectWaitCh := a.connectWaitCh
-
-		a.lock.Unlock()
-
-		// if the error was a liveness error, the client is never going to
-		// recover, so don't bother retrying on a timer basis, we MUST wait
-		// for a new client in this case.  If it was some other kind of error
-		// we can try again after waiting a little bit of time.
-		var timeWaitCh <-chan time.Time
-		if !errors.Is(err, ErrLivenessTimeout) {
-			timeWaitCh = time.After(100 * time.Millisecond)
-		}
-
-		select {
-		case <-timeWaitCh:
-		case <-connectWaitCh:
-		case <-ctx.Done():
-			return UserInfo{}, err
-		}
-
-		return a.CheckCertificate(ctx, connState)
+		return a.handleAuthCheckErr(ctx, err, cli, checkFunc)
 	}
 
 	return info, nil
+}
+
+func (a *CbAuth) handleAuthCheckErr(
+	ctx context.Context,
+	err error,
+	cli *CbAuthClient,
+	checkFn func() (UserInfo, error),
+) (UserInfo, error) {
+	if errors.Is(err, ErrInvalidAuth) {
+		return UserInfo{}, ErrInvalidAuth
+	}
+
+	a.logger.Debug("failed to check user with cbauth", zap.Error(err))
+
+	a.lock.Lock()
+
+	newCli := a.currentClient.Load()
+	if newCli != cli {
+		// if a new client is available already, we can immediately
+		// retry the request with the new client.
+		a.lock.Unlock()
+		return checkFn()
+	}
+
+	connectErr := a.connectError
+	if connectErr != nil {
+		a.lock.Unlock()
+		return UserInfo{}, &contextualError{
+			Message: "cannot check auth due to cbauth unavailability",
+			Cause:   connectErr,
+		}
+	}
+
+	if a.connectWaitCh == nil {
+		a.connectWaitCh = make(chan struct{})
+	}
+	connectWaitCh := a.connectWaitCh
+
+	a.lock.Unlock()
+
+	// if the error was a liveness error, the client is never going to
+	// recover, so don't bother retrying on a timer basis, we MUST wait
+	// for a new client in this case.  If it was some other kind of error
+	// we can try again after waiting a little bit of time.
+	var timeWaitCh <-chan time.Time
+	if !errors.Is(err, ErrLivenessTimeout) {
+		timeWaitCh = time.After(100 * time.Millisecond)
+	}
+
+	select {
+	case <-timeWaitCh:
+	case <-connectWaitCh:
+	case <-ctx.Done():
+		return UserInfo{}, err
+	}
+
+	return checkFn()
 }
 
 func (a *CbAuth) Close() error {
