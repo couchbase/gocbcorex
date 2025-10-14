@@ -88,8 +88,8 @@ func (a *CertCheckHttp) checkCertificate(ctx context.Context, connState *tls.Con
 		return UserInfo{}, fmt.Errorf("received non-200/401 status code: %s", respBody)
 	}
 
-	var authResp UserInfo
-	err = json.NewDecoder(resp.Body).Decode(&authResp)
+	var jsonResp CertCheckResponse
+	err = json.NewDecoder(resp.Body).Decode(&jsonResp)
 	if err != nil {
 		return UserInfo{}, &contextualError{
 			Message: "failed to decode response data",
@@ -101,14 +101,14 @@ func (a *CertCheckHttp) checkCertificate(ctx context.Context, connState *tls.Con
 	// being used, we validate some expected state of the response which has the
 	// effect of significantly reducing the chances we accept certs from those
 	// urls which do not actually check certs.
-	if authResp.User == "" {
+	if jsonResp.User == "" {
 		return UserInfo{}, errors.New("user field missing from cert check response")
 	}
-	if authResp.Domain == "" {
+	if jsonResp.Domain == "" {
 		return UserInfo{}, errors.New("domain field missing from cert check response")
 	}
 
-	return authResp, nil
+	return UserInfo(jsonResp), nil
 }
 
 func (a *CertCheckHttp) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {

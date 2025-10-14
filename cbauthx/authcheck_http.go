@@ -14,6 +14,12 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+type AuthCheckResponse struct {
+	User   string `json:"user"`
+	Domain string `json:"domain"`
+	Uuid   string `json:"uuid"`
+}
+
 type AuthCheckHttp struct {
 	transport   http.RoundTripper
 	hostPort    string
@@ -74,8 +80,8 @@ func (a *AuthCheckHttp) checkUserPass(ctx context.Context, username string, pass
 		return UserInfo{}, fmt.Errorf("received non-200/401 status code: %s", respBody)
 	}
 
-	var authResp UserInfo
-	err = json.NewDecoder(resp.Body).Decode(&authResp)
+	var jsonResp AuthCheckResponse
+	err = json.NewDecoder(resp.Body).Decode(&jsonResp)
 	if err != nil {
 		return UserInfo{}, &contextualError{
 			Message: "failed to decode response data",
@@ -87,14 +93,17 @@ func (a *AuthCheckHttp) checkUserPass(ctx context.Context, username string, pass
 	// being used, we validate some expected state of the response which has the
 	// effect of significantly reducing the chances we accept auth from those
 	// urls which do not actually check auth.
-	if authResp.User != username {
+	if jsonResp.User != username {
 		return UserInfo{}, errors.New("user field in auth response did not match request")
 	}
-	if authResp.Domain == "" {
+	if jsonResp.Domain == "" {
 		return UserInfo{}, errors.New("domain field missing from auth response")
 	}
 
-	return authResp, nil
+	return UserInfo{
+		Domain: jsonResp.Domain,
+		Uuid:   jsonResp.Uuid,
+	}, nil
 }
 
 func (a *AuthCheckHttp) CheckUserPass(ctx context.Context, username string, password string) (UserInfo, error) {
