@@ -219,7 +219,7 @@ func TestGetIndex(t *testing.T) {
 
 	t.Run("MissingIndexName", func(t *testing.T) {
 		_, err := search.GetIndex(ctx, &cbsearchx.GetIndexOptions{})
-		require.Equal(t, errors.New("must specify index name when getting an index"), err)
+		require.Equal(t, cbsearchx.ErrIndexNameEmpty, err)
 	})
 
 	t.Run("MissingBucketName", func(t *testing.T) {
@@ -227,7 +227,7 @@ func TestGetIndex(t *testing.T) {
 			IndexName: indexName,
 			ScopeName: "_default",
 		})
-		require.Equal(t, errors.New("must specify both or neither of scope and bucket names"), err)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	t.Run("IndexNotFound", func(t *testing.T) {
@@ -309,7 +309,7 @@ func TestDeleteIndex(t *testing.T) {
 
 	t.Run("IndexNameMissing", func(t *testing.T) {
 		err := search.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{})
-		require.Equal(t, errors.New("must specify index name when deleting an index"), err)
+		require.Equal(t, cbsearchx.ErrIndexNameEmpty, err)
 	})
 
 	t.Run("IndexMissingScope", func(t *testing.T) {
@@ -317,7 +317,7 @@ func TestDeleteIndex(t *testing.T) {
 			IndexName:  indexName,
 			BucketName: testutilsint.TestOpts.BucketName,
 		})
-		require.Equal(t, errors.New("must specify both or neither of scope and bucket names"), err)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	t.Run("SuccessScopedSearch", func(t *testing.T) {
@@ -394,7 +394,7 @@ func TestGetAllIndexes(t *testing.T) {
 		_, err := search.GetAllIndexes(ctx, &cbsearchx.GetAllIndexesOptions{
 			BucketName: testutilsint.TestOpts.BucketName,
 		})
-		require.Equal(t, errors.New("must specify both or neither of scope and bucket names"), err)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	t.Run("SuccessScopedSearch", func(t *testing.T) {
