@@ -125,7 +125,7 @@ func (h Search) UpsertIndex(
 	opts *UpsertIndexOptions,
 ) (*UpsertIndexResponse, error) {
 	if opts.Name == "" {
-		return nil, errors.New("must specify index name when creating an index")
+		return nil, ErrIndexNameEmpty
 	}
 	if opts.Type == "" {
 		return nil, errors.New("must specify index type when creating an index")
@@ -139,7 +139,7 @@ func (h Search) UpsertIndex(
 		reqURI = fmt.Sprintf("/api/index/%s", opts.Name)
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return nil, errors.New("must specify both or neither of scope and bucket names")
+			return nil, ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.Name)
 	}
@@ -188,7 +188,7 @@ func (h Search) DeleteIndex(
 	opts *DeleteIndexOptions,
 ) error {
 	if opts.IndexName == "" {
-		return errors.New("must specify index name when deleting an index")
+		return ErrIndexNameEmpty
 	}
 
 	var reqURI string
@@ -196,7 +196,7 @@ func (h Search) DeleteIndex(
 		reqURI = fmt.Sprintf("/api/index/%s", opts.IndexName)
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return errors.New("must specify both or neither of scope and bucket names")
+			return ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.IndexName)
 	}
@@ -235,7 +235,7 @@ func (h Search) GetIndex(
 	opts *GetIndexOptions,
 ) (*Index, error) {
 	if opts.IndexName == "" {
-		return nil, errors.New("must specify index name when getting an index")
+		return nil, ErrIndexNameEmpty
 	}
 
 	var reqURI string
@@ -243,7 +243,7 @@ func (h Search) GetIndex(
 		reqURI = fmt.Sprintf("/api/index/%s", opts.IndexName)
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return nil, errors.New("must specify both or neither of scope and bucket names")
+			return nil, ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.IndexName)
 	}
@@ -295,7 +295,7 @@ func (h Search) GetAllIndexes(
 		reqURI = "/api/index/"
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return nil, errors.New("must specify both or neither of scope and bucket names")
+			return nil, ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index", opts.BucketName, opts.ScopeName)
 	}
@@ -353,7 +353,7 @@ func (h Search) AnalyzeDocument(
 	opts *AnalyzeDocumentOptions,
 ) (*DocumentAnalysis, error) {
 	if opts.IndexName == "" {
-		return nil, errors.New("must specify index name when analyzing a document")
+		return nil, ErrIndexNameEmpty
 	}
 
 	var reqURI string
@@ -361,7 +361,7 @@ func (h Search) AnalyzeDocument(
 		reqURI = fmt.Sprintf("/api/index/%s/analyzeDoc", opts.IndexName)
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return nil, errors.New("must specify both or neither of scope and bucket names")
+			return nil, ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/index/%s.%s.%s/analyzeDoc", opts.BucketName, opts.ScopeName, opts.IndexName)
 	}
@@ -406,7 +406,7 @@ func (h Search) GetIndexedDocumentsCount(
 	opts *GetIndexedDocumentsCountOptions,
 ) (uint64, error) {
 	if opts.IndexName == "" {
-		return 0, errors.New("must specify index name when analyzing a document")
+		return 0, ErrIndexNameEmpty
 	}
 
 	var reqURI string
@@ -414,7 +414,7 @@ func (h Search) GetIndexedDocumentsCount(
 		reqURI = fmt.Sprintf("/api/index/%s/count", opts.IndexName)
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return 0, errors.New("must specify both or neither of scope and bucket names")
+			return 0, ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/count", opts.BucketName, opts.ScopeName, opts.IndexName)
 	}
@@ -534,7 +534,7 @@ func (h Search) controlRequest(
 	onBehalfOf *cbhttpx.OnBehalfOfInfo,
 ) error {
 	if indexName == "" {
-		return errors.New("must specify index name")
+		return ErrIndexNameEmpty
 	}
 
 	var reqURI string
@@ -542,7 +542,7 @@ func (h Search) controlRequest(
 		reqURI = fmt.Sprintf("/api/index/%s/%s", indexName, control)
 	} else {
 		if scopeName == "" || bucketName == "" {
-			return errors.New("must specify both or neither of scope and bucket names")
+			return ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/%s", bucketName, scopeName, indexName, control)
 	}
@@ -607,10 +607,14 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 	var err error
 	errText := strings.ToLower(string(bodyBytes))
 
-	if strings.Contains(errText, "index not found") {
+	if strings.Contains(errText, "index not found") || strings.Contains(errText, "index missing for update") {
 		err = ErrIndexNotFound
 	} else if strings.Contains(errText, "index with the same name already exists") {
 		err = ErrIndexExists
+	} else if strings.Contains(errText, "indexname is invalid") {
+		err = ErrIndexNameInvalid
+	} else if strings.Contains(errText, "index name is too long") {
+		err = ErrIndexNameTooLong
 	} else if strings.Contains(errText, "current index uuid") && strings.Contains(errText, "did not match input uuid") {
 		err = ErrIndexExists
 	} else if strings.Contains(errText, "unknown indextype") {

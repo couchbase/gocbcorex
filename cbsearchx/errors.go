@@ -10,12 +10,16 @@ var (
 	ErrAuthenticationFailure    = errors.New("auth error")
 	ErrIndexNotFound            = errors.New("index not found")
 	ErrIndexExists              = errors.New("index exists")
+	ErrIndexNameInvalid         = errors.New("index name invalid")
+	ErrIndexNameTooLong         = errors.New("index name too long")
+	ErrIndexNameEmpty           = errors.New("index name empty")
 	ErrUnknownIndexType         = errors.New("unknown index type")
 	ErrSourceTypeIncorrect      = errors.New("source type incorrect")
 	ErrSourceNotFound           = errors.New("source not found")
 	ErrNoIndexPartitionsPlanned = errors.New("no index partitions planned")
 	ErrNoIndexPartitionsFound   = errors.New("no index partitions found")
 	ErrUnsupportedFeature       = errors.New("unsupported feature")
+	ErrOnlyBucketOrScopeSet     = errors.New("only bucket or scope name set")
 )
 
 type contextualError struct {
