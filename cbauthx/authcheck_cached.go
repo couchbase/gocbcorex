@@ -24,8 +24,8 @@ type authCacheEntry struct {
 	When       time.Time
 
 	// PendingCh represents a channel that can be listened to to know
-	// when the collection resolution has been completed (with either
-	// a success or a failure).
+	// when the auth check  has been completed (with either a success or a
+	// failure).
 	PendingCh chan struct{}
 }
 
