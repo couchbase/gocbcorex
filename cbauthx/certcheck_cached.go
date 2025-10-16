@@ -18,13 +18,13 @@ type certCacheEntry struct {
 	When       time.Time
 
 	// PendingCh represents a channel that can be listened to to know
-	// when the collection resolution has been completed (with either
-	// a success or a failure).
+	// when the auth check  has been completed (with either a success or a
+	// failure).
 	PendingCh chan struct{}
 }
 
 type certCacheFastCache struct {
-	users map[HashedCert]*UserInfo
+	usersByCert map[HashedCert]*UserInfo
 }
 
 type CertCheckCached struct {
@@ -46,13 +46,13 @@ func NewCertCheckCached(certChecker CertCheck) *CertCheckCached {
 
 func (cr *CertCheckCached) rebuildFastCacheLocked() {
 	fastCache := &certCacheFastCache{
-		users: make(map[HashedCert]*UserInfo),
+		usersByCert: make(map[HashedCert]*UserInfo),
 	}
 
 	if cr.slowCache != nil {
 		for key, entry := range cr.slowCache {
 			if entry.Info != nil {
-				fastCache.users[key] = entry.Info
+				fastCache.usersByCert[key] = entry.Info
 			}
 		}
 	}
@@ -61,7 +61,7 @@ func (cr *CertCheckCached) rebuildFastCacheLocked() {
 }
 
 func (a *CertCheckCached) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
-	certHash, err := certHashFromConnState(connState)
+	hashedCert, err := certHashFromConnState(connState)
 	if err != nil {
 		return UserInfo{}, &contextualError{
 			Message: "cannot generate cert hash from tls connection",
@@ -71,29 +71,23 @@ func (a *CertCheckCached) CheckCertificate(ctx context.Context, connState *tls.C
 
 	fastCertCache := a.fastCache.Load()
 	if fastCertCache != nil {
-		userInfo, wasFound := fastCertCache.users[certHash]
+		userInfo, wasFound := fastCertCache.usersByCert[hashedCert]
 		if wasFound {
 			return *userInfo, nil
 		}
 	}
 
-	return a.checkSlow(ctx, connState)
+	return a.checkSlow(ctx, connState, hashedCert)
 }
 
-func (a *CertCheckCached) checkSlow(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+func (a *CertCheckCached) checkSlow(
+	ctx context.Context,
+	connState *tls.ConnectionState,
+	hashedCert HashedCert) (UserInfo, error) {
 	a.slowLock.Lock()
 
 	if a.slowCache == nil {
 		a.slowCache = make(map[HashedCert]*certCacheEntry)
-	}
-
-	hashedCert, err := certHashFromConnState(connState)
-	if err != nil {
-		a.slowLock.Unlock()
-		return UserInfo{}, &contextualError{
-			Message: "cannot generate cert hash from tls connection",
-			Cause:   err,
-		}
 	}
 
 	slowEntry, hasSlowEntry := a.slowCache[hashedCert]
@@ -107,11 +101,11 @@ func (a *CertCheckCached) checkSlow(ctx context.Context, connState *tls.Connecti
 		go a.checkThread(hashedCert, slowEntry, connState)
 	}
 
-	if slowEntry.PendingCh != nil {
-		pendingCh := slowEntry.PendingCh
+	pendingCh := slowEntry.PendingCh
 
-		a.slowLock.Unlock()
+	a.slowLock.Unlock()
 
+	if pendingCh != nil {
 		select {
 		case <-pendingCh:
 		case <-ctx.Done():
@@ -162,6 +156,9 @@ func (a *CertCheckCached) checkThread(entryKey HashedCert, slowEntry *certCacheE
 	}
 
 	pendingCh := slowEntry.PendingCh
+
+	// Set the pending channel for the slow entry to nil to prevent checkThreads
+	// against the same slow entry from trying to close a closed channel.
 	slowEntry.PendingCh = nil
 
 	a.rebuildFastCacheLocked()
