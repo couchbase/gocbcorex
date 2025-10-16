@@ -107,11 +107,11 @@ func (a *CertCheckCached) checkSlow(ctx context.Context, connState *tls.Connecti
 		go a.checkThread(hashedCert, slowEntry, connState)
 	}
 
-	if slowEntry.PendingCh != nil {
-		pendingCh := slowEntry.PendingCh
+	pendingCh := slowEntry.PendingCh
 
-		a.slowLock.Unlock()
+	a.slowLock.Unlock()
 
+	if pendingCh != nil {
 		select {
 		case <-pendingCh:
 		case <-ctx.Done():

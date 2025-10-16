@@ -111,11 +111,11 @@ func (a *AuthCheckCached) checkSlow(ctx context.Context, username string, passwo
 			key, slowEntry, username, password)
 	}
 
-	if slowEntry.PendingCh != nil {
-		pendingCh := slowEntry.PendingCh
+	pendingCh := slowEntry.PendingCh
 
-		a.slowLock.Unlock()
+	a.slowLock.Unlock()
 
+	if pendingCh != nil {
 		select {
 		case <-pendingCh:
 		case <-ctx.Done():
