@@ -70,6 +70,10 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 		return nil, err
 	}
 
+	if strings.Contains(opts.IndexName, "%") {
+		return nil, ErrIndexNameInvalid
+	}
+
 	if !h.VectorSearchEnabled {
 		if len(opts.Knn) > 0 || opts.KnnOperator != KnnOperatorUnset {
 			return nil, ErrUnsupportedFeature
@@ -126,6 +130,9 @@ func (h Search) UpsertIndex(
 ) (*UpsertIndexResponse, error) {
 	if opts.Name == "" {
 		return nil, ErrIndexNameEmpty
+	}
+	if strings.Contains(opts.Name, "%") {
+		return nil, ErrIndexNameInvalid
 	}
 	if opts.Type == "" {
 		return nil, errors.New("must specify index type when creating an index")
@@ -190,6 +197,9 @@ func (h Search) DeleteIndex(
 	if opts.IndexName == "" {
 		return ErrIndexNameEmpty
 	}
+	if strings.Contains(opts.IndexName, "%") {
+		return ErrIndexNameInvalid
+	}
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
@@ -236,6 +246,9 @@ func (h Search) GetIndex(
 ) (*Index, error) {
 	if opts.IndexName == "" {
 		return nil, ErrIndexNameEmpty
+	}
+	if strings.Contains(opts.IndexName, "%") {
+		return nil, ErrIndexNameInvalid
 	}
 
 	var reqURI string
@@ -355,6 +368,9 @@ func (h Search) AnalyzeDocument(
 	if opts.IndexName == "" {
 		return nil, ErrIndexNameEmpty
 	}
+	if strings.Contains(opts.IndexName, "%") {
+		return nil, ErrIndexNameInvalid
+	}
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
@@ -407,6 +423,9 @@ func (h Search) GetIndexedDocumentsCount(
 ) (uint64, error) {
 	if opts.IndexName == "" {
 		return 0, ErrIndexNameEmpty
+	}
+	if strings.Contains(opts.IndexName, "%") {
+		return 0, ErrIndexNameInvalid
 	}
 
 	var reqURI string
@@ -535,6 +554,9 @@ func (h Search) controlRequest(
 ) error {
 	if indexName == "" {
 		return ErrIndexNameEmpty
+	}
+	if strings.Contains(indexName, "%") {
+		return ErrIndexNameInvalid
 	}
 
 	var reqURI string
