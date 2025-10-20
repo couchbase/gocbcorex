@@ -111,11 +111,11 @@ func (a *AuthCheckCached) checkSlow(ctx context.Context, username string, passwo
 			key, slowEntry, username, password)
 	}
 
-	if slowEntry.PendingCh != nil {
-		pendingCh := slowEntry.PendingCh
+	pendingCh := slowEntry.PendingCh
 
-		a.slowLock.Unlock()
+	a.slowLock.Unlock()
 
+	if pendingCh != nil {
 		select {
 		case <-pendingCh:
 		case <-ctx.Done():
@@ -126,11 +126,16 @@ func (a *AuthCheckCached) checkSlow(ctx context.Context, username string, passwo
 		}
 	}
 
-	if slowEntry.ResolveErr != nil {
-		return UserInfo{}, slowEntry.ResolveErr
+	// pendingCh is guaranteed to only be closed after these fields have been
+	// written so it is safe to read them having blocked on pendingCh above.
+	resolveErr := slowEntry.ResolveErr
+	resolveInfo := slowEntry.Info
+
+	if resolveErr != nil {
+		return UserInfo{}, resolveErr
 	}
 
-	return *slowEntry.Info, nil
+	return *resolveInfo, nil
 }
 
 func (a *AuthCheckCached) checkThread(
@@ -170,6 +175,9 @@ func (a *AuthCheckCached) checkThread(
 	}
 
 	pendingCh := slowEntry.PendingCh
+
+	// Set the pending channel for the slow entry to nil to prevent checkThreads
+	// against the same slow entry from trying to close a closed channel.
 	slowEntry.PendingCh = nil
 
 	a.rebuildFastCacheLocked()
