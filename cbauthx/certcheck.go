@@ -2,9 +2,9 @@ package cbauthx
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto/x509"
 )
 
 type CertCheck interface {
-	CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error)
+	CheckCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error)
 }

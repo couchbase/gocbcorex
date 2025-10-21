@@ -3,7 +3,7 @@ package cbauthx
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,13 +54,7 @@ func NewCertCheckHttp(opts *CertCheckHttpOptions) *CertCheckHttp {
 	}
 }
 
-func (a *CertCheckHttp) checkCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
-	if len(connState.PeerCertificates) == 0 {
-		return UserInfo{}, ErrNoCert
-	}
-
-	clientCert := connState.PeerCertificates[0]
-
+func (a *CertCheckHttp) checkCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", a.uri, bytes.NewReader(clientCert.Raw))
 	req.SetBasicAuth(a.username, a.password)
 	if err != nil {
@@ -111,10 +105,10 @@ func (a *CertCheckHttp) checkCertificate(ctx context.Context, connState *tls.Con
 	return UserInfo(jsonResp), nil
 }
 
-func (a *CertCheckHttp) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+func (a *CertCheckHttp) CheckCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
 	stime := time.Now()
 
-	userInfo, err := a.checkCertificate(ctx, connState)
+	userInfo, err := a.checkCertificate(ctx, clientCert)
 
 	etime := time.Now()
 	dtime := etime.Sub(stime)
