@@ -426,8 +426,13 @@ func (a *CbAuth) CheckUserPass(ctx context.Context, username string, password st
 }
 
 func (a *CbAuth) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+	if len(connState.PeerCertificates) == 0 {
+		return UserInfo{}, ErrNoCert
+	}
+	clientCert := connState.PeerCertificates[0]
+
 	cli := a.currentClient.Load()
-	info, err := cli.CheckCertificate(ctx, connState)
+	info, err := cli.CheckCertificate(ctx, clientCert)
 	if err != nil {
 		checkFunc := func() (UserInfo, error) {
 			return a.CheckCertificate(ctx, connState)

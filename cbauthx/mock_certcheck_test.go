@@ -5,7 +5,7 @@ package cbauthx
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto/x509"
 	"sync"
 )
 
@@ -19,7 +19,7 @@ var _ CertCheck = &CertCheckMock{}
 //
 //		// make and configure a mocked CertCheck
 //		mockedCertCheck := &CertCheckMock{
-//			CheckCertificateFunc: func(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+//			CheckCertificateFunc: func(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
 //				panic("mock out the CheckCertificate method")
 //			},
 //		}
@@ -30,7 +30,7 @@ var _ CertCheck = &CertCheckMock{}
 //	}
 type CertCheckMock struct {
 	// CheckCertificateFunc mocks the CheckCertificate method.
-	CheckCertificateFunc func(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error)
+	CheckCertificateFunc func(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -38,29 +38,29 @@ type CertCheckMock struct {
 		CheckCertificate []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
-			// ConnState is the connState argument value.
-			ConnState *tls.ConnectionState
+			// ClientCert is the clientCert argument value.
+			ClientCert *x509.Certificate
 		}
 	}
 	lockCheckCertificate sync.RWMutex
 }
 
 // CheckCertificate calls CheckCertificateFunc.
-func (mock *CertCheckMock) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+func (mock *CertCheckMock) CheckCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
 	if mock.CheckCertificateFunc == nil {
 		panic("CertCheckMock.CheckCertificateFunc: method is nil but CertCheck.CheckCertificate was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		ConnState *tls.ConnectionState
+		Ctx        context.Context
+		ClientCert *x509.Certificate
 	}{
-		Ctx:       ctx,
-		ConnState: connState,
+		Ctx:        ctx,
+		ClientCert: clientCert,
 	}
 	mock.lockCheckCertificate.Lock()
 	mock.calls.CheckCertificate = append(mock.calls.CheckCertificate, callInfo)
 	mock.lockCheckCertificate.Unlock()
-	return mock.CheckCertificateFunc(ctx, connState)
+	return mock.CheckCertificateFunc(ctx, clientCert)
 }
 
 // CheckCertificateCalls gets all the calls that were made to CheckCertificate.
@@ -68,12 +68,12 @@ func (mock *CertCheckMock) CheckCertificate(ctx context.Context, connState *tls.
 //
 //	len(mockedCertCheck.CheckCertificateCalls())
 func (mock *CertCheckMock) CheckCertificateCalls() []struct {
-	Ctx       context.Context
-	ConnState *tls.ConnectionState
+	Ctx        context.Context
+	ClientCert *x509.Certificate
 } {
 	var calls []struct {
-		Ctx       context.Context
-		ConnState *tls.ConnectionState
+		Ctx        context.Context
+		ClientCert *x509.Certificate
 	}
 	mock.lockCheckCertificate.RLock()
 	calls = mock.calls.CheckCertificate

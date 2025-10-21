@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
@@ -19,30 +18,15 @@ func TestCertCheckCache_NoCacheExternal(t *testing.T) {
 	certChecks := 0
 
 	localCert := generateTestCert()
-	localConn := &tls.ConnectionState{
-		PeerCertificates: []*x509.Certificate{localCert},
-	}
-
 	adminCert := generateTestCert()
-	adminConn := &tls.ConnectionState{
-		PeerCertificates: []*x509.Certificate{adminCert},
-	}
-
 	externalCert := generateTestCert()
-	externalConn := &tls.ConnectionState{
-		PeerCertificates: []*x509.Certificate{externalCert},
-	}
-
 	invalidCert := generateTestCert()
-	invalidConn := &tls.ConnectionState{
-		PeerCertificates: []*x509.Certificate{invalidCert},
-	}
 
 	checker := NewCertCheckCached(&CertCheckMock{
-		CheckCertificateFunc: func(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+		CheckCertificateFunc: func(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
 			certChecks++
 
-			switch connState.PeerCertificates[0] {
+			switch clientCert {
 			case localCert:
 				return UserInfo{Domain: "local"}, nil
 			case adminCert:
@@ -56,44 +40,44 @@ func TestCertCheckCache_NoCacheExternal(t *testing.T) {
 	})
 
 	// check that 'local' domain is cached
-	info, err := checker.CheckCertificate(context.Background(), localConn)
+	info, err := checker.CheckCertificate(context.Background(), localCert)
 	require.NoError(t, err)
 	assert.Equal(t, info.Domain, "local")
 	assert.Equal(t, 1, certChecks)
 
-	info, err = checker.CheckCertificate(context.Background(), localConn)
+	info, err = checker.CheckCertificate(context.Background(), localCert)
 	require.NoError(t, err)
 	assert.Equal(t, info.Domain, "local")
 	assert.Equal(t, 1, certChecks)
 
 	// check that 'admin' domain is cached
-	info, err = checker.CheckCertificate(context.Background(), adminConn)
+	info, err = checker.CheckCertificate(context.Background(), adminCert)
 	require.NoError(t, err)
 	assert.Equal(t, info.Domain, "admin")
 	assert.Equal(t, 2, certChecks)
 
-	info, err = checker.CheckCertificate(context.Background(), adminConn)
+	info, err = checker.CheckCertificate(context.Background(), adminCert)
 	require.NoError(t, err)
 	assert.Equal(t, info.Domain, "admin")
 	assert.Equal(t, 2, certChecks)
 
 	// check that 'external' cert is not cached
-	info, err = checker.CheckCertificate(context.Background(), externalConn)
+	info, err = checker.CheckCertificate(context.Background(), externalCert)
 	require.NoError(t, err)
 	assert.Equal(t, info.Domain, "external")
 	assert.Equal(t, 3, certChecks)
 
-	info, err = checker.CheckCertificate(context.Background(), externalConn)
+	info, err = checker.CheckCertificate(context.Background(), externalCert)
 	require.NoError(t, err)
 	assert.Equal(t, info.Domain, "external")
 	assert.Equal(t, 4, certChecks)
 
 	// check that invaild cert is not cached
-	info, err = checker.CheckCertificate(context.Background(), invalidConn)
+	info, err = checker.CheckCertificate(context.Background(), invalidCert)
 	require.ErrorIs(t, err, ErrInvalidAuth)
 	assert.Equal(t, 5, certChecks)
 
-	info, err = checker.CheckCertificate(context.Background(), invalidConn)
+	info, err = checker.CheckCertificate(context.Background(), invalidCert)
 	require.ErrorIs(t, err, ErrInvalidAuth)
 	assert.Equal(t, 6, certChecks)
 }

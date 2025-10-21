@@ -2,7 +2,7 @@ package cbauthx
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -363,11 +363,11 @@ func (a *CbAuthClient) getCertCache(_ context.Context) (*CertCheckCached, error)
 	return a.certCache, nil
 }
 
-func (a *CbAuthClient) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
+func (a *CbAuthClient) CheckCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
 	certCache, err := a.getCertCache(ctx)
 	if err != nil {
 		return UserInfo{}, err
 	}
 
-	return certCache.CheckCertificate(ctx, connState)
+	return certCache.CheckCertificate(ctx, clientCert)
 }

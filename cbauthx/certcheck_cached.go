@@ -3,8 +3,7 @@ package cbauthx
 import (
 	"context"
 	"crypto/sha512"
-	"crypto/tls"
-	"errors"
+	"crypto/x509"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -60,29 +59,23 @@ func (cr *CertCheckCached) rebuildFastCacheLocked() {
 	cr.fastCache.Store(fastCache)
 }
 
-func (a *CertCheckCached) CheckCertificate(ctx context.Context, connState *tls.ConnectionState) (UserInfo, error) {
-	hashedCert, err := certHashFromConnState(connState)
-	if err != nil {
-		return UserInfo{}, &contextualError{
-			Message: "cannot generate cert hash from tls connection",
-			Cause:   err,
-		}
-	}
+func (a *CertCheckCached) CheckCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
+	certHash := sha512.Sum512_256(clientCert.Raw)
 
 	fastCertCache := a.fastCache.Load()
 	if fastCertCache != nil {
-		userInfo, wasFound := fastCertCache.usersByCert[hashedCert]
+		userInfo, wasFound := fastCertCache.usersByCert[certHash]
 		if wasFound {
 			return *userInfo, nil
 		}
 	}
 
-	return a.checkSlow(ctx, connState, hashedCert)
+	return a.checkSlow(ctx, clientCert, certHash)
 }
 
 func (a *CertCheckCached) checkSlow(
 	ctx context.Context,
-	connState *tls.ConnectionState,
+	clientCert *x509.Certificate,
 	hashedCert HashedCert) (UserInfo, error) {
 	a.slowLock.Lock()
 
@@ -98,7 +91,7 @@ func (a *CertCheckCached) checkSlow(
 		}
 		a.slowCache[hashedCert] = slowEntry
 
-		go a.checkThread(hashedCert, slowEntry, connState)
+		go a.checkThread(hashedCert, slowEntry, clientCert)
 	}
 
 	pendingCh := slowEntry.PendingCh
@@ -116,15 +109,20 @@ func (a *CertCheckCached) checkSlow(
 		}
 	}
 
-	if slowEntry.ResolveErr != nil {
-		return UserInfo{}, slowEntry.ResolveErr
+	// pendingCh is guaranteed to only be closed after these fields have been
+	// written so it is safe to read them having blocked on pendingCh above.
+	resolveErr := slowEntry.ResolveErr
+	resolveInfo := slowEntry.Info
+
+	if resolveErr != nil {
+		return UserInfo{}, resolveErr
 	}
 
-	return *slowEntry.Info, nil
+	return *resolveInfo, nil
 }
 
-func (a *CertCheckCached) checkThread(entryKey HashedCert, slowEntry *certCacheEntry, connState *tls.ConnectionState) {
-	info, err := a.certChecker.CheckCertificate(context.Background(), connState)
+func (a *CertCheckCached) checkThread(entryKey HashedCert, slowEntry *certCacheEntry, clientCert *x509.Certificate) {
+	info, err := a.certChecker.CheckCertificate(context.Background(), clientCert)
 
 	a.slowLock.Lock()
 
@@ -174,12 +172,4 @@ func (a *CertCheckCached) Invalidate() {
 	a.slowCache = make(map[HashedCert]*certCacheEntry)
 	a.rebuildFastCacheLocked()
 	a.slowLock.Unlock()
-}
-
-func certHashFromConnState(connState *tls.ConnectionState) (HashedCert, error) {
-	if len(connState.PeerCertificates) == 0 {
-		return HashedCert{}, errors.New("no client certificate provided")
-	}
-
-	return sha512.Sum512_256(connState.PeerCertificates[0].Raw), nil
 }
