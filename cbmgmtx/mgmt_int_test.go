@@ -306,3 +306,18 @@ func TestHttpMgmtUsers(t *testing.T) {
 	})
 	require.ErrorIs(t, err, cbmgmtx.ErrUserNotFound)
 }
+
+func TestHttpMgmtXdcrC2c(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+
+	err := getHttpMgmt().XdcrC2c(ctx, &cbmgmtx.XdcrC2cOptions{
+		Payload: []byte(`{"Magic":1,"ReqType":7}`),
+	})
+
+	// we expect an error like the following if this request made it to goxdcr:
+	//   {"_":"SourceHeartbeatReq deSerialize err: snappy: corrupt input"}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SourceHeartbeatReq")
+}
