@@ -12,8 +12,10 @@ var (
 	ErrInternalServerError        = errors.New("internal server error")
 	ErrVbucketMapOutdated         = errors.New("the vbucket map is out of date")
 	ErrCollectionManifestOutdated = errors.New("the collection manifest is out of date")
+	ErrCollectionIDMismatch       = errors.New("the provided collection id does not match")
 	ErrServiceNotAvailable        = errors.New("service is not available")
 	ErrNoBucketSelected           = errors.New("no bucket selected, please select a bucket before performing bucket operations")
+	ErrVbucketUUIDMismatch        = errors.New("the provided vbucket uuid does not match")
 )
 
 type placeholderError struct {
@@ -54,6 +56,22 @@ func (e CollectionManifestOutdatedError) Error() string {
 
 func (e CollectionManifestOutdatedError) Unwrap() error {
 	return ErrCollectionManifestOutdated
+}
+
+type CollectionIDMismatchError struct {
+	Cause              error
+	CollectionID       uint32
+	ServerCollectionID uint32
+	ManifestUid        uint64
+}
+
+func (e CollectionIDMismatchError) Error() string {
+	return fmt.Sprintf("provided collection id mismatch: provided collection id: %d, sdk collection id: %d, "+
+		"manifest uid: %d", e.CollectionID, e.ServerCollectionID, e.ManifestUid)
+}
+
+func (e CollectionIDMismatchError) Unwrap() error {
+	return ErrCollectionIDMismatch
 }
 
 type VbucketMapOutdatedError struct {
@@ -232,4 +250,18 @@ func (e RetryOrchestrationError) Error() string {
 
 func (e RetryOrchestrationError) Unwrap() error {
 	return e.Cause
+}
+
+type VbucketUUIDMisMatchError struct {
+	RequestedVbId uint16
+	RequestVbUUID uint64
+	ActualVbUUID  uint64
+}
+
+func (e VbucketUUIDMisMatchError) Error() string {
+	return fmt.Sprintf("invalid vbucket uuid for vbucket %d (requested: %d, actual: %d)", e.RequestedVbId, e.RequestVbUUID, e.ActualVbUUID)
+}
+
+func (e VbucketUUIDMisMatchError) Unwrap() error {
+	return ErrVbucketUUIDMismatch
 }

@@ -49,7 +49,7 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 	}
 
 	var fnCalls int
-	fn := func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
+	fn := func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
 		if fnCalls == 0 {
 			fnCalls++
 			return nil, &memdx.ServerErrorWithContext{
@@ -62,18 +62,7 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 		return &UpsertResult{}, nil
 	}
 
-	res, err := OrchestrateSimpleCrud[*UpsertResult](
-		context.Background(),
-		rs,
-		cr,
-		vb,
-		nil,
-		nkcp,
-		"scope",
-		"collection",
-		[]byte("somekey"),
-		fn,
-	)
+	res, err := OrchestrateSimpleCrud[*UpsertResult](context.Background(), rs, cr, vb, nil, nkcp, "scope", "collection", 0, []byte("somekey"), fn)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 

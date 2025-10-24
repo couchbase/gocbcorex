@@ -24,6 +24,7 @@ type CrudComponent struct {
 	connManager KvClientManager
 	compression CompressionManager
 	vbs         VbucketRouter
+	vbc         VbucketUuidConsistency
 }
 
 func OrchestrateSimpleCrud[RespT any](
@@ -34,18 +35,50 @@ func OrchestrateSimpleCrud[RespT any](
 	ch NotMyVbucketConfigHandler,
 	nkcp KvClientManager,
 	scopeName, collectionName string,
+	collectionID uint32,
 	key []byte,
-	fn func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (RespT, error),
+	fn func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (RespT, error),
 ) (RespT, error) {
 	return OrchestrateRetries(
 		ctx, rs,
 		func() (RespT, error) {
 			return OrchestrateMemdCollectionID(
-				ctx, cr, scopeName, collectionName,
-				func(collectionID uint32, manifestID uint64) (RespT, error) {
+				ctx, cr, scopeName, collectionName, collectionID,
+				func(collectionID uint32) (RespT, error) {
 					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
 						return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
-							return fn(collectionID, manifestID, endpoint, vbID, client)
+							return fn(collectionID, endpoint, vbID, client)
+						})
+					})
+				})
+		})
+}
+
+func OrchestrateSimpleCrudMeta[RespT any](
+	ctx context.Context,
+	rs RetryManager,
+	cr CollectionResolver,
+	vb VbucketRouter,
+	ch NotMyVbucketConfigHandler,
+	nkcp KvClientManager,
+	vbc VbucketUuidConsistency,
+	scopeName, collectionName string,
+	collectionID uint32,
+	key []byte,
+	vbuuid uint64,
+	fn func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (RespT, error),
+) (RespT, error) {
+	return OrchestrateRetries(
+		ctx, rs,
+		func() (RespT, error) {
+			return OrchestrateMemdCollectionID(
+				ctx, cr, scopeName, collectionName, collectionID,
+				func(collectionID uint32) (RespT, error) {
+					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
+						return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
+							return OrchestrateVBucketConsistency(ctx, vbc, client, vbID, vbuuid, func(client KvClient) (RespT, error) {
+								return fn(collectionID, endpoint, vbID, client)
+							})
 						})
 					})
 				})
@@ -56,6 +89,7 @@ type GetOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	OnBehalfOf     string
 }
 
@@ -72,8 +106,8 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
 			resp, err := client.Get(ctx, &memdx.GetRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -104,6 +138,7 @@ type GetExOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	OnBehalfOf     string
 }
 
@@ -120,8 +155,8 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetExResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetExResult, error) {
 			resp, err := client.GetEx(ctx, &memdx.GetExRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -152,6 +187,7 @@ type GetReplicaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	ReplicaIdx     uint32
 	OnBehalfOf     string
 }
@@ -198,8 +234,8 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 		ctx, cc.retries,
 		func() (*GetReplicaResult, error) {
 			return OrchestrateMemdCollectionID(
-				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
-				func(collectionID uint32, manifestID uint64) (*GetReplicaResult, error) {
+				ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID,
+				func(collectionID uint32) (*GetReplicaResult, error) {
 					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
 						return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*GetReplicaResult, error) {
 							return fn(collectionID, vbID, client)
@@ -214,6 +250,7 @@ type GetAllReplicasOptions struct {
 	BucketName     string
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	OnBehalfOf     string
 }
 
@@ -324,8 +361,8 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 	// This retry orchestrator handles request level retryable errors, errors which impact every replica request,
 	// e.g the collection ID not yet being consistent
 	_, err = OrchestrateRetries(ctx, cc.retries, func() (any, error) {
-		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName,
-			func(collectionID uint32, manifestID uint64) (any, error) {
+		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID,
+			func(collectionID uint32) (any, error) {
 
 				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
 				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
@@ -435,6 +472,7 @@ type UpsertOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Value           []byte
 	Flags           uint32
 	Datatype        memdx.DatatypeFlag
@@ -456,8 +494,8 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -497,6 +535,7 @@ type DeleteOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
 	OnBehalfOf      string
@@ -513,8 +552,8 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
 			resp, err := client.Delete(ctx, &memdx.DeleteRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -544,6 +583,7 @@ type GetAndTouchOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Expiry         uint32
 	OnBehalfOf     string
 }
@@ -561,8 +601,8 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetAndTouchResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndTouchResult, error) {
 			resp, err := client.GetAndTouch(ctx, &memdx.GetAndTouchRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -593,6 +633,7 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 type GetRandomOptions struct {
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	OnBehalfOf     string
 }
 
@@ -610,8 +651,8 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, nil,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetRandomResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, nil,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetRandomResult, error) {
 			resp, err := client.GetRandom(ctx, &memdx.GetRandomRequest{
 				CollectionID: collectionID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
@@ -641,6 +682,7 @@ type UnlockOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Cas            uint64
 	OnBehalfOf     string
 }
@@ -655,8 +697,8 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UnlockResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UnlockResult, error) {
 			resp, err := client.Unlock(ctx, &memdx.UnlockRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -684,6 +726,7 @@ type TouchOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Expiry         uint32
 	OnBehalfOf     string
 }
@@ -698,8 +741,8 @@ func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchR
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*TouchResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*TouchResult, error) {
 			resp, err := client.Touch(ctx, &memdx.TouchRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -739,8 +782,8 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 	ctx, span := tracer.Start(ctx, "GetAndLock")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
+	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
 			resp, err := client.GetAndLock(ctx, &memdx.GetAndLockRequest{
 				CollectionID: collectionID,
 				LockTime:     opts.LockTime,
@@ -772,6 +815,7 @@ type AddOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Flags           uint32
 	Value           []byte
 	Datatype        memdx.DatatypeFlag
@@ -791,8 +835,8 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AddResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -830,6 +874,7 @@ type ReplaceOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Flags           uint32
 	Value           []byte
 	Datatype        memdx.DatatypeFlag
@@ -851,8 +896,8 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*ReplaceResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*ReplaceResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -892,6 +937,7 @@ type AppendOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Value           []byte
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
@@ -909,8 +955,8 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AppendResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AppendResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
 			if err != nil {
 				return nil, err
@@ -947,6 +993,7 @@ type PrependOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Value           []byte
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
@@ -964,8 +1011,8 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*PrependResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*PrependResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
 			if err != nil {
 				return nil, err
@@ -1002,6 +1049,7 @@ type IncrementOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Value           []byte
 	Initial         uint64
 	Delta           uint64
@@ -1022,8 +1070,8 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*IncrementResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*IncrementResult, error) {
 			resp, err := client.Increment(ctx, &memdx.IncrementRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1056,6 +1104,7 @@ type DecrementOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Value           []byte
 	Initial         uint64
 	Delta           uint64
@@ -1076,8 +1125,8 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DecrementResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DecrementResult, error) {
 			resp, err := client.Decrement(ctx, &memdx.DecrementRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1110,7 +1159,9 @@ type GetMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	FetchDatatype  bool
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1128,10 +1179,10 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 	ctx, span := tracer.Start(ctx, "GetMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
 			resp, err := client.GetMeta(ctx, &memdx.GetMetaRequest{
 				CollectionID:  collectionID,
 				Key:           opts.Key,
@@ -1167,6 +1218,7 @@ type AddWithMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Value          []byte
 	Flags          uint32
 	Datatype       memdx.DatatypeFlag
@@ -1175,6 +1227,7 @@ type AddWithMetaOptions struct {
 	RevNo          uint64
 	StoreCas       uint64
 	Options        memdx.MetaOpFlag
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1187,10 +1240,10 @@ func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptio
 	ctx, span := tracer.Start(ctx, "AddWithMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
 			resp, err := client.AddWithMeta(ctx, &memdx.AddWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1226,6 +1279,7 @@ type SetWithMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Value          []byte
 	Flags          uint32
 	Datatype       memdx.DatatypeFlag
@@ -1235,6 +1289,7 @@ type SetWithMetaOptions struct {
 	CheckCas       uint64
 	StoreCas       uint64
 	Options        memdx.MetaOpFlag
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1247,10 +1302,10 @@ func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptio
 	ctx, span := tracer.Start(ctx, "SetWithMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
 			resp, err := client.SetWithMeta(ctx, &memdx.SetWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1287,6 +1342,7 @@ type DeleteWithMetaOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	CheckCas       uint64
 	Flags          uint32
 	Expiry         uint32
@@ -1294,6 +1350,7 @@ type DeleteWithMetaOptions struct {
 	StoreCas       uint64
 	RevNo          uint64
 	Options        memdx.MetaOpFlag
+	VBUUID         uint64
 	OnBehalfOf     string
 }
 
@@ -1306,10 +1363,10 @@ func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMet
 	ctx, span := tracer.Start(ctx, "DeleteWithMeta")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
+	return OrchestrateSimpleCrudMeta(
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager, cc.vbc,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
 			resp, err := client.DeleteWithMeta(ctx, &memdx.DeleteWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1344,6 +1401,7 @@ type LookupInOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Ops            []memdx.LookupInOp
 	Flags          memdx.SubdocDocFlag
 	OnBehalfOf     string
@@ -1361,8 +1419,8 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*LookupInResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*LookupInResult, error) {
 			resp, err := client.LookupIn(ctx, &memdx.LookupInRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1389,6 +1447,7 @@ type MutateInOptions struct {
 	Key             []byte
 	ScopeName       string
 	CollectionName  string
+	CollectionID    uint32
 	Ops             []memdx.MutateInOp
 	Flags           memdx.SubdocDocFlag
 	Expiry          uint32
@@ -1410,8 +1469,8 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connManager,
-		opts.ScopeName, opts.CollectionName, opts.Key,
-		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*MutateInResult, error) {
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
+		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*MutateInResult, error) {
 			resp, err := client.MutateIn(ctx, &memdx.MutateInRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1446,6 +1505,7 @@ type GetOrLookupOptions struct {
 	Key            []byte
 	ScopeName      string
 	CollectionName string
+	CollectionID   uint32
 	Project        []string
 	WithExpiry     bool
 	WithFlags      bool

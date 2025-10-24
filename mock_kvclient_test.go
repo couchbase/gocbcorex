@@ -24,11 +24,17 @@ var _ KvClient = &KvClientMock{}
 //			AddFunc: func(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error) {
 //				panic("mock out the Add method")
 //			},
+//			AddBaggageFunc: func(key any, value any)  {
+//				panic("mock out the AddBaggage method")
+//			},
 //			AddWithMetaFunc: func(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error) {
 //				panic("mock out the AddWithMeta method")
 //			},
 //			AppendFunc: func(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error) {
 //				panic("mock out the Append method")
+//			},
+//			BaggageFunc: func(key any) (any, bool) {
+//				panic("mock out the Baggage method")
 //			},
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
@@ -139,11 +145,17 @@ type KvClientMock struct {
 	// AddFunc mocks the Add method.
 	AddFunc func(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error)
 
+	// AddBaggageFunc mocks the AddBaggage method.
+	AddBaggageFunc func(key any, value any)
+
 	// AddWithMetaFunc mocks the AddWithMeta method.
 	AddWithMetaFunc func(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error)
 
 	// AppendFunc mocks the Append method.
 	AppendFunc func(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error)
+
+	// BaggageFunc mocks the Baggage method.
+	BaggageFunc func(key any) (any, bool)
 
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
@@ -253,6 +265,13 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.AddRequest
 		}
+		// AddBaggage holds details about calls to the AddBaggage method.
+		AddBaggage []struct {
+			// Key is the key argument value.
+			Key any
+			// Value is the value argument value.
+			Value any
+		}
 		// AddWithMeta holds details about calls to the AddWithMeta method.
 		AddWithMeta []struct {
 			// Ctx is the ctx argument value.
@@ -266,6 +285,11 @@ type KvClientMock struct {
 			Ctx context.Context
 			// Req is the req argument value.
 			Req *memdx.AppendRequest
+		}
+		// Baggage holds details about calls to the Baggage method.
+		Baggage []struct {
+			// Key is the key argument value.
+			Key any
 		}
 		// Close holds details about calls to the Close method.
 		Close []struct {
@@ -482,8 +506,10 @@ type KvClientMock struct {
 		}
 	}
 	lockAdd               sync.RWMutex
+	lockAddBaggage        sync.RWMutex
 	lockAddWithMeta       sync.RWMutex
 	lockAppend            sync.RWMutex
+	lockBaggage           sync.RWMutex
 	lockClose             sync.RWMutex
 	lockDecrement         sync.RWMutex
 	lockDelete            sync.RWMutex
@@ -552,6 +578,42 @@ func (mock *KvClientMock) AddCalls() []struct {
 	mock.lockAdd.RLock()
 	calls = mock.calls.Add
 	mock.lockAdd.RUnlock()
+	return calls
+}
+
+// AddBaggage calls AddBaggageFunc.
+func (mock *KvClientMock) AddBaggage(key any, value any) {
+	if mock.AddBaggageFunc == nil {
+		panic("KvClientMock.AddBaggageFunc: method is nil but KvClient.AddBaggage was just called")
+	}
+	callInfo := struct {
+		Key   any
+		Value any
+	}{
+		Key:   key,
+		Value: value,
+	}
+	mock.lockAddBaggage.Lock()
+	mock.calls.AddBaggage = append(mock.calls.AddBaggage, callInfo)
+	mock.lockAddBaggage.Unlock()
+	mock.AddBaggageFunc(key, value)
+}
+
+// AddBaggageCalls gets all the calls that were made to AddBaggage.
+// Check the length with:
+//
+//	len(mockedKvClient.AddBaggageCalls())
+func (mock *KvClientMock) AddBaggageCalls() []struct {
+	Key   any
+	Value any
+} {
+	var calls []struct {
+		Key   any
+		Value any
+	}
+	mock.lockAddBaggage.RLock()
+	calls = mock.calls.AddBaggage
+	mock.lockAddBaggage.RUnlock()
 	return calls
 }
 
@@ -624,6 +686,38 @@ func (mock *KvClientMock) AppendCalls() []struct {
 	mock.lockAppend.RLock()
 	calls = mock.calls.Append
 	mock.lockAppend.RUnlock()
+	return calls
+}
+
+// Baggage calls BaggageFunc.
+func (mock *KvClientMock) Baggage(key any) (any, bool) {
+	if mock.BaggageFunc == nil {
+		panic("KvClientMock.BaggageFunc: method is nil but KvClient.Baggage was just called")
+	}
+	callInfo := struct {
+		Key any
+	}{
+		Key: key,
+	}
+	mock.lockBaggage.Lock()
+	mock.calls.Baggage = append(mock.calls.Baggage, callInfo)
+	mock.lockBaggage.Unlock()
+	return mock.BaggageFunc(key)
+}
+
+// BaggageCalls gets all the calls that were made to Baggage.
+// Check the length with:
+//
+//	len(mockedKvClient.BaggageCalls())
+func (mock *KvClientMock) BaggageCalls() []struct {
+	Key any
+} {
+	var calls []struct {
+		Key any
+	}
+	mock.lockBaggage.RLock()
+	calls = mock.calls.Baggage
+	mock.lockBaggage.RUnlock()
 	return calls
 }
 
