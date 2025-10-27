@@ -1,10 +1,23 @@
 package cbconfig
 
+import "slices"
+
 type VBucketServerMapJson struct {
 	HashAlgorithm string   `json:"hashAlgorithm"`
 	NumReplicas   int      `json:"numReplicas"`
 	ServerList    []string `json:"serverList"`
 	VBucketMap    [][]int  `json:"vBucketMap,omitempty"`
+}
+
+// TODO - have this take pointer args and handle the nil case
+func (vbMap VBucketServerMapJson) Equal(otherMap VBucketServerMapJson) bool {
+	for i, vb := range vbMap.VBucketMap {
+		if !slices.Equal(vb, otherMap.VBucketMap[i]) {
+			return false
+		}
+	}
+
+	return slices.Equal(vbMap.ServerList, otherMap.ServerList)
 }
 
 type ConfigDDocsJson struct {
