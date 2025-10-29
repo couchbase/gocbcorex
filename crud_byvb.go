@@ -11,7 +11,7 @@ func OrchestrateSimpleVbCrud[RespT any](
 	rs RetryManager,
 	vb VbucketRouter,
 	ch NotMyVbucketConfigHandler,
-	nkcp KvClientManager,
+	ecp KvEndpointClientProvider,
 	vbID uint16, vbServerIdx uint32,
 	fn func(endpoint string, client KvClient) (RespT, error),
 ) (RespT, error) {
@@ -20,7 +20,7 @@ func OrchestrateSimpleVbCrud[RespT any](
 		func() (RespT, error) {
 			return OrchestrateMemdRoutingByVbucketId(ctx, vb, ch, vbID, vbServerIdx,
 				func(endpoint string) (RespT, error) {
-					return OrchestrateMemdClient(ctx, nkcp, endpoint, func(client KvClient) (RespT, error) {
+					return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (RespT, error) {
 						return fn(endpoint, client)
 					})
 				})
@@ -49,7 +49,7 @@ func (cc *CrudComponent) StatsByVbucket(
 	defer span.End()
 
 	return OrchestrateSimpleVbCrud(
-		ctx, cc.retries, cc.vbs, cc.nmvHandler, cc.connManager,
+		ctx, cc.retries, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.VbucketID, 0,
 		func(endpoint string, client KvClient) (*StatsResult, error) {
 			_, err := client.Stats(ctx, &memdx.StatsRequest{

@@ -8,16 +8,16 @@ import (
 	"sync"
 )
 
-// Ensure, that KvClientPoolMock does implement KvClientPool.
+// Ensure, that KvClientBabysitterMock does implement KvClientBabysitter.
 // If this is not the case, regenerate this file with moq.
-var _ KvClientPool = &KvClientPoolMock{}
+var _ KvClientBabysitter = &KvClientBabysitterMock{}
 
-// KvClientPoolMock is a mock implementation of KvClientPool.
+// KvClientBabysitterMock is a mock implementation of KvClientBabysitter.
 //
-//	func TestSomethingThatUsesKvClientPool(t *testing.T) {
+//	func TestSomethingThatUsesKvClientBabysitter(t *testing.T) {
 //
-//		// make and configure a mocked KvClientPool
-//		mockedKvClientPool := &KvClientPoolMock{
+//		// make and configure a mocked KvClientBabysitter
+//		mockedKvClientBabysitter := &KvClientBabysitterMock{
 //			CloseFunc: func() error {
 //				panic("mock out the Close method")
 //			},
@@ -35,11 +35,11 @@ var _ KvClientPool = &KvClientPoolMock{}
 //			},
 //		}
 //
-//		// use mockedKvClientPool in code that requires KvClientPool
+//		// use mockedKvClientBabysitter in code that requires KvClientBabysitter
 //		// and then make assertions.
 //
 //	}
-type KvClientPoolMock struct {
+type KvClientBabysitterMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func() error
 
@@ -89,9 +89,9 @@ type KvClientPoolMock struct {
 }
 
 // Close calls CloseFunc.
-func (mock *KvClientPoolMock) Close() error {
+func (mock *KvClientBabysitterMock) Close() error {
 	if mock.CloseFunc == nil {
-		panic("KvClientPoolMock.CloseFunc: method is nil but KvClientPool.Close was just called")
+		panic("KvClientBabysitterMock.CloseFunc: method is nil but KvClientBabysitter.Close was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -104,8 +104,8 @@ func (mock *KvClientPoolMock) Close() error {
 // CloseCalls gets all the calls that were made to Close.
 // Check the length with:
 //
-//	len(mockedKvClientPool.CloseCalls())
-func (mock *KvClientPoolMock) CloseCalls() []struct {
+//	len(mockedKvClientBabysitter.CloseCalls())
+func (mock *KvClientBabysitterMock) CloseCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -116,9 +116,9 @@ func (mock *KvClientPoolMock) CloseCalls() []struct {
 }
 
 // GetClient calls GetClientFunc.
-func (mock *KvClientPoolMock) GetClient(ctx context.Context) (KvClient, error) {
+func (mock *KvClientBabysitterMock) GetClient(ctx context.Context) (KvClient, error) {
 	if mock.GetClientFunc == nil {
-		panic("KvClientPoolMock.GetClientFunc: method is nil but KvClientPool.GetClient was just called")
+		panic("KvClientBabysitterMock.GetClientFunc: method is nil but KvClientBabysitter.GetClient was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
@@ -134,8 +134,8 @@ func (mock *KvClientPoolMock) GetClient(ctx context.Context) (KvClient, error) {
 // GetClientCalls gets all the calls that were made to GetClient.
 // Check the length with:
 //
-//	len(mockedKvClientPool.GetClientCalls())
-func (mock *KvClientPoolMock) GetClientCalls() []struct {
+//	len(mockedKvClientBabysitter.GetClientCalls())
+func (mock *KvClientBabysitterMock) GetClientCalls() []struct {
 	Ctx context.Context
 } {
 	var calls []struct {
@@ -148,9 +148,9 @@ func (mock *KvClientPoolMock) GetClientCalls() []struct {
 }
 
 // UpdateAuth calls UpdateAuthFunc.
-func (mock *KvClientPoolMock) UpdateAuth(newAuth KvClientAuth) {
+func (mock *KvClientBabysitterMock) UpdateAuth(newAuth KvClientAuth) {
 	if mock.UpdateAuthFunc == nil {
-		panic("KvClientPoolMock.UpdateAuthFunc: method is nil but KvClientPool.UpdateAuth was just called")
+		panic("KvClientBabysitterMock.UpdateAuthFunc: method is nil but KvClientBabysitter.UpdateAuth was just called")
 	}
 	callInfo := struct {
 		NewAuth KvClientAuth
@@ -166,8 +166,8 @@ func (mock *KvClientPoolMock) UpdateAuth(newAuth KvClientAuth) {
 // UpdateAuthCalls gets all the calls that were made to UpdateAuth.
 // Check the length with:
 //
-//	len(mockedKvClientPool.UpdateAuthCalls())
-func (mock *KvClientPoolMock) UpdateAuthCalls() []struct {
+//	len(mockedKvClientBabysitter.UpdateAuthCalls())
+func (mock *KvClientBabysitterMock) UpdateAuthCalls() []struct {
 	NewAuth KvClientAuth
 } {
 	var calls []struct {
@@ -180,9 +180,9 @@ func (mock *KvClientPoolMock) UpdateAuthCalls() []struct {
 }
 
 // UpdateSelectedBucket calls UpdateSelectedBucketFunc.
-func (mock *KvClientPoolMock) UpdateSelectedBucket(newBucket string) {
+func (mock *KvClientBabysitterMock) UpdateSelectedBucket(newBucket string) {
 	if mock.UpdateSelectedBucketFunc == nil {
-		panic("KvClientPoolMock.UpdateSelectedBucketFunc: method is nil but KvClientPool.UpdateSelectedBucket was just called")
+		panic("KvClientBabysitterMock.UpdateSelectedBucketFunc: method is nil but KvClientBabysitter.UpdateSelectedBucket was just called")
 	}
 	callInfo := struct {
 		NewBucket string
@@ -198,8 +198,8 @@ func (mock *KvClientPoolMock) UpdateSelectedBucket(newBucket string) {
 // UpdateSelectedBucketCalls gets all the calls that were made to UpdateSelectedBucket.
 // Check the length with:
 //
-//	len(mockedKvClientPool.UpdateSelectedBucketCalls())
-func (mock *KvClientPoolMock) UpdateSelectedBucketCalls() []struct {
+//	len(mockedKvClientBabysitter.UpdateSelectedBucketCalls())
+func (mock *KvClientBabysitterMock) UpdateSelectedBucketCalls() []struct {
 	NewBucket string
 } {
 	var calls []struct {
@@ -212,9 +212,9 @@ func (mock *KvClientPoolMock) UpdateSelectedBucketCalls() []struct {
 }
 
 // UpdateTarget calls UpdateTargetFunc.
-func (mock *KvClientPoolMock) UpdateTarget(newTarget KvTarget) {
+func (mock *KvClientBabysitterMock) UpdateTarget(newTarget KvTarget) {
 	if mock.UpdateTargetFunc == nil {
-		panic("KvClientPoolMock.UpdateTargetFunc: method is nil but KvClientPool.UpdateTarget was just called")
+		panic("KvClientBabysitterMock.UpdateTargetFunc: method is nil but KvClientBabysitter.UpdateTarget was just called")
 	}
 	callInfo := struct {
 		NewTarget KvTarget
@@ -230,8 +230,8 @@ func (mock *KvClientPoolMock) UpdateTarget(newTarget KvTarget) {
 // UpdateTargetCalls gets all the calls that were made to UpdateTarget.
 // Check the length with:
 //
-//	len(mockedKvClientPool.UpdateTargetCalls())
-func (mock *KvClientPoolMock) UpdateTargetCalls() []struct {
+//	len(mockedKvClientBabysitter.UpdateTargetCalls())
+func (mock *KvClientBabysitterMock) UpdateTargetCalls() []struct {
 	NewTarget KvTarget
 } {
 	var calls []struct {

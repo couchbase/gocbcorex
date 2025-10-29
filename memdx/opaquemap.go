@@ -2,14 +2,14 @@ package memdx
 
 import "sync"
 
-// OpaqueMap implements an opaque map which guarentees a number of important
+// OpaqueMap implements an opaque map which guarantees a number of important
 // properties, such as the ability to register and invoke handlers based on
-// an opaque uint32 identifier.  It also upholds guarentees about the ordering
+// an opaque uint32 identifier.  It also upholds guarantees about the ordering
 // and uniqueness of the handler invocations, namely that each handler is
-// guarenteed to never be invoked concurrently, as well as the fact that if a
+// guaranteed to never be invoked concurrently, as well as the fact that if a
 // handler returns hasMorePackets=false, it will not be called again.
 // Additionally, if an error is sent to a particular handler, it is also
-// guarenteed that it will not be invoked again.
+// guaranteed that it will not be invoked again.
 type OpaqueMap struct {
 	lock sync.Mutex
 

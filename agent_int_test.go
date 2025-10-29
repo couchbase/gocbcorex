@@ -521,7 +521,7 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 	})
 
 	// we have to run this in an eventually loop as gocbcorex itself does not
-	// provide any direct guarentees about the consistency of bucket states.
+	// provide any direct guarantees about the consistency of bucket states.
 	// if the bucket is not found during the runs, we simply retry a little
 	// bit later.
 	require.Eventually(t, func() bool {

@@ -162,7 +162,7 @@ func (w *SearchComponent) GetEndpoint(ctx context.Context) (*GetSearchEndpointRe
 }
 
 func (w *SearchComponent) Query(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
-	// we load this before doing anything else to ensure ordering guarentees mentioned
+	// we load this before doing anything else to ensure ordering guarantees mentioned
 	// above where we store the searchState.
 	searchState := w.searchState.Load()
 

@@ -9,7 +9,9 @@ import (
 type AgentComponentConfigs struct {
 	ConfigWatcherHttpConfig         ConfigWatcherHttpConfig
 	ConfigWatcherMemdConfig         ConfigWatcherMemdConfig
-	KvClientManagerClients          map[string]*KvClientConfig
+	KvTargets                       map[string]KvTarget
+	KvAuth                          KvClientAuth
+	KvSelectedBucket                string
 	VbucketRoutingInfo              *VbucketRoutingInfo
 	QueryComponentConfig            QueryComponentConfig
 	MgmtComponentConfig             MgmtComponentConfig
@@ -83,14 +85,20 @@ func GenerateComponentConfigsFromConfig(
 		}
 	}
 
-	clients := make(map[string]*KvClientConfig)
+	var kvTlsConfig *KvTargetTlsConfig
+	if tlsConfig != nil {
+		kvTlsConfig = &KvTargetTlsConfig{
+			InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+			RootCAs:            tlsConfig.RootCAs,
+			CipherSuites:       tlsConfig.CipherSuites,
+		}
+	}
+
+	kvTargets := make(map[string]KvTarget, len(kvDataHosts))
 	for nodeId, addr := range kvDataHosts {
-		clients[nodeId] = &KvClientConfig{
-			Address:        addr,
-			TlsConfig:      tlsConfig,
-			ClientName:     clientName,
-			SelectedBucket: bucketName,
-			Authenticator:  authenticator,
+		kvTargets[nodeId] = KvTarget{
+			Address:   addr,
+			TLSConfig: kvTlsConfig,
 		}
 	}
 
@@ -110,7 +118,11 @@ func GenerateComponentConfigsFromConfig(
 		ConfigWatcherMemdConfig: ConfigWatcherMemdConfig{
 			Endpoints: kvDataNodeIds,
 		},
-		KvClientManagerClients: clients,
+		KvTargets: kvTargets,
+		KvAuth: &kvClientAuth{
+			Authenticator: authenticator,
+		},
+		KvSelectedBucket: bucketName,
 		VbucketRoutingInfo: &VbucketRoutingInfo{
 			VbMap:      config.VbucketMap,
 			ServerList: kvDataNodeIds,
