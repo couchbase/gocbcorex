@@ -98,14 +98,6 @@ func (e retrierDeadlineError) Unwrap() error {
 	return e.Cause
 }
 
-type illegalStateError struct {
-	Message string
-}
-
-func (e illegalStateError) Error() string {
-	return fmt.Sprintf("illegal state: %s", e.Message)
-}
-
 var ErrInvalidVbucket = errors.New("invalid vbucket")
 
 type invalidVbucketError struct {

@@ -5,9 +5,10 @@ package gocbcorex
 
 import (
 	"context"
-	"github.com/couchbase/gocbcorex/memdx"
 	"net"
 	"sync"
+
+	"github.com/couchbase/gocbcorex/memdx"
 )
 
 // Ensure, that KvClientMock does implement KvClient.
@@ -77,9 +78,6 @@ var _ KvClient = &KvClientMock{}
 //			IncrementFunc: func(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error) {
 //				panic("mock out the Increment method")
 //			},
-//			LoadFactorFunc: func() float64 {
-//				panic("mock out the LoadFactor method")
-//			},
 //			LocalAddrFunc: func() net.Addr {
 //				panic("mock out the LocalAddr method")
 //			},
@@ -101,9 +99,6 @@ var _ KvClient = &KvClientMock{}
 //			RangeScanCreateFunc: func(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error) {
 //				panic("mock out the RangeScanCreate method")
 //			},
-//			ReconfigureFunc: func(config *KvClientConfig, cb func(error)) error {
-//				panic("mock out the Reconfigure method")
-//			},
 //			RemoteAddrFunc: func() net.Addr {
 //				panic("mock out the RemoteAddr method")
 //			},
@@ -112,6 +107,9 @@ var _ KvClient = &KvClientMock{}
 //			},
 //			ReplaceFunc: func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error) {
 //				panic("mock out the Replace method")
+//			},
+//			SelectBucketFunc: func(ctx context.Context, bucketName string) error {
+//				panic("mock out the SelectBucket method")
 //			},
 //			SetFunc: func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error) {
 //				panic("mock out the Set method")
@@ -192,9 +190,6 @@ type KvClientMock struct {
 	// IncrementFunc mocks the Increment method.
 	IncrementFunc func(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error)
 
-	// LoadFactorFunc mocks the LoadFactor method.
-	LoadFactorFunc func() float64
-
 	// LocalAddrFunc mocks the LocalAddr method.
 	LocalAddrFunc func() net.Addr
 
@@ -216,9 +211,6 @@ type KvClientMock struct {
 	// RangeScanCreateFunc mocks the RangeScanCreate method.
 	RangeScanCreateFunc func(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error)
 
-	// ReconfigureFunc mocks the Reconfigure method.
-	ReconfigureFunc func(config *KvClientConfig, cb func(error)) error
-
 	// RemoteAddrFunc mocks the RemoteAddr method.
 	RemoteAddrFunc func() net.Addr
 
@@ -227,6 +219,9 @@ type KvClientMock struct {
 
 	// ReplaceFunc mocks the Replace method.
 	ReplaceFunc func(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
+
+	// SelectBucketFunc mocks the SelectBucket method.
+	SelectBucketFunc func(ctx context.Context, bucketName string) error
 
 	// SetFunc mocks the Set method.
 	SetFunc func(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
@@ -372,9 +367,6 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.IncrementRequest
 		}
-		// LoadFactor holds details about calls to the LoadFactor method.
-		LoadFactor []struct {
-		}
 		// LocalAddr holds details about calls to the LocalAddr method.
 		LocalAddr []struct {
 		}
@@ -422,13 +414,6 @@ type KvClientMock struct {
 			// Req is the req argument value.
 			Req *memdx.RangeScanCreateRequest
 		}
-		// Reconfigure holds details about calls to the Reconfigure method.
-		Reconfigure []struct {
-			// Config is the config argument value.
-			Config *KvClientConfig
-			// Cb is the cb argument value.
-			Cb func(error)
-		}
 		// RemoteAddr holds details about calls to the RemoteAddr method.
 		RemoteAddr []struct {
 		}
@@ -441,6 +426,13 @@ type KvClientMock struct {
 			Ctx context.Context
 			// Req is the req argument value.
 			Req *memdx.ReplaceRequest
+		}
+		// SelectBucket holds details about calls to the SelectBucket method.
+		SelectBucket []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// BucketName is the bucketName argument value.
+			BucketName string
 		}
 		// Set holds details about calls to the Set method.
 		Set []struct {
@@ -499,7 +491,6 @@ type KvClientMock struct {
 	lockGetReplica        sync.RWMutex
 	lockHasFeature        sync.RWMutex
 	lockIncrement         sync.RWMutex
-	lockLoadFactor        sync.RWMutex
 	lockLocalAddr         sync.RWMutex
 	lockLookupIn          sync.RWMutex
 	lockMutateIn          sync.RWMutex
@@ -507,10 +498,10 @@ type KvClientMock struct {
 	lockRangeScanCancel   sync.RWMutex
 	lockRangeScanContinue sync.RWMutex
 	lockRangeScanCreate   sync.RWMutex
-	lockReconfigure       sync.RWMutex
 	lockRemoteAddr        sync.RWMutex
 	lockRemoteHostname    sync.RWMutex
 	lockReplace           sync.RWMutex
+	lockSelectBucket      sync.RWMutex
 	lockSet               sync.RWMutex
 	lockSetWithMeta       sync.RWMutex
 	lockStats             sync.RWMutex
@@ -1189,33 +1180,6 @@ func (mock *KvClientMock) IncrementCalls() []struct {
 	return calls
 }
 
-// LoadFactor calls LoadFactorFunc.
-func (mock *KvClientMock) LoadFactor() float64 {
-	if mock.LoadFactorFunc == nil {
-		panic("KvClientMock.LoadFactorFunc: method is nil but KvClient.LoadFactor was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockLoadFactor.Lock()
-	mock.calls.LoadFactor = append(mock.calls.LoadFactor, callInfo)
-	mock.lockLoadFactor.Unlock()
-	return mock.LoadFactorFunc()
-}
-
-// LoadFactorCalls gets all the calls that were made to LoadFactor.
-// Check the length with:
-//
-//	len(mockedKvClient.LoadFactorCalls())
-func (mock *KvClientMock) LoadFactorCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockLoadFactor.RLock()
-	calls = mock.calls.LoadFactor
-	mock.lockLoadFactor.RUnlock()
-	return calls
-}
-
 // LocalAddr calls LocalAddrFunc.
 func (mock *KvClientMock) LocalAddr() net.Addr {
 	if mock.LocalAddrFunc == nil {
@@ -1463,42 +1427,6 @@ func (mock *KvClientMock) RangeScanCreateCalls() []struct {
 	return calls
 }
 
-// Reconfigure calls ReconfigureFunc.
-func (mock *KvClientMock) Reconfigure(config *KvClientConfig, cb func(error)) error {
-	if mock.ReconfigureFunc == nil {
-		panic("KvClientMock.ReconfigureFunc: method is nil but KvClient.Reconfigure was just called")
-	}
-	callInfo := struct {
-		Config *KvClientConfig
-		Cb     func(error)
-	}{
-		Config: config,
-		Cb:     cb,
-	}
-	mock.lockReconfigure.Lock()
-	mock.calls.Reconfigure = append(mock.calls.Reconfigure, callInfo)
-	mock.lockReconfigure.Unlock()
-	return mock.ReconfigureFunc(config, cb)
-}
-
-// ReconfigureCalls gets all the calls that were made to Reconfigure.
-// Check the length with:
-//
-//	len(mockedKvClient.ReconfigureCalls())
-func (mock *KvClientMock) ReconfigureCalls() []struct {
-	Config *KvClientConfig
-	Cb     func(error)
-} {
-	var calls []struct {
-		Config *KvClientConfig
-		Cb     func(error)
-	}
-	mock.lockReconfigure.RLock()
-	calls = mock.calls.Reconfigure
-	mock.lockReconfigure.RUnlock()
-	return calls
-}
-
 // RemoteAddr calls RemoteAddrFunc.
 func (mock *KvClientMock) RemoteAddr() net.Addr {
 	if mock.RemoteAddrFunc == nil {
@@ -1586,6 +1514,42 @@ func (mock *KvClientMock) ReplaceCalls() []struct {
 	mock.lockReplace.RLock()
 	calls = mock.calls.Replace
 	mock.lockReplace.RUnlock()
+	return calls
+}
+
+// SelectBucket calls SelectBucketFunc.
+func (mock *KvClientMock) SelectBucket(ctx context.Context, bucketName string) error {
+	if mock.SelectBucketFunc == nil {
+		panic("KvClientMock.SelectBucketFunc: method is nil but KvClient.SelectBucket was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		BucketName string
+	}{
+		Ctx:        ctx,
+		BucketName: bucketName,
+	}
+	mock.lockSelectBucket.Lock()
+	mock.calls.SelectBucket = append(mock.calls.SelectBucket, callInfo)
+	mock.lockSelectBucket.Unlock()
+	return mock.SelectBucketFunc(ctx, bucketName)
+}
+
+// SelectBucketCalls gets all the calls that were made to SelectBucket.
+// Check the length with:
+//
+//	len(mockedKvClient.SelectBucketCalls())
+func (mock *KvClientMock) SelectBucketCalls() []struct {
+	Ctx        context.Context
+	BucketName string
+} {
+	var calls []struct {
+		Ctx        context.Context
+		BucketName string
+	}
+	mock.lockSelectBucket.RLock()
+	calls = mock.calls.SelectBucket
+	mock.lockSelectBucket.RUnlock()
 	return calls
 }
 

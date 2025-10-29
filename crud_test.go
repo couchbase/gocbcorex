@@ -38,8 +38,9 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 			return "endpoint", 1, nil
 		},
 	}
-	nkcp := &KvClientManagerMock{
-		GetClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
+
+	ecp := &KvEndpointClientManagerMock{
+		GetEndpointClientFunc: func(ctx context.Context, endpoint string) (KvClient, error) {
 			return &KvClientMock{
 				RemoteHostnameFunc: func() string { return "hostname" },
 				RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
@@ -68,7 +69,7 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 		cr,
 		vb,
 		nil,
-		nkcp,
+		ecp,
 		"scope",
 		"collection",
 		[]byte("somekey"),
