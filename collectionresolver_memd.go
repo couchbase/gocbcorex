@@ -8,13 +8,13 @@ import (
 )
 
 type CollectionResolverMemdOptions struct {
-	Logger  *zap.Logger
-	ConnMgr KvClientManager
+	Logger       *zap.Logger
+	ConnProvider KvClientProvider
 }
 
 type CollectionResolverMemd struct {
-	logger  *zap.Logger
-	connMgr KvClientManager
+	logger       *zap.Logger
+	connProvider KvClientProvider
 }
 
 var _ CollectionResolver = (*CollectionResolverMemd)(nil)
@@ -25,16 +25,16 @@ func NewCollectionResolverMemd(opts *CollectionResolverMemdOptions) (*Collection
 	}
 
 	return &CollectionResolverMemd{
-		logger:  loggerOrNop(opts.Logger),
-		connMgr: opts.ConnMgr,
+		logger:       loggerOrNop(opts.Logger),
+		connProvider: opts.ConnProvider,
 	}, nil
 }
 
 func (cr *CollectionResolverMemd) ResolveCollectionID(
 	ctx context.Context, scopeName, collectionName string,
 ) (collectionId uint32, manifestRev uint64, err error) {
-	resp, err := OrchestrateRandomMemdClient(
-		ctx, cr.connMgr,
+	resp, err := OrchestrateKvClient(
+		ctx, cr.connProvider,
 		func(client KvClient) (*memdx.GetCollectionIDResponse, error) {
 			return client.GetCollectionID(ctx, &memdx.GetCollectionIDRequest{
 				ScopeName:      scopeName,
