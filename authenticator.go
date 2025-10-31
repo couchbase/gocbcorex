@@ -25,3 +25,23 @@ func (a *PasswordAuthenticator) GetCredentials(
 ) (string, string, error) {
 	return a.Username, a.Password, nil
 }
+
+type kvClientAuth struct {
+	Authenticator Authenticator
+}
+
+var _ KvClientAuth = (*kvClientAuth)(nil)
+
+func (v *kvClientAuth) GetAuth(address string) (username, password string, clientCert *tls.Certificate, err error) {
+	clientCert, err = v.Authenticator.GetClientCertificate(ServiceTypeMemd, address)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	username, password, err = v.Authenticator.GetCredentials(ServiceTypeMemd, address)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	return username, password, clientCert, nil
+}

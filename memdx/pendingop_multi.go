@@ -11,7 +11,7 @@ type multiPendingOp struct {
 	cancelErr error
 }
 
-func (op *multiPendingOp) Cancel(err error) {
+func (op *multiPendingOp) Cancel(err error) bool {
 	if err == nil {
 		err = errors.New("unspecified cancellation error")
 	}
@@ -25,9 +25,14 @@ func (op *multiPendingOp) Cancel(err error) {
 
 	op.lock.Unlock()
 
+	anyCancelled := false
 	for _, op := range ops {
-		op.Cancel(err)
+		if op.Cancel(err) {
+			anyCancelled = true
+		}
 	}
+
+	return anyCancelled
 }
 
 func (op *multiPendingOp) Add(opToAdd PendingOp) {

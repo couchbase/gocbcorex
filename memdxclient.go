@@ -1,6 +1,7 @@
 package gocbcorex
 
 import (
+	"context"
 	"net"
 
 	"github.com/couchbase/gocbcorex/memdx"
@@ -15,3 +16,17 @@ type MemdxClient interface {
 }
 
 var _ MemdxClient = (*memdx.Client)(nil)
+
+func DialMemdxClient(
+	ctx context.Context,
+	address string,
+	dialOpts *memdx.DialConnOptions,
+	clientOpts *memdx.ClientOptions,
+) (MemdxClient, error) {
+	conn, err := memdx.DialConn(ctx, address, dialOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return memdx.NewClient(conn, clientOpts), nil
+}

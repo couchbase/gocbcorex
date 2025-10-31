@@ -6,6 +6,38 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 )
 
+type KvClientOps interface {
+	GetCollectionID(ctx context.Context, req *memdx.GetCollectionIDRequest) (*memdx.GetCollectionIDResponse, error)
+	GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error)
+	Get(ctx context.Context, req *memdx.GetRequest) (*memdx.GetResponse, error)
+	GetEx(ctx context.Context, req *memdx.GetExRequest) (*memdx.GetExResponse, error)
+	Set(ctx context.Context, req *memdx.SetRequest) (*memdx.SetResponse, error)
+	Delete(ctx context.Context, req *memdx.DeleteRequest) (*memdx.DeleteResponse, error)
+	GetAndLock(ctx context.Context, req *memdx.GetAndLockRequest) (*memdx.GetAndLockResponse, error)
+	GetAndTouch(ctx context.Context, req *memdx.GetAndTouchRequest) (*memdx.GetAndTouchResponse, error)
+	GetReplica(ctx context.Context, req *memdx.GetReplicaRequest) (*memdx.GetReplicaResponse, error)
+	GetRandom(ctx context.Context, req *memdx.GetRandomRequest) (*memdx.GetRandomResponse, error)
+	Unlock(ctx context.Context, req *memdx.UnlockRequest) (*memdx.UnlockResponse, error)
+	Touch(ctx context.Context, req *memdx.TouchRequest) (*memdx.TouchResponse, error)
+	Add(ctx context.Context, req *memdx.AddRequest) (*memdx.AddResponse, error)
+	Replace(ctx context.Context, req *memdx.ReplaceRequest) (*memdx.ReplaceResponse, error)
+	Append(ctx context.Context, req *memdx.AppendRequest) (*memdx.AppendResponse, error)
+	Prepend(ctx context.Context, req *memdx.PrependRequest) (*memdx.PrependResponse, error)
+	Increment(ctx context.Context, req *memdx.IncrementRequest) (*memdx.IncrementResponse, error)
+	Decrement(ctx context.Context, req *memdx.DecrementRequest) (*memdx.DecrementResponse, error)
+	GetMeta(ctx context.Context, req *memdx.GetMetaRequest) (*memdx.GetMetaResponse, error)
+	AddWithMeta(ctx context.Context, req *memdx.AddWithMetaRequest) (*memdx.AddWithMetaResponse, error)
+	SetWithMeta(ctx context.Context, req *memdx.SetWithMetaRequest) (*memdx.SetWithMetaResponse, error)
+	DeleteWithMeta(ctx context.Context, req *memdx.DeleteWithMetaRequest) (*memdx.DeleteWithMetaResponse, error)
+	LookupIn(ctx context.Context, req *memdx.LookupInRequest) (*memdx.LookupInResponse, error)
+	MutateIn(ctx context.Context, req *memdx.MutateInRequest) (*memdx.MutateInResponse, error)
+	RangeScanCreate(ctx context.Context, req *memdx.RangeScanCreateRequest) (*memdx.RangeScanCreateResponse, error)
+	RangeScanContinue(ctx context.Context, req *memdx.RangeScanContinueRequest,
+		dataCb func(*memdx.RangeScanDataResponse) error) (*memdx.RangeScanActionResponse, error)
+	RangeScanCancel(ctx context.Context, req *memdx.RangeScanCancelRequest) (*memdx.RangeScanCancelResponse, error)
+	Stats(ctx context.Context, req *memdx.StatsRequest, dataCb func(*memdx.StatsDataResponse) error) (*memdx.StatsActionResponse, error)
+}
+
 func kvClient_SimpleCoreCall[ReqT memdx.OpRequest, RespT memdx.OpResponse](
 	ctx context.Context,
 	c *kvClient,
@@ -46,12 +78,12 @@ func (c *kvClient) bootstrap(ctx context.Context, opts *memdx.BootstrapOptions) 
 	}, memdx.OpBootstrap.Bootstrap, opts)
 }
 
-func (c *kvClient) GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error) {
-	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.GetClusterConfig, req)
+func (c *kvClient) selectBucket(ctx context.Context, req *memdx.SelectBucketRequest) (*memdx.SelectBucketResponse, error) {
+	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.SelectBucket, req)
 }
 
-func (c *kvClient) SelectBucket(ctx context.Context, req *memdx.SelectBucketRequest) (*memdx.SelectBucketResponse, error) {
-	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.SelectBucket, req)
+func (c *kvClient) GetClusterConfig(ctx context.Context, req *memdx.GetClusterConfigRequest) (*memdx.GetClusterConfigResponse, error) {
+	return kvClient_SimpleCoreCall(ctx, c, memdx.OpsCore.GetClusterConfig, req)
 }
 
 func (c *kvClient) NoOp(ctx context.Context, req *memdx.NoOpRequest) (*memdx.NoOpResponse, error) {

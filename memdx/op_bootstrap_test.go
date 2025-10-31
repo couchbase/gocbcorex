@@ -350,9 +350,10 @@ type bootstrapPendingOp[T any] struct {
 	cb func(T, error)
 }
 
-func (op *bootstrapPendingOp[T]) Cancel(err error) {
+func (op *bootstrapPendingOp[T]) Cancel(err error) bool {
 	var emptyResp T
 	op.cb(emptyResp, err)
+	return true
 }
 
 type testOpBootstrapEncoder struct {

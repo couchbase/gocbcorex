@@ -2,25 +2,11 @@ package gocbcorex
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/couchbase/gocbcorex/memdx"
 )
-
-type MemdClientDispatchError struct {
-	Cause error
-}
-
-func (e MemdClientDispatchError) Error() string {
-	return fmt.Sprintf("dispatch error: %s", e.Cause)
-}
-
-func (e MemdClientDispatchError) Unwrap() error {
-	return e.Cause
-}
 
 type syncCrudResult struct {
 	Result interface{}
@@ -103,10 +89,6 @@ func memdClient_SimpleCall[Encoder any, ReqT memdx.OpRequest, RespT memdx.OpResp
 	if err != nil {
 		releaseSyncCrudResulter(resulter)
 		opTelem.End(ctx, err)
-
-		if errors.Is(err, memdx.ErrDispatch) {
-			err = &MemdClientDispatchError{err}
-		}
 
 		var emptyResp RespT
 		return emptyResp, err

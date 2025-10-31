@@ -51,8 +51,8 @@ func dialAndBootstrapClient(t *testing.T, addr, user, pass, bucket string) (*mem
 	require.NoError(t, err, "failed to dial connection")
 
 	cli := memdx.NewClient(conn, &memdx.ClientOptions{
-		OrphanHandler: nil,
-		CloseHandler:  nil,
+		OrphanHandler:    nil,
+		ReadErrorHandler: nil,
 	})
 
 	resp, err := memdx.SyncUnaryCall(memdx.OpBootstrap{

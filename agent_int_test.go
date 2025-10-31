@@ -54,6 +54,10 @@ func TestAgentBasic(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	upsertRes, err := agent.Upsert(context.Background(), &gocbcorex.UpsertOptions{
 		Key:            []byte("test"),
@@ -72,9 +76,6 @@ func TestAgentBasic(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, getRes.Cas)
 	assert.NotEmpty(t, getRes.Value)
-
-	err = agent.Close()
-	require.NoError(t, err)
 }
 
 func TestAgentBasicTLSInsecure(t *testing.T) {
@@ -93,6 +94,10 @@ func TestAgentBasicTLSInsecure(t *testing.T) {
 
 	agent, err := gocbcorex.CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	upsertRes, err := agent.Upsert(context.Background(), &gocbcorex.UpsertOptions{
 		Key:            []byte("test"),
@@ -111,9 +116,6 @@ func TestAgentBasicTLSInsecure(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, getRes.Cas)
 	assert.NotEmpty(t, getRes.Value)
-
-	err = agent.Close()
-	require.NoError(t, err)
 }
 
 func TestAgentReconfigureNoTLSToTLS(t *testing.T) {
@@ -123,6 +125,10 @@ func TestAgentReconfigureNoTLSToTLS(t *testing.T) {
 	opts := CreateDefaultAgentOptions()
 	agent, err := gocbcorex.CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	upsertRes, err := agent.Upsert(context.Background(), &gocbcorex.UpsertOptions{
 		Key:            []byte("test"),
@@ -151,9 +157,6 @@ func TestAgentReconfigureNoTLSToTLS(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.NotZero(t, upsertRes.Cas)
-
-	err = agent.Close()
-	require.NoError(t, err)
 }
 
 func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
@@ -164,6 +167,10 @@ func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
 	opts.BucketName = ""
 	agent, err := gocbcorex.CreateAgent(context.Background(), opts)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	_, err = agent.Upsert(context.Background(), &gocbcorex.UpsertOptions{
 		Key:            []byte("test"),
@@ -188,15 +195,16 @@ func TestAgentReconfigureNoBucketToBucket(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.NotZero(t, upsertRes.Cas)
-
-	err = agent.Close()
-	require.NoError(t, err)
 }
 
 func TestAgentBadCollection(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
 	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
 
 	_, err := agent.Get(context.Background(), &gocbcorex.GetOptions{
 		Key:            []byte("test"),
@@ -211,9 +219,6 @@ func TestAgentBadCollection(t *testing.T) {
 		CollectionName: "invalid-collection",
 	})
 	require.ErrorIs(t, err, memdx.ErrUnknownCollectionName)
-
-	err = agent.Close()
-	require.NoError(t, err)
 }
 
 func TestAgentCrudCompress(t *testing.T) {

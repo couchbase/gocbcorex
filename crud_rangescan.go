@@ -40,7 +40,7 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 					if err != nil {
 						return nil, err
 					}
-					return OrchestrateMemdClient(ctx, cc.connManager, endpoint, func(client KvClient) (*RangeScanCreateResult, error) {
+					return OrchestrateEndpointKvClient(ctx, cc.connProvider, endpoint, func(client KvClient) (*RangeScanCreateResult, error) {
 						res, err := client.RangeScanCreate(ctx, &memdx.RangeScanCreateRequest{
 							CollectionID: collectionID,
 							VbucketID:    opts.VbucketID,

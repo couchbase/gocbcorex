@@ -115,7 +115,7 @@ func (pw *PacketWriter) WritePacket(w io.Writer, pak *Packet) error {
 	// n and only inspect the error to determine if something went wrong...
 	_, err := w.Write(writeBuf)
 	if err != nil {
-		return dispatchError{cause: err}
+		return err
 	}
 
 	return nil

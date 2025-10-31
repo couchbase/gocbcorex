@@ -80,20 +80,6 @@ func (e protocolError) Unwrap() error {
 	return ErrProtocol
 }
 
-var ErrDispatch = errors.New("dispatch error")
-
-type dispatchError struct {
-	cause error
-}
-
-func (e dispatchError) Error() string {
-	return "dispatch error: " + e.cause.Error()
-}
-
-func (e dispatchError) Unwrap() error {
-	return ErrDispatch
-}
-
 type requestCancelledError struct {
 	cause error
 }
