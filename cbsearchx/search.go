@@ -632,6 +632,8 @@ func (h Search) DecodeCommonError(resp *http.Response) error {
 		err = ErrNoIndexPartitionsPlanned
 	} else if strings.Contains(errText, "no local pindexes found") {
 		err = ErrNoIndexPartitionsFound
+	} else if strings.Contains(errText, "authentication failure") {
+		err = ErrAuthenticationFailure
 	}
 
 	if err == nil {
