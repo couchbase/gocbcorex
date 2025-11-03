@@ -61,12 +61,16 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		}
 	}
 
+	// This maps field names in couchbase server to those used in gocbcorex,
+	// used to avoid confusion in error messages.
 	fieldNameMap := map[string]string{
-		`durability_min_level`: "DurabilityMinLevel",
-		`ramquota`:             "RamQuotaMB",
-		`replicanumber`:        "ReplicaNumber",
-		`maxttl`:               "MaxTTL",
-		`history`:              "HistoryEnabled",
+		`durability_min_level`:   "DurabilityMinLevel",
+		`ramquota`:               "RamQuotaMB",
+		`replicanumber`:          "ReplicaNumber",
+		`maxttl`:                 "MaxTTL",
+		`history`:                "HistoryEnabled",
+		`evictionpolicy`:         "EvictionMode",
+		`conflictresolutiontype`: "ConflictResolutionType",
 	}
 
 	var err error
