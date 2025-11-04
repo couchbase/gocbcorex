@@ -12,11 +12,11 @@ var (
 )
 
 type InvalidEndpointError struct {
-	Endpoing string
+	Endpoint string
 }
 
 func (e InvalidEndpointError) Error() string {
-	return "invalid endpoint: " + e.Endpoing
+	return "invalid endpoint: " + e.Endpoint
 }
 
 func (e InvalidEndpointError) Unwrap() error {

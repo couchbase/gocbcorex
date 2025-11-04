@@ -238,8 +238,6 @@ func (m *kvEndpointClientManager) GetEndpointClient(ctx context.Context, endpoin
 func (m *kvEndpointClientManager) Close() error {
 	m.logger.Info("closing kv endpoint client manager")
 
-	m.state.Store(nil)
-
 	m.lock.Lock()
 	defer m.lock.Unlock()
 

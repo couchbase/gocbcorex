@@ -14,7 +14,7 @@ type CollectionResolverMemdOptions struct {
 
 type CollectionResolverMemd struct {
 	logger       *zap.Logger
-	connProvider KvClientProvider
+	clientProvider KvClientProvider
 }
 
 var _ CollectionResolver = (*CollectionResolverMemd)(nil)
@@ -26,7 +26,7 @@ func NewCollectionResolverMemd(opts *CollectionResolverMemdOptions) (*Collection
 
 	return &CollectionResolverMemd{
 		logger:       loggerOrNop(opts.Logger),
-		connProvider: opts.ConnProvider,
+		clientProvider: opts.ConnProvider,
 	}, nil
 }
 
@@ -34,7 +34,7 @@ func (cr *CollectionResolverMemd) ResolveCollectionID(
 	ctx context.Context, scopeName, collectionName string,
 ) (collectionId uint32, manifestRev uint64, err error) {
 	resp, err := OrchestrateKvClient(
-		ctx, cr.connProvider,
+		ctx, cr.clientProvider,
 		func(client KvClient) (*memdx.GetCollectionIDResponse, error) {
 			return client.GetCollectionID(ctx, &memdx.GetCollectionIDRequest{
 				ScopeName:      scopeName,

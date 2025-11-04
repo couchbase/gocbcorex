@@ -49,7 +49,7 @@ func (cc *CrudComponent) StatsByVbucket(
 	defer span.End()
 
 	return OrchestrateSimpleVbCrud(
-		ctx, cc.retries, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.VbucketID, 0,
 		func(endpoint string, client KvClient) (*StatsResult, error) {
 			_, err := client.Stats(ctx, &memdx.StatsRequest{

@@ -21,7 +21,7 @@ type CrudComponent struct {
 	collections  CollectionResolver
 	nmvHandler   NotMyVbucketConfigHandler
 	retries      RetryManager
-	connProvider KvEndpointClientProvider
+	clientProvider KvEndpointClientProvider
 	compression  CompressionManager
 	vbs          VbucketRouter
 }
@@ -72,7 +72,7 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
 			resp, err := client.Get(ctx, &memdx.GetRequest{
@@ -124,7 +124,7 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetExResult, error) {
 			resp, err := client.GetEx(ctx, &memdx.GetExRequest{
@@ -211,7 +211,7 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 				ctx, cc.collections, opts.ScopeName, opts.CollectionName,
 				func(collectionID uint32, manifestID uint64) (*GetReplicaResult, error) {
 					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
-						return OrchestrateEndpointKvClient(ctx, cc.connProvider, endpoint, func(client KvClient) (*GetReplicaResult, error) {
+						return OrchestrateEndpointKvClient(ctx, cc.clientProvider, endpoint, func(client KvClient) (*GetReplicaResult, error) {
 							return fn(collectionID, vbID, client)
 						})
 					})
@@ -342,7 +342,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 				for i := uint32(0); i <= numReplicas.Load(); i++ {
 					go func(replicaID uint32) {
 						for {
-							readResult, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.connProvider, opts.Key, replicaID,
+							readResult, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.clientProvider, opts.Key, replicaID,
 								func(ep string, vbID uint16, client KvClient) (*ReplicaReadResult, error) {
 									var err error
 									res := ReplicaReadResult{
@@ -465,7 +465,7 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
@@ -522,7 +522,7 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
 			resp, err := client.Delete(ctx, &memdx.DeleteRequest{
@@ -570,7 +570,7 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetAndTouchResult, error) {
 			resp, err := client.GetAndTouch(ctx, &memdx.GetAndTouchRequest{
@@ -619,7 +619,7 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, nil,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetRandomResult, error) {
 			resp, err := client.GetRandom(ctx, &memdx.GetRandomRequest{
@@ -664,7 +664,7 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*UnlockResult, error) {
 			resp, err := client.Unlock(ctx, &memdx.UnlockRequest{
@@ -707,7 +707,7 @@ func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchR
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*TouchResult, error) {
 			resp, err := client.Touch(ctx, &memdx.TouchRequest{
@@ -749,7 +749,7 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 	ctx, span := tracer.Start(ctx, "GetAndLock")
 	defer span.End()
 
-	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider, opts.ScopeName, opts.CollectionName, opts.Key,
+	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider, opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
 			resp, err := client.GetAndLock(ctx, &memdx.GetAndLockRequest{
 				CollectionID: collectionID,
@@ -800,7 +800,7 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AddResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
@@ -860,7 +860,7 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*ReplaceResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
@@ -918,7 +918,7 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AppendResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
@@ -973,7 +973,7 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*PrependResult, error) {
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
@@ -1031,7 +1031,7 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*IncrementResult, error) {
 			resp, err := client.Increment(ctx, &memdx.IncrementRequest{
@@ -1085,7 +1085,7 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DecrementResult, error) {
 			resp, err := client.Decrement(ctx, &memdx.DecrementRequest{
@@ -1139,7 +1139,7 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
 			resp, err := client.GetMeta(ctx, &memdx.GetMetaRequest{
@@ -1198,7 +1198,7 @@ func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptio
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
 			resp, err := client.AddWithMeta(ctx, &memdx.AddWithMetaRequest{
@@ -1258,7 +1258,7 @@ func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptio
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
 			resp, err := client.SetWithMeta(ctx, &memdx.SetWithMetaRequest{
@@ -1317,7 +1317,7 @@ func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMet
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
 			resp, err := client.DeleteWithMeta(ctx, &memdx.DeleteWithMetaRequest{
@@ -1370,7 +1370,7 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*LookupInResult, error) {
 			resp, err := client.LookupIn(ctx, &memdx.LookupInRequest{
@@ -1419,7 +1419,7 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 	defer span.End()
 
 	return OrchestrateSimpleCrud(
-		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.connProvider,
+		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.clientProvider,
 		opts.ScopeName, opts.CollectionName, opts.Key,
 		func(collectionID uint32, manifestID uint64, endpoint string, vbID uint16, client KvClient) (*MutateInResult, error) {
 			resp, err := client.MutateIn(ctx, &memdx.MutateInRequest{

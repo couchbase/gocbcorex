@@ -268,7 +268,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		logger:       agent.logger,
 		collections:  agent.collections,
 		retries:      consistencyRetryMgr,
-		connProvider: agent.connMgr,
+		clientProvider: agent.connMgr,
 		nmvHandler:   &agentNmvHandler{agent},
 		vbs:          agent.vbRouter,
 		compression: &CompressionManagerDefault{

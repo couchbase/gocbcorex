@@ -27,9 +27,7 @@ func (op *multiPendingOp) Cancel(err error) bool {
 
 	anyCancelled := false
 	for _, op := range ops {
-		if op.Cancel(err) {
-			anyCancelled = true
-		}
+		anyCancelled = anyCancelled || op.Cancel(err)
 	}
 
 	return anyCancelled

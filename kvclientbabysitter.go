@@ -254,7 +254,7 @@ func (p *kvClientBabysitter) maybeBeginClientBuildLocked() {
 	}
 
 	if p.activeClient != nil &&
-		p.currentConfig.Equals(*p.currentConfig) {
+		p.currentConfig.Equals(*p.desiredConfig) {
 		// already have a client with the desired config
 		return
 	}
@@ -330,7 +330,7 @@ ClientBuildLoop:
 					p.updateActiveClientLocked()
 					p.rebuildFastLookupLocked()
 					p.lock.Unlock()
-					continue
+					break ClientBuildLoop
 				} else {
 					p.logger.Warn("failed to reconfigure existing kv client", zap.Error(err))
 				}
