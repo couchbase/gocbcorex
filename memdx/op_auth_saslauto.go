@@ -34,37 +34,46 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 		return nil, errors.New("must specify at least one allowed authentication mechanism")
 	}
 
-	// The following logic is dependant on operation ordering that is guarenteed
-	// by memcached, even when Out-Of-Order Execution is enabled.
+	pipeline := OpPipeline{}
 
-	pendingOp := &multiPendingOp{}
-
-	op, err := a.Encoder.SASLListMechs(d, &SASLListMechsRequest{}, func(resp *SASLListMechsResponse, err error) {
+	OpPipelineAdd(&pipeline, func(opCb func(res *SASLListMechsResponse, err error)) (PendingOp, error) {
+		return a.Encoder.SASLListMechs(d, &SASLListMechsRequest{}, opCb)
+	}, func(resp *SASLListMechsResponse, err error) bool {
 		if err != nil {
-			// log.Printf("failed to list available authentication mechanisms: %s", err)
-			return
+			// when an error occurs, we dont fail authentication entirely, we instead
+			// return the result indicating no mechanisms instead...
+		} else {
+			serverMechs = resp.AvailableMechs
 		}
 
-		serverMechs = resp.AvailableMechs
+		// this always returns true, so this part of the pipeline would never
+		// be retried...
+		return true
 	})
-	if err == nil {
-		pendingOp.Add(op)
-	}
 
 	// the default mech is the first one in the list
 	defaultMech := opts.EnabledMechs[0]
 
-	op, err = OpSaslAuthByName{
-		Encoder: a.Encoder,
-	}.SASLAuthByName(d, &SaslAuthByNameOptions{
-		Mechanism: defaultMech,
-		Username:  opts.Username,
-		Password:  opts.Password,
-	}, pipelineCb, func(err error) {
+	var secondaryMech AuthMechanism
+	OpPipelineAddWithNext(&pipeline, func(nextFn func(), opCb func(res struct{}, err error)) (PendingOp, error) {
+		return OpSaslAuthByName{
+			Encoder: a.Encoder,
+		}.SASLAuthByName(d, &SaslAuthByNameOptions{
+			Mechanism: defaultMech,
+			Username:  opts.Username,
+			Password:  opts.Password,
+		}, pipelineCb, func(err error) {
+			opCb(struct{}{}, err)
+
+			// we can only move on to the next operation in the pipeline once this one
+			// has completely resolved...
+			nextFn()
+		})
+	}, func(res struct{}, err error) bool {
 		if err != nil {
 			if (OpBootstrap{}.isRequestCancelledError(err)) {
 				cb(err)
-				return
+				return false
 			}
 
 			// There is no obvious way to differentiate between a mechanism being unsupported
@@ -75,7 +84,7 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 			supportsDefaultMech := slices.Contains(serverMechs, defaultMech)
 			if supportsDefaultMech {
 				cb(err)
-				return
+				return false
 			}
 
 			foundCompatibleMech := false
@@ -94,31 +103,41 @@ func (a OpSaslAuthAuto) SASLAuthAuto(d Dispatcher, opts *SaslAuthAutoOptions, pi
 					opts.EnabledMechs,
 					serverMechs,
 				))
-				return
+				return false
 			}
 
-			op, err := OpSaslAuthByName{
-				Encoder: a.Encoder,
-			}.SASLAuthByName(d, &SaslAuthByNameOptions{
-				Mechanism: selectedMech,
-				Username:  opts.Username,
-				Password:  opts.Password,
-			}, pipelineCb, cb)
-			if err != nil {
-				cb(err)
-				return
-			}
-
-			pendingOp.Add(op)
+			secondaryMech = selectedMech
+			return true
 		}
 
+		// if we were successful in authenticating, we don't need to continue to the secondary mech
+		// attempt and instead can immediately call back and avoid the rest of the pipeline.
+		cb(nil)
+		return false
+	})
+
+	// we add a final pipelined operation which attempts to perform authentication using the secondary
+	// mechanism if one is available.
+	OpPipelineAdd(&pipeline, func(opCb func(res struct{}, err error)) (PendingOp, error) {
+		return OpSaslAuthByName{
+			Encoder: a.Encoder,
+		}.SASLAuthByName(d, &SaslAuthByNameOptions{
+			Mechanism: secondaryMech,
+			Username:  opts.Username,
+			Password:  opts.Password,
+		}, pipelineCb, cb)
+	}, func(res struct{}, err error) bool {
+		if err != nil {
+			cb(err)
+			return false
+		}
+
+		return true
+	})
+
+	OpPipelineAddSync(&pipeline, func() {
 		cb(nil)
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	pendingOp.Add(op)
-
-	return op, nil
+	return pipeline.Start(), nil
 }
