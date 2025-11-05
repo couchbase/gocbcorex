@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,6 +73,7 @@ func TestEnsureQuery(t *testing.T) {
 		}
 	}
 
+	var hlprLock sync.Mutex
 	hlpr := cbqueryx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
@@ -84,6 +86,9 @@ func TestEnsureQuery(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
+		hlprLock.Lock()
+		defer hlprLock.Unlock()
+
 		res, err := hlpr.PollCreated(ctx, &cbqueryx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -108,6 +113,9 @@ func TestEnsureQuery(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
+		hlprLock.Lock()
+		defer hlprLock.Unlock()
+
 		res, err := hlpr.PollDropped(ctx, &cbqueryx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
