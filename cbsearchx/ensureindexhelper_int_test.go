@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -129,6 +130,7 @@ func TestEnsureIndexDino(t *testing.T) {
 
 	createTestIndex()
 
+	var hlprCreateLock sync.Mutex
 	hlprCreate := cbsearchx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
@@ -138,6 +140,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	}
 
 	require.Never(t, func() bool {
+		hlprCreateLock.Lock()
+		defer hlprCreateLock.Unlock()
+
 		res, err := hlprCreate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -154,6 +159,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	dino.AllowTraffic(blockHost)
 
 	require.Eventually(t, func() bool {
+		hlprCreateLock.Lock()
+		defer hlprCreateLock.Unlock()
+
 		res, err := hlprCreate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -171,6 +179,7 @@ func TestEnsureIndexDino(t *testing.T) {
 
 	updateTestIndex()
 
+	var hlprUpdateLock sync.Mutex
 	hlprUpdate := cbsearchx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
@@ -181,6 +190,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	}
 
 	require.Never(t, func() bool {
+		hlprUpdateLock.Lock()
+		defer hlprUpdateLock.Unlock()
+
 		res, err := hlprUpdate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -197,6 +209,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	dino.AllowTraffic(blockHost)
 
 	require.Eventually(t, func() bool {
+		hlprUpdateLock.Lock()
+		defer hlprUpdateLock.Unlock()
+
 		res, err := hlprCreate.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -212,6 +227,7 @@ func TestEnsureIndexDino(t *testing.T) {
 	// now lets block traffic again before we delete
 	dino.BlockNodeTraffic(blockHost)
 
+	var hlprDelLock sync.Mutex
 	hlprDel := cbsearchx.EnsureIndexHelper{
 		Logger:     testutils.MakeTestLogger(t),
 		UserAgent:  "useragent",
@@ -224,6 +240,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	deleteTestIndex()
 
 	require.Never(t, func() bool {
+		hlprDelLock.Lock()
+		defer hlprDelLock.Unlock()
+
 		res, err := hlprDel.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
@@ -240,6 +259,9 @@ func TestEnsureIndexDino(t *testing.T) {
 	dino.AllowTraffic(blockHost)
 
 	require.Eventually(t, func() bool {
+		hlprDelLock.Lock()
+		defer hlprDelLock.Unlock()
+
 		res, err := hlprDel.Poll(ctx, &cbsearchx.EnsureIndexPollOptions{
 			Transport: transport,
 			Targets:   targets,
