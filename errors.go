@@ -15,6 +15,7 @@ var (
 	ErrCollectionIDMismatch       = errors.New("the provided collection id does not match")
 	ErrServiceNotAvailable        = errors.New("service is not available")
 	ErrNoBucketSelected           = errors.New("no bucket selected, please select a bucket before performing bucket operations")
+	ErrVbucketUUIDMismatch        = errors.New("the provided vbucket uuid does not match")
 )
 
 type placeholderError struct {
@@ -240,4 +241,18 @@ func (e RetryOrchestrationError) Error() string {
 
 func (e RetryOrchestrationError) Unwrap() error {
 	return e.Cause
+}
+
+type VbucketUUIDMismatchError struct {
+	RequestedVbId uint16
+	RequestVbUUID uint64
+	ActualVbUUID  uint64
+}
+
+func (e VbucketUUIDMismatchError) Error() string {
+	return fmt.Sprintf("invalid vbucket uuid for vbucket %d (requested: %d, actual: %d)", e.RequestedVbId, e.RequestVbUUID, e.ActualVbUUID)
+}
+
+func (e VbucketUUIDMismatchError) Unwrap() error {
+	return ErrVbucketUUIDMismatch
 }

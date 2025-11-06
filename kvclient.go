@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -86,6 +87,10 @@ type KvClient interface {
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
 
+	// Baggage provides a way to store arbitrary state on the client.
+	Baggage(key any) (any, bool)
+	SetBaggage(key any, value any)
+
 	KvClientOps
 	memdx.Dispatcher
 }
@@ -105,6 +110,7 @@ type kvClient struct {
 	// asynchronously and we do not support changing selected buckets.
 	selectedBucket atomic.Pointer[string]
 
+	baggage      sync.Map
 	closed       atomic.Bool
 	closeHandler func(KvClient, error)
 
@@ -404,6 +410,14 @@ func (c *kvClient) SelectedBucket() string {
 
 func (c *kvClient) Telemetry() MemdClientTelem {
 	return c.telemetry
+}
+
+func (c *kvClient) Baggage(key any) (any, bool) {
+	return c.baggage.Load(key)
+}
+
+func (c *kvClient) SetBaggage(key, value any) {
+	c.baggage.Store(key, value)
 }
 
 func (c *kvClient) handleUnsolicitedPacket(pak *memdx.Packet) {

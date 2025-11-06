@@ -559,6 +559,50 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
+func TestAgentSetWithMetaVBUUID(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+
+	key := uuid.NewString()[:6]
+
+	upsertRes, err := agent.Upsert(context.Background(), &gocbcorex.UpsertOptions{
+		Key:            []byte(key),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+	})
+	require.NoError(t, err)
+
+	_, err = agent.SetWithMeta(context.Background(), &gocbcorex.SetWithMetaOptions{
+		Key:            []byte(key),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+		VBUUID:         12345,
+	})
+	require.ErrorIs(t, err, gocbcorex.ErrVbucketUUIDMismatch)
+
+	var uuidMismatchErr *gocbcorex.VbucketUUIDMismatchError
+	require.ErrorAs(t, err, &uuidMismatchErr)
+
+	actualUUID := uuidMismatchErr.ActualVbUUID
+
+	_, err = agent.SetWithMeta(context.Background(), &gocbcorex.SetWithMetaOptions{
+		Key:            []byte(key),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"foo": "bar"}`),
+		VBUUID:         actualUUID,
+		StoreCas:       upsertRes.Cas,
+		Options:        memdx.MetaOpFlagSkipConflictResolution,
+	})
+	require.NoError(t, err)
+
+	err = agent.Close()
+	require.NoError(t, err)
+}
+
 func BenchmarkBasicGet(b *testing.B) {
 	opts := gocbcorex.AgentOptions{
 		TLSConfig: nil,
