@@ -82,4 +82,3 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 	assert.Equal(t, 2, collectionCalls)
 	assert.Equal(t, 2, fnCalls)
 }
-
