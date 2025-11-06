@@ -306,3 +306,19 @@ func TestHttpMgmtUsers(t *testing.T) {
 	})
 	require.ErrorIs(t, err, cbmgmtx.ErrUserNotFound)
 }
+
+func TestHttpMgmtXdcrC2c(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+
+	err := getHttpMgmt().XdcrC2c(ctx, &cbmgmtx.XdcrC2cOptions{
+		Payload: []byte(`{"Magic":1,"ReqType":7,"Sender":"127.0.0.1:9000","TargetAddr":"127.0.0.1:18098","Opaque":4117233664,"LocalLifeCycleId":"","RemoteLifeCycleId":"","SourceClusterUUID":"fc6408545929b047b1ef357473117d76","SourceClusterName":"Source","NodesList":["127.0.0.1:9000"],"ProxyMode":true,"TTL":600000000000,"SendTime":"2025-10-24T19:31:37.764851+05:30","SpecsCompressed":"BAxudWxs"}`),
+	})
+
+	if testutilsint.IsOlderServerVersion(t, "8.0.0") {
+		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
+	} else {
+		require.NoError(t, err)
+	}
+}

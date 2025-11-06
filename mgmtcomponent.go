@@ -187,6 +187,10 @@ func (w *MgmtComponent) CheckBucketExists(ctx context.Context, opts *cbmgmtx.Che
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.CheckBucketExists, opts)
 }
 
+func (w *MgmtComponent) XdcrC2c(ctx context.Context, opts *cbmgmtx.XdcrC2cOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.XdcrC2c, opts)
+}
+
 type EnsureBucketOptions struct {
 	BucketName   string
 	BucketUUID   string

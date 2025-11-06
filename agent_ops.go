@@ -210,6 +210,10 @@ func (agent *Agent) EnsureBucket(ctx context.Context, opts *EnsureBucketOptions)
 	return agent.mgmt.EnsureBucket(ctx, opts)
 }
 
+func (agent *Agent) XdcrC2c(ctx context.Context, opts *cbmgmtx.XdcrC2cOptions) error {
+	return agent.mgmt.XdcrC2c(ctx, opts)
+}
+
 func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
 	return agent.search.Query(ctx, opts)
 }

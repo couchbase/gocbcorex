@@ -1,6 +1,7 @@
 package cbmgmtx
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1314,6 +1315,41 @@ func (h Management) DeleteUser(
 	}
 
 	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+	return nil
+}
+
+type XdcrC2cOptions struct {
+	Payload    []byte
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) XdcrC2c(
+	ctx context.Context,
+	opts *XdcrC2cOptions,
+) error {
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/xdcr/c2cCommunications",
+		"", opts.OnBehalfOf, bytes.NewReader(opts.Payload))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 404 {
+			_ = resp.Body.Close()
+
+			// "requested resource not found" errors typically translate into a bucket-not-found
+			// but in this case there is no bucket referenced, so it actually means the feature
+			// is not supported
+			return ErrUnsupportedFeature
+		}
+
 		return h.DecodeCommonError(resp)
 	}
 
