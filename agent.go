@@ -532,15 +532,7 @@ func makeHTTPTransport(tlsConfig *tls.Config) *http.Transport {
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return httpDialer.DialContext(ctx, network, addr)
 		},
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			tcpConn, err := httpDialer.DialContext(ctx, network, addr)
-			if err != nil {
-				return nil, err
-			}
-
-			tlsConn := tls.Client(tcpConn, tlsConfig)
-			return tlsConn, nil
-		},
+		TLSClientConfig:     tlsConfig,
 		MaxIdleConns:        0,
 		MaxIdleConnsPerHost: 1024,
 		IdleConnTimeout:     4 * time.Second,
