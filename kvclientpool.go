@@ -196,10 +196,10 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 	clientIdxStart := atomic.AddUint64(&p.clientIdx, 1) - 1
 
 	p.lock.Lock()
-	defer p.lock.Unlock()
 
 	for {
 		if p.isClosed {
+			p.lock.Unlock()
 			return nil, net.ErrClosed
 		}
 
@@ -211,6 +211,7 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 			clientIdx := (clientIdxStart + uint64(clientNum)) % uint64(numManagers)
 			entry := p.managers[clientIdx]
 			if entry.Client != nil {
+				p.lock.Unlock()
 				return entry.Client, nil
 			}
 		}
@@ -220,6 +221,7 @@ func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
 		for clientNum := 0; clientNum < numManagers; clientNum++ {
 			entry := p.managers[clientNum]
 			if entry.Err != nil {
+				p.lock.Unlock()
 				return nil, entry.Err
 			}
 		}
