@@ -61,6 +61,7 @@ var (
 	ErrDcpRollback                         = errors.New("dcp rollback")
 	ErrDcpDuplicateStream                  = errors.New("duplicate dcp vbucket stream")
 	ErrConfigOnly                          = errors.New("config only bucket")
+	ErrUnknownCommand                      = errors.New("unknown command")
 
 	ErrConfigNotSet   = errors.New("config not set")
 	ErrClosedInFlight = errors.New("connection closed whilst operation in flight")
