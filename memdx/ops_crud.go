@@ -292,13 +292,23 @@ func (o OpsCrud) GetEx(d Dispatcher, req *GetExRequest, cb func(*GetExResponse, 
 			return false
 		}
 
-		if resp.Status == StatusKeyNotFound {
-			cb(nil, ErrDocNotFound)
+		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
+		if err != nil {
+			cb(nil, err)
+			return false
+		}
+
+		switch resp.Status {
+		case StatusKeyNotFound:
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
+			return false
+		case StatusUnknownCommand:
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrUnknownCommand, serverDuration))
 			return false
 		}
 
 		if resp.Status != StatusSuccess {
-			cb(nil, OpsCrud{}.decodeCommonError(resp))
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(OpsCrud{}.decodeCommonError(resp), serverDuration))
 			return false
 		}
 
@@ -308,12 +318,6 @@ func (o OpsCrud) GetEx(d Dispatcher, req *GetExRequest, cb func(*GetExResponse, 
 		}
 
 		flags := binary.BigEndian.Uint32(resp.Extras[0:])
-
-		serverDuration, err := o.decodeResExtFrames(resp.FramingExtras)
-		if err != nil {
-			cb(nil, err)
-			return false
-		}
 
 		cb(&GetExResponse{
 			Cas:      resp.Cas,

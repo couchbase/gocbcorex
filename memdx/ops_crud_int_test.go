@@ -3855,7 +3855,6 @@ func TestOpsCrudCounterNonNumericDoc(t *testing.T) {
 
 func TestOpsCrudGetEx(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
-	testutilsint.SkipIfOlderServerVersion(t, "8.0.0")
 
 	t.Run("Basic", func(t *testing.T) {
 		key := []byte(uuid.NewString())
@@ -3881,6 +3880,11 @@ func TestOpsCrudGetEx(t *testing.T) {
 			Key:          key,
 			VbucketID:    defaultTestVbucketID,
 		})
+		if testutilsint.IsOlderServerVersion(t, "8.0.0") {
+			require.ErrorIs(t, err, memdx.ErrUnknownCommand)
+			return
+		}
+
 		require.NoError(t, err)
 
 		hasXattrs := resp.Datatype&uint8(memdx.DatatypeFlagXattrs) != 0
@@ -3891,6 +3895,8 @@ func TestOpsCrudGetEx(t *testing.T) {
 	})
 
 	t.Run("WithXattrs", func(t *testing.T) {
+		testutilsint.SkipIfOlderServerVersion(t, "8.0.0")
+
 		key := []byte(uuid.NewString())
 
 		cli := createTestClient(t)
@@ -3928,6 +3934,7 @@ func TestOpsCrudGetEx(t *testing.T) {
 				},
 			},
 		})
+
 		require.NoError(t, err)
 
 		resp, err := memdx.SyncUnaryCall(memdx.OpsCrud{
@@ -3938,6 +3945,7 @@ func TestOpsCrudGetEx(t *testing.T) {
 			Key:          key,
 			VbucketID:    defaultTestVbucketID,
 		})
+
 		require.NoError(t, err)
 
 		hasXattrs := resp.Datatype&uint8(memdx.DatatypeFlagXattrs) != 0
