@@ -71,6 +71,12 @@ func NewKvClientPool(opts *KvClientPoolOptions) (KvClientPool, error) {
 		return nil, errors.New("a pool of connections must have at least one connection")
 	}
 
+	if opts.OnDemandConnect {
+		if opts.NumConnections != 1 {
+			return nil, errors.New("on-demand connect pools can only have one connection")
+		}
+	}
+
 	logger := loggerOrNop(opts.Logger)
 	// We namespace the pool to improve debugging,
 	logger = logger.With(
@@ -114,6 +120,12 @@ func NewKvClientPool(opts *KvClientPoolOptions) (KvClientPool, error) {
 			Manager: manager,
 		})
 	}
+
+	// We need to use the lock here because the babysitters above are
+	// potentially going to call their state change handler asynchronously
+	// before we return from this function.
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	p.rebuildFastMapLocked()
 
@@ -187,12 +199,18 @@ func (p *kvClientPool) GetClient(ctx context.Context) (KvClient, error) {
 		}
 	}
 
-	p.logger.Debug("no client found in fast map")
-
 	return p.getClientSlow(ctx)
 }
 
 func (p *kvClientPool) getClientSlow(ctx context.Context) (KvClient, error) {
+	// if there is only 1 manager, we can skip the complex distributing
+	// logic and just directly call its GetClient method.  This is especially
+	// important in the OnDemandConnect case where we only have 1 manager
+	// and we need to actually trigger the build of the connection.
+	if len(p.managers) == 1 {
+		return p.managers[0].Manager.GetClient(ctx)
+	}
+
 	clientIdxStart := atomic.AddUint64(&p.clientIdx, 1) - 1
 
 	p.lock.Lock()
