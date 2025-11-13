@@ -34,6 +34,8 @@ type KvEndpointClientManagerOptions struct {
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
 	BootstrapOpts            KvClientBootstrapOptions
+	DcpOpts                  *KvClientDcpOptions
+	DcpHandlers              KvClientDcpEventsHandlers
 
 	Endpoints      map[string]KvTarget
 	Auth           KvClientAuth
@@ -53,6 +55,8 @@ type kvEndpointClientManager struct {
 	connectTimeout           time.Duration
 	connectErrThrottlePeriod time.Duration
 	bootstrapOpts            KvClientBootstrapOptions
+	dcpOpts                  *KvClientDcpOptions
+	dcpHandlers              KvClientDcpEventsHandlers
 
 	lock           sync.Mutex
 	auth           KvClientAuth
@@ -95,6 +99,8 @@ func NewKvEndpointClientManager(
 		connectTimeout:           opts.ConnectTimeout,
 		connectErrThrottlePeriod: opts.ConnectErrThrottlePeriod,
 		bootstrapOpts:            opts.BootstrapOpts,
+		dcpOpts:                  opts.DcpOpts,
+		dcpHandlers:              opts.DcpHandlers,
 
 		clientPools: make(map[string]KvClientPool),
 	}
@@ -134,6 +140,8 @@ func (m *kvEndpointClientManager) UpdateEndpoints(endpoints map[string]KvTarget,
 				ConnectTimeout:           m.connectTimeout,
 				ConnectErrThrottlePeriod: m.connectErrThrottlePeriod,
 				BootstrapOpts:            m.bootstrapOpts,
+				DcpOpts:                  m.dcpOpts,
+				DcpHandlers:              m.dcpHandlers,
 
 				Target:         target,
 				Auth:           m.auth,

@@ -51,6 +51,7 @@ type Agent struct {
 	mgmt       *MgmtComponent
 	search     *SearchComponent
 	analytics  *AnalyticsComponent
+	dcp        *DcpStreamSetManager
 	staticInfo *StaticBucketInfoComponent
 }
 
@@ -308,6 +309,17 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		},
 	)
 
+	// DcpStreamManager relies on the fact that we cannot unselect a
+	// bucket once one has been selected.
+	agent.dcp = &DcpStreamSetManager{
+		Logger:     logger,
+		Retries:    consistencyRetryMgr,
+		MconnMgr:   agent.mconnMgr,
+		NmvHandler: &agentNmvHandler{agent},
+		Vbs:        agent.vbRouter,
+		BucketName: agent.state.bucket,
+	}
+
 	agent.staticInfo = NewStaticBucketInfoComponent(
 		agent.mgmt,
 		&agentComponentConfigs.StaticBucketInfoComponentConfig,
@@ -465,6 +477,11 @@ func (agent *Agent) updateStateLocked() {
 	err = agent.staticInfo.Reconfigure(&agentComponentConfigs.StaticBucketInfoComponentConfig)
 	if err != nil {
 		agent.logger.Error("failed to reconfigure static bucket info component", zap.Error(err))
+	}
+
+	err = agent.dcp.Reconfigure(agent.state.bucket)
+	if err != nil {
+		agent.logger.Error("failed to reconfigure dcp component", zap.Error(err))
 	}
 
 	if agent.httpCfgWatcher != nil {
