@@ -452,6 +452,8 @@ func (a *CbAuth) handleAuthCheckErr(
 ) (UserInfo, error) {
 	if errors.Is(err, ErrInvalidAuth) {
 		return UserInfo{}, ErrInvalidAuth
+	} else if errors.Is(err, ErrCertAuthDisabled) {
+		return UserInfo{}, ErrCertAuthDisabled
 	}
 
 	a.logger.Debug("failed to check user with cbauth", zap.Error(err))

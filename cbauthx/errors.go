@@ -7,10 +7,11 @@ import (
 )
 
 var (
-	ErrNoCert          = errors.New("no cert specified")
-	ErrInvalidAuth     = errors.New("invalid auth")
-	ErrClosed          = errors.New("already closed")
-	ErrLivenessTimeout = errors.New("cache is stale")
+	ErrNoCert           = errors.New("no cert specified")
+	ErrCertAuthDisabled = errors.New("cert auth disabled")
+	ErrInvalidAuth      = errors.New("invalid auth")
+	ErrClosed           = errors.New("already closed")
+	ErrLivenessTimeout  = errors.New("cache is stale")
 )
 
 type contextualError struct {

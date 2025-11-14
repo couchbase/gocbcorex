@@ -32,11 +32,12 @@ type CbAuthClient struct {
 	lastCommTs     atomic.Int64
 	heartbeatTimer *time.Timer
 
-	lock                  sync.Mutex
-	nodeUuid              string
-	clusterUuid           string
-	authVersion           string
-	clientCertAuthVersion string
+	lock                   sync.Mutex
+	nodeUuid               string
+	clusterUuid            string
+	authVersion            string
+	clientCertAuthDisabled bool
+	clientCertAuthVersion  string
 
 	initOpts    *UpdateDBExtOptions
 	initSigCh   chan struct{}
@@ -294,6 +295,8 @@ func (c *CbAuthClient) rpcUpdateDBExt(opts *UpdateDBExtOptions) (bool, error) {
 		}
 	}
 
+	c.clientCertAuthDisabled = opts.ClientCertAuthState == "disable"
+
 	// If the client wasn't marked as initialized yet.  Lets signal that.
 	if c.initOpts == nil {
 		c.initOpts = opts
@@ -364,6 +367,13 @@ func (a *CbAuthClient) getCertCache(_ context.Context) (*CertCheckCached, error)
 }
 
 func (a *CbAuthClient) CheckCertificate(ctx context.Context, clientCert *x509.Certificate) (UserInfo, error) {
+	// The endpoint we use to extract the user from the cert still works when
+	// client cert auth has been disabled so we need to explicitly fail the
+	// cert check.
+	if a.clientCertAuthDisabled {
+		return UserInfo{}, ErrCertAuthDisabled
+	}
+
 	certCache, err := a.getCertCache(ctx)
 	if err != nil {
 		return UserInfo{}, err
