@@ -1161,6 +1161,41 @@ func (h Management) ConfigureAutoFailover(ctx context.Context, req *ConfigureAut
 	return nil
 }
 
+type Prefix struct {
+	Path      string `json:"path"`
+	Prefix    string `json:"prefix"`
+	Delimiter string `json:"delimiter"`
+}
+
+type ConfigureClientCertAuthRequest struct {
+	State    string   `json:"state"`
+	Prefixes []Prefix `json:"prefixes"`
+}
+
+func (h Management) ConfigureClientCertAuth(ctx context.Context, req *ConfigureClientCertAuthRequest) error {
+	jsonBytes, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/settings/clientCertAuth",
+		"application/json", nil, bytes.NewReader(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 202 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+
+	return nil
+}
+
 // AuthDomain specifies the user domain of a specific user
 type AuthDomain string
 
