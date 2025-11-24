@@ -1391,3 +1391,36 @@ func (h Management) XdcrC2c(
 	_ = resp.Body.Close()
 	return nil
 }
+
+type SetGlobalMemcachedSettingsOptions struct {
+	SubdocMultiMaxPaths *int
+
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) SetGlobalMemcachedSettings(
+	ctx context.Context,
+	opts *SetGlobalMemcachedSettingsOptions,
+) error {
+	posts := url.Values{}
+
+	if opts.SubdocMultiMaxPaths != nil {
+		posts.Add("subdoc_multi_max_paths", fmt.Sprintf("%d", *opts.SubdocMultiMaxPaths))
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"POST",
+		"/pools/default/settings/memcached/global",
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 202 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+	return nil
+}
