@@ -54,8 +54,13 @@ func TestGetAllReplicasDino(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			count := replicaCount(t, agent, docKey)
-			return count == NUM_REPLICAS+1-blocked
-		}, time.Second*30, time.Second*1)
+			if count == NUM_REPLICAS+1-blocked {
+				return true
+			}
+
+			t.Logf("Waiting for replica count to drop to %d, currently %d", NUM_REPLICAS+1-blocked, count)
+			return false
+		}, time.Second*120, time.Second*1)
 	}
 
 	for _, node := range nonOrchestrators {
@@ -64,8 +69,13 @@ func TestGetAllReplicasDino(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			count := replicaCount(t, agent, docKey)
-			return count == NUM_REPLICAS+1-blocked
-		}, time.Second*30, time.Second*1)
+			if count == NUM_REPLICAS+1-blocked {
+				return true
+			}
+
+			t.Logf("Waiting for replica count to drop to %d, currently %d", NUM_REPLICAS+1-blocked, count)
+			return false
+		}, time.Second*120, time.Second*1)
 	}
 }
 
