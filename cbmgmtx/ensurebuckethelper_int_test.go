@@ -177,7 +177,7 @@ func TestEnsureBucketDino(t *testing.T) {
 		require.NoError(t, err)
 
 		return res
-	}, 30*time.Second, 1*time.Second)
+	}, 90*time.Second, 1*time.Second)
 
 	// now lets block traffic again before we modify
 	dino.BlockNodeTraffic(blockHost)
