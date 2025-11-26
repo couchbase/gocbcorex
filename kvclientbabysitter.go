@@ -95,6 +95,8 @@ type kvClientBabysitter struct {
 	onDemandConnect          bool
 	bootstrapOpts            KvClientBootstrapOptions
 	stateChangeHandler       KvClientBabysitterStateChangeFn
+	dcpHandlers              KvClientDcpEventsHandlers
+	dcpOpts                  *KvClientDcpOptions
 
 	client atomic.Pointer[kvClientBabysitterState]
 
@@ -121,7 +123,9 @@ type KvClientBabysitterOptions struct {
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
 	StateChangeHandler       KvClientBabysitterStateChangeFn
+	DcpHandlers              KvClientDcpEventsHandlers
 	BootstrapOpts            KvClientBootstrapOptions
+	DcpOpts                  *KvClientDcpOptions
 
 	Target         KvTarget
 	Auth           KvClientAuth
@@ -162,6 +166,8 @@ func NewKvClientBabysitter(opts *KvClientBabysitterOptions) KvClientBabysitter {
 		onDemandConnect:          opts.OnDemandConnect,
 		bootstrapOpts:            opts.BootstrapOpts,
 		stateChangeHandler:       opts.StateChangeHandler,
+		dcpOpts:                  opts.DcpOpts,
+		dcpHandlers:              opts.DcpHandlers,
 		stateChangeWaitCh:        make(chan struct{}),
 		desiredConfig: &kvClientBabysitterClientConfig{
 			Target:         opts.Target,
@@ -408,7 +414,9 @@ ClientBuildLoop:
 			},
 			SelectedBucket: desiredConfig.SelectedBucket,
 			BootstrapOpts:  p.bootstrapOpts,
+			DcpOpts:        p.dcpOpts,
 
+			DcpHandlers:  p.dcpHandlers,
 			CloseHandler: p.handleClientClosed,
 		})
 		timeoutCancel()
