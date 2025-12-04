@@ -1424,3 +1424,40 @@ func (h Management) SetGlobalMemcachedSettings(
 	_ = resp.Body.Close()
 	return nil
 }
+
+type GlobalMemcachedSetting string
+
+const (
+	GlobalMemcachedSettingSubdocMultiMaxPaths GlobalMemcachedSetting = "subdoc_multi_max_paths"
+)
+
+type GetGlobalMemcachedSettingsOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) GetGlobalMemcachedSettings(
+	ctx context.Context,
+	opts *GetGlobalMemcachedSettingsOptions,
+) (map[string]interface{}, error) {
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		"/pools/default/settings/memcached/global",
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	settings, err := cbhttpx.ReadAsJsonAndClose[map[string]interface{}](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = resp.Body.Close()
+
+	return settings, nil
+}

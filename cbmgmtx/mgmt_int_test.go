@@ -322,3 +322,23 @@ func TestHttpMgmtXdcrC2c(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+func TestHttpMgmtGlobalMemcachedSettings(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+	testutilsint.SkipIfOlderServerVersion(t, "8.1.0")
+
+	ctx := context.Background()
+
+	maxPaths := 18
+
+	err := getHttpMgmt().SetGlobalMemcachedSettings(ctx, &cbmgmtx.SetGlobalMemcachedSettingsOptions{
+		SubdocMultiMaxPaths: &maxPaths,
+	})
+	require.NoError(t, err)
+
+	settings, err := getHttpMgmt().GetGlobalMemcachedSettings(ctx, &cbmgmtx.GetGlobalMemcachedSettingsOptions{})
+	require.NoError(t, err)
+
+	require.Contains(t, settings, string(cbmgmtx.GlobalMemcachedSettingSubdocMultiMaxPaths))
+	assert.Equal(t, 18, int(settings[string(cbmgmtx.GlobalMemcachedSettingSubdocMultiMaxPaths)].(float64)))
+}
