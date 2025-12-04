@@ -1412,7 +1412,7 @@ func (h Management) SetGlobalMemcachedSettings(
 		ctx,
 		"POST",
 		"/pools/default/settings/memcached/global",
-		"", opts.OnBehalfOf, nil)
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
 	}
