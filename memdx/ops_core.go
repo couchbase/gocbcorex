@@ -61,6 +61,24 @@ func (o OpsCore) decodeError(resp *Packet) error {
 		err = ErrTmpFail
 	case StatusInvalidArgs:
 		err = ErrInvalidArgument
+	case StatusRateLimitedMaxCommands:
+		err = ErrRateLimitedMaxCommands
+	case StatusRateLimitedMaxConnections:
+		err = ErrRateLimitedMaxConnections
+	case StatusRateLimitedNetworkEgress:
+		err = ErrRateLimitedNetworkEgress
+	case StatusRateLimitedNetworkIngress:
+		err = ErrRateLimitedNetworkIngress
+	case StatusRateLimitedScopeSizeLimitExceeded:
+		err = ErrRateLimitedScopeSizeLimitExceeded
+	case StatusRateLimitBucketResidentRatioTooLow:
+		err = ErrRateLimitedBucketResidentRatioTooLow
+	case StatusRateLimitDataSizeTooBig:
+		err = ErrRateLimitedBucketDataSizeTooBig
+	case StatusRateLimitBucketDiskSpaceTooLow:
+		err = ErrRateLimitedBucketDiskSpaceTooLow
+	case StatusWouldThrottle:
+		err = ErrWouldThrottle
 	default:
 		err = errors.New("unexpected status: " + resp.Status.String())
 	}
