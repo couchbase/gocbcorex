@@ -94,6 +94,15 @@ const (
 	// data size allowed for the scope.
 	StatusRateLimitedScopeSizeLimitExceeded = Status(0x34)
 
+	// StatusRateLimitBucketResidentRatioTooLow occurs when the server rate limits due to the bucket resident ratio is too low.
+	StatusRateLimitBucketResidentRatioTooLow = Status(0x36)
+
+	// StatusRateLimitDataSizeTooBig occurs when the server rate limits due to the bucket data size being too big.
+	StatusRateLimitDataSizeTooBig = Status(0x37)
+
+	// StatusRateLimitBucketDiskSpaceTooLow occurs when the server rate limits due to the bucket disk space being too low.
+	StatusRateLimitBucketDiskSpaceTooLow = Status(0x38)
+
 	// StatusUnknownCommand occurs when an unknown operation is sent to a server.
 	StatusUnknownCommand = Status(0x81)
 
@@ -292,6 +301,22 @@ func (s Status) String() string {
 		return "AccessError"
 	case StatusNotInitialized:
 		return "NotInitialized"
+	case StatusRateLimitedNetworkIngress:
+		return "RateLimitedNetworkIngress"
+	case StatusRateLimitedNetworkEgress:
+		return "RateLimitedNetworkEgress"
+	case StatusRateLimitedMaxConnections:
+		return "RateLimitedMaxConnections"
+	case StatusRateLimitedMaxCommands:
+		return "RateLimitedMaxCommands"
+	case StatusRateLimitedScopeSizeLimitExceeded:
+		return "RateLimitedScopeSizeLimitExceeded"
+	case StatusRateLimitBucketResidentRatioTooLow:
+		return "RateLimitBucketResidentRatioTooLow"
+	case StatusRateLimitDataSizeTooBig:
+		return "RateLimitDataSizeTooBig"
+	case StatusRateLimitBucketDiskSpaceTooLow:
+		return "RateLimitBucketDiskSpaceTooLow"
 	case StatusRollback:
 		return "Rollback"
 	case StatusUnknownCommand:
