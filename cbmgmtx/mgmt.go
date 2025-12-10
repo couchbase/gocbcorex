@@ -72,6 +72,7 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		`history`:                "HistoryEnabled",
 		`evictionpolicy`:         "EvictionMode",
 		`conflictresolutiontype`: "ConflictResolutionType",
+		`name`:                   "BucketName",
 	}
 
 	var err error
@@ -901,13 +902,16 @@ func (h Management) GetBucket(
 	opts *GetBucketOptions,
 ) (*BucketDef, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when updating a bucket")
+		return nil, fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		})
 	}
 
 	resp, err := h.Execute(
 		ctx,
 		"GET",
-		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
+		fmt.Sprintf("/pools/default/buckets/%s", url.PathEscape(opts.BucketName)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
@@ -941,14 +945,15 @@ func (h Management) CreateBucket(
 	opts *CreateBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when creating a bucket")
+		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		})
 	}
 
 	posts := url.Values{}
 
-	if opts.BucketName != "" {
-		posts.Add("name", opts.BucketName)
-	}
+	posts.Add("name", opts.BucketName)
 
 	err := h.encodeBucketSettings(&posts, &opts.BucketSettings)
 	if err != nil {
@@ -984,7 +989,10 @@ func (h Management) UpdateBucket(
 	opts *UpdateBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when updating a bucket")
+		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		})
 	}
 
 	posts := url.Values{}
@@ -1021,13 +1029,16 @@ func (h Management) DeleteBucket(
 	opts *DeleteBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when deleting a bucket")
+		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		})
 	}
 
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
+		fmt.Sprintf("/pools/default/buckets/%s", url.PathEscape(opts.BucketName)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
@@ -1059,13 +1070,16 @@ func (h Management) FlushBucket(
 	opts *FlushBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when flushing a bucket")
+		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		})
 	}
 
 	resp, err := h.Execute(
 		ctx,
 		"POST",
-		fmt.Sprintf("/pools/default/buckets/%s/controller/doFlush", opts.BucketName),
+		fmt.Sprintf("/pools/default/buckets/%s/controller/doFlush", url.PathEscape(opts.BucketName)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
