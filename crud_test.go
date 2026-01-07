@@ -74,6 +74,7 @@ func TestSimpleCrudCollectionMapOutdatedRetries(t *testing.T) {
 		"collection",
 		0,
 		[]byte("somekey"),
+		"",
 		fn,
 	)
 	require.NoError(t, err)

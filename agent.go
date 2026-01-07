@@ -281,6 +281,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			compressionMinRatio:  compressionMinRatio,
 			disableDecompression: disableDecompression,
 		},
+		localNodeAddr: opts.SeedConfig.LocalNodeAddr,
 	}
 	agent.query = NewQueryComponent(
 		consistencyRetryMgr,
