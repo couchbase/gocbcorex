@@ -40,10 +40,11 @@ type bucketsTrackingAgentManagerState struct {
 }
 
 type BucketsTrackingAgentManager struct {
-	stateLock   sync.Mutex
-	logger      *zap.Logger
-	userAgent   string
-	networkType string
+	stateLock     sync.Mutex
+	logger        *zap.Logger
+	userAgent     string
+	networkType   string
+	localNodeAddr string
 
 	compressionConfig  CompressionConfig
 	configPollerConfig ConfigPollerConfig
@@ -100,9 +101,10 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 	}
 
 	m := &BucketsTrackingAgentManager{
-		logger:      logger,
-		userAgent:   httpUserAgent,
-		networkType: networkType,
+		logger:        logger,
+		userAgent:     httpUserAgent,
+		networkType:   networkType,
+		localNodeAddr: opts.SeedConfig.LocalNodeAddr,
 
 		compressionConfig:  opts.CompressionConfig,
 		configPollerConfig: opts.ConfigPollerConfig,
@@ -283,8 +285,9 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		TLSConfig:     m.state.tlsConfig,
 		Authenticator: m.state.authenticator,
 		SeedConfig: SeedConfig{
-			HTTPAddrs: mgmtAddrs,
-			MemdAddrs: kvDataAddrs,
+			HTTPAddrs:     mgmtAddrs,
+			MemdAddrs:     kvDataAddrs,
+			LocalNodeAddr: m.localNodeAddr,
 		},
 		CompressionConfig:  m.compressionConfig,
 		ConfigPollerConfig: m.configPollerConfig,
