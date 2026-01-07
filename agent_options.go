@@ -56,8 +56,9 @@ func (opts AgentOptions) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 // SeedConfig specifies initial seed configuration options such as addresses.
 type SeedConfig struct {
-	HTTPAddrs []string
-	MemdAddrs []string
+	HTTPAddrs     []string
+	MemdAddrs     []string
+	LocalNodeAddr string
 }
 
 func (c SeedConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {

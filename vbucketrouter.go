@@ -3,6 +3,8 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"sync/atomic"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
@@ -122,12 +124,26 @@ func OrchestrateMemdRouting[RespT any](
 	ch NotMyVbucketConfigHandler,
 	key []byte,
 	vbServerIdx uint32,
+	localNodeAddr string,
 	fn func(endpoint string, vbID uint16) (RespT, error),
 ) (RespT, error) {
 	endpoint, vbID, err := vb.DispatchByKey(key, vbServerIdx)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
+	}
+
+	// If a local node address has not been propagated then we do not increment
+	// either metric since we do not know if the request has been routed
+	// optimally or not.
+	if localNodeAddr != "" {
+		host, port, _ := net.SplitHostPort(localNodeAddr)
+		optimalKvEp := fmt.Sprintf("kvep-%s-%s", host, port)
+		if optimalKvEp == endpoint {
+			optimalMemdRequests.Add(ctx, 1)
+		} else {
+			suboptimalMemdRequests.Add(ctx, 1)
+		}
 	}
 
 	for {
