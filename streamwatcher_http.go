@@ -215,3 +215,57 @@ func streamWatcherHttp_streamBuckets(
 		stream <- buckets
 	}
 }
+
+func streamWatcherHttp_streamNodes(
+	ctx context.Context,
+	logger *zap.Logger,
+	httpRoundTripper http.RoundTripper,
+	endpoint string,
+	userAgent string,
+	authenticator Authenticator,
+	stream chan<- []nodeDescriptor,
+) error {
+	host, err := getHostFromUri(endpoint)
+	if err != nil {
+		return err
+	}
+
+	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, host)
+	if err != nil {
+		return err
+	}
+
+	resp, err := cbmgmtx.Management{
+		Transport: httpRoundTripper,
+		UserAgent: userAgent,
+		Endpoint:  endpoint,
+		Auth: &cbhttpx.BasicAuth{
+			Username: username,
+			Password: password,
+		},
+	}.StreamFullClusterConfig(ctx, &cbmgmtx.StreamFullClusterConfigOptions{})
+	if err != nil {
+		return err
+	}
+
+	for {
+		cfg, err := resp.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+				return nil
+			}
+
+			return err
+		}
+
+		nodes := make([]nodeDescriptor, len(cfg.Nodes))
+		for i, node := range cfg.Nodes {
+			nodes[i] = nodeDescriptor{
+				Hostname:    node.Hostname,
+				ServerGroup: node.ServerGroup,
+			}
+		}
+
+		stream <- nodes
+	}
+}
