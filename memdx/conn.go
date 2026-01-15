@@ -6,11 +6,17 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"sync"
+	"sync/atomic"
 )
 
 type Conn struct {
-	conn     net.Conn
-	ioReader io.Reader
+	conn          net.Conn
+	ioReader      io.Reader
+	ioWriter      io.Writer
+	bufWriter     *bufio.Writer
+	writeLock     sync.Mutex
+	pendingWrites int64
 
 	reader PacketReader
 	writer PacketWriter
@@ -20,7 +26,8 @@ type DialConnOptions struct {
 	TLSConfig *tls.Config
 	Dialer    *net.Dialer
 
-	ReadBufferSize int
+	ReadBufferSize  int
+	WriteBufferSize int
 }
 
 func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, error) {
@@ -34,13 +41,18 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 		readBufferSize = 1 * 1024 * 1024
 	}
 
+	writeBufferSize := opts.WriteBufferSize
+	if writeBufferSize == 0 {
+		// default to a write-buffer size of 64KB, use -1 to disable
+		writeBufferSize = 64 * 1024
+	}
+
 	dialer := opts.Dialer
 	if dialer == nil {
 		dialer = &net.Dialer{}
 	}
 
 	var netConn net.Conn
-	var tcpConn *net.TCPConn
 	if opts.TLSConfig == nil {
 		dialConn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
@@ -48,7 +60,6 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 		}
 
 		netConn = dialConn
-		tcpConn, _ = dialConn.(*net.TCPConn)
 	} else {
 		tlsConn, err := tls.DialWithDialer(dialer, "tcp", addr, opts.TLSConfig)
 		if err != nil {
@@ -56,12 +67,7 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 		}
 
 		netConn = tlsConn
-		tcpConn, _ = tlsConn.NetConn().(*net.TCPConn)
 	}
-
-	// we disable TCP_NODELAY by default, this turns on the NAGLE algorithm and makes our
-	// network writes more efficient, in the future this should be done in user-space.
-	_ = tcpConn.SetNoDelay(false)
 
 	// if there is a read buffer size configured, we use it
 	var ioReader io.Reader
@@ -71,16 +77,41 @@ func DialConn(ctx context.Context, addr string, opts *DialConnOptions) (*Conn, e
 		ioReader = netConn
 	}
 
+	var ioWriter io.Writer
+	var bufWriter *bufio.Writer
+	if writeBufferSize > 0 {
+		bufWriter = bufio.NewWriterSize(netConn, writeBufferSize)
+		ioWriter = bufWriter
+	} else {
+		ioWriter = netConn
+	}
+
 	c := &Conn{
-		conn:     netConn,
-		ioReader: ioReader,
+		conn:      netConn,
+		ioReader:  ioReader,
+		ioWriter:  ioWriter,
+		bufWriter: bufWriter,
 	}
 
 	return c, nil
 }
 
 func (c *Conn) WritePacket(pak *Packet) error {
-	return c.writer.WritePacket(c.conn, pak)
+	atomic.AddInt64(&c.pendingWrites, 1)
+
+	c.writeLock.Lock()
+	err := c.writer.WritePacket(c.ioWriter, pak)
+
+	pendingWrites := atomic.AddInt64(&c.pendingWrites, -1)
+	if pendingWrites == 0 {
+		if c.bufWriter != nil {
+			_ = c.bufWriter.Flush()
+		}
+	}
+
+	c.writeLock.Unlock()
+
+	return err
 }
 
 func (c *Conn) ReadPacket(pak *Packet) error {
