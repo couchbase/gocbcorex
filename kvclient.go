@@ -100,7 +100,7 @@ type kvClient struct {
 	remoteHostname string
 
 	cli       MemdxClient
-	telemetry *kvClientTelem
+	telemetry *kvClientTelemNoOp
 
 	supportedFeatures []memdx.HelloFeature
 
@@ -241,7 +241,7 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 	}
 	kvCli.cli = client
 
-	kvCli.telemetry = newKvClientTelem(kvCli.cli.LocalAddr(), kvCli.cli.RemoteAddr())
+	kvCli.telemetry = newKvClientTelemNoOp()
 
 	if shouldBootstrap {
 		if bootstrapSelectBucket != nil {
