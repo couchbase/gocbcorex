@@ -24,6 +24,7 @@ type collectionsFastManifest struct {
 }
 
 type collectionCacheEntry struct {
+	IsValid      bool
 	ResolveErr   error
 	CollectionID uint32
 	ManifestRev  uint64
@@ -87,7 +88,7 @@ func (cr *CollectionResolverCached) rebuildFastCacheLocked() {
 	}
 
 	for fullKeyPath, entry := range cr.slowMap {
-		if entry.CollectionID > 0 {
+		if entry.IsValid {
 			manifest.collections[fullKeyPath] = collectionsFastCacheEntry{
 				CollectionID: entry.CollectionID,
 				ManifestRev:  entry.ManifestRev,
@@ -154,6 +155,7 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 		if err != nil {
 			cr.slowLock.Lock()
 
+			entry.IsValid = false
 			entry.ResolveErr = err
 			entry.CollectionID = 0
 
@@ -172,6 +174,7 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 
 		cr.slowLock.Lock()
 
+		entry.IsValid = true
 		entry.ResolveErr = nil
 		entry.CollectionID = collectionID
 		entry.ManifestRev = manifestRev
@@ -281,6 +284,7 @@ func (cr *CollectionResolverCached) InvalidateCollectionID(
 	}
 
 	// Reset the entry
+	slowEntry.IsValid = false
 	slowEntry.ResolveErr = nil
 	slowEntry.CollectionID = 0
 	slowEntry.ManifestRev = 0
