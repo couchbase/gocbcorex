@@ -24,15 +24,19 @@ func NewOpaqueMap() *OpaqueMap {
 }
 
 func (m *OpaqueMap) Register(handler DispatchCallback) uint32 {
+	// this function causes the handler to escape the local context and thus
+	// triggers a heap allocation.  we do this outside the lock to ensure that
+	// this heap allocation isn't done while the lock is held.
+	entry := &opaqueMapEntry{
+		handler: handler,
+	}
+
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	m.counter++
 	opaqueID := m.counter
 
-	entry := &opaqueMapEntry{
-		handler: handler,
-	}
 	m.entries[opaqueID] = entry
 
 	return opaqueID
