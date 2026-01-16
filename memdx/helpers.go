@@ -25,6 +25,10 @@ func DecodeVarDuration(val uint16) uint64 {
 }
 
 func AppendCollectionIDAndKey(collectionID uint32, key []byte, buf []byte) ([]byte, error) {
+	if buf == nil {
+		buf = make([]byte, 0, 5+len(key))
+	}
+
 	buf, err := AppendCollectionID(buf, collectionID)
 	if err != nil {
 		return nil, err
