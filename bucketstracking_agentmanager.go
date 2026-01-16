@@ -285,8 +285,11 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		},
 		CompressionConfig:  m.compressionConfig,
 		ConfigPollerConfig: m.configPollerConfig,
-		HTTPConfig:         m.httpConfig,
-		BucketName:         bucketName,
+		IoConfig: IoConfig{
+			ConnectionPoolSize: 8,
+		},
+		HTTPConfig: m.httpConfig,
+		BucketName: bucketName,
 	})
 }
 
