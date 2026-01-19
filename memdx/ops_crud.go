@@ -190,7 +190,8 @@ func (o OpsCrud) Get(d Dispatcher, req *GetRequest, cb func(*GetResponse, error)
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +271,8 @@ func (o OpsCrud) GetEx(d Dispatcher, req *GetExRequest, cb func(*GetExResponse, 
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +359,8 @@ func (o OpsCrud) GetAndTouch(d Dispatcher, req *GetAndTouchRequest, cb func(*Get
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +447,8 @@ func (o OpsCrud) GetReplica(d Dispatcher, req *GetReplicaRequest, cb func(*GetRe
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +529,8 @@ func (o OpsCrud) GetAndLock(d Dispatcher, req *GetAndLockRequest, cb func(*GetAn
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -703,7 +708,8 @@ func (o OpsCrud) Set(d Dispatcher, req *SetRequest, cb func(*SetResponse, error)
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -810,7 +816,8 @@ func (o OpsCrud) Unlock(d Dispatcher, req *UnlockRequest, cb func(*UnlockRespons
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -897,7 +904,8 @@ func (o OpsCrud) Touch(d Dispatcher, req *TouchRequest, cb func(*TouchResponse, 
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -987,7 +995,8 @@ func (o OpsCrud) Delete(d Dispatcher, req *DeleteRequest, cb func(*DeleteRespons
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1097,7 +1106,8 @@ func (o OpsCrud) Add(d Dispatcher, req *AddRequest, cb func(*AddResponse, error)
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1216,7 +1226,8 @@ func (o OpsCrud) Replace(d Dispatcher, req *ReplaceRequest, cb func(*ReplaceResp
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1335,7 +1346,8 @@ func (o OpsCrud) Append(d Dispatcher, req *AppendRequest, cb func(*AppendRespons
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1451,7 +1463,8 @@ func (o OpsCrud) Prepend(d Dispatcher, req *PrependRequest, cb func(*PrependResp
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1568,7 +1581,8 @@ func (o OpsCrud) Increment(d Dispatcher, req *IncrementRequest, cb func(*Increme
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1696,7 +1710,8 @@ func (o OpsCrud) Decrement(d Dispatcher, req *DecrementRequest, cb func(*Decreme
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1821,7 +1836,8 @@ func (o OpsCrud) GetMeta(d Dispatcher, req *GetMetaRequest, cb func(*GetMetaResp
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -1945,7 +1961,8 @@ func (o OpsCrud) AddWithMeta(d Dispatcher, req *AddWithMetaRequest, cb func(*Add
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -2055,7 +2072,8 @@ func (o OpsCrud) SetWithMeta(d Dispatcher, req *SetWithMetaRequest, cb func(*Set
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -2163,7 +2181,8 @@ func (o OpsCrud) DeleteWithMeta(d Dispatcher, req *DeleteWithMetaRequest, cb fun
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -2261,7 +2280,8 @@ func (o OpsCrud) LookupIn(d Dispatcher, req *LookupInRequest, cb func(*LookupInR
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -2457,7 +2477,8 @@ func (o OpsCrud) MutateIn(d Dispatcher, req *MutateInRequest, cb func(*MutateInR
 		return nil, err
 	}
 
-	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, nil)
+	keyBuf := make([]byte, 0, 256)
+	reqKey, err := o.encodeCollectionAndKey(req.CollectionID, req.Key, keyBuf)
 	if err != nil {
 		return nil, err
 	}
