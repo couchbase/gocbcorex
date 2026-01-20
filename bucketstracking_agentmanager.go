@@ -27,6 +27,7 @@ type BucketsTrackingAgentManagerOptions struct {
 	CompressionConfig  CompressionConfig
 	ConfigPollerConfig ConfigPollerConfig
 	HTTPConfig         HTTPConfig
+	IoConfig           IoConfig
 	CreateAgentTimeout time.Duration
 }
 
@@ -47,6 +48,7 @@ type BucketsTrackingAgentManager struct {
 	compressionConfig  CompressionConfig
 	configPollerConfig ConfigPollerConfig
 	httpConfig         HTTPConfig
+	ioConfig           IoConfig
 	createAgentTimeout time.Duration
 
 	state *bucketsTrackingAgentManagerState
@@ -105,6 +107,7 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 		compressionConfig:  opts.CompressionConfig,
 		configPollerConfig: opts.ConfigPollerConfig,
 		httpConfig:         opts.HTTPConfig,
+		ioConfig:           opts.IoConfig,
 		createAgentTimeout: createAgentTimeout,
 
 		state: &bucketsTrackingAgentManagerState{
@@ -286,6 +289,7 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		CompressionConfig:  m.compressionConfig,
 		ConfigPollerConfig: m.configPollerConfig,
 		HTTPConfig:         m.httpConfig,
+		IoConfig:           m.ioConfig,
 		BucketName:         bucketName,
 	})
 }
