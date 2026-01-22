@@ -313,3 +313,13 @@ func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
 func (agent *Agent) StatsByVbucket(ctx context.Context, opts *StatsByVbucketOptions, dataCb func(StatsDataResult)) (*StatsResult, error) {
 	return agent.crud.StatsByVbucket(ctx, opts, dataCb)
 }
+
+// NewStreamSet creates a new DCP stream set for the agent.  It is illegal to call this on an
+// agent which does not have a bucket selected.
+func (agent *Agent) NewStreamSet(opts NewStreamSetOptions) (*DcpStreamSet, error) {
+	return agent.dcp.NewStreamSet(opts)
+}
+
+func (agent *Agent) ResolveCollectionID(ctx context.Context, scopeName, collectionName string) (uint32, uint64, error) {
+	return agent.collections.ResolveCollectionID(ctx, scopeName, collectionName)
+}
