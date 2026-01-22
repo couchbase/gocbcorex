@@ -14,6 +14,59 @@ type RetryManager interface {
 	NewRetryController() RetryController
 }
 
+type RetryOrchestrator struct {
+	ctx context.Context
+	rs  RetryManager
+
+	opRetryController RetryController
+	lastErr           error
+	retryIdx          int
+}
+
+func NewRetryOrchestrator(ctx context.Context, rs RetryManager) (*RetryOrchestrator, error) {
+	return &RetryOrchestrator{
+		ctx: ctx,
+		rs:  rs,
+	}, nil
+}
+
+func (o *RetryOrchestrator) HandleError(err error) error {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &retrierDeadlineError{err, o.lastErr, o.retryIdx}
+	}
+
+	if o.opRetryController == nil {
+		o.opRetryController = o.rs.NewRetryController()
+	}
+
+	retryTime, shouldRetry, orchErr := o.opRetryController.ShouldRetry(o.ctx, err)
+	if orchErr != nil {
+		return &RetryOrchestrationError{
+			Cause:         orchErr,
+			OriginalCause: err,
+		}
+	}
+
+	if shouldRetry {
+		select {
+		case <-time.After(retryTime):
+		case <-o.ctx.Done():
+			ctxErr := o.ctx.Err()
+			if errors.Is(ctxErr, context.DeadlineExceeded) {
+				return retrierDeadlineError{ctxErr, err, o.retryIdx}
+			} else {
+				return err
+			}
+		}
+
+		o.lastErr = err
+		o.retryIdx++
+		return nil
+	}
+
+	return err
+}
+
 func OrchestrateRetries[RespT any](
 	ctx context.Context,
 	rs RetryManager,

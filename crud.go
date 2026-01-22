@@ -39,19 +39,74 @@ func OrchestrateSimpleCrud[RespT any](
 	key []byte,
 	fn func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (RespT, error),
 ) (RespT, error) {
-	return OrchestrateRetries(
-		ctx, rs,
-		func() (RespT, error) {
-			return OrchestrateMemdCollectionID(
-				ctx, cr, scopeName, collectionName, collectionID,
-				func(collectionID uint32) (RespT, error) {
-					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
-						return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (RespT, error) {
-							return fn(collectionID, endpoint, vbID, client)
-						})
-					})
-				})
-		})
+	var err error
+	for {
+		ro, roerr := NewRetryOrchestrator(ctx, rs)
+		if roerr != nil {
+			err = roerr
+			break
+		}
+
+		for {
+			cido, ciderr := NewMemdCollectionIdOrchestrator(ctx, cr, scopeName, collectionName, collectionID)
+			if ciderr != nil {
+				err = ciderr
+				break
+			}
+
+			for {
+				mro, mrerr := NewMemdRoutingOrchestrator(ctx, vb, ch, key, 0)
+				if mrerr != nil {
+					err = mrerr
+					break
+				}
+
+				for {
+					eco, ecerr := NewEndpointKvClientOrchestrator(ctx, ecp, mro.GetEndpoint())
+					if ecerr != nil {
+						err = ecerr
+						break
+					}
+
+					resp, fnerr := fn(cido.GetCollectionID(), mro.GetEndpoint(), mro.GetVbucketId(), eco.GetClient())
+					if fnerr == nil {
+						return resp, nil
+					} else {
+						err = fnerr
+
+						err = eco.HandleError(err)
+						if err != nil {
+							break
+						}
+					}
+				}
+
+				if err != nil {
+					err = mro.HandleError(err)
+					if err != nil {
+						break
+					}
+				}
+			}
+
+			if err != nil {
+				err = cido.HandleError(err)
+				if err != nil {
+					break
+				}
+			}
+		}
+
+		if err != nil {
+			err = ro.HandleError(err)
+			if err != nil {
+				break
+			}
+		}
+	}
+
+	var emptyResp RespT
+	return emptyResp, err
 }
 
 func OrchestrateSimpleCrudMeta[RespT any](

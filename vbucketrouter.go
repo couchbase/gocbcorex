@@ -116,6 +116,109 @@ type NotMyVbucketConfigHandler interface {
 	HandleNotMyVbucketConfig(config *cbconfig.TerseConfigJson, sourceHostname string)
 }
 
+type MemdRoutingOrchestrator struct {
+	ctx         context.Context
+	vb          VbucketRouter
+	ch          NotMyVbucketConfigHandler
+	key         []byte
+	vbServerIdx uint32
+
+	resolvedEndpoint string
+	resolvedVbId     uint16
+}
+
+func NewMemdRoutingOrchestrator(
+	ctx context.Context,
+	vb VbucketRouter,
+	ch NotMyVbucketConfigHandler,
+	key []byte,
+	vbServerIdx uint32,
+) (*MemdRoutingOrchestrator, error) {
+	o := &MemdRoutingOrchestrator{
+		ctx:         ctx,
+		vb:          vb,
+		ch:          ch,
+		key:         key,
+		vbServerIdx: vbServerIdx,
+	}
+
+	err := o.begin()
+	if err != nil {
+		return nil, err
+	}
+
+	return o, nil
+}
+
+func (o *MemdRoutingOrchestrator) begin() error {
+	endpoint, vbID, err := o.vb.DispatchByKey(o.key, o.vbServerIdx)
+	if err != nil {
+		return err
+	}
+
+	o.resolvedEndpoint = endpoint
+	o.resolvedVbId = vbID
+	return nil
+}
+
+func (o *MemdRoutingOrchestrator) HandleError(err error) error {
+	if errors.Is(err, memdx.ErrNotMyVbucket) {
+		// if we have a config handler, lets try to parse the config and update
+		if o.ch != nil {
+			var nmvErr *memdx.ServerErrorWithConfig
+			if errors.As(err, &nmvErr) {
+				var kvCliErr *KvClientError
+				if errors.As(err, &kvCliErr) {
+					sourceHostname := kvCliErr.RemoteHostname
+
+					config, parseErr := cbconfig.ParseTerseConfig(
+						nmvErr.ConfigJson,
+						sourceHostname)
+					if parseErr != nil {
+						return &VbucketMapOutdatedError{
+							Cause: err,
+						}
+					}
+
+					o.ch.HandleNotMyVbucketConfig(config, sourceHostname)
+				}
+			}
+		}
+	}
+
+	if errors.Is(err, memdx.ErrNotMyVbucket) || errors.Is(err, memdx.ErrConfigOnly) {
+		newEndpoint, newVbID, err := o.vb.DispatchByKey(o.key, o.vbServerIdx)
+		if err != nil {
+			return &VbucketMapOutdatedError{
+				Cause: err,
+			}
+		}
+
+		if newEndpoint == o.resolvedEndpoint && newVbID == o.resolvedVbId {
+			// if after the update we are going to be sending the request back
+			// to the place that rejected it, we consider this non-deterministic
+			// and fall back to the application to deal with (or retries).
+			return &VbucketMapOutdatedError{
+				Cause: err,
+			}
+		}
+
+		o.resolvedEndpoint = newEndpoint
+		o.resolvedVbId = newVbID
+		return nil
+	}
+
+	return err
+}
+
+func (o *MemdRoutingOrchestrator) GetVbucketId() uint16 {
+	return o.resolvedVbId
+}
+
+func (o *MemdRoutingOrchestrator) GetEndpoint() string {
+	return o.resolvedEndpoint
+}
+
 func OrchestrateMemdRouting[RespT any](
 	ctx context.Context,
 	vb VbucketRouter,

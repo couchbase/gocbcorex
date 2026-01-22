@@ -43,6 +43,71 @@ func (e *KvClientError) Unwrap() error {
 	return e.Cause
 }
 
+type EndpointKvClientOrchestrator struct {
+	ctx      context.Context
+	cm       KvEndpointClientProvider
+	endpoint string
+
+	resolvedClient KvClient
+}
+
+func NewEndpointKvClientOrchestrator(
+	ctx context.Context,
+	cm KvEndpointClientProvider,
+	endpoint string,
+) (*EndpointKvClientOrchestrator, error) {
+	o := &EndpointKvClientOrchestrator{
+		ctx:      ctx,
+		cm:       cm,
+		endpoint: endpoint,
+	}
+
+	err := o.begin()
+	if err != nil {
+		return nil, err
+	}
+
+	return o, nil
+}
+
+func (o *EndpointKvClientOrchestrator) begin() error {
+	cli, err := o.cm.GetEndpointClient(o.ctx, o.endpoint)
+	if err != nil {
+		return err
+	}
+
+	o.resolvedClient = cli
+	return nil
+}
+
+func (o *EndpointKvClientOrchestrator) HandleError(err error) error {
+	var dispatchErr *KvDispatchNetError
+	if errors.As(err, &dispatchErr) {
+		// this was a dispatch error, so we can just try with
+		// a different client instead...
+
+		cli, err := o.cm.GetEndpointClient(o.ctx, o.endpoint)
+		if err != nil {
+			return err
+		}
+
+		o.resolvedClient = cli
+
+		return nil
+	}
+
+	return &KvClientError{
+		Cause:          err,
+		RemoteHostname: o.resolvedClient.RemoteHostname(),
+		RemoteAddr:     o.resolvedClient.RemoteAddr(),
+		LocalAddr:      o.resolvedClient.LocalAddr(),
+	}
+}
+
+func (o *EndpointKvClientOrchestrator) GetClient() KvClient {
+	return o.resolvedClient
+}
+
 func OrchestrateEndpointKvClient[RespT any](
 	ctx context.Context,
 	cm KvEndpointClientProvider,
