@@ -69,9 +69,10 @@ type bucketDescriptor struct {
 	UUID string
 }
 
-type nodeDescriptor struct {
+type NodeDescriptor struct {
 	Hostname    string
 	ServerGroup string
+	KvEndpoint  string
 }
 
 func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTrackingAgentManagerOptions) (*BucketsTrackingAgentManager, error) {
@@ -210,8 +211,6 @@ func (m *BucketsTrackingAgentManager) startWatchers() {
 
 	topoCh := m.topologyCfgWatcher.Watch(ctx)
 
-	m.nodesWatcher.Watch()
-
 	go func() {
 		for config := range topoCh {
 			m.applyConfig(config)
@@ -328,7 +327,7 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		HTTPConfig:         m.httpConfig,
 		IoConfig:           m.ioConfig,
 		BucketName:         bucketName,
-		GetNodes:           m.nodesWatcher.GetNodes,
+		NodeCh:             m.nodesWatcher.Watch(),
 	})
 }
 

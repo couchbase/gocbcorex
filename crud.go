@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -26,9 +25,7 @@ type CrudComponent struct {
 	compression     CompressionManager
 	vbs             VbucketRouter
 	vbc             VbucketUuidConsistency
-	localKvEp       string
-	srvGroup        string
-	getNodes        func(ctx context.Context) map[string]string
+	mw              *metricsWorker
 }
 
 func OrchestrateSimpleCrud[RespT any](
@@ -41,8 +38,6 @@ func OrchestrateSimpleCrud[RespT any](
 	scopeName, collectionName string,
 	collectionID uint32,
 	key []byte,
-	localKvEp string,
-	srvGroupKvEps []string,
 	fn func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (RespT, error),
 ) (RespT, error) {
 	return OrchestrateRetries(
@@ -51,12 +46,11 @@ func OrchestrateSimpleCrud[RespT any](
 			return OrchestrateMemdCollectionID(
 				ctx, cr, scopeName, collectionName, collectionID,
 				func(collectionID uint32) (RespT, error) {
-					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, localKvEp, srvGroupKvEps,
-						func(endpoint string, vbID uint16) (RespT, error) {
-							return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (RespT, error) {
-								return fn(collectionID, endpoint, vbID, client)
-							})
+					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
+						return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (RespT, error) {
+							return fn(collectionID, endpoint, vbID, client)
 						})
+					})
 				})
 		})
 }
@@ -73,8 +67,6 @@ func OrchestrateSimpleCrudMeta[RespT any](
 	collectionID uint32,
 	key []byte,
 	vbuuid uint64,
-	localKvEp string,
-	srvGroupKvEps []string,
 	fn func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (RespT, error),
 ) (RespT, error) {
 	return OrchestrateRetries(
@@ -83,36 +75,15 @@ func OrchestrateSimpleCrudMeta[RespT any](
 			return OrchestrateMemdCollectionID(
 				ctx, cr, scopeName, collectionName, collectionID,
 				func(collectionID uint32) (RespT, error) {
-					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, localKvEp, srvGroupKvEps,
-						func(endpoint string, vbID uint16) (RespT, error) {
-							return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (RespT, error) {
-								return OrchestrateVBucketConsistency(ctx, vbc, client, vbID, vbuuid, func(client KvClient) (RespT, error) {
-									return fn(collectionID, endpoint, vbID, client)
-								})
+					return OrchestrateMemdRouting(ctx, vb, ch, key, 0, func(endpoint string, vbID uint16) (RespT, error) {
+						return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (RespT, error) {
+							return OrchestrateVBucketConsistency(ctx, vbc, client, vbID, vbuuid, func(client KvClient) (RespT, error) {
+								return fn(collectionID, endpoint, vbID, client)
 							})
 						})
+					})
 				})
 		})
-}
-
-func (cc *CrudComponent) GetServerGroupEndpoints(ctx context.Context) []string {
-	nodes := cc.getNodes(ctx)
-
-	var serverGroupKvEps []string
-	for hostName, serverGroup := range nodes {
-		if serverGroup == cc.srvGroup {
-			host, port, err := net.SplitHostPort(hostName)
-			if err != nil {
-				cc.logger.Warn("failed to split host and port", zap.String("hostName", hostName), zap.Error(err))
-				continue
-			}
-
-			kvEp := fmt.Sprintf("kvep-%s-%s", host, port)
-			serverGroupKvEps = append(serverGroupKvEps, kvEp)
-		}
-	}
-
-	return serverGroupKvEps
 }
 
 type GetOptions struct {
@@ -135,12 +106,12 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 	ctx, span := tracer.Start(ctx, "Get")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Get(ctx, &memdx.GetRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -190,12 +161,12 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 	ctx, span := tracer.Start(ctx, "GetEx")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetExResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetEx(ctx, &memdx.GetExRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -273,8 +244,6 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 		}, nil
 	}
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	vbServerIdx := 1 + opts.ReplicaIdx
 	return OrchestrateRetries(
 		ctx, cc.retries,
@@ -282,12 +251,13 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 			return OrchestrateMemdCollectionID(
 				ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID,
 				func(collectionID uint32) (*GetReplicaResult, error) {
-					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, cc.localKvEp, srvGroupKvEps,
-						func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
-							return OrchestrateEndpointKvClient(ctx, cc.eclientProvider, endpoint, func(client KvClient) (*GetReplicaResult, error) {
-								return fn(collectionID, vbID, client)
-							})
+					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
+						cc.recordOptimisedRoutingMetrics(endpoint)
+
+						return OrchestrateEndpointKvClient(ctx, cc.eclientProvider, endpoint, func(client KvClient) (*GetReplicaResult, error) {
+							return fn(collectionID, vbID, client)
 						})
+					})
 				})
 		})
 }
@@ -336,6 +306,9 @@ type GetAllReplicaStream interface {
 }
 
 func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplicasOptions) (GetAllReplicaStream, error) {
+	ctx, span := tracer.Start(ctx, "GetAllReplicas")
+	defer span.End()
+
 	maxReplicas := 3
 	result := ReplicaStream{
 		OutCh: make(chan *ReplicaStreamEntry, maxReplicas+1),
@@ -410,14 +383,12 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 	_, err = OrchestrateRetries(ctx, cc.retries, func() (any, error) {
 		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID,
 			func(collectionID uint32) (any, error) {
-				srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
 				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
 				for i := uint32(0); i <= numReplicas.Load(); i++ {
 					go func(replicaID uint32) {
 						for {
-							readResult, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.eclientProvider, opts.Key, replicaID, cc.localKvEp, srvGroupKvEps,
+							readResult, err := OrchestrateReplicaRead(ctx, cc.vbs, cc.nmvHandler, cc.eclientProvider, opts.Key, replicaID,
 								func(ep string, vbID uint16, client KvClient) (*ReplicaReadResult, error) {
 									var err error
 									res := ReplicaReadResult{
@@ -463,6 +434,12 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 								continue
 							}
 
+							// We may be here after we enountered a replica read error, in which case we do not want to emit a
+							// metric, since we haven't been routed to a node successfully.
+							if readResult != nil {
+								cc.recordOptimisedRoutingMetrics(readResult.Endpoint)
+							}
+
 							endpoints = append(endpoints, endpoint)
 							result.OutCh <- &ReplicaStreamEntry{
 								Err: err,
@@ -504,13 +481,11 @@ func OrchestrateReplicaRead(
 	ecp KvEndpointClientProvider,
 	key []byte,
 	replica uint32,
-	localKvEp string,
-	srvGroupKvEps []string,
 	fn func(ep string, vbID uint16, client KvClient) (*ReplicaReadResult, error),
 ) (*ReplicaReadResult, error) {
 	rs := NewRetryManagerDefault()
 	return OrchestrateRetries(ctx, rs, func() (*ReplicaReadResult, error) {
-		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, localKvEp, srvGroupKvEps, func(endpoint string, vbID uint16) (*ReplicaReadResult, error) {
+		return OrchestrateMemdRouting(ctx, vb, ch, key, replica, func(endpoint string, vbID uint16) (*ReplicaReadResult, error) {
 			return OrchestrateEndpointKvClient(ctx, ecp, endpoint, func(client KvClient) (*ReplicaReadResult, error) {
 				return fn(endpoint, vbID, client)
 			})
@@ -542,12 +517,12 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 	ctx, span := tracer.Start(ctx, "Upsert")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -602,12 +577,12 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 	ctx, span := tracer.Start(ctx, "Delete")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Delete(ctx, &memdx.DeleteRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -653,12 +628,12 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 	ctx, span := tracer.Start(ctx, "GetAndTouch")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndTouchResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetAndTouch(ctx, &memdx.GetAndTouchRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -705,12 +680,12 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 	ctx, span := tracer.Start(ctx, "GetRandom")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, nil, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, nil,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetRandomResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetRandom(ctx, &memdx.GetRandomRequest{
 				CollectionID: collectionID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
@@ -753,12 +728,12 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 	ctx, span := tracer.Start(ctx, "Unlock")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UnlockResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Unlock(ctx, &memdx.UnlockRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -799,12 +774,12 @@ func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchR
 	ctx, span := tracer.Start(ctx, "Touch")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*TouchResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Touch(ctx, &memdx.TouchRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -844,11 +819,11 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 	ctx, span := tracer.Start(ctx, "GetAndLock")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetAndLock(ctx, &memdx.GetAndLockRequest{
 				CollectionID: collectionID,
 				LockTime:     opts.LockTime,
@@ -898,12 +873,12 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 	ctx, span := tracer.Start(ctx, "Add")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -961,12 +936,12 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 	ctx, span := tracer.Start(ctx, "Replace")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*ReplaceResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -1022,12 +997,12 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 	ctx, span := tracer.Start(ctx, "Append")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AppendResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
 			if err != nil {
 				return nil, err
@@ -1080,12 +1055,12 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 	ctx, span := tracer.Start(ctx, "Prepend")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*PrependResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
 			if err != nil {
 				return nil, err
@@ -1141,12 +1116,12 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 	ctx, span := tracer.Start(ctx, "Increment")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*IncrementResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Increment(ctx, &memdx.IncrementRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1198,12 +1173,12 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 	ctx, span := tracer.Start(ctx, "Decrement")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DecrementResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Decrement(ctx, &memdx.DecrementRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1256,12 +1231,12 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 	ctx, span := tracer.Start(ctx, "GetMeta")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetMeta(ctx, &memdx.GetMetaRequest{
 				CollectionID:  collectionID,
 				Key:           opts.Key,
@@ -1319,12 +1294,12 @@ func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptio
 	ctx, span := tracer.Start(ctx, "AddWithMeta")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.AddWithMeta(ctx, &memdx.AddWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1383,12 +1358,12 @@ func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptio
 	ctx, span := tracer.Start(ctx, "SetWithMeta")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.SetWithMeta(ctx, &memdx.SetWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1446,12 +1421,12 @@ func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMet
 	ctx, span := tracer.Start(ctx, "DeleteWithMeta")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.DeleteWithMeta(ctx, &memdx.DeleteWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1502,12 +1477,12 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 	ctx, span := tracer.Start(ctx, "LookupIn")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*LookupInResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.LookupIn(ctx, &memdx.LookupInRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1554,12 +1529,12 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 	ctx, span := tracer.Start(ctx, "MutateIn")
 	defer span.End()
 
-	srvGroupKvEps := cc.GetServerGroupEndpoints(ctx)
-
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, cc.localKvEp, srvGroupKvEps,
+		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*MutateInResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.MutateIn(ctx, &memdx.MutateInRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1833,4 +1808,12 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 	}
 
 	return executeGet(false)
+}
+
+func (cc *CrudComponent) recordOptimisedRoutingMetrics(endpoint string) {
+	select {
+	case cc.mw.endpointCh <- endpoint:
+	default:
+		cc.logger.Error("metrics worker endpoint channel full, dropping optimised routing metric")
+	}
 }

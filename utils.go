@@ -1,6 +1,7 @@
 package gocbcorex
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -52,4 +53,13 @@ func filterStringsOut(strs []string, toRemove []string) []string {
 		}
 	}
 	return out
+}
+
+func kvEpFromHostname(hostname string) (string, error) {
+	host, port, err := net.SplitHostPort(hostname)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("kvep-%s-%s", host, port), nil
 }

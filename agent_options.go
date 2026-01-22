@@ -1,7 +1,6 @@
 package gocbcorex
 
 import (
-	"context"
 	"crypto/tls"
 	"strings"
 	"time"
@@ -36,7 +35,7 @@ type AgentOptions struct {
 
 	HTTPConfig HTTPConfig
 
-	GetNodes func(ctx context.Context) map[string]string
+	NodeCh <-chan []NodeDescriptor
 }
 
 func (opts AgentOptions) MarshalLogObject(enc zapcore.ObjectEncoder) error {

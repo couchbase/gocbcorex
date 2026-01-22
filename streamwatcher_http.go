@@ -223,7 +223,7 @@ func streamWatcherHttp_streamNodes(
 	endpoint string,
 	userAgent string,
 	authenticator Authenticator,
-	stream chan<- []nodeDescriptor,
+	stream chan<- []NodeDescriptor,
 ) error {
 	host, err := getHostFromUri(endpoint)
 	if err != nil {
@@ -258,14 +258,19 @@ func streamWatcherHttp_streamNodes(
 			return err
 		}
 
-		nodes := make([]nodeDescriptor, len(cfg.Nodes))
+		nodes := make([]NodeDescriptor, len(cfg.Nodes))
 		for i, node := range cfg.Nodes {
-			nodes[i] = nodeDescriptor{
+			kvEp, err := kvEpFromHostname(node.Hostname)
+			if err != nil {
+				logger.Warn("failed to split host and port", zap.String("hostname", node.Hostname), zap.Error(err))
+			}
+
+			nodes[i] = NodeDescriptor{
 				Hostname:    node.Hostname,
 				ServerGroup: node.ServerGroup,
+				KvEndpoint:  kvEp,
 			}
 		}
-
 		stream <- nodes
 	}
 }
