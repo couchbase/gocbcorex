@@ -52,6 +52,10 @@ const (
 	// StatusNotLocked occurs when Unlock is performed on an unlocked document.
 	StatusNotLocked = Status(0x0e)
 
+	// StatusCasValueInvalid occurs when the provided CAS value is invalid.  This can happen
+	// only in SetWithMeta with it's "StoreCas" field being invalid.
+	StatusCasValueInvalid = Status(0x0f)
+
 	// StatusAuthStale occurs when authentication credentials have become invalidated.
 	StatusAuthStale = Status(0x1f)
 
