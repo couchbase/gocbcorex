@@ -22,6 +22,7 @@ var (
 	ErrNotMyVbucket                         = errors.New("not my vbucket")
 	ErrCasMismatch                          = errors.New("cas mismatch")
 	ErrConflictOrCasMismatch                = errors.New("conflict or cas mismatch")
+	ErrCasValueInvalid                      = errors.New("cas value invalid")
 	ErrDocLocked                            = errors.New("document locked")
 	ErrDocNotLocked                         = errors.New("document not locked")
 	ErrDeltaBadval                          = errors.New("bad document value for delta operation")

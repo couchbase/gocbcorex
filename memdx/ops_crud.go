@@ -2010,6 +2010,9 @@ func (o OpsCrud) AddWithMeta(d Dispatcher, req *AddWithMetaRequest, cb func(*Add
 		case StatusTooBig:
 			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
+		case StatusCasValueInvalid:
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasValueInvalid, serverDuration))
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -2121,6 +2124,9 @@ func (o OpsCrud) SetWithMeta(d Dispatcher, req *SetWithMetaRequest, cb func(*Set
 		case StatusTooBig:
 			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrValueTooLarge, serverDuration))
 			return false
+		case StatusCasValueInvalid:
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasValueInvalid, serverDuration))
+			return false
 		}
 
 		if resp.Status != StatusSuccess {
@@ -2227,6 +2233,9 @@ func (o OpsCrud) DeleteWithMeta(d Dispatcher, req *DeleteWithMetaRequest, cb fun
 			return false
 		case StatusKeyNotFound:
 			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrDocNotFound, serverDuration))
+			return false
+		case StatusCasValueInvalid:
+			cb(nil, OpsCrud{}.wrapErrorWithServerDuration(ErrCasValueInvalid, serverDuration))
 			return false
 		}
 
