@@ -25,6 +25,7 @@ type CrudComponent struct {
 	compression     CompressionManager
 	vbs             VbucketRouter
 	vbc             VbucketUuidConsistency
+	mw              *metricsWorker
 }
 
 func OrchestrateSimpleCrud[RespT any](
@@ -109,6 +110,8 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Get(ctx, &memdx.GetRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -162,6 +165,8 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetExResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetEx(ctx, &memdx.GetExRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -247,6 +252,8 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 				ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID,
 				func(collectionID uint32) (*GetReplicaResult, error) {
 					return OrchestrateMemdRouting(ctx, cc.vbs, cc.nmvHandler, opts.Key, vbServerIdx, func(endpoint string, vbID uint16) (*GetReplicaResult, error) {
+						cc.recordOptimisedRoutingMetrics(endpoint)
+
 						return OrchestrateEndpointKvClient(ctx, cc.eclientProvider, endpoint, func(client KvClient) (*GetReplicaResult, error) {
 							return fn(collectionID, vbID, client)
 						})
@@ -299,6 +306,9 @@ type GetAllReplicaStream interface {
 }
 
 func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplicasOptions) (GetAllReplicaStream, error) {
+	ctx, span := tracer.Start(ctx, "GetAllReplicas")
+	defer span.End()
+
 	maxReplicas := 3
 	result := ReplicaStream{
 		OutCh: make(chan *ReplicaStreamEntry, maxReplicas+1),
@@ -373,7 +383,6 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 	_, err = OrchestrateRetries(ctx, cc.retries, func() (any, error) {
 		return OrchestrateMemdCollectionID(ctx, cc.collections, opts.ScopeName, opts.CollectionName, opts.CollectionID,
 			func(collectionID uint32) (any, error) {
-
 				// We are past the point of no return. From here on the request cannot error, e.g a nil error will always be
 				// returned from GetAllReplicas, however individual replica reads can push an error to the channel.
 				for i := uint32(0); i <= numReplicas.Load(); i++ {
@@ -423,6 +432,12 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 								mu.Unlock()
 								time.Sleep(10 * time.Millisecond)
 								continue
+							}
+
+							// We may be here after we enountered a replica read error, in which case we do not want to emit a
+							// metric, since we haven't been routed to a node successfully.
+							if readResult != nil {
+								cc.recordOptimisedRoutingMetrics(readResult.Endpoint)
 							}
 
 							endpoints = append(endpoints, endpoint)
@@ -506,6 +521,8 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UpsertResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -564,6 +581,8 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Delete(ctx, &memdx.DeleteRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -613,6 +632,8 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndTouchResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetAndTouch(ctx, &memdx.GetAndTouchRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -663,6 +684,8 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, nil,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetRandomResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetRandom(ctx, &memdx.GetRandomRequest{
 				CollectionID: collectionID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
@@ -709,6 +732,8 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*UnlockResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Unlock(ctx, &memdx.UnlockRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -753,6 +778,8 @@ func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchR
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*TouchResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Touch(ctx, &memdx.TouchRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -795,6 +822,8 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetAndLock(ctx, &memdx.GetAndLockRequest{
 				CollectionID: collectionID,
 				LockTime:     opts.LockTime,
@@ -848,6 +877,8 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -909,6 +940,8 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*ReplaceResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), opts.Datatype, opts.Value)
 			if err != nil {
 				return nil, err
@@ -968,6 +1001,8 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AppendResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
 			if err != nil {
 				return nil, err
@@ -1024,6 +1059,8 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*PrependResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			value, datatype, err := cc.compression.Compress(client.HasFeature(memdx.HelloFeatureSnappy), 0, opts.Value)
 			if err != nil {
 				return nil, err
@@ -1083,6 +1120,8 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*IncrementResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Increment(ctx, &memdx.IncrementRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1138,6 +1177,8 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DecrementResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.Decrement(ctx, &memdx.DecrementRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1194,6 +1235,8 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.GetMeta(ctx, &memdx.GetMetaRequest{
 				CollectionID:  collectionID,
 				Key:           opts.Key,
@@ -1255,6 +1298,8 @@ func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptio
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*AddWithMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.AddWithMeta(ctx, &memdx.AddWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1317,6 +1362,8 @@ func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptio
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*SetWithMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.SetWithMeta(ctx, &memdx.SetWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1378,6 +1425,8 @@ func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMet
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*DeleteWithMetaResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.DeleteWithMeta(ctx, &memdx.DeleteWithMetaRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1432,6 +1481,8 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*LookupInResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.LookupIn(ctx, &memdx.LookupInRequest{
 				CollectionID: collectionID,
 				Key:          opts.Key,
@@ -1482,6 +1533,8 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*MutateInResult, error) {
+			cc.recordOptimisedRoutingMetrics(endpoint)
+
 			resp, err := client.MutateIn(ctx, &memdx.MutateInRequest{
 				CollectionID:    collectionID,
 				Key:             opts.Key,
@@ -1755,4 +1808,12 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 	}
 
 	return executeGet(false)
+}
+
+func (cc *CrudComponent) recordOptimisedRoutingMetrics(endpoint string) {
+	select {
+	case cc.mw.endpointCh <- endpoint:
+	default:
+		cc.logger.Error("metrics worker endpoint channel full, dropping optimised routing metric")
+	}
 }

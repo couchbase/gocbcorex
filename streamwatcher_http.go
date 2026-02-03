@@ -215,3 +215,62 @@ func streamWatcherHttp_streamBuckets(
 		stream <- buckets
 	}
 }
+
+func streamWatcherHttp_streamNodes(
+	ctx context.Context,
+	logger *zap.Logger,
+	httpRoundTripper http.RoundTripper,
+	endpoint string,
+	userAgent string,
+	authenticator Authenticator,
+	stream chan<- []NodeDescriptor,
+) error {
+	host, err := getHostFromUri(endpoint)
+	if err != nil {
+		return err
+	}
+
+	username, password, err := authenticator.GetCredentials(ServiceTypeMgmt, host)
+	if err != nil {
+		return err
+	}
+
+	resp, err := cbmgmtx.Management{
+		Transport: httpRoundTripper,
+		UserAgent: userAgent,
+		Endpoint:  endpoint,
+		Auth: &cbhttpx.BasicAuth{
+			Username: username,
+			Password: password,
+		},
+	}.StreamFullClusterConfig(ctx, &cbmgmtx.StreamFullClusterConfigOptions{})
+	if err != nil {
+		return err
+	}
+
+	for {
+		cfg, err := resp.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+				return nil
+			}
+
+			return err
+		}
+
+		nodes := make([]NodeDescriptor, len(cfg.Nodes))
+		for i, node := range cfg.Nodes {
+			kvEp, err := kvEpFromHostname(node.Hostname)
+			if err != nil {
+				logger.Warn("failed to split host and port", zap.String("hostname", node.Hostname), zap.Error(err))
+			}
+
+			nodes[i] = NodeDescriptor{
+				Hostname:    node.Hostname,
+				ServerGroup: node.ServerGroup,
+				KvEndpoint:  kvEp,
+			}
+		}
+		stream <- nodes
+	}
+}

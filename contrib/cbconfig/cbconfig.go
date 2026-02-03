@@ -36,6 +36,7 @@ type FullNodeJson struct {
 	Ports             map[string]int                          `json:"ports,omitempty"`
 	Services          []string                                `json:"services"`
 	AltAddresses      map[string]TerseExtNodeAltAddressesJson `json:"alternateAddresses,omitempty"`
+	ServerGroup       string                                  `json:"serverGroup,omitempty"`
 }
 
 type FullBucketConfigJson struct {

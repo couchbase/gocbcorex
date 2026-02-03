@@ -40,10 +40,12 @@ type bucketsTrackingAgentManagerState struct {
 }
 
 type BucketsTrackingAgentManager struct {
-	stateLock   sync.Mutex
-	logger      *zap.Logger
-	userAgent   string
-	networkType string
+	stateLock     sync.Mutex
+	logger        *zap.Logger
+	userAgent     string
+	networkType   string
+	localNodeAddr string
+	serverGroup   string
 
 	compressionConfig  CompressionConfig
 	configPollerConfig ConfigPollerConfig
@@ -56,6 +58,7 @@ type BucketsTrackingAgentManager struct {
 	clusterAgent *Agent
 
 	bucketsWatcher *BucketsWatcherHttp
+	nodesWatcher   *NodesWatcherHttp
 	watchersCancel func()
 
 	topologyCfgWatcher *TopologyWatcherHttp
@@ -64,6 +67,12 @@ type BucketsTrackingAgentManager struct {
 type bucketDescriptor struct {
 	Name string
 	UUID string
+}
+
+type NodeDescriptor struct {
+	Hostname    string
+	ServerGroup string
+	KvEndpoint  string
 }
 
 func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTrackingAgentManagerOptions) (*BucketsTrackingAgentManager, error) {
@@ -100,9 +109,11 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 	}
 
 	m := &BucketsTrackingAgentManager{
-		logger:      logger,
-		userAgent:   httpUserAgent,
-		networkType: networkType,
+		logger:        logger,
+		userAgent:     httpUserAgent,
+		networkType:   networkType,
+		localNodeAddr: opts.SeedConfig.LocalNodeAddr,
+		serverGroup:   opts.SeedConfig.ServerGroup,
 
 		compressionConfig:  opts.CompressionConfig,
 		configPollerConfig: opts.ConfigPollerConfig,
@@ -134,6 +145,20 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 	}
 
 	m.bucketsWatcher = bucketsWatcher
+
+	nodesWatcher, err := NewNodesWatcherHttp(NodesWatcherHttpConfig{
+		HttpRoundTripper: httpTransport,
+		Endpoints:        mgmtEndpoints,
+		UserAgent:        httpUserAgent,
+		Authenticator:    opts.Authenticator,
+	}, NodesWatcherHttpOptions{
+		Logger: logger.Named("nodes-watcher"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	m.nodesWatcher = nodesWatcher
 
 	configWatcher, err := NewConfigWatcherHttp(&ConfigWatcherHttpConfig{
 		HttpRoundTripper: httpTransport,
@@ -242,6 +267,15 @@ func (m *BucketsTrackingAgentManager) applyConfig(config *ParsedConfig) {
 	if err != nil {
 		m.logger.Error("failed to reconfigure bucket watcher", zap.Error(err))
 	}
+
+	err = m.nodesWatcher.Reconfigure(&NodesWatcherHttpReconfigureConfig{
+		HttpRoundTripper: m.state.httpTransport,
+		Endpoints:        mgmtEndpoints,
+		Authenticator:    m.state.authenticator,
+	})
+	if err != nil {
+		m.logger.Error("failed to reconfigure node watcher", zap.Error(err))
+	}
 }
 
 func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName string) (*Agent, error) {
@@ -283,14 +317,17 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		TLSConfig:     m.state.tlsConfig,
 		Authenticator: m.state.authenticator,
 		SeedConfig: SeedConfig{
-			HTTPAddrs: mgmtAddrs,
-			MemdAddrs: kvDataAddrs,
+			HTTPAddrs:     mgmtAddrs,
+			MemdAddrs:     kvDataAddrs,
+			LocalNodeAddr: m.localNodeAddr,
+			ServerGroup:   m.serverGroup,
 		},
 		CompressionConfig:  m.compressionConfig,
 		ConfigPollerConfig: m.configPollerConfig,
 		HTTPConfig:         m.httpConfig,
 		IoConfig:           m.ioConfig,
 		BucketName:         bucketName,
+		NodeCh:             m.nodesWatcher.Watch(),
 	})
 }
 
@@ -330,6 +367,8 @@ func (m *BucketsTrackingAgentManager) Close() error {
 	if err != nil && firstErr == nil {
 		firstErr = err
 	}
+
+	m.nodesWatcher.Close()
 
 	m.stateLock.Lock()
 	m.clusterAgent = nil

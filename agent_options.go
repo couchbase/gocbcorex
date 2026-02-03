@@ -34,6 +34,8 @@ type AgentOptions struct {
 	RetryManager RetryManager
 
 	HTTPConfig HTTPConfig
+
+	NodeCh <-chan []NodeDescriptor
 }
 
 func (opts AgentOptions) MarshalLogObject(enc zapcore.ObjectEncoder) error {
@@ -58,6 +60,14 @@ func (opts AgentOptions) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 type SeedConfig struct {
 	HTTPAddrs []string
 	MemdAddrs []string
+
+	// The http address of the cluster node running on the same machine as this
+	// instance of gocbcorex. Used to record how many requests can be serviced
+	// locally.
+	LocalNodeAddr string
+
+	// The server group to which this instance of gocbcorex belongs.
+	ServerGroup string
 }
 
 func (c SeedConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {

@@ -267,6 +267,13 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		CollectionChecker: collectionChecker,
 	}
 
+	localKvEp, err := kvEpFromHostname(opts.SeedConfig.LocalNodeAddr)
+	if err != nil {
+		agent.logger.Warn("failed to split host and port for local node address",
+			zap.String("localNodeAddr", opts.SeedConfig.LocalNodeAddr),
+			zap.Error(err))
+	}
+
 	agent.crud = &CrudComponent{
 		logger:          agent.logger,
 		collections:     agent.collections,
@@ -281,6 +288,12 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			compressionMinRatio:  compressionMinRatio,
 			disableDecompression: disableDecompression,
 		},
+		mw: newMetricsWorker(
+			agent.logger,
+			localKvEp,
+			opts.SeedConfig.ServerGroup,
+			opts.NodeCh,
+		),
 	}
 	agent.query = NewQueryComponent(
 		consistencyRetryMgr,
@@ -385,6 +398,7 @@ func (agent *Agent) Close() error {
 		agent.logger.Debug("Failed to close multi conn mgr", zap.Error(err))
 	}
 
+	agent.crud.mw.Close()
 	agent.cfgWatcherCancel()
 	agent.state.httpTransport.CloseIdleConnections()
 	return nil
