@@ -1652,10 +1652,11 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 					return nil, err
 				}
 
-				for _, path := range opts.Project {
+				for i, path := range opts.Project {
 					parsedPath, err := subdocpath.Parse(path)
 					if err != nil {
 						return nil, &PathProjectionError{
+							Index: i,
 							Path:  path,
 							Cause: err,
 						}
@@ -1664,6 +1665,7 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 					pathValue, err := reader.Get(parsedPath)
 					if err != nil {
 						return nil, &PathProjectionError{
+							Index: i,
 							Path:  path,
 							Cause: err,
 						}
@@ -1672,6 +1674,7 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 					err = writer.Set(parsedPath, pathValue)
 					if err != nil {
 						return nil, &PathProjectionError{
+							Index: i,
 							Path:  path,
 							Cause: err,
 						}
@@ -1694,11 +1697,13 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 							continue
 						} else if errors.Is(op.Err, memdx.ErrSubDocPathInvalid) {
 							return nil, &PathProjectionError{
+								Index: pathIdx,
 								Path:  path,
 								Cause: op.Err,
 							}
 						} else if errors.Is(op.Err, memdx.ErrSubDocPathMismatch) {
 							return nil, &PathProjectionError{
+								Index: pathIdx,
 								Path:  path,
 								Cause: op.Err,
 							}
@@ -1714,6 +1719,7 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 					parsedPath, err := subdocpath.Parse(path)
 					if err != nil {
 						return nil, &PathProjectionError{
+							Index: pathIdx,
 							Path:  path,
 							Cause: err,
 						}
@@ -1722,6 +1728,7 @@ func (cc *CrudComponent) GetOrLookup(ctx context.Context, opts *GetOrLookupOptio
 					err = writer.Set(parsedPath, op.Value)
 					if err != nil {
 						return nil, &PathProjectionError{
+							Index: pathIdx,
 							Path:  path,
 							Cause: err,
 						}

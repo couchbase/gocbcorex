@@ -205,12 +205,13 @@ func (e serviceNotAvailableError) Unwrap() error {
 }
 
 type PathProjectionError struct {
+	Index int
 	Path  string
 	Cause error
 }
 
 func (e PathProjectionError) Error() string {
-	return fmt.Sprintf("%s (path: %s)", e.Cause, e.Path)
+	return fmt.Sprintf("%s (path: %s, index: %d)", e.Cause, e.Path, e.Index)
 }
 
 func (e PathProjectionError) Unwrap() error {
