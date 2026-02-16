@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
@@ -78,12 +79,13 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s/query", opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s/query", url.PathEscape(opts.IndexName))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return nil, errors.New("must specify both or neither of scope and bucket names")
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/query", opts.BucketName, opts.ScopeName, opts.IndexName)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/query",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.IndexName))
 	}
 
 	resp, err := h.Execute(
@@ -136,12 +138,13 @@ func (h Search) UpsertIndex(
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s", opts.Name)
+		reqURI = fmt.Sprintf("/api/index/%s", url.PathEscape(opts.Name))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return nil, ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.Name)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.Name))
 	}
 
 	iJson, err := h.encodeIndex(&opts.Index)
@@ -193,12 +196,13 @@ func (h Search) DeleteIndex(
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s", opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s", url.PathEscape(opts.IndexName))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.IndexName)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.IndexName))
 	}
 
 	resp, err := h.Execute(
@@ -240,12 +244,13 @@ func (h Search) GetIndex(
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s", opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s", url.PathEscape(opts.IndexName))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return nil, ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s", opts.BucketName, opts.ScopeName, opts.IndexName)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.IndexName))
 	}
 
 	resp, err := h.Execute(
@@ -297,7 +302,8 @@ func (h Search) GetAllIndexes(
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return nil, ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index", opts.BucketName, opts.ScopeName)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName))
 	}
 
 	resp, err := h.Execute(
@@ -358,12 +364,13 @@ func (h Search) AnalyzeDocument(
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s/analyzeDoc", opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s/analyzeDoc", url.PathEscape(opts.IndexName))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return nil, ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/index/%s.%s.%s/analyzeDoc", opts.BucketName, opts.ScopeName, opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s.%s.%s/analyzeDoc",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.IndexName))
 	}
 
 	resp, err := h.Execute(
@@ -411,12 +418,13 @@ func (h Search) GetIndexedDocumentsCount(
 
 	var reqURI string
 	if opts.ScopeName == "" && opts.BucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s/count", opts.IndexName)
+		reqURI = fmt.Sprintf("/api/index/%s/count", url.PathEscape(opts.IndexName))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
 			return 0, ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/count", opts.BucketName, opts.ScopeName, opts.IndexName)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/count",
+			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.IndexName))
 	}
 
 	resp, err := h.Execute(
@@ -539,12 +547,13 @@ func (h Search) controlRequest(
 
 	var reqURI string
 	if scopeName == "" && bucketName == "" {
-		reqURI = fmt.Sprintf("/api/index/%s/%s", indexName, control)
+		reqURI = fmt.Sprintf("/api/index/%s/%s", url.PathEscape(indexName), url.PathEscape(control))
 	} else {
 		if scopeName == "" || bucketName == "" {
 			return ErrOnlyBucketOrScopeSet
 		}
-		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/%s", bucketName, scopeName, indexName, control)
+		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/%s",
+			url.PathEscape(bucketName), url.PathEscape(scopeName), url.PathEscape(indexName), url.PathEscape(control))
 	}
 
 	resp, err := h.Execute(
