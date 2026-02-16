@@ -29,6 +29,7 @@ type BucketsTrackingAgentManagerOptions struct {
 	HTTPConfig         HTTPConfig
 	IoConfig           IoConfig
 	CreateAgentTimeout time.Duration
+	DisableMetrics     bool
 }
 
 type bucketsTrackingAgentManagerState struct {
@@ -62,6 +63,8 @@ type BucketsTrackingAgentManager struct {
 	watchersCancel func()
 
 	topologyCfgWatcher *TopologyWatcherHttp
+
+	disableMetrics bool
 }
 
 type bucketDescriptor struct {
@@ -72,6 +75,7 @@ type bucketDescriptor struct {
 type nodeDescriptor struct {
 	Hostname    string
 	ServerGroup string
+	KvEndpoint  string
 }
 
 func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTrackingAgentManagerOptions) (*BucketsTrackingAgentManager, error) {
@@ -125,6 +129,8 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 			authenticator: opts.Authenticator,
 			httpTransport: httpTransport,
 		},
+
+		disableMetrics: opts.DisableMetrics,
 	}
 	m.state.latestConfig.Store(bootstrapConfig)
 
@@ -328,7 +334,8 @@ func (m *BucketsTrackingAgentManager) makeAgent(ctx context.Context, bucketName 
 		HTTPConfig:         m.httpConfig,
 		IoConfig:           m.ioConfig,
 		BucketName:         bucketName,
-		GetNodes:           m.nodesWatcher.GetNodes,
+		NodesWatcher:       m.nodesWatcher,
+		DisableMetrics:     m.disableMetrics,
 	})
 }
 
