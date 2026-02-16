@@ -3,7 +3,6 @@ package gocbcorex
 import (
 	"context"
 	"errors"
-	"slices"
 	"sync/atomic"
 
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
@@ -123,22 +122,12 @@ func OrchestrateMemdRouting[RespT any](
 	ch NotMyVbucketConfigHandler,
 	key []byte,
 	vbServerIdx uint32,
-	localKvEp string,
-	srvGroupKvEps []string,
 	fn func(endpoint string, vbID uint16) (RespT, error),
 ) (RespT, error) {
 	endpoint, vbID, err := vb.DispatchByKey(key, vbServerIdx)
 	if err != nil {
 		var emptyResp RespT
 		return emptyResp, err
-	}
-
-	if localKvEp == endpoint {
-		localMemdRequests.Add(ctx, 1)
-	} else if slices.Contains(srvGroupKvEps, endpoint) {
-		serverGroupMemdRequests.Add(ctx, 1)
-	} else {
-		remoteMemdRequests.Add(ctx, 1)
 	}
 
 	for {

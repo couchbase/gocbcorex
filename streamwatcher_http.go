@@ -260,9 +260,15 @@ func streamWatcherHttp_streamNodes(
 
 		nodes := make([]nodeDescriptor, len(cfg.Nodes))
 		for i, node := range cfg.Nodes {
+			kvEp, err := kvEpFromHostname(node.Hostname)
+			if err != nil {
+				logger.Warn("failed to split host and port", zap.String("hostname", node.Hostname), zap.Error(err))
+			}
+
 			nodes[i] = nodeDescriptor{
 				Hostname:    node.Hostname,
 				ServerGroup: node.ServerGroup,
+				KvEndpoint:  kvEp,
 			}
 		}
 

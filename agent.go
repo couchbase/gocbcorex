@@ -267,10 +267,6 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		CollectionChecker: collectionChecker,
 	}
 
-	if opts.GetNodes == nil {
-		opts.GetNodes = func(ctx context.Context) map[string]string { return map[string]string{} }
-	}
-
 	var localKvEp string
 	host, port, err := net.SplitHostPort(opts.SeedConfig.LocalNodeAddr)
 	if err != nil {
@@ -295,9 +291,10 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 			compressionMinRatio:  compressionMinRatio,
 			disableDecompression: disableDecompression,
 		},
-		localKvEp: localKvEp,
-		srvGroup:  opts.SeedConfig.ServerGroup,
-		getNodes:  opts.GetNodes,
+		localKvEp:      localKvEp,
+		srvGroup:       opts.SeedConfig.ServerGroup,
+		nw:             opts.NodesWatcher,
+		disableMetrics: opts.DisableMetrics,
 	}
 	agent.query = NewQueryComponent(
 		consistencyRetryMgr,
