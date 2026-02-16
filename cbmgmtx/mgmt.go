@@ -255,7 +255,7 @@ func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOp
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
+		fmt.Sprintf("/pools/default/buckets/%s", url.PathEscape(opts.BucketName)), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBuck
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
+		fmt.Sprintf("/pools/default/b/%s", url.PathEscape(opts.BucketName)), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (h Management) CheckBucketExists(ctx context.Context, opts *CheckBucketExis
 	}
 
 	resp, err := h.Execute(ctx, "HEAD",
-		fmt.Sprintf("/pools/default/b/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
+		fmt.Sprintf("/pools/default/b/%s", url.PathEscape(opts.BucketName)), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return false, err
 	}
@@ -338,7 +338,7 @@ func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTer
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/bs/%s", opts.BucketName), "", opts.OnBehalfOf, nil)
+		fmt.Sprintf("/pools/default/bs/%s", url.PathEscape(opts.BucketName)), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +424,7 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 	}
 
 	resp, err := h.Execute(ctx, "GET",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName), "", opts.OnBehalfOf, nil)
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", url.PathEscape(opts.BucketName)), "", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +469,7 @@ func (h Management) CreateScope(
 	resp, err := h.Execute(
 		ctx,
 		"POST",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes", opts.BucketName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes", url.PathEscape(opts.BucketName)),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return nil, err
@@ -514,7 +514,7 @@ func (h Management) DeleteScope(
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", opts.BucketName, opts.ScopeName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s", url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
@@ -576,7 +576,7 @@ func (h Management) CreateCollection(
 	resp, err := h.Execute(
 		ctx,
 		"POST",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", opts.BucketName, opts.ScopeName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections", url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName)),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return nil, err
@@ -625,7 +625,7 @@ func (h Management) DeleteCollection(
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.CollectionName)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return nil, err
@@ -685,7 +685,7 @@ func (h Management) UpdateCollection(
 	resp, err := h.Execute(
 		ctx,
 		"PATCH",
-		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", opts.BucketName, opts.ScopeName, opts.CollectionName),
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/%s/collections/%s", url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.CollectionName)),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return nil, err
@@ -1005,7 +1005,7 @@ func (h Management) UpdateBucket(
 	resp, err := h.Execute(
 		ctx,
 		"POST",
-		fmt.Sprintf("/pools/default/buckets/%s", opts.BucketName),
+		fmt.Sprintf("/pools/default/buckets/%s", url.PathEscape(opts.BucketName)),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
@@ -1322,7 +1322,7 @@ func (h Management) UpsertUser(
 	resp, err := h.Execute(
 		ctx,
 		"PUT",
-		fmt.Sprintf("/settings/rbac/users/%s/%s", opts.Domain, opts.Username),
+		fmt.Sprintf("/settings/rbac/users/%s/%s", url.PathEscape(string(opts.Domain)), url.PathEscape(opts.Username)),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
 		return err
@@ -1357,7 +1357,7 @@ func (h Management) DeleteUser(
 	resp, err := h.Execute(
 		ctx,
 		"DELETE",
-		fmt.Sprintf("/settings/rbac/users/%s/%s", opts.Domain, opts.Username),
+		fmt.Sprintf("/settings/rbac/users/%s/%s", url.PathEscape(string(opts.Domain)), url.PathEscape(opts.Username)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
 		return err
