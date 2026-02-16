@@ -20,24 +20,7 @@ import (
 func TestAgentDelete(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	logger, _ := zap.NewDevelopment()
-
-	opts := gocbcorex.AgentOptions{
-		Logger:    logger,
-		TLSConfig: nil,
-		Authenticator: &gocbcorex.PasswordAuthenticator{
-			Username: testutilsint.TestOpts.Username,
-			Password: testutilsint.TestOpts.Password,
-		},
-		BucketName: testutilsint.TestOpts.BucketName,
-		SeedConfig: gocbcorex.SeedConfig{
-			HTTPAddrs: testutilsint.TestOpts.HTTPAddrs,
-			MemdAddrs: testutilsint.TestOpts.MemdAddrs,
-		},
-	}
-
-	agent, err := gocbcorex.CreateAgent(context.Background(), opts)
-	require.NoError(t, err)
+	agent := CreateDefaultAgent(t)
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)
@@ -108,24 +91,7 @@ func TestAgentDoesNotRetryMemdxInvalidArgs(t *testing.T) {
 func TestServerDurations(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 
-	logger, _ := zap.NewDevelopment()
-
-	opts := gocbcorex.AgentOptions{
-		Logger:    logger,
-		TLSConfig: nil,
-		Authenticator: &gocbcorex.PasswordAuthenticator{
-			Username: testutilsint.TestOpts.Username,
-			Password: testutilsint.TestOpts.Password,
-		},
-		BucketName: testutilsint.TestOpts.BucketName,
-		SeedConfig: gocbcorex.SeedConfig{
-			HTTPAddrs: testutilsint.TestOpts.HTTPAddrs,
-			MemdAddrs: testutilsint.TestOpts.MemdAddrs,
-		},
-	}
-
-	agent, err := gocbcorex.CreateAgent(context.Background(), opts)
-	require.NoError(t, err)
+	agent := CreateDefaultAgent(t)
 	t.Cleanup(func() {
 		err := agent.Close()
 		require.NoError(t, err)

@@ -32,6 +32,7 @@ func createDefaultAgentOptions() gocbcorex.AgentOptions {
 		CompressionConfig: gocbcorex.CompressionConfig{
 			EnableCompression: true,
 		},
+		DisableMetrics: true,
 	}
 }
 
