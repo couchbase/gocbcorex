@@ -26,6 +26,8 @@ type OnDemandAgentManagerOptions struct {
 	CompressionConfig  CompressionConfig
 	ConfigPollerConfig ConfigPollerConfig
 	HTTPConfig         HTTPConfig
+
+	DisableMetrics bool
 }
 
 // OnDemandAgentManager is responsible for managing a collection of Agent instances.
@@ -68,6 +70,7 @@ func (m *OnDemandAgentManager) makeAgent(ctx context.Context, bucketName string)
 		ConfigPollerConfig: m.opts.ConfigPollerConfig,
 		HTTPConfig:         m.opts.HTTPConfig,
 		BucketName:         bucketName,
+		DisableMetrics:     m.opts.DisableMetrics,
 	})
 }
 
