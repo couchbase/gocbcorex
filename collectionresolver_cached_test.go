@@ -116,18 +116,35 @@ func TestCollectionResolverNCallsNCollections(t *testing.T) {
 }
 
 func TestCollectionManagerDispatchErrors(t *testing.T) {
-	var called uint32
+	var called atomic.Uint32
 	collection := uuid.NewString()
 	scope := uuid.NewString()
 	cbErr := errors.New("some error")
 
+	// gate1/gate2 let the test synchronize with the first two mock
+	// invocations. Any additional calls (from late-arriving goroutines
+	// under scheduler pressure) pass through without blocking.
+	gate1 := make(chan struct{})
+	gate1Called := make(chan struct{})
+	gate2 := make(chan struct{})
+	gate2Called := make(chan struct{})
+
 	mock := &CollectionResolverMock{
 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
-			called++
+			n := called.Add(1)
 
 			assert.Equal(t, scope, scopeName)
 			assert.Equal(t, collection, collectionName)
 			assert.NotNil(t, ctx)
+
+			switch n {
+			case 1:
+				close(gate1Called)
+				<-gate1
+			case 2:
+				close(gate2Called)
+				<-gate2
+			}
 
 			return 0, 0, cbErr
 		}}
@@ -140,7 +157,27 @@ func TestCollectionManagerDispatchErrors(t *testing.T) {
 
 	var wg sync.WaitGroup
 	numReqs := 10
-	for i := 0; i < numReqs; i++ {
+
+	// Start goroutine 1 to create the entry and spawn the resolve
+	// thread.
+	wg.Add(1)
+	go func() {
+		u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
+		assert.Equal(t, cbErr, err)
+		assert.Equal(t, uint32(0), u)
+		assert.Equal(t, uint64(0), mRev)
+		wg.Done()
+	}()
+
+	// Wait for the first resolve thread to enter the mock. Its
+	// time.Now() has already been captured.
+	<-gate1Called
+
+	// Start goroutines 2-10. Their time.Now() calls in
+	// resolveCollectionIDSlow are guaranteed to return a time after
+	// the resolve thread's requestedAt because we only start them
+	// after the resolve thread is blocked inside the mock.
+	for i := 1; i < numReqs; i++ {
 		wg.Add(1)
 		go func() {
 			u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
@@ -150,9 +187,29 @@ func TestCollectionManagerDispatchErrors(t *testing.T) {
 			wg.Done()
 		}()
 	}
+
+	// Give goroutines 2-10 time to enter resolveCollectionIDSlow
+	// and wait on PendingCh. Since the resolve thread is still
+	// blocked in the mock, PendingCh is open, so any goroutine
+	// that has entered the slow path is waiting on it.
+	time.Sleep(50 * time.Millisecond)
+
+	// Unblock call 1. Waiting goroutines will see the error,
+	// detect their requestedAt is after the entry's, and retry —
+	// coalescing into a second resolution (call 2).
+	close(gate1)
+
+	// Wait for the coalesced retry to enter the mock, then unblock.
+	<-gate2Called
+	close(gate2)
+
 	wg.Wait()
 
-	assert.Equal(t, uint32(1), called)
+	// We expect at least 2 calls: the initial failure plus at least
+	// one coalesced retry. Under scheduler pressure, a few extra
+	// calls may occur from goroutines that hadn't entered the slow
+	// path before call 1 completed.
+	assert.GreaterOrEqual(t, called.Load(), uint32(2))
 }
 
 func TestCollectionResolverCachedKnownCollection(t *testing.T) {
@@ -534,62 +591,105 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	assert.Equal(t, uint32(1), called)
 }
 
-// func TestCollectionsManagerInvalidateTwice(t *testing.T) {
-// 	var called uint32
-// 	collection := uuid.NewString()
-// 	scope := uuid.NewString()
-// 	cid := uint32(15)
-// 	manifestRev := uint64(4)
-// 	fqCollectionName := scope + "." + collection
-// 	mock := &CollectionResolverMock{
-// 		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
-// 			called++
+//	func TestCollectionsManagerInvalidateTwice(t *testing.T) {
+//		var called uint32
+//		collection := uuid.NewString()
+//		scope := uuid.NewString()
+//		cid := uint32(15)
+//		manifestRev := uint64(4)
+//		fqCollectionName := scope + "." + collection
+//		mock := &CollectionResolverMock{
+//			ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+//				called++
 //
-// 			assert.Equal(t, scope, scopeName)
-// 			assert.Equal(t, collection, collectionName)
-// 			assert.NotNil(t, ctx)
+//				assert.Equal(t, scope, scopeName)
+//				assert.Equal(t, collection, collectionName)
+//				assert.NotNil(t, ctx)
 //
-// 			return cid, manifestRev, nil
-// 		},
-// 		InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
-// 		},
-// 	}
+//				return cid, manifestRev, nil
+//			},
+//			InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
+//			},
+//		}
 //
-// 	resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
-// 		Resolver:       mock,
-// 		ResolveTimeout: 10 * time.Second,
-// 	})
-// 	require.NoError(t, err)
+//		resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
+//			Resolver:       mock,
+//			ResolveTimeout: 10 * time.Second,
+//		})
+//		require.NoError(t, err)
 //
-// 	manifest := &collectionsFastManifest{
-// 		collections: map[string]collectionsFastCacheEntry{
-// 			fqCollectionName: {
-// 				CollectionID: cid,
-// 				ManifestRev:  manifestRev,
-// 			},
-// 		},
-// 	}
-// 	resolver.fastCache.Store(manifest)
-// 	resolver.slowMap = map[string]*collectionCacheEntry{
-// 		fqCollectionName: {
-// 			CollectionID: cid,
-// 			ManifestRev:  manifestRev,
-// 		},
-// 	}
+//		manifest := &collectionsFastManifest{
+//			collections: map[string]collectionsFastCacheEntry{
+//				fqCollectionName: {
+//					CollectionID: cid,
+//					ManifestRev:  manifestRev,
+//				},
+//			},
+//		}
+//		resolver.fastCache.Store(manifest)
+//		resolver.slowMap = map[string]*collectionCacheEntry{
+//			fqCollectionName: {
+//				CollectionID: cid,
+//				ManifestRev:  manifestRev,
+//			},
+//		}
 //
-// 	// Invalidate the collection ID and then allow the get cid fetch callback to be invoked at the same time as
-// 	// a second invalidation.
-// 	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
-// 	go resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 6)
+//		// Invalidate the collection ID and then allow the get cid fetch callback to be invoked at the same time as
+//		// a second invalidation.
+//		resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
+//		go resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 6)
 //
-// 	waitCh := make(chan struct{}, 1)
-// 	go func() {
-// 		u, _, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
-// 		assert.Nil(t, err)
-// 		assert.Equal(t, cid, u)
-// 		waitCh <- struct{}{}
-// 	}()
-// 	<-waitCh
+//		waitCh := make(chan struct{}, 1)
+//		go func() {
+//			u, _, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
+//			assert.Nil(t, err)
+//			assert.Equal(t, cid, u)
+//			waitCh <- struct{}{}
+//		}()
+//		<-waitCh
 //
-// 	assert.Equal(t, uint32(1), called)
+// \tassert.Equal(t, uint32(1), called)
 // }
+// We expect that when a collection resolution fails (e.g. the collection does
+// not exist), the error is returned to the caller. When a subsequent request
+// comes in (e.g. after the collection has been created), it should trigger a
+// fresh resolution rather than returning the stale cached error.
+func TestCollectionResolverCachedRecoveryAfterError(t *testing.T) {
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	cbErr := errors.New("unknown collection name")
+	cid := uint32(9)
+	manifestRev := uint64(4)
+
+	var callCount atomic.Uint32
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			call := callCount.Add(1)
+
+			if call == 1 {
+				return 0, 0, cbErr
+			}
+
+			return cid, manifestRev, nil
+		},
+	}
+
+	resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
+		Resolver:       mock,
+		ResolveTimeout: 10 * time.Second,
+	})
+	require.NoError(t, err)
+
+	// First resolve triggers a resolution which will fail. The caller's
+	// requestedAt predates the error, so this returns the error.
+	_, _, err = resolver.ResolveCollectionID(context.Background(), scope, collection)
+	require.ErrorIs(t, err, cbErr)
+
+	// A subsequent resolve (whose requestedAt postdates the error) should
+	// trigger a fresh resolution, which now succeeds.
+	resolvedCid, resolvedManifestRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
+	require.NoError(t, err)
+	require.Equal(t, cid, resolvedCid)
+	require.Equal(t, manifestRev, resolvedManifestRev)
+	require.Equal(t, uint32(2), callCount.Load())
+}

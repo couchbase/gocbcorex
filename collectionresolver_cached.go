@@ -26,6 +26,7 @@ type collectionsFastManifest struct {
 type collectionCacheEntry struct {
 	IsValid      bool
 	ResolveErr   error
+	RequestedAt  time.Time
 	CollectionID uint32
 	ManifestRev  uint64
 
@@ -133,57 +134,32 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 		}
 	}()
 
-	for {
-		// before we start looping again, check if there is a context error which occurs
-		// when this goroutine should be shut down
-		if cancelCtx.Err() != nil {
-			cr.slowLock.Lock()
+	fullKeyPath := scopeName + "." + collectionName
 
-			doneCh := entry.DoneCh
-			entry.DoneCh = nil
+	requestedAt := time.Now()
+	collectionID, manifestRev, err := cr.resolver.ResolveCollectionID(cancelCtx, scopeName, collectionName)
+	cancelFn()
 
-			cr.slowLock.Unlock()
-
-			close(doneCh)
-
-			return
-		}
-
-		collectionID, manifestRev, err := cr.resolver.ResolveCollectionID(cancelCtx, scopeName, collectionName)
-		cancelFn()
-
-		if err != nil {
-			cr.slowLock.Lock()
-
-			entry.IsValid = false
-			entry.ResolveErr = err
-			entry.CollectionID = 0
-
-			pendingCh := entry.PendingCh
-			entry.PendingCh = nil
-
-			cr.rebuildFastCacheLocked()
-			cr.slowLock.Unlock()
-
-			if pendingCh != nil {
-				close(pendingCh)
-			}
-
-			continue
-		}
-
+	if err != nil {
 		cr.slowLock.Lock()
 
-		entry.IsValid = true
-		entry.ResolveErr = nil
-		entry.CollectionID = collectionID
-		entry.ManifestRev = manifestRev
+		entry.RequestedAt = requestedAt
+		entry.IsValid = false
+		entry.ResolveErr = err
+		entry.CollectionID = 0
 
-		doneCh := entry.DoneCh
-		entry.DoneCh = nil
+		// Delete the entry from the map before waking waiters, so
+		// retrying resolvers see no entry and create a fresh one
+		// rather than spinning on the stale error.
+		if cr.slowMap[fullKeyPath] == entry {
+			delete(cr.slowMap, fullKeyPath)
+		}
 
 		pendingCh := entry.PendingCh
 		entry.PendingCh = nil
+
+		doneCh := entry.DoneCh
+		entry.DoneCh = nil
 
 		cr.rebuildFastCacheLocked()
 		cr.slowLock.Unlock()
@@ -195,13 +171,38 @@ func (cr *CollectionResolverCached) resolveCollectionThread(
 			close(doneCh)
 		}
 
-		break
+		return
+	}
+
+	cr.slowLock.Lock()
+
+	entry.RequestedAt = requestedAt
+	entry.IsValid = true
+	entry.ResolveErr = nil
+	entry.CollectionID = collectionID
+	entry.ManifestRev = manifestRev
+
+	doneCh := entry.DoneCh
+	entry.DoneCh = nil
+
+	pendingCh := entry.PendingCh
+	entry.PendingCh = nil
+
+	cr.rebuildFastCacheLocked()
+	cr.slowLock.Unlock()
+
+	if pendingCh != nil {
+		close(pendingCh)
+	}
+	if doneCh != nil {
+		close(doneCh)
 	}
 }
 
 func (cr *CollectionResolverCached) resolveCollectionIDSlow(
 	ctx context.Context, scopeName, collectionName string,
 ) (collectionId uint32, manifestRev uint64, err error) {
+	requestedAt := time.Now()
 	fullKeyPath := scopeName + "." + collectionName
 
 	cr.slowLock.Lock()
@@ -234,10 +235,22 @@ func (cr *CollectionResolverCached) resolveCollectionIDSlow(
 			}
 		}
 
-		return cr.resolveCollectionIDSlow(ctx, scopeName, collectionName)
+		// PendingCh was closed, meaning the entry now has a result or
+		// an error. Re-acquire the lock and fall through to read the
+		// entry directly — no need to look it up in the map again.
+		cr.slowLock.Lock()
 	}
 
 	if slowEntry.ResolveErr != nil {
+		// If this caller arrived after the resolution was initiated
+		// (requestedAt is after the entry's RequestedAt), it represents
+		// a logically new request that should get a fresh resolution.
+		if slowEntry.RequestedAt.Before(requestedAt) {
+			cr.slowLock.Unlock()
+
+			return cr.resolveCollectionIDSlow(ctx, scopeName, collectionName)
+		}
+
 		resolveErr := slowEntry.ResolveErr
 		cr.slowLock.Unlock()
 
