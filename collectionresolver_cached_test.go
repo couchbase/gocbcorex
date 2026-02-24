@@ -591,65 +591,83 @@ func TestCollectionsManagerCancelContextAllOps(t *testing.T) {
 	assert.Equal(t, uint32(1), called)
 }
 
-//	func TestCollectionsManagerInvalidateTwice(t *testing.T) {
-//		var called uint32
-//		collection := uuid.NewString()
-//		scope := uuid.NewString()
-//		cid := uint32(15)
-//		manifestRev := uint64(4)
-//		fqCollectionName := scope + "." + collection
-//		mock := &CollectionResolverMock{
-//			ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
-//				called++
-//
-//				assert.Equal(t, scope, scopeName)
-//				assert.Equal(t, collection, collectionName)
-//				assert.NotNil(t, ctx)
-//
-//				return cid, manifestRev, nil
-//			},
-//			InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
-//			},
-//		}
-//
-//		resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
-//			Resolver:       mock,
-//			ResolveTimeout: 10 * time.Second,
-//		})
-//		require.NoError(t, err)
-//
-//		manifest := &collectionsFastManifest{
-//			collections: map[string]collectionsFastCacheEntry{
-//				fqCollectionName: {
-//					CollectionID: cid,
-//					ManifestRev:  manifestRev,
-//				},
-//			},
-//		}
-//		resolver.fastCache.Store(manifest)
-//		resolver.slowMap = map[string]*collectionCacheEntry{
-//			fqCollectionName: {
-//				CollectionID: cid,
-//				ManifestRev:  manifestRev,
-//			},
-//		}
-//
-//		// Invalidate the collection ID and then allow the get cid fetch callback to be invoked at the same time as
-//		// a second invalidation.
-//		resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
-//		go resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 6)
-//
-//		waitCh := make(chan struct{}, 1)
-//		go func() {
-//			u, _, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
-//			assert.Nil(t, err)
-//			assert.Equal(t, cid, u)
-//			waitCh <- struct{}{}
-//		}()
-//		<-waitCh
-//
-// \tassert.Equal(t, uint32(1), called)
-// }
+func TestCollectionsManagerInvalidateTwice(t *testing.T) {
+	collection := uuid.NewString()
+	scope := uuid.NewString()
+	cid := uint32(15)
+	manifestRev := uint64(4)
+
+	var callCount atomic.Uint32
+	// calledCh is signaled each time the mock is entered.
+	// blockCh gates each resolver call so the test can control timing.
+	calledCh := make(chan struct{}, 1)
+	blockCh := make(chan struct{})
+	mock := &CollectionResolverMock{
+		ResolveCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string) (uint32, uint64, error) {
+			callCount.Add(1)
+			calledCh <- struct{}{}
+			<-blockCh
+			return cid, manifestRev, nil
+		},
+		InvalidateCollectionIDFunc: func(ctx context.Context, scopeName string, collectionName string, endpoint string, manifestRev uint64) {
+		},
+	}
+
+	resolver, err := NewCollectionResolverCached(&CollectionResolverCachedOptions{
+		Resolver:       mock,
+		ResolveTimeout: 10 * time.Second,
+	})
+	require.NoError(t, err)
+
+	// Step 1: Resolve the collection for the first time to populate the cache.
+	// The mock blocks until we signal, ensuring we control the timing.
+	resultCh := make(chan error, 1)
+	go func() {
+		u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
+		if err == nil {
+			assert.Equal(t, cid, u)
+			assert.Equal(t, manifestRev, mRev)
+		}
+		resultCh <- err
+	}()
+
+	// Wait for the resolver to be called, then unblock it.
+	<-calledCh
+	require.Equal(t, uint32(1), callCount.Load())
+	blockCh <- struct{}{}
+
+	require.NoError(t, <-resultCh)
+
+	// Step 2: Invalidate the collection. This spawns a new resolve thread
+	// that will block on blockCh (call #2).
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 5)
+
+	// Wait for the re-resolve thread to call the resolver and block.
+	<-calledCh
+	require.Equal(t, uint32(2), callCount.Load())
+
+	// Step 3: Invalidate again while the resolve thread is active.
+	// Since DoneCh != nil, this should be a no-op.
+	resolver.InvalidateCollectionID(context.Background(), scope, collection, "endpoint1", 6)
+
+	// Unblock the re-resolve and verify the result.
+	go func() {
+		u, mRev, err := resolver.ResolveCollectionID(context.Background(), scope, collection)
+		if err == nil {
+			assert.Equal(t, cid, u)
+			assert.Equal(t, manifestRev, mRev)
+		}
+		resultCh <- err
+	}()
+
+	blockCh <- struct{}{}
+	require.NoError(t, <-resultCh)
+
+	// The second invalidation should not have spawned a new resolve thread,
+	// so the total call count should be exactly 2.
+	require.Equal(t, uint32(2), callCount.Load())
+}
+
 // We expect that when a collection resolution fails (e.g. the collection does
 // not exist), the error is returned to the caller. When a subsequent request
 // comes in (e.g. after the collection has been created), it should trigger a
