@@ -604,54 +604,6 @@ func TestAgentSetWithMetaVBUUID(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func BenchmarkBasicGet(b *testing.B) {
-	opts := gocbcorex.AgentOptions{
-		TLSConfig: nil,
-		Authenticator: &gocbcorex.PasswordAuthenticator{
-			Username: testutilsint.TestOpts.Username,
-			Password: testutilsint.TestOpts.Password,
-		},
-		BucketName: testutilsint.TestOpts.BucketName,
-		SeedConfig: gocbcorex.SeedConfig{
-			HTTPAddrs: testutilsint.TestOpts.HTTPAddrs,
-			MemdAddrs: testutilsint.TestOpts.MemdAddrs,
-		},
-	}
-
-	agent, err := gocbcorex.CreateAgent(context.Background(), opts)
-	if err != nil {
-		b.Errorf("failed to create agent: %s", err)
-	}
-	b.Cleanup(func() {
-		err := agent.Close()
-		if err != nil {
-			b.Errorf("failed to close agent: %s", err)
-		}
-	})
-
-	_, err = agent.Upsert(context.Background(), &gocbcorex.UpsertOptions{
-		Key:            []byte("test"),
-		ScopeName:      "",
-		CollectionName: "",
-		Value:          []byte(`{"foo": "bar"}`),
-	})
-	if err != nil {
-		b.Errorf("failed to upsert test document: %s", err)
-	}
-
-	for n := 0; n < b.N; n++ {
-		_, err := agent.Get(context.Background(), &gocbcorex.GetOptions{
-			Key:            []byte("test"),
-			ScopeName:      "",
-			CollectionName: "",
-		})
-		if err != nil {
-			b.Errorf("failed to get test document: %s", err)
-		}
-	}
-	b.ReportAllocs()
-}
-
 func TestAgentStaticInfo(t *testing.T) {
 	testutilsint.SkipIfShortTest(t)
 

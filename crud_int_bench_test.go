@@ -39,6 +39,7 @@ func intBenchAgent(b *testing.B) *gocbcorex.Agent {
 		CompressionConfig: gocbcorex.CompressionConfig{
 			EnableCompression: true,
 		},
+		DisableMetrics: true,
 	}
 
 	agent, err := gocbcorex.CreateAgent(b.Context(), opts)

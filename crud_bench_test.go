@@ -320,6 +320,7 @@ func mutateInResponse(ops []memdx.SubDocResult, cas uint64, vbUuid uint64, seqNo
 func newBenchCrudComponent(kv KvClient, snappyEnabled bool) *CrudComponent {
 	return &CrudComponent{
 		logger:          zap.NewNop(),
+		disableMetrics:  true,
 		retries:         NewRetryManagerFastFail(),
 		collections:     benchCollectionResolver{cid: 0x100, manifestRev: 1},
 		vbs:             benchVbucketRouter{endpoint: "bench-ep", vbID: 42, numReplicas: 0},
