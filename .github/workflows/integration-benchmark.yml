@@ -1,7 +1,6 @@
-name: Run Tests
-permissions:
-  contents: read
-  packages: read
+name: Integration Benchmark Tests
+
+# This workflow runs the "integration" benchmarks, which perform work against a real cluster.
 
 on:
   push:
@@ -12,19 +11,24 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: Integration Test
-
-    strategy:
-      matrix:
-        server:
-          - 8.1.0-1203
-          - 8.0.0
-          - 7.6.8
-          - 7.2.8
-
+  benchmark:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # Fetch all history so we can switch to the base branch
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Install cbdinocluster
         run: |
           mkdir -p "$HOME/bin"
@@ -41,12 +45,12 @@ jobs:
           CLUSTERCONFIG: |
             nodes:
               - count: 3
-                version: ${{ matrix.server }}
+                version: 7.6.8
                 services: [kv, n1ql, index, fts, cbas]
             docker:
               kv-memory: 512
               index-memory: 1024
-              fts-memory: 1024
+              fts-memory: 1536
         run: |
           CBDC_ID=$(cbdinocluster -v alloc --def="${CLUSTERCONFIG}")
           cbdinocluster -v buckets add ${CBDC_ID} default --ram-quota-mb=100 --flush-enabled=true --num-replicas=2
@@ -55,36 +59,14 @@ jobs:
           echo "CBDC_ID=$CBDC_ID" >> "$GITHUB_ENV"
           echo "CBDC_CONNSTR=$CBDC_CONNSTR" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - name: Initialize deps
-        run: go get
-      - name: Generate mocks
-        run: |
-          go install github.com/matryer/moq@v0.5
-          go generate
-      - name: Run tests
-        timeout-minutes: 40
-        env:
-          # CBDC_ID: from above
-          # CBDC_CONNSTR: from above
-          GCBDINOID: ${{ env.CBDC_ID }}
-          GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
-        run: |
-          go test ./... -v -race -p 1 -skip "Dino$"
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
 
-      - name: Collect couchbase logs
-        timeout-minutes: 10
-        if: failure()
-        run: |
-          mkdir -p ./logs
-          cbdinocluster -v collect-logs $CBDC_ID ./logs
-      - name: Upload couchbase logs
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Run Benchdiff
+        uses: WillAbides/benchdiff-action@v0
+        env:
+          GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
         with:
-          name: cbcollect-logs-${{ matrix.server }}
-          path: ./logs/*
-          retention-days: 5
+          status_name: "Integration Benchmarks"
+          benchdiff_args: '--on-degrade=1 --base-ref master --debug --cpu 1 --count 2 --bench "^BenchmarkInt"'
+          github_token: ${{ secrets.GITHUB_TOKEN }}

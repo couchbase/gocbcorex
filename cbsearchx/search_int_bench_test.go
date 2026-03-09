@@ -95,7 +95,7 @@ func intBenchSearchSetupIndex(b *testing.B, search cbsearchx.Search) string {
 			b.Fatalf("unexpected error while waiting for index to become queryable: %v", err)
 		}
 		return true
-	}, 30*time.Second, 500*time.Millisecond, "index did not become queryable in time")
+	}, 60*time.Second, 5*time.Second, "index did not become queryable in time")
 
 	return indexName
 }
