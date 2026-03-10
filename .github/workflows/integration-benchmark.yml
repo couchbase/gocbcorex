@@ -3,12 +3,8 @@ name: Integration Benchmark Tests
 # This workflow runs the "integration" benchmarks, which perform work against a real cluster.
 
 on:
-  push:
-    tags:
-      - v*
-    branches:
-      - master
   pull_request:
+    types: [opened, reopened, synchronize]
 
 jobs:
   benchmark:
@@ -19,9 +15,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0 # Fetch all history so we can switch to the base branch
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -59,6 +52,9 @@ jobs:
           echo "CBDC_ID=$CBDC_ID" >> "$GITHUB_ENV"
           echo "CBDC_CONNSTR=$CBDC_CONNSTR" >> "$GITHUB_ENV"
 
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest
 
@@ -68,5 +64,11 @@ jobs:
           GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
         with:
           status_name: "Integration Benchmarks"
-          benchdiff_args: '--on-degrade=1 --base-ref master --debug --cpu 1 --count 2 --bench "^BenchmarkInt"'
+          benchdiff_args: >-
+            --on-degrade=1
+            --base-ref ${{ github.base_ref || 'master' }}
+            --cpu=1
+            --count=2
+            --debug
+            --bench "^BenchmarkInt"
           github_token: ${{ secrets.GITHUB_TOKEN }}

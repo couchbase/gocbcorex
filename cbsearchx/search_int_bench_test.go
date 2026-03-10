@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
+	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"github.com/couchbase/gocbcorex/cbsearchx"
@@ -58,11 +58,60 @@ func intBenchSearch(b *testing.B) cbsearchx.Search {
 	}
 }
 
+// intBenchAgent creates an agent for integration benchmarks
+func intBenchAgent(b *testing.B) *gocbcorex.Agent {
+	if !testutilsint.TestOpts.LongTest {
+		b.Skipf("skipping long benchmark")
+	}
+
+	logger := zap.NewNop()
+
+	opts := gocbcorex.AgentOptions{
+		Logger:     logger,
+		BucketName: testutilsint.TestOpts.BucketName,
+		Authenticator: &gocbcorex.PasswordAuthenticator{
+			Username: testutilsint.TestOpts.Username,
+			Password: testutilsint.TestOpts.Password,
+		},
+		SeedConfig: gocbcorex.SeedConfig{
+			HTTPAddrs: testutilsint.TestOpts.HTTPAddrs,
+			MemdAddrs: testutilsint.TestOpts.MemdAddrs,
+		},
+		CompressionConfig: gocbcorex.CompressionConfig{
+			EnableCompression: true,
+		},
+		DisableMetrics: true,
+	}
+
+	agent, err := gocbcorex.CreateAgent(b.Context(), opts)
+	require.NoError(b, err)
+
+	b.Cleanup(func() {
+		err := agent.Close()
+		if err != nil {
+			b.Errorf("failed to close agent: %v", err)
+		}
+	})
+
+	return agent
+}
+
 func intBenchSearchSetupIndex(b *testing.B, search cbsearchx.Search) string {
 	ctx := context.Background()
-	indexName := "bench-" + uuid.NewString()[:8]
+	indexName := "benchmark-index"
 
-	_, err := search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
+	agent := intBenchAgent(b)
+	opts := &gocbcorex.UpsertOptions{
+		Key:            []byte("bench-key-" + uuid.NewString()),
+		ScopeName:      "",
+		CollectionName: "",
+		Value:          []byte(`{"value":"abcdefg"}`),
+	}
+
+	_, err := agent.Upsert(ctx, opts)
+	require.NoError(b, err)
+
+	_, err = search.UpsertIndex(ctx, &cbsearchx.UpsertIndexOptions{
 		Index: cbsearchx.Index{
 			Name:       indexName,
 			Type:       "fulltext-index",
@@ -70,32 +119,21 @@ func intBenchSearchSetupIndex(b *testing.B, search cbsearchx.Search) string {
 			SourceName: testutilsint.TestOpts.BucketName,
 		},
 	})
-	require.NoError(b, err)
 
-	b.Cleanup(func() {
-		_ = search.DeleteIndex(context.Background(), &cbsearchx.DeleteIndexOptions{
-			IndexName: indexName,
-		})
-	})
+	if errors.Is(err, cbsearchx.ErrIndexExists) {
+		// If the index already exists, we can just continue.
+	} else {
+		require.NoError(b, err)
+	}
 
-	// Wait for the index to be queryable.
+	// Wait for documents to be indexed.
 	require.Eventually(b, func() bool {
-		_, err := search.Query(ctx, &cbsearchx.QueryOptions{
+		count, _ := search.GetIndexedDocumentsCount(ctx, &cbsearchx.GetIndexedDocumentsCountOptions{
 			IndexName: indexName,
-			Query:     &cbsearchx.MatchAllQuery{},
-			Size:      1,
 		})
-		if err != nil {
-			if errors.Is(err, cbsearchx.ErrNoIndexPartitionsPlanned) ||
-				errors.Is(err, cbsearchx.ErrNoIndexPartitionsFound) ||
-				errors.Is(err, cbsearchx.ErrIndexNotFound) ||
-				strings.Contains(err.Error(), "no planPIndexes for index") {
-				return false
-			}
-			b.Fatalf("unexpected error while waiting for index to become queryable: %v", err)
-		}
-		return true
-	}, 60*time.Second, 5*time.Second, "index did not become queryable in time")
+
+		return count > 0
+	}, 120*time.Second, 10*time.Second, "index did not become queryable in time")
 
 	return indexName
 }
@@ -119,7 +157,7 @@ func BenchmarkIntSearch(b *testing.B) {
 			if err != nil {
 				b.Fatalf("iteration %d failed: %v", i, err)
 			}
-			drainSearchHits(b, res, i)
+			drainSearchHits(b, res)
 		}
 	})
 
@@ -137,7 +175,7 @@ func BenchmarkIntSearch(b *testing.B) {
 			if err != nil {
 				b.Fatalf("iteration %d failed: %v", i, err)
 			}
-			drainSearchHits(b, res, i)
+			drainSearchHits(b, res)
 		}
 	})
 }
