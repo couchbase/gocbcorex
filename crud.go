@@ -1823,6 +1823,11 @@ func (cc *CrudComponent) recordOptimisedRoutingMetrics(ctx context.Context, endp
 		return
 	}
 
+	if cc.nw == nil {
+		cc.logger.Warn("unable to record optimised routing metrics as network topology is not available")
+		return
+	}
+
 	srvGroup := cc.nw.serverGroupFromKvEp(endpoint)
 	if srvGroup == cc.srvGroup {
 		serverGroupMemdRequests.Add(ctx, 1)
