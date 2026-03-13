@@ -1823,6 +1823,11 @@ func (cc *CrudComponent) recordOptimisedRoutingMetrics(ctx context.Context, endp
 		return
 	}
 
+	if cc.nw == nil {
+		remoteMemdRequests.Add(ctx, 1)
+		return
+	}
+
 	srvGroup := cc.nw.serverGroupFromKvEp(endpoint)
 	if srvGroup == cc.srvGroup {
 		serverGroupMemdRequests.Add(ctx, 1)
