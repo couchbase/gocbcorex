@@ -57,16 +57,16 @@ func newBenchSearch(rt http.RoundTripper) cbsearchx.Search {
 	}
 }
 
-func drainSearchHits(b *testing.B, res cbsearchx.QueryResultStream, iter int) {
+func drainSearchHits(b *testing.B, res cbsearchx.QueryResultStream) {
 	for res.HasMoreHits() {
 		_, err := res.ReadHit()
 		if err != nil {
-			b.Fatalf("iteration %d read failed: %v", iter, err)
+			b.Fatalf("hit read failed: %v", err)
 		}
 	}
 	_, err := res.MetaData()
 	if err != nil {
-		b.Fatalf("iteration %d metadata failed: %v", iter, err)
+		b.Fatalf("metadata read failed: %v", err)
 	}
 }
 
@@ -88,7 +88,7 @@ func BenchmarkSearchSimple(b *testing.B) {
 		if err != nil {
 			b.Fatalf("iteration %d query failed: %v", i, err)
 		}
-		drainSearchHits(b, res, i)
+		drainSearchHits(b, res)
 	}
 }
 
@@ -110,6 +110,6 @@ func BenchmarkSearchManyHits(b *testing.B) {
 		if err != nil {
 			b.Fatalf("iteration %d query failed: %v", i, err)
 		}
-		drainSearchHits(b, res, i)
+		drainSearchHits(b, res)
 	}
 }
