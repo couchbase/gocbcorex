@@ -57,7 +57,6 @@ func TestOnDemandAgentManagerClose(t *testing.T) {
 		CompressionConfig: gocbcorex.CompressionConfig{
 			EnableCompression: true,
 		},
-		DisableMetrics: true,
 	}
 
 	mgr, err := gocbcorex.CreateOnDemandAgentManager(context.Background(), opts)
