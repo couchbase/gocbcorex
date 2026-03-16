@@ -1,0 +1,75 @@
+name: Integration Benchmark Tests
+
+# This workflow runs the "integration" benchmarks, which perform work against a real cluster.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # Fetch all history so we can switch to the base branch
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install cbdinocluster
+        run: |
+          mkdir -p "$HOME/bin"
+          wget -nv -O $HOME/bin/cbdinocluster https://github.com/couchbaselabs/cbdinocluster/releases/download/v0.0.97/cbdinocluster-linux-amd64
+          chmod +x $HOME/bin/cbdinocluster
+          echo "$HOME/bin" >> $GITHUB_PATH
+      - name: Initialize cbdinocluster
+        run: |
+          cbdinocluster -v init --auto
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Start couchbase cluster
+        env:
+          CLUSTERCONFIG: |
+            nodes:
+              - count: 3
+                version: 7.6.8
+                services: [kv, n1ql, index, fts, cbas]
+            docker:
+              kv-memory: 512
+              index-memory: 1024
+              fts-memory: 1536
+        run: |
+          CBDC_ID=$(cbdinocluster -v alloc --def="${CLUSTERCONFIG}")
+          cbdinocluster -v buckets add ${CBDC_ID} default --ram-quota-mb=100 --flush-enabled=true --num-replicas=2
+          cbdinocluster -v collections add ${CBDC_ID} default _default test
+          CBDC_CONNSTR=$(cbdinocluster -v connstr $CBDC_ID)
+          echo "CBDC_ID=$CBDC_ID" >> "$GITHUB_ENV"
+          echo "CBDC_CONNSTR=$CBDC_CONNSTR" >> "$GITHUB_ENV"
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run Benchdiff
+        uses: WillAbides/benchdiff-action@v0
+        env:
+          GCBCONNSTR: ${{ env.CBDC_CONNSTR }}
+        with:
+          status_name: "Integration Benchmarks"
+          benchdiff_args: >-
+            --on-degrade=1
+            --base-ref ${{ github.base_ref || 'master' }}
+            --cpu=1
+            --count=2
+            --debug
+            --bench "^BenchmarkInt"
+            --tolerance=5.0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
