@@ -143,6 +143,26 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		zap.Any("bootstrapConfig", bootstrapConfig),
 		zap.String("networkType", networkType))
 
+	var localNodesWatcher *NodesWatcherHttp
+	if opts.NodesWatcher == nil {
+		mgmtEndpoints := mgmtEndpointsFromConfig(bootstrapConfig, networkType, opts.TLSConfig)
+
+		var err error
+		localNodesWatcher, err = NewNodesWatcherHttp(NodesWatcherHttpConfig{
+			HttpRoundTripper: httpTransport,
+			Endpoints:        mgmtEndpoints,
+			UserAgent:        clientName,
+			Authenticator:    opts.Authenticator,
+		}, NodesWatcherHttpOptions{
+			Logger: logger.Named("nodes-watcher"),
+		})
+		if err != nil {
+			return nil, handleAgentCreateErr(err)
+		}
+
+		localNodesWatcher.Watch()
+	}
+
 	agent := &Agent{
 		logger:      logger,
 		networkType: networkType,
@@ -294,6 +314,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		localKvEp:      localKvEp,
 		srvGroup:       opts.SeedConfig.ServerGroup,
 		nw:             opts.NodesWatcher,
+		localNw:        localNodesWatcher,
 		disableMetrics: opts.DisableMetrics,
 	}
 	agent.query = NewQueryComponent(
@@ -397,6 +418,10 @@ func (agent *Agent) NumVbuckets() int {
 func (agent *Agent) Close() error {
 	if err := agent.mconnMgr.Close(); err != nil {
 		agent.logger.Debug("Failed to close multi conn mgr", zap.Error(err))
+	}
+
+	if agent.crud.localNw != nil {
+		agent.crud.localNw.Close()
 	}
 
 	agent.cfgWatcherCancel()
@@ -566,6 +591,21 @@ func makeSrcHTTPAddrs(seedAddrs []string, tlsConfig *tls.Config) []string {
 	}
 
 	return srcHTTPAddrs
+}
+
+func mgmtEndpointsFromConfig(cfg *ParsedConfig, networkType string, tlsConfig *tls.Config) []string {
+	netInfo := cfg.AddressesGroupForNetworkType(networkType)
+
+	var mgmtEndpoints []string
+	for _, node := range netInfo.Nodes {
+		if tlsConfig == nil {
+			mgmtEndpoints = append(mgmtEndpoints, fmt.Sprintf("http://%s:%d", node.Hostname, node.NonSSLPorts.Mgmt))
+		} else {
+			mgmtEndpoints = append(mgmtEndpoints, fmt.Sprintf("https://%s:%d", node.Hostname, node.SSLPorts.Mgmt))
+		}
+	}
+
+	return mgmtEndpoints
 }
 
 func canUpdateConfig(newConfig, oldConfig *ParsedConfig, logger *zap.Logger) bool {

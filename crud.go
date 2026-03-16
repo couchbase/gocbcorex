@@ -28,6 +28,7 @@ type CrudComponent struct {
 	localKvEp       string
 	srvGroup        string
 	nw              *NodesWatcherHttp
+	localNw         *NodesWatcherHttp
 	disableMetrics  bool
 }
 
@@ -1823,12 +1824,17 @@ func (cc *CrudComponent) recordOptimisedRoutingMetrics(ctx context.Context, endp
 		return
 	}
 
-	if cc.nw == nil {
+	nw := cc.localNw
+	if nw == nil {
+		nw = cc.nw
+	}
+
+	if nw == nil {
 		cc.logger.Warn("unable to record optimised routing metrics as network topology is not available")
 		return
 	}
 
-	srvGroup := cc.nw.serverGroupFromKvEp(endpoint)
+	srvGroup := nw.serverGroupFromKvEp(endpoint)
 	if srvGroup == cc.srvGroup {
 		serverGroupMemdRequests.Add(ctx, 1)
 		return
