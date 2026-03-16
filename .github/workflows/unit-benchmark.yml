@@ -1,0 +1,43 @@
+name: Unit Benchmark Tests
+
+# This workflow runs the "unit" benchmarks, which use mock clients and do not perform any work against a real cluster.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0 # Fetch all history so we can switch to the base branch
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true 
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run Benchdiff
+        uses: WillAbides/benchdiff-action@v0
+        with:
+          status_name: "Unit Benchmarks"
+          benchdiff_args: >-
+            --on-degrade=1
+            --base-ref ${{ github.base_ref || 'master' }}
+            --cpu=1
+            --count=5
+            --debug
+            --bench "^BenchmarkCrud|BenchmarkQuery|BenchmarkSearch"
+            --tolerance=1.0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
