@@ -44,6 +44,7 @@ type NodesWatcherHttp struct {
 
 	watcher   *StreamWatcherHttp[[]nodeDescriptor]
 	closedSig chan struct{}
+	doneCh    chan struct{}
 }
 
 func NewNodesWatcherHttp(cfg NodesWatcherHttpConfig, opts NodesWatcherHttpOptions) (*NodesWatcherHttp, error) {
@@ -73,6 +74,7 @@ func NewNodesWatcherHttp(cfg NodesWatcherHttpConfig, opts NodesWatcherHttpOption
 
 		watcher:   watcher,
 		closedSig: make(chan struct{}),
+		doneCh:    make(chan struct{}),
 	}
 
 	return nw, nil
@@ -88,6 +90,7 @@ func (nw *NodesWatcherHttp) Watch() {
 	}()
 
 	go func() {
+		defer close(nw.doneCh)
 		for nodes := range nodeCh {
 			nw.lock.Lock()
 
@@ -103,6 +106,7 @@ func (nw *NodesWatcherHttp) Watch() {
 
 func (nw *NodesWatcherHttp) Close() {
 	close(nw.closedSig)
+	<-nw.doneCh
 }
 
 func (nw *NodesWatcherHttp) Reconfigure(cfg *NodesWatcherHttpReconfigureConfig) error {
