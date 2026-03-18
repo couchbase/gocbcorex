@@ -92,6 +92,7 @@ func CreateBucketsTrackingAgentManager(ctx context.Context, opts BucketsTracking
 		Endpoints:        srcHTTPAddrs,
 		UserAgent:        httpUserAgent,
 		Authenticator:    opts.Authenticator,
+		NetworkType:      opts.SeedConfig.NetworkType,
 	})
 	if err != nil {
 		return nil, err
