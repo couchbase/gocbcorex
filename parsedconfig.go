@@ -86,6 +86,21 @@ type NetworkConfig struct {
 	Nodes []NetworkConfigNode
 }
 
+func (config *ParsedConfig) NetworkTypes() []string {
+	seen := map[string]struct{}{"default": {}}
+	for _, node := range config.Nodes {
+		for netName := range node.AltAddresses {
+			seen[netName] = struct{}{}
+		}
+	}
+
+	types := make([]string, 0, len(seen))
+	for name := range seen {
+		types = append(types, name)
+	}
+	return types
+}
+
 func (config *ParsedConfig) AddressesGroupForNetworkType(networkType string) *NetworkConfig {
 	nodes := make([]NetworkConfigNode, 0, len(config.Nodes))
 

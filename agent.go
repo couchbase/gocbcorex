@@ -129,6 +129,7 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 		UserAgent:        clientName,
 		Authenticator:    opts.Authenticator,
 		BucketName:       opts.BucketName,
+		NetworkType:      opts.SeedConfig.NetworkType,
 	})
 	if err != nil {
 		return nil, handleAgentCreateErr(err)

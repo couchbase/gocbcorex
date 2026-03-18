@@ -3,12 +3,14 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
 	"go.uber.org/zap"
+	"golang.org/x/exp/slices"
 )
 
 type ConfigBoostrapHttpOptions struct {
@@ -18,6 +20,7 @@ type ConfigBoostrapHttpOptions struct {
 	UserAgent        string
 	Authenticator    Authenticator
 	BucketName       string
+	NetworkType      string
 }
 
 type ConfigBootstrapHttp struct {
@@ -27,6 +30,7 @@ type ConfigBootstrapHttp struct {
 	userAgent        string
 	authenticator    Authenticator
 	bucketName       string
+	networkType      string
 }
 
 func NewConfigBootstrapHttp(opts ConfigBoostrapHttpOptions) (*ConfigBootstrapHttp, error) {
@@ -37,6 +41,7 @@ func NewConfigBootstrapHttp(opts ConfigBoostrapHttpOptions) (*ConfigBootstrapHtt
 		userAgent:        opts.UserAgent,
 		authenticator:    opts.Authenticator,
 		bucketName:       opts.BucketName,
+		networkType:      opts.NetworkType,
 	}, nil
 }
 
@@ -47,6 +52,7 @@ func configBootstrapHttp_bootstrapOne(
 	userAgent string,
 	authenticator Authenticator,
 	bucketName string,
+	networkType string,
 ) (*ParsedConfig, string, error) {
 	hostport, err := getHostFromUri(endpoint)
 	if err != nil {
@@ -126,7 +132,17 @@ func configBootstrapHttp_bootstrapOne(
 		break
 	}
 
-	networkType := NetworkTypeHeuristic{}.Identify(parsedConfig, hostport)
+	if networkType == "" {
+		networkType = NetworkTypeHeuristic{}.Identify(parsedConfig, hostport)
+	} else if networkType != "default" {
+		// Validate that the specified network type exists in the cluster config.
+		availableNetworks := parsedConfig.NetworkTypes()
+		if !slices.Contains(availableNetworks, networkType) {
+			return nil, "", fmt.Errorf(
+				"specified network type %q not found in cluster config, available networks: %v",
+				networkType, availableNetworks)
+		}
+	}
 
 	return parsedConfig, networkType, nil
 }
@@ -142,6 +158,7 @@ func (w ConfigBootstrapHttp) Bootstrap(ctx context.Context) (*ParsedConfig, stri
 			w.userAgent,
 			w.authenticator,
 			w.bucketName,
+			w.networkType,
 		)
 		if err != nil {
 			if errors.Is(err, cbmgmtx.ErrBucketNotFound) {

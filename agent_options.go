@@ -70,11 +70,19 @@ type SeedConfig struct {
 
 	// The server group to which this instance of gocbcorex belongs.
 	ServerGroup string
+
+	// NetworkType specifies the network type to use when selecting addresses
+	// from the cluster configuration. When empty, the network type is
+	// automatically detected using a heuristic based on the seed addresses.
+	NetworkType string
 }
 
 func (c SeedConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 	enc.AddString("http-addresses", strings.Join(c.HTTPAddrs, ","))
 	enc.AddString("memd-addresses", strings.Join(c.MemdAddrs, ","))
+	if c.NetworkType != "" {
+		enc.AddString("network-type", c.NetworkType)
+	}
 
 	return nil
 }
