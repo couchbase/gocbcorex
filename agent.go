@@ -288,13 +288,15 @@ func CreateAgent(ctx context.Context, opts AgentOptions) (*Agent, error) {
 	}
 
 	var localKvEp string
-	host, port, err := net.SplitHostPort(opts.SeedConfig.LocalNodeAddr)
-	if err != nil {
-		agent.logger.Warn("failed to split host and port for local node address",
-			zap.String("localNodeAddr", opts.SeedConfig.LocalNodeAddr),
-			zap.Error(err))
-	} else {
-		localKvEp = fmt.Sprintf("kvep-%s-%s", host, port)
+	if opts.SeedConfig.LocalNodeAddr != "" {
+		host, port, err := net.SplitHostPort(opts.SeedConfig.LocalNodeAddr)
+		if err != nil {
+			agent.logger.Warn("failed to split host and port for local node address",
+				zap.String("localNodeAddr", opts.SeedConfig.LocalNodeAddr),
+				zap.Error(err))
+		} else {
+			localKvEp = fmt.Sprintf("kvep-%s-%s", host, port)
+		}
 	}
 
 	agent.crud = &CrudComponent{
