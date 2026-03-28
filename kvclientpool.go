@@ -33,6 +33,8 @@ type KvClientPoolOptions struct {
 	ConnectTimeout           time.Duration
 	ConnectErrThrottlePeriod time.Duration
 	BootstrapOpts            KvClientBootstrapOptions
+	DcpOpts                  *KvClientDcpOptions
+	DcpHandlers              KvClientDcpEventsHandlers
 
 	Target         KvTarget
 	Auth           KvClientAuth
@@ -110,7 +112,9 @@ func NewKvClientPool(opts *KvClientPoolOptions) (KvClientPool, error) {
 			ConnectTimeout:           connectTimeout,
 			ConnectErrThrottlePeriod: connectErrThrottlePeriod,
 			StateChangeHandler:       p.handleProviderStateChange,
+			DcpHandlers:              opts.DcpHandlers,
 			BootstrapOpts:            opts.BootstrapOpts,
+			DcpOpts:                  opts.DcpOpts,
 			Target:                   opts.Target,
 			Auth:                     opts.Auth,
 			SelectedBucket:           opts.SelectedBucket,

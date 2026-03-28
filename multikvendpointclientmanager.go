@@ -57,6 +57,8 @@ type NewManagerOptions struct {
 
 	SelectedBucket string
 	BootstrapOpts  KvClientBootstrapOptions
+	DcpOpts        *KvClientDcpOptions
+	DcpHandlers    KvClientDcpEventsHandlers
 }
 
 func (m *multiKvEndpointClientManager) NewManager(opts NewManagerOptions) (KvEndpointClientManager, error) {
@@ -72,6 +74,8 @@ func (m *multiKvEndpointClientManager) NewManager(opts NewManagerOptions) (KvEnd
 		ConnectTimeout:           opts.ConnectTimeout,
 		ConnectErrThrottlePeriod: opts.ConnectErrThrottlePeriod,
 		BootstrapOpts:            opts.BootstrapOpts,
+		DcpOpts:                  opts.DcpOpts,
+		DcpHandlers:              opts.DcpHandlers,
 
 		Endpoints:      m.endpoints,
 		Auth:           m.auth,
