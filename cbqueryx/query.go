@@ -171,7 +171,10 @@ type CreatePrimaryIndexOptions struct {
 
 func (h Query) CreatePrimaryIndex(ctx context.Context, opts *CreatePrimaryIndexOptions) error {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when creating an index")
+		return ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	qs := "CREATE PRIMARY INDEX"
@@ -237,13 +240,22 @@ type CreateIndexOptions struct {
 
 func (h Query) CreateIndex(ctx context.Context, opts *CreateIndexOptions) error {
 	if opts.IndexName == "" {
-		return errors.New("must specify index name when creating an index")
+		return ServerInvalidArgError{
+			Argument: "IndexName",
+			Reason:   "index name cannot be blank",
+		}
 	}
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when creating an index")
+		return ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 	if len(opts.Fields) == 0 {
-		return errors.New("must specify fields when creating an index")
+		return ServerInvalidArgError{
+			Argument: "Fields",
+			Reason:   "fields cannot be empty",
+		}
 	}
 
 	qs := "CREATE INDEX"
@@ -309,7 +321,10 @@ type DropPrimaryIndexOptions struct {
 
 func (h Query) DropPrimaryIndex(ctx context.Context, opts *DropPrimaryIndexOptions) error {
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when dropping an index")
+		return ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	keyspace := buildKeyspace(opts.BucketName, opts.ScopeName, opts.CollectionName)
@@ -363,10 +378,16 @@ type DropIndexOptions struct {
 
 func (h Query) DropIndex(ctx context.Context, opts *DropIndexOptions) error {
 	if opts.IndexName == "" {
-		return errors.New("must specify index name when dropping an index")
+		return ServerInvalidArgError{
+			Argument: "IndexName",
+			Reason:   "index name cannot be blank",
+		}
 	}
 	if opts.BucketName == "" {
-		return errors.New("must specify bucket name when dropping an index")
+		return ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	encodedName := EncodeIdentifier(opts.IndexName)
