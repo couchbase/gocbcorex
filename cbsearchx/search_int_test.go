@@ -129,14 +129,14 @@ func TestUpsertIndex(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.Type = ""
 		_, err := search.UpsertIndex(ctx, &opts)
-		require.ErrorIs(t, err, ErrIndexTypeEmpty)
+		require.ErrorIs(t, err, cbsearchx.ErrIndexTypeEmpty)
 	})
 
 	t.Run("MissingIndexSourceType", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.SourceType = ""
 		_, err := search.UpsertIndex(ctx, &opts)
-		require.ErrorIs(t, err, ErrSourceTypeEmpty)
+		require.ErrorIs(t, err, cbsearchx.ErrSourceTypeEmpty)
 	})
 
 	t.Run("MissingBucketName", func(t *testing.T) {
