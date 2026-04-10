@@ -82,7 +82,7 @@ func (h Search) Query(ctx context.Context, opts *QueryOptions) (QueryResultStrea
 		reqURI = fmt.Sprintf("/api/index/%s/query", url.PathEscape(opts.IndexName))
 	} else {
 		if opts.ScopeName == "" || opts.BucketName == "" {
-			return nil, errors.New("must specify both or neither of scope and bucket names")
+			return nil, ErrOnlyBucketOrScopeSet
 		}
 		reqURI = fmt.Sprintf("/api/bucket/%s/scope/%s/index/%s/query",
 			url.PathEscape(opts.BucketName), url.PathEscape(opts.ScopeName), url.PathEscape(opts.IndexName))
@@ -130,10 +130,10 @@ func (h Search) UpsertIndex(
 		return nil, ErrIndexNameEmpty
 	}
 	if opts.Type == "" {
-		return nil, errors.New("must specify index type when creating an index")
+		return nil, ErrIndexTypeEmpty
 	}
 	if opts.SourceType == "" {
-		return nil, errors.New("must specify source type when creating an index")
+		return nil, ErrSourceTypeEmpty
 	}
 
 	var reqURI string

@@ -129,14 +129,28 @@ func TestUpsertIndex(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.Type = ""
 		_, err := search.UpsertIndex(ctx, &opts)
-		require.NotNil(t, err)
+		require.ErrorIs(t, err, cbsearchx.ErrIndexTypeEmpty)
 	})
 
 	t.Run("MissingIndexSourceType", func(t *testing.T) {
 		opts := defaultOpts(indexName)
 		opts.SourceType = ""
 		_, err := search.UpsertIndex(ctx, &opts)
-		require.NotNil(t, err)
+		require.ErrorIs(t, err, cbsearchx.ErrSourceTypeEmpty)
+	})
+
+	t.Run("MissingBucketName", func(t *testing.T) {
+		opts := defaultOpts(indexName)
+		opts.ScopeName = "_default"
+		_, err := search.UpsertIndex(ctx, &opts)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		opts := defaultOpts(indexName)
+		opts.BucketName = testutilsint.TestOpts.BucketName
+		_, err := search.UpsertIndex(ctx, &opts)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	t.Run("IndexSourceTypeIncorrect", func(t *testing.T) {
@@ -226,6 +240,14 @@ func TestGetIndex(t *testing.T) {
 		_, err := search.GetIndex(ctx, &cbsearchx.GetIndexOptions{
 			IndexName: indexName,
 			ScopeName: "_default",
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		_, err := search.GetIndex(ctx, &cbsearchx.GetIndexOptions{
+			IndexName:  indexName,
+			BucketName: testutilsint.TestOpts.BucketName,
 		})
 		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
@@ -320,6 +342,14 @@ func TestDeleteIndex(t *testing.T) {
 		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
+	t.Run("IndexMissingBucket", func(t *testing.T) {
+		err := search.DeleteIndex(ctx, &cbsearchx.DeleteIndexOptions{
+			IndexName: indexName,
+			ScopeName: "_default",
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
 	t.Run("SuccessScopedSearch", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts.BucketName = "some-bucket"
@@ -393,6 +423,13 @@ func TestGetAllIndexes(t *testing.T) {
 	t.Run("ScopeNameMissing", func(t *testing.T) {
 		_, err := search.GetAllIndexes(ctx, &cbsearchx.GetAllIndexesOptions{
 			BucketName: testutilsint.TestOpts.BucketName,
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("BucketNameMissing", func(t *testing.T) {
+		_, err := search.GetAllIndexes(ctx, &cbsearchx.GetAllIndexesOptions{
+			ScopeName: "_default",
 		})
 		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
@@ -477,6 +514,22 @@ func TestPartitionControl(t *testing.T) {
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
 
+	t.Run("MissingBucketName", func(t *testing.T) {
+		err = search.FreezePlan(ctx, &cbsearchx.FreezePlanOptions{
+			IndexName: indexName,
+			ScopeName: "_default",
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		err = search.FreezePlan(ctx, &cbsearchx.FreezePlanOptions{
+			IndexName:  indexName,
+			BucketName: testutilsint.TestOpts.BucketName,
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
 	t.Run("ScopedSuccess", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts := scopedOpts(scopedIndexName)
@@ -555,6 +608,22 @@ func TestIngestControl(t *testing.T) {
 		})
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
+	})
+
+	t.Run("MissingBucketName", func(t *testing.T) {
+		err = search.PauseIngest(ctx, &cbsearchx.PauseIngestOptions{
+			IndexName: indexName,
+			ScopeName: "_default",
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		err = search.PauseIngest(ctx, &cbsearchx.PauseIngestOptions{
+			IndexName:  indexName,
+			BucketName: testutilsint.TestOpts.BucketName,
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	t.Run("ScopedSuccess", func(t *testing.T) {
@@ -642,6 +711,22 @@ func TestQueryControl(t *testing.T) {
 		})
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
+	})
+
+	t.Run("MissingBucketName", func(t *testing.T) {
+		err = search.DisallowQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
+			IndexName: indexName,
+			ScopeName: "_default",
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		err = search.DisallowQuerying(ctx, &cbsearchx.DisallowQueryingOptions{
+			IndexName:  indexName,
+			BucketName: testutilsint.TestOpts.BucketName,
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	t.Run("ScopedSuccess", func(t *testing.T) {
@@ -753,6 +838,26 @@ func TestAnalyzeDocument(t *testing.T) {
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
 	})
 
+	t.Run("MissingBucketName", func(t *testing.T) {
+		aOpts := cbsearchx.AnalyzeDocumentOptions{
+			IndexName:  indexName,
+			ScopeName:  "_default",
+			DocContent: []byte("true"),
+		}
+		_, err := search.AnalyzeDocument(ctx, &aOpts)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		aOpts := cbsearchx.AnalyzeDocumentOptions{
+			IndexName:  indexName,
+			BucketName: testutilsint.TestOpts.BucketName,
+			DocContent: []byte("true"),
+		}
+		_, err := search.AnalyzeDocument(ctx, &aOpts)
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
 	t.Run("ScopedSuccess", func(t *testing.T) {
 		testutilsint.SkipIfUnsupportedFeature(t, testutilsint.TestFeatureScopedSearch)
 		opts := cbsearchx.UpsertIndexOptions{
@@ -848,6 +953,22 @@ func TestGetIndexedDocumentsCount(t *testing.T) {
 		var sErr *cbsearchx.SearchError
 		require.ErrorAs(t, err, &sErr)
 		require.ErrorIs(t, sErr.Cause, cbsearchx.ErrIndexNotFound)
+	})
+
+	t.Run("MissingBucketName", func(t *testing.T) {
+		_, err := search.GetIndexedDocumentsCount(ctx, &cbsearchx.GetIndexedDocumentsCountOptions{
+			IndexName: indexName,
+			ScopeName: "_default",
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
+	})
+
+	t.Run("MissingScopeName", func(t *testing.T) {
+		_, err := search.GetIndexedDocumentsCount(ctx, &cbsearchx.GetIndexedDocumentsCountOptions{
+			IndexName:  indexName,
+			BucketName: testutilsint.TestOpts.BucketName,
+		})
+		require.Equal(t, cbsearchx.ErrOnlyBucketOrScopeSet, err)
 	})
 
 	scopedName := newSearchIndexName()

@@ -86,6 +86,83 @@ func TestQueryIndexExists(t *testing.T) {
 	assert.ErrorIs(t, err, ErrIndexExists)
 }
 
+func TestCreatePrimaryIndexInvalidArgs(t *testing.T) {
+	q := Query{}
+
+	err := q.CreatePrimaryIndex(context.Background(), &CreatePrimaryIndexOptions{BucketName: ""})
+	require.ErrorIs(t, err, ErrServerInvalidArg)
+	var argErr ServerInvalidArgError
+	require.ErrorAs(t, err, &argErr)
+	assert.Equal(t, "BucketName", argErr.Argument)
+}
+
+func TestCreateIndexInvalidArgs(t *testing.T) {
+	q := Query{}
+
+	t.Run("BlankIndexName", func(t *testing.T) {
+		err := q.CreateIndex(context.Background(), &CreateIndexOptions{
+			BucketName: "b",
+			Fields:     []string{"f"},
+		})
+		require.ErrorIs(t, err, ErrServerInvalidArg)
+		var argErr ServerInvalidArgError
+		require.ErrorAs(t, err, &argErr)
+		assert.Equal(t, "IndexName", argErr.Argument)
+	})
+
+	t.Run("BlankBucketName", func(t *testing.T) {
+		err := q.CreateIndex(context.Background(), &CreateIndexOptions{
+			IndexName: "idx",
+			Fields:    []string{"f"},
+		})
+		require.ErrorIs(t, err, ErrServerInvalidArg)
+		var argErr ServerInvalidArgError
+		require.ErrorAs(t, err, &argErr)
+		assert.Equal(t, "BucketName", argErr.Argument)
+	})
+
+	t.Run("EmptyFields", func(t *testing.T) {
+		err := q.CreateIndex(context.Background(), &CreateIndexOptions{
+			IndexName:  "idx",
+			BucketName: "b",
+		})
+		require.ErrorIs(t, err, ErrServerInvalidArg)
+		var argErr ServerInvalidArgError
+		require.ErrorAs(t, err, &argErr)
+		assert.Equal(t, "Fields", argErr.Argument)
+	})
+}
+
+func TestDropPrimaryIndexInvalidArgs(t *testing.T) {
+	q := Query{}
+
+	err := q.DropPrimaryIndex(context.Background(), &DropPrimaryIndexOptions{BucketName: ""})
+	require.ErrorIs(t, err, ErrServerInvalidArg)
+	var argErr ServerInvalidArgError
+	require.ErrorAs(t, err, &argErr)
+	assert.Equal(t, "BucketName", argErr.Argument)
+}
+
+func TestDropIndexInvalidArgs(t *testing.T) {
+	q := Query{}
+
+	t.Run("BlankIndexName", func(t *testing.T) {
+		err := q.DropIndex(context.Background(), &DropIndexOptions{BucketName: "b"})
+		require.ErrorIs(t, err, ErrServerInvalidArg)
+		var argErr ServerInvalidArgError
+		require.ErrorAs(t, err, &argErr)
+		assert.Equal(t, "IndexName", argErr.Argument)
+	})
+
+	t.Run("BlankBucketName", func(t *testing.T) {
+		err := q.DropIndex(context.Background(), &DropIndexOptions{IndexName: "idx"})
+		require.ErrorIs(t, err, ErrServerInvalidArg)
+		var argErr ServerInvalidArgError
+		require.ErrorAs(t, err, &argErr)
+		assert.Equal(t, "BucketName", argErr.Argument)
+	})
+}
+
 func TestQueryIndexNotFound(t *testing.T) {
 	index := uuid.NewString()[:6]
 	expectedResult := makeErrorQueryResult([]queryErrorJson{

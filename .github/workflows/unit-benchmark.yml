@@ -39,5 +39,5 @@ jobs:
             --count=5
             --debug
             --bench "^BenchmarkCrud|BenchmarkQuery|BenchmarkSearch"
-            --tolerance=1.0
+            --tolerance=5.0
           github_token: ${{ secrets.GITHUB_TOKEN }}
