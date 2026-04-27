@@ -135,6 +135,28 @@ func (w *MgmtComponent) GetClusterInfo(ctx context.Context, opts *cbmgmtx.GetClu
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetClusterInfo, opts)
 }
 
+type GetAggregatedClusterInfoOptions struct {
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) GetAggregatedClusterInfo(ctx context.Context, opts *GetAggregatedClusterInfoOptions) (*cbmgmtx.AggregatedClusterInfoResponse, error) {
+	hlpr := cbmgmtx.ClusterInfoHelper{
+		Logger:     w.logger.Named("cluster-info"),
+		UserAgent:  w.userAgent,
+		OnBehalfOf: opts.OnBehalfOf,
+	}
+
+	roundTripper, targets, err := w.GetAllTargets(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return hlpr.FetchAll(ctx, &cbmgmtx.GetAggregatedClusterInfoOptions{
+		Transport: roundTripper,
+		Targets:   baseHttpTargets(targets).ToMgmtx(),
+	})
+}
+
 func (w *MgmtComponent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetCollectionManifest, opts)
 }

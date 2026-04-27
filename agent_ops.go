@@ -154,6 +154,10 @@ func (agent *Agent) GetClusterInfo(ctx context.Context, opts *cbmgmtx.GetCluster
 	return agent.mgmt.GetClusterInfo(ctx, opts)
 }
 
+func (agent *Agent) GetAggregatedClusterInfo(ctx context.Context, opts *GetAggregatedClusterInfoOptions) (*cbmgmtx.AggregatedClusterInfoResponse, error) {
+	return agent.mgmt.GetAggregatedClusterInfo(ctx, opts)
+}
+
 func (agent *Agent) GetCollectionManifest(ctx context.Context, opts *cbmgmtx.GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	return agent.mgmt.GetCollectionManifest(ctx, opts)
 }
