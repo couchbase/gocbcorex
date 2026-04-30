@@ -1,10 +1,6 @@
 package gocbcorex
 
-import (
-	"context"
-
-	"github.com/couchbase/gocbcorex/memdx"
-)
+import "context"
 
 func OrchestrateSimpleVbCrud[RespT any](
 	ctx context.Context,
@@ -24,50 +20,5 @@ func OrchestrateSimpleVbCrud[RespT any](
 						return fn(endpoint, client)
 					})
 				})
-		})
-}
-
-type StatsByVbucketOptions struct {
-	GroupName  string
-	VbucketID  uint16
-	OnBehalfOf string
-}
-
-type StatsResult struct{}
-
-type StatsDataResult struct {
-	Key   string
-	Value string
-}
-
-func (cc *CrudComponent) StatsByVbucket(
-	ctx context.Context,
-	opts *StatsByVbucketOptions,
-	dataCb func(StatsDataResult),
-) (*StatsResult, error) {
-	ctx, span := tracer.Start(ctx, "Stats")
-	defer span.End()
-
-	return OrchestrateSimpleVbCrud(
-		ctx, cc.retries, cc.vbs, cc.nmvHandler, cc.eclientProvider,
-		opts.VbucketID, 0,
-		func(endpoint string, client KvClient) (*StatsResult, error) {
-			_, err := client.Stats(ctx, &memdx.StatsRequest{
-				GroupName: opts.GroupName,
-				UtilsRequestMeta: memdx.UtilsRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
-				},
-			}, func(resp *memdx.StatsDataResponse) error {
-				dataCb(StatsDataResult{
-					Key:   resp.Key,
-					Value: resp.Value,
-				})
-				return nil
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			return &StatsResult{}, nil
 		})
 }

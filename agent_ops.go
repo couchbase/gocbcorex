@@ -317,3 +317,7 @@ func (agent *Agent) GetAnalyticsEndpoints() ([]string, error) {
 func (agent *Agent) StatsByVbucket(ctx context.Context, opts *StatsByVbucketOptions, dataCb func(StatsDataResult)) (*StatsResult, error) {
 	return agent.crud.StatsByVbucket(ctx, opts, dataCb)
 }
+
+func (agent *Agent) StatsByKey(ctx context.Context, opts *StatsByKeyOptions, dataCb func(StatsDataResult)) error {
+	return agent.crud.StatsByKey(ctx, opts, dataCb)
+}

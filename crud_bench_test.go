@@ -48,6 +48,10 @@ func (r benchVbucketRouter) NumReplicas() (int, error) {
 	return r.numReplicas, nil
 }
 
+func (r benchVbucketRouter) GetServerList() ([]string, error) {
+	return []string{r.endpoint}, nil
+}
+
 type benchEndpointClientProvider struct {
 	client KvClient
 }
