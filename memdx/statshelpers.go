@@ -5,6 +5,20 @@ import (
 	"strconv"
 )
 
+// KeyStatsParser is a general-purpose accumulator for a single STAT response.
+// It stores raw key→value pairs with no aggregation; callers are responsible
+// for summing across multiple nodes. HandleEntry is not goroutine-safe.
+type KeyStatsParser struct {
+	Entries map[string]string
+}
+
+func (p *KeyStatsParser) HandleEntry(key, value string) {
+	if p.Entries == nil {
+		p.Entries = make(map[string]string)
+	}
+	p.Entries[key] = value
+}
+
 // These parsers are used to parse stats entries from the Memcached server.  They
 // keep track of which fields have been parsed and can be used to validate the
 // stats entries returned by the server.

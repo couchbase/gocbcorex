@@ -23,6 +23,9 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //			DispatchToVbucketFunc: func(vbID uint16, vbServerIdx uint32) (string, error) {
 //				panic("mock out the DispatchToVbucket method")
 //			},
+//			GetServerListFunc: func() ([]string, error) {
+//				panic("mock out the GetServerList method")
+//			},
 //			NumReplicasFunc: func() (int, error) {
 //				panic("mock out the NumReplicas method")
 //			},
@@ -41,6 +44,9 @@ type VbucketRouterMock struct {
 
 	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
 	DispatchToVbucketFunc func(vbID uint16, vbServerIdx uint32) (string, error)
+
+	// GetServerListFunc mocks the GetServerList method.
+	GetServerListFunc func() ([]string, error)
 
 	// NumReplicasFunc mocks the NumReplicas method.
 	NumReplicasFunc func() (int, error)
@@ -64,6 +70,9 @@ type VbucketRouterMock struct {
 			// VbServerIdx is the vbServerIdx argument value.
 			VbServerIdx uint32
 		}
+		// GetServerList holds details about calls to the GetServerList method.
+		GetServerList []struct {
+		}
 		// NumReplicas holds details about calls to the NumReplicas method.
 		NumReplicas []struct {
 		}
@@ -75,6 +84,7 @@ type VbucketRouterMock struct {
 	}
 	lockDispatchByKey     sync.RWMutex
 	lockDispatchToVbucket sync.RWMutex
+	lockGetServerList     sync.RWMutex
 	lockNumReplicas       sync.RWMutex
 	lockUpdateRoutingInfo sync.RWMutex
 }
@@ -148,6 +158,33 @@ func (mock *VbucketRouterMock) DispatchToVbucketCalls() []struct {
 	mock.lockDispatchToVbucket.RLock()
 	calls = mock.calls.DispatchToVbucket
 	mock.lockDispatchToVbucket.RUnlock()
+	return calls
+}
+
+// GetServerList calls GetServerListFunc.
+func (mock *VbucketRouterMock) GetServerList() ([]string, error) {
+	if mock.GetServerListFunc == nil {
+		panic("VbucketRouterMock.GetServerListFunc: method is nil but VbucketRouter.GetServerList was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockGetServerList.Lock()
+	mock.calls.GetServerList = append(mock.calls.GetServerList, callInfo)
+	mock.lockGetServerList.Unlock()
+	return mock.GetServerListFunc()
+}
+
+// GetServerListCalls gets all the calls that were made to GetServerList.
+// Check the length with:
+//
+//	len(mockedVbucketRouter.GetServerListCalls())
+func (mock *VbucketRouterMock) GetServerListCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockGetServerList.RLock()
+	calls = mock.calls.GetServerList
+	mock.lockGetServerList.RUnlock()
 	return calls
 }
 
