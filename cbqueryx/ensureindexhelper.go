@@ -67,9 +67,9 @@ func (e *EnsureIndexHelper) keyspace() string {
 	if isDefaultScope && isDefaultCollection {
 		return "bucket_id IS MISSING AND keyspace_id=$bucket"
 	} else if isDefaultScope {
-		return "bucket_id=$bucket AND scope_id=_default AND keyspace_id=$collection"
+		return "bucket_id=$bucket AND scope_id=\"_default\" AND keyspace_id=$collection"
 	} else if isDefaultCollection {
-		return "bucket_id=$bucket AND scope_id=$scope AND keyspace_id=_default"
+		return "bucket_id=$bucket AND scope_id=$scope AND keyspace_id=\"_default\""
 	} else {
 		return "bucket_id=$bucket AND scope_id=$scope AND keyspace_id=$collection"
 	}
