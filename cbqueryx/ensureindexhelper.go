@@ -20,6 +20,8 @@ type EnsureIndexHelper struct {
 	CollectionName string
 	IndexName      string
 
+	State IndexState
+
 	confirmedEndpoints []string
 }
 
@@ -35,13 +37,25 @@ type EnsureIndexPollOptions struct {
 }
 
 func (e *EnsureIndexHelper) PollCreated(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
-	return e.pollAll(ctx, opts, func(numRows int) bool {
+	return e.pollAll(ctx, opts, func(states []IndexState) bool {
 		// If there are rows then the endpoint knows the index.
-		if numRows == 0 {
+		if len(states) == 0 {
 			e.Logger.Debug("target responded with success, but the target still didn't have the index")
 			return false
-		} else if numRows > 1 {
-			e.Logger.Debug("query returned %d rows rather than 1", zap.Int("num-rows", numRows))
+		} else if len(states) > 1 {
+			e.Logger.Debug("query returned unexpected row count", zap.Int("num-rows", len(states)))
+		}
+
+		if e.State != "" {
+			for _, state := range states {
+				if state != e.State {
+					e.Logger.Debug("target has the index, but it was not in the desired state",
+						zap.String("indexName", e.IndexName),
+						zap.String("state", string(state)),
+						zap.String("desiredState", string(e.State)))
+					return false
+				}
+			}
 		}
 
 		return true
@@ -49,9 +63,9 @@ func (e *EnsureIndexHelper) PollCreated(ctx context.Context, opts *EnsureIndexPo
 }
 
 func (e *EnsureIndexHelper) PollDropped(ctx context.Context, opts *EnsureIndexPollOptions) (bool, error) {
-	return e.pollAll(ctx, opts, func(numRows int) bool {
+	return e.pollAll(ctx, opts, func(states []IndexState) bool {
 		// If there are rows then the endpoint knows the index.
-		if numRows > 0 {
+		if len(states) > 0 {
 			e.Logger.Debug("target responded with success, but the target still had the index")
 			return false
 		}
@@ -83,7 +97,7 @@ func (e *EnsureIndexHelper) pollOne(
 		zap.String("endpoint", target.Endpoint),
 		zap.String("username", target.Username))
 
-	statement := "SELECT `idx`.name FROM system:indexes AS idx WHERE " + e.keyspace() +
+	statement := "SELECT `idx`.name, `idx`.state FROM system:indexes AS idx WHERE " + e.keyspace() +
 		" AND name=$name AND `using` = \"gsi\" "
 
 	var encodingErr error
@@ -131,7 +145,7 @@ func (e *EnsureIndexHelper) pollOne(
 }
 
 func (e *EnsureIndexHelper) pollAll(ctx context.Context,
-	opts *EnsureIndexPollOptions, cb func(int) bool) (bool, error) {
+	opts *EnsureIndexPollOptions, cb func([]IndexState) bool) (bool, error) {
 	filteredTargets := make([]NodeTarget, 0, len(opts.Targets))
 	for _, target := range opts.Targets {
 		if !slices.Contains(e.confirmedEndpoints, target.Endpoint) {
@@ -146,18 +160,27 @@ func (e *EnsureIndexHelper) pollAll(ctx context.Context,
 			return false, err
 		}
 
-		var numRows int
+		var states []IndexState
 		for resp.HasMoreRows() {
-			_, err := resp.ReadRow()
+			rowBytes, err := resp.ReadRow()
 			if err != nil {
 				e.Logger.Debug("read row failed with an unexpected error", zap.Error(err))
 				return false, err
 			}
 
-			numRows++
+			var row struct {
+				Name  string `json:"name"`
+				State string `json:"state"`
+			}
+			if err := json.Unmarshal(rowBytes, &row); err != nil {
+				e.Logger.Debug("unmarshal row failed with an unexpected error", zap.Error(err))
+				return false, err
+			}
+
+			states = append(states, IndexState(row.State))
 		}
 
-		if cb(numRows) {
+		if cb(states) {
 			e.Logger.Debug("target successfully checked")
 
 			successEndpoints = append(successEndpoints, target.Endpoint)

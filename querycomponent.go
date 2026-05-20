@@ -369,6 +369,7 @@ type EnsureQueryIndexCreatedOptions struct {
 	CollectionName string
 	IndexName      string
 	OnBehalfOf     *cbhttpx.OnBehalfOfInfo
+	State          cbqueryx.IndexState
 }
 
 func (w *QueryComponent) EnsureIndexCreated(ctx context.Context, opts *EnsureQueryIndexCreatedOptions) error {
@@ -380,6 +381,7 @@ func (w *QueryComponent) EnsureIndexCreated(ctx context.Context, opts *EnsureQue
 		ScopeName:      opts.ScopeName,
 		CollectionName: opts.CollectionName,
 		IndexName:      opts.IndexName,
+		State:          opts.State,
 	}
 
 	backoff := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
