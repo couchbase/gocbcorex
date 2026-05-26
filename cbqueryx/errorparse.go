@@ -36,6 +36,9 @@ func parseError(errJson *queryErrorJson) *ServerError {
 		if indexExistsRegex.MatchString(lowerMsg) {
 			err = ErrIndexExists
 		}
+		if strings.Contains(lowerMsg, "concurrent create index") {
+			err = ErrConcurrentOperation
+		}
 	case 12, 14:
 		err = ErrIndexFailure
 	case 10:
