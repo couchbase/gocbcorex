@@ -251,11 +251,7 @@ func (h Query) CreateIndex(ctx context.Context, opts *CreateIndexOptions) error 
 
 	qs += " ON " + buildKeyspace(opts.BucketName, opts.ScopeName, opts.CollectionName)
 
-	encodedFields := make([]string, len(opts.Fields))
-	for fieldIdx, field := range opts.Fields {
-		encodedFields[fieldIdx] = EncodeIdentifier(field)
-	}
-	qs += " (" + strings.Join(encodedFields, ",") + ")"
+	qs += " (" + strings.Join(opts.Fields, ",") + ")"
 
 	with := make(map[string]interface{})
 	if opts.Deferred != nil {
