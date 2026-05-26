@@ -25,6 +25,7 @@ var (
 	ErrServerInvalidArg         = errors.New("invalid argument")
 	ErrBuildAlreadyInProgress   = errors.New("build already in progress")
 	ErrBuildFails               = errors.New("build fails, will be retried by query engine")
+	ErrConcurrentOperation      = errors.New("concurrent operation")
 
 	ErrBucketNotFound     = fmt.Errorf("bucket not found: %w", ErrKeyspaceNotFound)
 	ErrCollectionNotFound = fmt.Errorf("collection not found: %w", ErrKeyspaceNotFound)
