@@ -36,6 +36,9 @@ func parseError(errJson *queryErrorJson) *ServerError {
 		if indexExistsRegex.MatchString(lowerMsg) {
 			err = ErrIndexExists
 		}
+		if strings.Contains(lowerMsg, "collection not found") || strings.Contains(lowerMsg, "keyspace not found") {
+			err = createResourceError(errJson.Msg, ErrCollectionNotFound)
+		}
 		if strings.Contains(lowerMsg, "concurrent create index") {
 			err = ErrConcurrentOperation
 		}
