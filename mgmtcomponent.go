@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -245,13 +246,13 @@ func (w *MgmtComponent) EnsureBucket(ctx context.Context, opts *EnsureBucketOpti
 	})
 }
 
-type EnsureManifestOptions struct {
+type EnsureManifestNsOnlyOptions struct {
 	BucketName  string
 	ManifestUid uint64
 	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
 }
 
-func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
+func (w *MgmtComponent) EnsureManifestNsOnly(ctx context.Context, opts *EnsureManifestNsOnlyOptions) error {
 	hlpr := cbmgmtx.EnsureManifestHelper{
 		Logger:      w.logger.Named("ensure-manifest"),
 		UserAgent:   w.userAgent,
@@ -268,5 +269,21 @@ func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifest
 			Transport: roundTripper,
 			Targets:   ensureTargets.ToMgmtx(),
 		})
+	})
+}
+
+type EnsureManifestOptions struct {
+	BucketName  string
+	ManifestUid uint64
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, func(h cbmgmtx.Management, ctx context.Context, req *cbmgmtx.EnsureManifestOptions) error {
+		return h.EnsureManifest(ctx, req)
+	}, &cbmgmtx.EnsureManifestOptions{
+		BucketName:  opts.BucketName,
+		ManifestUid: fmt.Sprintf("%x", opts.ManifestUid),
+		OnBehalfOf:  opts.OnBehalfOf,
 	})
 }

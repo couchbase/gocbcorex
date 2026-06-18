@@ -109,6 +109,8 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		err = ErrOperationDelayed
 	} else if strings.Contains(errText, "unexpected server error") {
 		err = ErrUnexpectedServerError
+	} else if strings.Contains(errText, "manifest out of date") {
+		err = ErrManifestOutOfDate
 	} else if resp.StatusCode == 400 {
 		sErr := parseForInvalidArg(errText)
 		var ok bool
@@ -436,6 +438,40 @@ func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollecti
 	return cbhttpx.JsonBlockStreamer[cbconfig.CollectionManifestJson]{
 		Decoder: json.NewDecoder(resp.Body),
 	}.Recv()
+}
+
+type EnsureManifestOptions struct {
+	BucketName  string
+	ManifestUid string
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) EnsureManifest(
+	ctx context.Context,
+	opts *EnsureManifestOptions,
+) error {
+	if opts.BucketName == "" {
+		return errors.New("must specify bucket name when ensuring a manifest")
+	}
+	if opts.ManifestUid == "" {
+		return errors.New("must specify manifest uid when ensuring a manifest")
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		fmt.Sprintf("/pools/default/buckets/%s/scopes/@ensureManifest/%s", url.PathEscape(opts.BucketName), url.PathEscape(opts.ManifestUid)),
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	return nil
 }
 
 type CreateScopeOptions struct {

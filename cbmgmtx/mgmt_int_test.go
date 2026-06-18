@@ -342,3 +342,37 @@ func TestHttpMgmtGlobalMemcachedSettings(t *testing.T) {
 	require.Contains(t, settings, string(cbmgmtx.GlobalMemcachedSettingSubdocMultiMaxPaths))
 	assert.Equal(t, 18, int(settings[string(cbmgmtx.GlobalMemcachedSettingSubdocMultiMaxPaths)].(float64)))
 }
+
+func TestHttpMgmtEnsureManifest(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+	bucketName := testutilsint.TestOpts.BucketName
+	testCollectionName := "testcol-" + uuid.NewString()[:6]
+
+	createResp, err := getHttpMgmt().CreateCollection(ctx, &cbmgmtx.CreateCollectionOptions{
+		BucketName:     bucketName,
+		ScopeName:      "_default",
+		CollectionName: testCollectionName,
+		MaxTTL:         0,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, createResp.ManifestUid)
+
+	t.Cleanup(func() {
+		_, err := getHttpMgmt().DeleteCollection(ctx, &cbmgmtx.DeleteCollectionOptions{
+			BucketName:     bucketName,
+			ScopeName:      "_default",
+			CollectionName: testCollectionName,
+		})
+		assert.NoError(t, err)
+	})
+
+	err = getHttpMgmt().EnsureManifest(ctx, &cbmgmtx.EnsureManifestOptions{
+		BucketName:  bucketName,
+		ManifestUid: createResp.ManifestUid,
+	})
+	if err != nil {
+		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
+	}
+}
