@@ -182,6 +182,10 @@ func (agent *Agent) UpdateCollection(ctx context.Context, opts *cbmgmtx.UpdateCo
 	return agent.mgmt.UpdateCollection(ctx, opts)
 }
 
+func (agent *Agent) EnsureManifestNsOnly(ctx context.Context, opts *EnsureManifestNsOnlyOptions) error {
+	return agent.mgmt.EnsureManifestNsOnly(ctx, opts)
+}
+
 func (agent *Agent) EnsureManifest(ctx context.Context, opts *EnsureManifestOptions) error {
 	return agent.mgmt.EnsureManifest(ctx, opts)
 }
