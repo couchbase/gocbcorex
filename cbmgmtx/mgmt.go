@@ -253,7 +253,10 @@ type GetBucketConfigOptions struct {
 
 func (h Management) GetBucketConfig(ctx context.Context, opts *GetBucketConfigOptions) (*cbconfig.FullBucketConfigJson, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when fetching a bucket config")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(ctx, "GET",
@@ -279,7 +282,10 @@ type GetTerseBucketConfigOptions struct {
 
 func (h Management) GetTerseBucketConfig(ctx context.Context, opts *GetTerseBucketConfigOptions) (*cbconfig.TerseConfigJson, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when fetching a terse bucket config")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(ctx, "GET",
@@ -305,7 +311,10 @@ type CheckBucketExistsOptions struct {
 
 func (h Management) CheckBucketExists(ctx context.Context, opts *CheckBucketExistsOptions) (bool, error) {
 	if opts.BucketName == "" {
-		return false, errors.New("must specify bucket name when checking a bucket exists")
+		return false, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(ctx, "HEAD",
@@ -336,7 +345,10 @@ type TerseBucketConfig_Stream interface {
 
 func (h Management) StreamTerseBucketConfig(ctx context.Context, opts *StreamTerseBucketConfigOptions) (TerseBucketConfig_Stream, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when streaming a bucket config")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(ctx, "GET",
@@ -422,7 +434,10 @@ type GetCollectionManifestOptions struct {
 
 func (h Management) GetCollectionManifest(ctx context.Context, opts *GetCollectionManifestOptions) (*cbconfig.CollectionManifestJson, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when fetching a collection manifest")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(ctx, "GET",
@@ -493,10 +508,16 @@ func (h Management) CreateScope(
 	opts *CreateScopeOptions,
 ) (*CreateScopeResponse, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when creating a scope")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 	if opts.ScopeName == "" {
-		return nil, errors.New("must specify scope name when creating a scope")
+		return nil, ServerInvalidArgError{
+			Argument: "ScopeName",
+			Reason:   "scope name cannot be blank",
+		}
 	}
 
 	posts := url.Values{}
@@ -541,10 +562,16 @@ func (h Management) DeleteScope(
 	opts *DeleteScopeOptions,
 ) (*DeleteScopeResponse, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when deleting a scope")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 	if opts.ScopeName == "" {
-		return nil, errors.New("must specify scope name when deleting a scope")
+		return nil, ServerInvalidArgError{
+			Argument: "ScopeName",
+			Reason:   "scope name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(
@@ -589,13 +616,22 @@ func (h Management) CreateCollection(
 	opts *CreateCollectionOptions,
 ) (*CreateCollectionResponse, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when creating a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 	if opts.ScopeName == "" {
-		return nil, errors.New("must specify scope name when creating a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "ScopeName",
+			Reason:   "scope name cannot be blank",
+		}
 	}
 	if opts.CollectionName == "" {
-		return nil, errors.New("must specify collection name when creating a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "CollectionName",
+			Reason:   "collection name cannot be blank",
+		}
 	}
 
 	posts := url.Values{}
@@ -649,13 +685,22 @@ func (h Management) DeleteCollection(
 	opts *DeleteCollectionOptions,
 ) (*DeleteCollectionResponse, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when deleting a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 	if opts.ScopeName == "" {
-		return nil, errors.New("must specify scope name when deleting a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "ScopeName",
+			Reason:   "scope name cannot be blank",
+		}
 	}
 	if opts.CollectionName == "" {
-		return nil, errors.New("must specify collection name when deleting a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "CollectionName",
+			Reason:   "collection name cannot be blank",
+		}
 	}
 
 	resp, err := h.Execute(
@@ -700,13 +745,22 @@ func (h Management) UpdateCollection(
 	opts *UpdateCollectionOptions,
 ) (*UpdateCollectionResponse, error) {
 	if opts.BucketName == "" {
-		return nil, errors.New("must specify bucket name when updating a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "BucketName",
+			Reason:   "bucket name cannot be blank",
+		}
 	}
 	if opts.ScopeName == "" {
-		return nil, errors.New("must specify scope name when updating a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "ScopeName",
+			Reason:   "scope name cannot be blank",
+		}
 	}
 	if opts.CollectionName == "" {
-		return nil, errors.New("must specify collection name when updating a collection")
+		return nil, ServerInvalidArgError{
+			Argument: "CollectionName",
+			Reason:   "collection name cannot be blank",
+		}
 	}
 
 	posts := url.Values{}
@@ -835,7 +889,10 @@ func (h Management) encodeBucketSettings(posts *url.Values, opts *BucketSettings
 	}
 	if opts.ReplicaIndex {
 		if opts.BucketType == BucketTypeEphemeral {
-			return errors.New("cannot specify ReplicaIndex for Ephemeral buckets")
+			return ServerInvalidArgError{
+				Argument: "ReplicaIndex",
+				Reason:   "cannot specify ReplicaIndex for Ephemeral buckets",
+			}
 		}
 		posts.Add("replicaIndex", "1")
 	} else if opts.BucketType != BucketTypeEphemeral {
@@ -938,10 +995,10 @@ func (h Management) GetBucket(
 	opts *GetBucketOptions,
 ) (*BucketDef, error) {
 	if opts.BucketName == "" {
-		return nil, fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+		return nil, ServerInvalidArgError{
 			Argument: "BucketName",
 			Reason:   "bucket name cannot be blank",
-		})
+		}
 	}
 
 	resp, err := h.Execute(
@@ -981,10 +1038,10 @@ func (h Management) CreateBucket(
 	opts *CreateBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+		return ServerInvalidArgError{
 			Argument: "BucketName",
 			Reason:   "bucket name cannot be blank",
-		})
+		}
 	}
 
 	posts := url.Values{}
@@ -1025,10 +1082,10 @@ func (h Management) UpdateBucket(
 	opts *UpdateBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+		return ServerInvalidArgError{
 			Argument: "BucketName",
 			Reason:   "bucket name cannot be blank",
-		})
+		}
 	}
 
 	posts := url.Values{}
@@ -1065,10 +1122,10 @@ func (h Management) DeleteBucket(
 	opts *DeleteBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+		return ServerInvalidArgError{
 			Argument: "BucketName",
 			Reason:   "bucket name cannot be blank",
-		})
+		}
 	}
 
 	resp, err := h.Execute(
@@ -1106,10 +1163,10 @@ func (h Management) FlushBucket(
 	opts *FlushBucketOptions,
 ) error {
 	if opts.BucketName == "" {
-		return fmt.Errorf("%w: %w", ErrServerInvalidArg, ServerInvalidArgError{
+		return ServerInvalidArgError{
 			Argument: "BucketName",
 			Reason:   "bucket name cannot be blank",
-		})
+		}
 	}
 
 	resp, err := h.Execute(
@@ -1333,7 +1390,10 @@ func (h Management) UpsertUser(
 	opts *UpsertUserOptions,
 ) error {
 	if opts.Username == "" {
-		return errors.New("must specify username when upserting a user")
+		return ServerInvalidArgError{
+			Argument: "Username",
+			Reason:   "username cannot be blank",
+		}
 	}
 
 	if opts.Domain == "" {
@@ -1383,7 +1443,10 @@ func (h Management) DeleteUser(
 	opts *DeleteUserOptions,
 ) error {
 	if opts.Username == "" {
-		return errors.New("must specify username when deleting a user")
+		return ServerInvalidArgError{
+			Argument: "Username",
+			Reason:   "username cannot be blank",
+		}
 	}
 
 	if opts.Domain == "" {
