@@ -372,7 +372,32 @@ func TestHttpMgmtEnsureManifest(t *testing.T) {
 		BucketName:  bucketName,
 		ManifestUid: createResp.ManifestUid,
 	})
-	if err != nil {
-		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
-	}
+	require.NoError(t, err)
+}
+
+func TestHttpMgmtEnsureManifestBadManifestId(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	bucketName := testutilsint.TestOpts.BucketName
+
+	err := getHttpMgmt().EnsureManifest(ctx, &cbmgmtx.EnsureManifestOptions{
+		BucketName:  bucketName,
+		ManifestUid: "ffffffffffffffff",
+	})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestHttpMgmtEnsureManifestBadBucket(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+
+	err := getHttpMgmt().EnsureManifest(ctx, &cbmgmtx.EnsureManifestOptions{
+		BucketName:  "nonexistent-bucket-" + uuid.NewString()[:6],
+		ManifestUid: "1",
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrBucketNotFound)
 }

@@ -459,7 +459,7 @@ func (h Management) EnsureManifest(
 
 	resp, err := h.Execute(
 		ctx,
-		"GET",
+		"POST",
 		fmt.Sprintf("/pools/default/buckets/%s/scopes/@ensureManifest/%s", url.PathEscape(opts.BucketName), url.PathEscape(opts.ManifestUid)),
 		"", opts.OnBehalfOf, nil)
 	if err != nil {
