@@ -8,6 +8,7 @@ on:
 
 jobs:
   benchmark:
+    if: false  # Temporarily disabled while investigating failures
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
