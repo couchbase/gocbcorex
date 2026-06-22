@@ -124,7 +124,7 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 		}
 	} else if resp.StatusCode == 404 {
 		err = ErrUnsupportedFeature
-	} else if resp.StatusCode == 401 {
+	} else if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		err = ErrAccessDenied
 	}
 
