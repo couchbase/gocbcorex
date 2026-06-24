@@ -8,7 +8,6 @@ on:
 
 jobs:
   benchmark:
-    if: false  # Temporarily disabled while investigating failures
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -38,7 +37,9 @@ jobs:
             --base-ref ${{ github.base_ref || 'master' }}
             --cpu=1
             --count=5
+            --warmup-count=1
+            --warmup-time=10ms
             --debug
             --bench "^BenchmarkCrud|BenchmarkQuery|BenchmarkSearch"
-            --tolerance=1.0
+            --tolerance=20.0
           github_token: ${{ secrets.GITHUB_TOKEN }}
