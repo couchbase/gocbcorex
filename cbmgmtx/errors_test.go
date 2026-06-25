@@ -1,6 +1,9 @@
 package cbmgmtx
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,5 +52,36 @@ func Test_parseForInvalidArg(t *testing.T) {
 			assert.Equal(t, "fieldTwo", sErr.Argument)
 			assert.Equal(t, "reason, something", sErr.Reason)
 		}
+	})
+}
+
+func TestDecodeCommonError(t *testing.T) {
+	mgmt := Management{}
+
+	t.Run("group not found", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(strings.NewReader("Group not found")),
+		}
+		err := mgmt.DecodeCommonError(resp)
+		assert.ErrorIs(t, err, ErrGroupNotFound)
+	})
+
+	t.Run("unknown group", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: 404,
+			Body:       io.NopCloser(strings.NewReader("Unknown group.")),
+		}
+		err := mgmt.DecodeCommonError(resp)
+		assert.ErrorIs(t, err, ErrGroupNotFound)
+	})
+
+	t.Run("groups do not exist", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: 400,
+			Body:       io.NopCloser(strings.NewReader(`{"errors":{"groups":"Groups do not exist: non-existent-group-name"}}`)),
+		}
+		err := mgmt.DecodeCommonError(resp)
+		assert.ErrorIs(t, err, ErrGroupNotFound)
 	})
 }

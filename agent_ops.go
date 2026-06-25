@@ -222,6 +222,34 @@ func (agent *Agent) XdcrC2c(ctx context.Context, opts *cbmgmtx.XdcrC2cOptions) e
 	return agent.mgmt.XdcrC2c(ctx, opts)
 }
 
+func (agent *Agent) GetAllUsers(ctx context.Context, opts *cbmgmtx.GetAllUsersOptions) ([]*cbmgmtx.UserJson, error) {
+	return agent.mgmt.GetAllUsers(ctx, opts)
+}
+
+func (agent *Agent) GetUser(ctx context.Context, opts *cbmgmtx.GetUserOptions) (*cbmgmtx.UserJson, error) {
+	return agent.mgmt.GetUser(ctx, opts)
+}
+
+func (agent *Agent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) error {
+	return agent.mgmt.UpsertUser(ctx, opts)
+}
+
+func (agent *Agent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
+	return agent.mgmt.DeleteUser(ctx, opts)
+}
+
+func (agent *Agent) UpsertUserGroup(ctx context.Context, opts *cbmgmtx.UpsertUserGroupOptions) error {
+	return agent.mgmt.UpsertUserGroup(ctx, opts)
+}
+
+func (agent *Agent) GetUserGroup(ctx context.Context, opts *cbmgmtx.GetUserGroupOptions) (*cbmgmtx.UserGroupJson, error) {
+	return agent.mgmt.GetUserGroup(ctx, opts)
+}
+
+func (agent *Agent) DeleteUserGroup(ctx context.Context, opts *cbmgmtx.DeleteUserGroupOptions) error {
+	return agent.mgmt.DeleteUserGroup(ctx, opts)
+}
+
 func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
 	return agent.search.Query(ctx, opts)
 }
