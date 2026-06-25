@@ -287,3 +287,31 @@ func (w *MgmtComponent) EnsureManifest(ctx context.Context, opts *EnsureManifest
 		OnBehalfOf:  opts.OnBehalfOf,
 	})
 }
+
+func (w *MgmtComponent) GetAllUsers(ctx context.Context, opts *cbmgmtx.GetAllUsersOptions) ([]*cbmgmtx.UserJson, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetAllUsers, opts)
+}
+
+func (w *MgmtComponent) GetUser(ctx context.Context, opts *cbmgmtx.GetUserOptions) (*cbmgmtx.UserJson, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetUser, opts)
+}
+
+func (w *MgmtComponent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.UpsertUser, opts)
+}
+
+func (w *MgmtComponent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteUser, opts)
+}
+
+func (w *MgmtComponent) UpsertUserGroup(ctx context.Context, opts *cbmgmtx.UpsertUserGroupOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.UpsertUserGroup, opts)
+}
+
+func (w *MgmtComponent) GetUserGroup(ctx context.Context, opts *cbmgmtx.GetUserGroupOptions) (*cbmgmtx.UserGroupJson, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetUserGroup, opts)
+}
+
+func (w *MgmtComponent) DeleteUserGroup(ctx context.Context, opts *cbmgmtx.DeleteUserGroupOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteUserGroup, opts)
+}

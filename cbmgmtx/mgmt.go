@@ -89,6 +89,14 @@ func (h Management) DecodeCommonError(resp *http.Response) error {
 	} else if strings.Contains(errText, "unknown user") {
 		// 8.0.0 now returns "unknown user" rather than "not found" for user not found.
 		err = ErrUserNotFound
+	} else if strings.Contains(errText, "not found") && strings.Contains(errText, "group") {
+		err = ErrGroupNotFound
+	} else if strings.Contains(errText, "unknown group") {
+		// 8.0.0 now returns "unknown group" rather than "not found" for group not found.
+		err = ErrGroupNotFound
+	} else if strings.Contains(errText, "do not exist") && strings.Contains(errText, "group") {
+		// When attempting to assign a non-existent group to a user, we see this.
+		err = ErrGroupNotFound
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "collection") {
 		err = ErrCollectionExists
 	} else if strings.Contains(errText, "already exists") && strings.Contains(errText, "scope") {
@@ -1348,10 +1356,10 @@ func (h Management) UpsertUser(
 	if opts.Password != "" {
 		posts.Add("password", opts.Password)
 	}
-	if len(opts.Groups) > 0 {
+	if opts.Groups != nil {
 		posts.Add("groups", strings.Join(opts.Groups, ","))
 	}
-	if len(opts.Roles) > 0 {
+	if opts.Roles != nil {
 		posts.Add("roles", strings.Join(opts.Roles, ","))
 	}
 
@@ -1510,4 +1518,153 @@ func (h Management) GetGlobalMemcachedSettings(
 	_ = resp.Body.Close()
 
 	return settings, nil
+}
+
+type GetUserOptions struct {
+	Domain     AuthDomain
+	Username   string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) GetUser(
+	ctx context.Context,
+	opts *GetUserOptions,
+) (*UserJson, error) {
+	if opts.Username == "" {
+		return nil, errors.New("must specify username when getting a user")
+	}
+
+	if opts.Domain == "" {
+		opts.Domain = "local"
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		fmt.Sprintf("/settings/rbac/users/%s/%s", url.PathEscape(string(opts.Domain)), url.PathEscape(opts.Username)),
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	userData, err := cbhttpx.ReadAsJsonAndClose[UserJson](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &userData, nil
+}
+
+type UserGroupJson struct {
+	ID          string     `json:"id"`
+	Description string     `json:"description"`
+	Roles       []RoleJson `json:"roles"`
+}
+
+type UpsertUserGroupOptions struct {
+	GroupName   string
+	Description string
+	Roles       []string
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) UpsertUserGroup(
+	ctx context.Context,
+	opts *UpsertUserGroupOptions,
+) error {
+	if opts.GroupName == "" {
+		return errors.New("must specify group name when upserting a user group")
+	}
+
+	posts := url.Values{}
+	if opts.Description != "" {
+		posts.Add("description", opts.Description)
+	}
+	if opts.Roles != nil {
+		posts.Add("roles", strings.Join(opts.Roles, ","))
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"PUT",
+		fmt.Sprintf("/settings/rbac/groups/%s", url.PathEscape(opts.GroupName)),
+		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+	return nil
+}
+
+type GetUserGroupOptions struct {
+	GroupName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) GetUserGroup(
+	ctx context.Context,
+	opts *GetUserGroupOptions,
+) (*UserGroupJson, error) {
+	if opts.GroupName == "" {
+		return nil, errors.New("must specify group name when getting a user group")
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"GET",
+		fmt.Sprintf("/settings/rbac/groups/%s", url.PathEscape(opts.GroupName)),
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, h.DecodeCommonError(resp)
+	}
+
+	groupData, err := cbhttpx.ReadAsJsonAndClose[UserGroupJson](resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &groupData, nil
+}
+
+type DeleteUserGroupOptions struct {
+	GroupName  string
+	OnBehalfOf *cbhttpx.OnBehalfOfInfo
+}
+
+func (h Management) DeleteUserGroup(
+	ctx context.Context,
+	opts *DeleteUserGroupOptions,
+) error {
+	if opts.GroupName == "" {
+		return errors.New("must specify group name when deleting a user group")
+	}
+
+	resp, err := h.Execute(
+		ctx,
+		"DELETE",
+		fmt.Sprintf("/settings/rbac/groups/%s", url.PathEscape(opts.GroupName)),
+		"", opts.OnBehalfOf, nil)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return h.DecodeCommonError(resp)
+	}
+
+	_ = resp.Body.Close()
+	return nil
 }

@@ -286,6 +286,15 @@ func TestHttpMgmtUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	user, err := getHttpMgmt().GetUser(ctx, &cbmgmtx.GetUserOptions{
+		Username: testUsername,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, testUsername, user.Name)
+	assert.Equal(t, cbmgmtx.AuthDomainLocal, user.Domain)
+	require.NotEmpty(t, user.Roles)
+	assert.Equal(t, "ro_admin", user.Roles[0].RoleName)
+
 	users, err := getHttpMgmt().GetAllUsers(ctx, &cbmgmtx.GetAllUsersOptions{})
 	require.NoError(t, err)
 
@@ -301,10 +310,86 @@ func TestHttpMgmtUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	_, err = getHttpMgmt().GetUser(ctx, &cbmgmtx.GetUserOptions{
+		Username: testUsername,
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrUserNotFound)
+
 	err = getHttpMgmt().DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
 		Username: "missing-user-name",
 	})
 	require.ErrorIs(t, err, cbmgmtx.ErrUserNotFound)
+
+	// Test referencing a group that does not exist in user creation
+	err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		Username:    "testuser-missing-group-" + uuid.NewString()[:6],
+		DisplayName: "testuser-missing-group",
+		Password:    "password",
+		Groups:      []string{"non-existent-group-name"},
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrGroupNotFound)
+
+	// Test referencing a group that does not exist in user modify
+	testModifyUsername := "testuser-modify-" + uuid.NewString()[:6]
+	err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		Username:    testModifyUsername,
+		DisplayName: testModifyUsername,
+		Password:    "password",
+		Roles:       []string{"ro_admin"},
+	})
+	require.NoError(t, err)
+
+	defer func() {
+		_ = getHttpMgmt().DeleteUser(ctx, &cbmgmtx.DeleteUserOptions{
+			Username: testModifyUsername,
+		})
+	}()
+
+	err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		Username:    testModifyUsername,
+		DisplayName: testModifyUsername,
+		Password:    "password",
+		Groups:      []string{"non-existent-group-name"},
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrGroupNotFound)
+}
+
+func TestHttpMgmtUserGroups(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx := context.Background()
+	testGroupName := "testgroup-" + uuid.NewString()[:6]
+
+	err := getHttpMgmt().UpsertUserGroup(ctx, &cbmgmtx.UpsertUserGroupOptions{
+		GroupName:   testGroupName,
+		Description: "Test Group Description",
+		Roles:       []string{"ro_admin"},
+	})
+	require.NoError(t, err)
+
+	group, err := getHttpMgmt().GetUserGroup(ctx, &cbmgmtx.GetUserGroupOptions{
+		GroupName: testGroupName,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, testGroupName, group.ID)
+	assert.Equal(t, "Test Group Description", group.Description)
+	require.NotEmpty(t, group.Roles)
+	assert.Equal(t, "ro_admin", group.Roles[0].RoleName)
+
+	err = getHttpMgmt().DeleteUserGroup(ctx, &cbmgmtx.DeleteUserGroupOptions{
+		GroupName: testGroupName,
+	})
+	require.NoError(t, err)
+
+	_, err = getHttpMgmt().GetUserGroup(ctx, &cbmgmtx.GetUserGroupOptions{
+		GroupName: testGroupName,
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrGroupNotFound)
+
+	err = getHttpMgmt().DeleteUserGroup(ctx, &cbmgmtx.DeleteUserGroupOptions{
+		GroupName: testGroupName,
+	})
+	require.ErrorIs(t, err, cbmgmtx.ErrGroupNotFound)
 }
 
 func TestHttpMgmtXdcrC2c(t *testing.T) {
