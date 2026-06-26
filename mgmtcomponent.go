@@ -315,3 +315,57 @@ func (w *MgmtComponent) GetUserGroup(ctx context.Context, opts *cbmgmtx.GetUserG
 func (w *MgmtComponent) DeleteUserGroup(ctx context.Context, opts *cbmgmtx.DeleteUserGroupOptions) error {
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteUserGroup, opts)
 }
+
+type EnsureUserOptions struct {
+	Username    string
+	Domain      cbmgmtx.AuthDomain
+	WantMissing bool
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) EnsureUser(ctx context.Context, opts *EnsureUserOptions) error {
+	hlpr := cbmgmtx.EnsureUserHelper{
+		Logger:      w.logger.Named("ensure-user"),
+		UserAgent:   w.userAgent,
+		OnBehalfOf:  opts.OnBehalfOf,
+		Username:    opts.Username,
+		Domain:      opts.Domain,
+		WantMissing: opts.WantMissing,
+	}
+
+	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	return w.ensureResource(ctx, b, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.Poll(ctx, &cbmgmtx.EnsureUserPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets.ToMgmtx(),
+		})
+	})
+}
+
+type EnsureUserGroupOptions struct {
+	GroupName   string
+	WantMissing bool
+	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) EnsureUserGroup(ctx context.Context, opts *EnsureUserGroupOptions) error {
+	hlpr := cbmgmtx.EnsureUserGroupHelper{
+		Logger:      w.logger.Named("ensure-user-group"),
+		UserAgent:   w.userAgent,
+		OnBehalfOf:  opts.OnBehalfOf,
+		GroupName:   opts.GroupName,
+		WantMissing: opts.WantMissing,
+	}
+
+	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
+
+	return w.ensureResource(ctx, b, func(ctx context.Context, roundTripper http.RoundTripper,
+		ensureTargets baseHttpTargets) (bool, error) {
+		return hlpr.Poll(ctx, &cbmgmtx.EnsureUserGroupPollOptions{
+			Transport: roundTripper,
+			Targets:   ensureTargets.ToMgmtx(),
+		})
+	})
+}

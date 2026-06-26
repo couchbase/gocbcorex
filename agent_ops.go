@@ -250,6 +250,14 @@ func (agent *Agent) DeleteUserGroup(ctx context.Context, opts *cbmgmtx.DeleteUse
 	return agent.mgmt.DeleteUserGroup(ctx, opts)
 }
 
+func (agent *Agent) EnsureUser(ctx context.Context, opts *EnsureUserOptions) error {
+	return agent.mgmt.EnsureUser(ctx, opts)
+}
+
+func (agent *Agent) EnsureUserGroup(ctx context.Context, opts *EnsureUserGroupOptions) error {
+	return agent.mgmt.EnsureUserGroup(ctx, opts)
+}
+
 func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
 	return agent.search.Query(ctx, opts)
 }
