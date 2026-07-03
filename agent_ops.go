@@ -230,7 +230,7 @@ func (agent *Agent) GetUser(ctx context.Context, opts *cbmgmtx.GetUserOptions) (
 	return agent.mgmt.GetUser(ctx, opts)
 }
 
-func (agent *Agent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) error {
+func (agent *Agent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
 	return agent.mgmt.UpsertUser(ctx, opts)
 }
 

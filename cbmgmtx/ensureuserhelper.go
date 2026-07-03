@@ -19,6 +19,11 @@ type EnsureUserHelper struct {
 	Domain      AuthDomain
 	WantMissing bool
 
+	// SincePasswordChanged, if set, causes Poll to additionally wait until
+	// each target's password_change_date is after this marker. Leave this nil
+	// for any use of EnsureUser that isn't confirming a password change.
+	SincePasswordChanged *PasswordChangedMarker
+
 	confirmedEndpoints []string
 }
 
@@ -33,7 +38,7 @@ func (e *EnsureUserHelper) pollOne(
 		zap.String("targetUsername", e.Username),
 		zap.Bool("wantMissing", e.WantMissing))
 
-	_, err := Management{
+	resp, err := Management{
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
@@ -61,6 +66,11 @@ func (e *EnsureUserHelper) pollOne(
 
 	if e.WantMissing {
 		e.Logger.Debug("target responded successfully but we wanted a missing user")
+		return false, nil
+	}
+
+	if e.SincePasswordChanged != nil && !resp.PasswordChanged.IsAfter(*e.SincePasswordChanged) {
+		e.Logger.Debug("target responded with success, but the password change has not yet propagated")
 		return false, nil
 	}
 

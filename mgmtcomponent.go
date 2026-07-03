@@ -296,8 +296,8 @@ func (w *MgmtComponent) GetUser(ctx context.Context, opts *cbmgmtx.GetUserOption
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetUser, opts)
 }
 
-func (w *MgmtComponent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) error {
-	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.UpsertUser, opts)
+func (w *MgmtComponent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.UpsertUser, opts)
 }
 
 func (w *MgmtComponent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
@@ -321,16 +321,25 @@ type EnsureUserOptions struct {
 	Domain      cbmgmtx.AuthDomain
 	WantMissing bool
 	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
+
+	// SincePasswordChanged, if set, causes EnsureUser to additionally wait
+	// until the password change has propagated to all nodes, in addition to
+	// the usual existence check. Populate this from
+	// UpsertUserResult.PreviousPasswordChanged. Leave unset for any use of
+	// EnsureUser that isn't specifically confirming a password change (this
+	// is meaningless in combination with WantMissing).
+	SincePasswordChanged *cbmgmtx.PasswordChangedMarker
 }
 
 func (w *MgmtComponent) EnsureUser(ctx context.Context, opts *EnsureUserOptions) error {
 	hlpr := cbmgmtx.EnsureUserHelper{
-		Logger:      w.logger.Named("ensure-user"),
-		UserAgent:   w.userAgent,
-		OnBehalfOf:  opts.OnBehalfOf,
-		Username:    opts.Username,
-		Domain:      opts.Domain,
-		WantMissing: opts.WantMissing,
+		Logger:               w.logger.Named("ensure-user"),
+		UserAgent:            w.userAgent,
+		OnBehalfOf:           opts.OnBehalfOf,
+		Username:             opts.Username,
+		Domain:               opts.Domain,
+		WantMissing:          opts.WantMissing,
+		SincePasswordChanged: opts.SincePasswordChanged,
 	}
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)

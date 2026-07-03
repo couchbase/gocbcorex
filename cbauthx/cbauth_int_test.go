@@ -163,7 +163,7 @@ func TestCbauthInvalidations(t *testing.T) {
 	assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
 
 	// create user1 and user2
-	err = mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+	_, err = mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 		Username:    user1,
 		DisplayName: user1,
 		Password:    "password1",
@@ -171,7 +171,7 @@ func TestCbauthInvalidations(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+	_, err = mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 		Username:    user2,
 		DisplayName: user2,
 		Password:    "password2",
