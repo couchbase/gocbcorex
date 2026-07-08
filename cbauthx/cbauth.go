@@ -522,3 +522,38 @@ func (a *CbAuth) Close() error {
 
 	return nil
 }
+
+func (a *CbAuth) NewScramAuthValidator(
+	mechanism string,
+) (*ScramAuthValidator, error) {
+	a.lock.Lock()
+	cli := a.cli
+	endpoint := a.cliEndpoint
+	clusterUuid := a.cliClusterUuid
+	transport := a.httpTransport
+	endpoints := a.endpoints
+	a.lock.Unlock()
+
+	var uri string
+	if cli != nil && cli.initOpts != nil &&
+		cli.initOpts.AuthCheckEndpoint != "" {
+		uri = endpoint + cli.initOpts.AuthCheckEndpoint
+	} else {
+		var baseEndpoint string
+		if endpoint != "" {
+			baseEndpoint = endpoint
+		} else if len(endpoints) > 0 {
+			baseEndpoint = endpoints[0]
+		} else {
+			return nil, errors.New("cbauth has no endpoints configured")
+		}
+		uri = baseEndpoint + "/_cbauth"
+	}
+
+	return NewScramAuthValidator(&ScramAuthValidatorOptions{
+		Transport:   transport,
+		Uri:         uri,
+		ClusterUuid: clusterUuid,
+		Mechanism:   mechanism,
+	})
+}

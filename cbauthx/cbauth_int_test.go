@@ -2,6 +2,10 @@ package cbauthx_test
 
 import (
 	"context"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"hash"
 	"log"
 	"net/http"
 	"testing"
@@ -10,6 +14,7 @@ import (
 	"github.com/couchbase/gocbcorex/cbauthx"
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"github.com/couchbase/gocbcorex/cbmgmtx"
+	"github.com/couchbase/gocbcorex/scram"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/couchbase/gocbcorex/testutilsint"
 	"github.com/google/uuid"
@@ -416,4 +421,140 @@ func TestCbauthRebalanceOutDino(t *testing.T) {
 
 	// clean up
 	_ = auth.Close()
+}
+
+func TestScramAuthValidator(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+	testutilsint.SkipIfOlderServerVersion(t, "7.2.0")
+
+	ctx := context.Background()
+	logger := testutils.MakeTestLogger(t)
+
+	auth, err := cbauthx.NewCbAuth(ctx, &cbauthx.CbAuthConfig{
+		Endpoints: []string{
+			"http://" + testutilsint.TestOpts.HTTPAddrs[0],
+		},
+		Username:    testutilsint.TestOpts.Username,
+		Password:    testutilsint.TestOpts.Password,
+		ClusterUuid: "",
+	}, &cbauthx.CbAuthOptions{
+		Logger:            logger,
+		ServiceName:       "stg",
+		UserAgent:         "cng-test",
+		HeartbeatInterval: 3 * time.Second,
+		HeartbeatTimeout:  5 * time.Second,
+		LivenessTimeout:   6 * time.Second,
+		ConnectTimeout:    3 * time.Second,
+	})
+	require.NoError(t, err)
+	defer func() { _ = auth.Close() }()
+
+	tests := []struct {
+		mech    string
+		newHash func() hash.Hash
+	}{
+		{mech: "SCRAM-SHA-1", newHash: sha1.New},
+		{mech: "SCRAM-SHA-256", newHash: sha256.New},
+		{mech: "SCRAM-SHA-512", newHash: sha512.New},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.mech, func(t *testing.T) {
+			// Positive handshake test
+			v, err := auth.NewScramAuthValidator(tc.mech)
+			require.NoError(t, err)
+
+			sClient := scram.NewClient(
+				tc.newHash,
+				testutilsint.TestOpts.Username,
+				testutilsint.TestOpts.Password,
+			)
+
+			require.True(t, sClient.Step(nil))
+			require.NoError(t, sClient.Err())
+
+			serverFirst, err := v.Step1(ctx, sClient.Out())
+			require.NoError(t, err)
+
+			require.True(t, sClient.Step(serverFirst))
+			require.NoError(t, sClient.Err())
+
+			serverFinal, uInfo, err := v.Step2(ctx, sClient.Out())
+			require.NoError(t, err)
+			assert.NotEmpty(t, uInfo.Domain)
+
+			// Verify server signature (mutual auth)
+			require.False(t, sClient.Step(serverFinal))
+			require.NoError(t, sClient.Err())
+
+			// Negative test: Invalid Password
+			vBadPass, err := auth.NewScramAuthValidator(tc.mech)
+			require.NoError(t, err)
+
+			sClientBad := scram.NewClient(
+				tc.newHash,
+				testutilsint.TestOpts.Username,
+				"completely_wrong_password",
+			)
+
+			require.True(t, sClientBad.Step(nil))
+			require.NoError(t, sClientBad.Err())
+
+			serverFirstBad, err := vBadPass.Step1(ctx, sClientBad.Out())
+			require.NoError(t, err)
+
+			require.True(t, sClientBad.Step(serverFirstBad))
+			require.NoError(t, sClientBad.Err())
+
+			_, _, err = vBadPass.Step2(ctx, sClientBad.Out())
+			assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+
+			// Negative test: Invalid Username
+			vBadUser, err := auth.NewScramAuthValidator(tc.mech)
+			require.NoError(t, err)
+
+			sClientBadUser := scram.NewClient(
+				tc.newHash,
+				"non_existent_username_12345",
+				testutilsint.TestOpts.Password,
+			)
+
+			require.True(t, sClientBadUser.Step(nil))
+			require.NoError(t, sClientBadUser.Err())
+
+			// Step 1 may succeed or fail depending on how the
+			// server handles unknown users (usually returns a random
+			// salt to prevent username enumeration, per RFC).
+			serverFirstBadUser, err := vBadUser.Step1(
+				ctx,
+				sClientBadUser.Out(),
+			)
+			if err == nil {
+				require.True(t, sClientBadUser.Step(serverFirstBadUser))
+				require.NoError(t, sClientBadUser.Err())
+
+				_, _, err = vBadUser.Step2(ctx, sClientBadUser.Out())
+				assert.ErrorIs(t, err, cbauthx.ErrInvalidAuth)
+			} else {
+				assert.Error(t, err)
+			}
+
+			// Negative test: Sequencing (Step 2 without Step 1)
+			vSeq, err := auth.NewScramAuthValidator(tc.mech)
+			require.NoError(t, err)
+
+			_, _, err = vSeq.Step2(ctx, []byte("some-final-msg"))
+			assert.ErrorContains(
+				t,
+				err,
+				"cannot call Step2 before Step1 succeeds",
+			)
+		})
+	}
+
+	// Negative test: Unsupported Mechanism
+	t.Run("UnsupportedMechanism", func(t *testing.T) {
+		_, err := auth.NewScramAuthValidator("SCRAM-SHA-384")
+		assert.ErrorContains(t, err, "unsupported SCRAM mechanism")
+	})
 }
