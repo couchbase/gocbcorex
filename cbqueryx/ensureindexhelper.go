@@ -3,6 +3,7 @@ package cbqueryx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
@@ -157,6 +158,11 @@ func (e *EnsureIndexHelper) pollAll(ctx context.Context,
 	for _, target := range filteredTargets {
 		resp, err := e.pollOne(ctx, opts.Transport, target)
 		if err != nil {
+			// BUG(MB-72770): Workaround for issue where system:indexes can transiently return collection not found.
+			if errors.Is(err, ErrCollectionNotFound) {
+				e.Logger.Debug("target responded with collection not found, continuing polling", zap.Error(err))
+				continue
+			}
 			return false, err
 		}
 
