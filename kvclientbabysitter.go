@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/couchbase/gocbcorex/memdx"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/exp/slices"
 )
 
@@ -19,6 +21,11 @@ type KvTargetTlsConfig struct {
 	RootCAs            *x509.CertPool
 	InsecureSkipVerify bool
 	CipherSuites       []uint16
+}
+
+func (v KvTargetTlsConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddBool("insecure-skip-verify", v.InsecureSkipVerify)
+	return nil
 }
 
 func (v KvTargetTlsConfig) Equals(o *KvTargetTlsConfig) bool {
@@ -30,6 +37,17 @@ func (v KvTargetTlsConfig) Equals(o *KvTargetTlsConfig) bool {
 type KvTarget struct {
 	Address   string
 	TLSConfig *KvTargetTlsConfig
+}
+
+func (v KvTarget) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("address", v.Address)
+	enc.AddBool("tls", v.TLSConfig != nil)
+	if v.TLSConfig != nil {
+		if err := enc.AddObject("tls-config", v.TLSConfig); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (v KvTarget) Equals(o KvTarget) bool {
@@ -61,6 +79,17 @@ type kvClientBabysitterClientConfig struct {
 	Target         KvTarget
 	Auth           KvClientAuth
 	SelectedBucket string
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, deliberately omitting
+// the authentication data which can contain the user's password.
+func (v kvClientBabysitterClientConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	if err := enc.AddObject("target", v.Target); err != nil {
+		return err
+	}
+	enc.AddString("authType", fmt.Sprintf("%T", v.Auth))
+	enc.AddString("selectedBucket", v.SelectedBucket)
+	return nil
 }
 
 func (v kvClientBabysitterClientConfig) Equals(o kvClientBabysitterClientConfig) bool {
@@ -338,7 +367,7 @@ ClientBuildLoop:
 		}
 
 		p.logger.Info("creating new client kv client",
-			zap.Any("config", desiredConfig))
+			zap.Object("config", *desiredConfig))
 
 		for {
 			connectWaitPeriod := p.connectErrThrottlePeriod - time.Since(lastErrTime)

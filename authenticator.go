@@ -2,6 +2,9 @@ package gocbcorex
 
 import (
 	"crypto/tls"
+	"encoding/json"
+
+	"go.uber.org/zap/zapcore"
 )
 
 type Authenticator interface {
@@ -24,6 +27,23 @@ func (a *PasswordAuthenticator) GetCredentials(
 	service ServiceType, hostPort string,
 ) (string, string, error) {
 	return a.Username, a.Password, nil
+}
+
+// MarshalJSON ensures the password is never included when an authenticator
+// is inadvertently serialized, for instance by reflection-based logging.
+func (a PasswordAuthenticator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Username string
+		Password string
+	}{
+		Username: a.Username,
+		Password: "REDACTED",
+	})
+}
+
+func (a PasswordAuthenticator) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("username", a.Username)
+	return nil
 }
 
 type kvClientAuth struct {

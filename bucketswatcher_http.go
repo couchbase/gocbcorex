@@ -16,6 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type BucketsWatcherHttpConfig struct {
@@ -31,6 +32,17 @@ type BucketsWatcherHttpReconfigureConfig struct {
 	HttpRoundTripper http.RoundTripper
 	Endpoints        []string
 	Authenticator    Authenticator
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, deliberately omitting
+// the authenticator which can contain the user's password.
+func (c BucketsWatcherHttpReconfigureConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	return enc.AddArray("endpoints", zapcore.ArrayMarshalerFunc(func(enc zapcore.ArrayEncoder) error {
+		for _, endpoint := range c.Endpoints {
+			enc.AppendString(endpoint)
+		}
+		return nil
+	}))
 }
 
 type BucketsWatcherHttpOptions struct {
@@ -110,7 +122,7 @@ func (w *BucketsWatcherHttp) NumAgents() int {
 }
 
 func (w *BucketsWatcherHttp) Reconfigure(cfg *BucketsWatcherHttpReconfigureConfig) error {
-	w.logger.Debug("Reconfiguring", zap.Any("config", cfg))
+	w.logger.Debug("Reconfiguring", zap.Object("config", cfg))
 
 	w.stateLock.Lock()
 	w.state = &bucketsWatcherHttpState{
