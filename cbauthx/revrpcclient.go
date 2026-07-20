@@ -141,7 +141,8 @@ func (r *RevRpcClient) Run() error {
 			resp = jsonrpcx.Proc1ArgMethod(req, r.handlers.Heartbeat)
 		default:
 			resp = jsonrpcx.ProcUnknownMethod(req, func(method string, params interface{}) {
-				log.Printf("received unexpected request (method:%s, params:%+v)", method, params)
+				// deliberately don't log the params, as they may contain credentials
+				log.Printf("received unexpected request (method:%s)", method)
 			})
 		}
 

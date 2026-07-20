@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type NodesWatcherHttpConfig struct {
@@ -20,6 +21,17 @@ type NodesWatcherHttpReconfigureConfig struct {
 	HttpRoundTripper http.RoundTripper
 	Endpoints        []string
 	Authenticator    Authenticator
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, deliberately omitting
+// the authenticator which can contain the user's password.
+func (c NodesWatcherHttpReconfigureConfig) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	return enc.AddArray("endpoints", zapcore.ArrayMarshalerFunc(func(enc zapcore.ArrayEncoder) error {
+		for _, endpoint := range c.Endpoints {
+			enc.AppendString(endpoint)
+		}
+		return nil
+	}))
 }
 
 type NodesWatcherHttpOptions struct {
@@ -110,7 +122,7 @@ func (nw *NodesWatcherHttp) Close() {
 }
 
 func (nw *NodesWatcherHttp) Reconfigure(cfg *NodesWatcherHttpReconfigureConfig) error {
-	nw.logger.Debug("Reconfiguring", zap.Any("config", cfg))
+	nw.logger.Debug("Reconfiguring", zap.Object("config", cfg))
 
 	nw.stateLock.Lock()
 	nw.state = &nodesWatcherHttpState{
