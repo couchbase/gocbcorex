@@ -1,12 +1,12 @@
 package leakcheck
 
-func EnableAll() {
+func EnableAll(expectedStartGoroutines ...int) {
 	EnableHttpResponseTracking()
-	PrecheckGoroutines()
+	PrecheckGoroutines(expectedStartGoroutines...)
 }
 
-func ReportAll() bool {
+func ReportAll(expectedEndGoroutines ...int) bool {
 	httpCheck := ReportLeakedHttpResponses()
-	goroutinesCheck := ReportLeakedGoroutines()
+	goroutinesCheck := ReportLeakedGoroutines(expectedEndGoroutines...)
 	return httpCheck && goroutinesCheck
 }
