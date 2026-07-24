@@ -37,9 +37,14 @@ func waitForNumGoroutines(expectedGoroutineCount int) int {
 	return finalGoroutineCount
 }
 
-func PrecheckGoroutines() {
+func PrecheckGoroutines(expectedStartGoroutines ...int) {
 	// This needs to match the value below.
-	expectedGoroutineCount := 1
+	var expectedGoroutineCount int
+	if len(expectedStartGoroutines) == 0 || expectedStartGoroutines[0] == 0 {
+		expectedGoroutineCount = 1
+	} else {
+		expectedGoroutineCount = expectedStartGoroutines[0]
+	}
 
 	// Wait for the expected number of goroutines
 	finalGoroutineCount := waitForNumGoroutines(expectedGoroutineCount)
@@ -53,11 +58,16 @@ func PrecheckGoroutines() {
 	}
 }
 
-func ReportLeakedGoroutines() bool {
-	// We always expect that only the current goroutine is running.  This assumption
-	// is based on the fact that it would not be considered safe to be checking for leaked
-	// goroutines when there were concurrent goroutines still running.
-	expectedGoroutineCount := 1
+func ReportLeakedGoroutines(expectedEndGoroutines ...int) bool {
+	var expectedGoroutineCount int
+	if len(expectedEndGoroutines) == 0 || expectedEndGoroutines[0] == 0 {
+		// We always expect that only the current goroutine is running by default.  This assumption
+		// is based on the fact that it would not be considered safe to be checking for leaked
+		// goroutines when there were concurrent goroutines still running.
+		expectedGoroutineCount = 1
+	} else {
+		expectedGoroutineCount = expectedEndGoroutines[0]
+	}
 
 	// Wait for the expected number of goroutines
 	finalGoroutineCount := waitForNumGoroutines(expectedGoroutineCount)
