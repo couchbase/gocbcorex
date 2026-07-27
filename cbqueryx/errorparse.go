@@ -1,6 +1,8 @@
 package cbqueryx
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
@@ -10,6 +12,14 @@ var indexExistsRegex = regexp.MustCompile(`(?i)index .*? already exist`)
 
 func parseError(errJson *queryErrorJson) *ServerError {
 	var err error
+
+	// The cause is delivered under "reason" for regular errors and "cause" for
+	// transaction errors; normalize both into a single decoded chain.
+	rawCause := errJson.Reason
+	if len(rawCause) == 0 {
+		rawCause = errJson.Cause
+	}
+	cause := parseQueryErrorCause(rawCause)
 
 	errCode := errJson.Code
 	errCodeGroup := errCode / 1000
@@ -73,13 +83,13 @@ func parseError(errJson *queryErrorJson) *ServerError {
 	case 12009:
 		err = ErrDmlFailure
 
-		if errJson.Reason != nil {
-			switch errJson.Reason.Code {
-			case 12033:
+		if cause != nil {
+			switch {
+			case cause.hasCode(12033):
 				err = ErrCasMismatch
-			case 17014:
+			case cause.hasCode(17014):
 				err = ErrDocumentNotFound
-			case 17012:
+			case cause.hasCode(17012):
 				err = ErrDocumentExists
 			}
 		}
@@ -103,7 +113,58 @@ func parseError(errJson *queryErrorJson) *ServerError {
 		InnerError: err,
 		Code:       errJson.Code,
 		Msg:        errJson.Msg,
+		Retry:      errJson.Retry,
+		Line:       errJson.Line,
+		Column:     errJson.Column,
+		Cause:      cause,
 	}
+}
+
+// parseQueryErrorCause decodes a raw cause payload from the query service into a
+// normalized QueryErrorCause chain. The payload is polymorphic - it may be a
+// nested error object or a bare string - and this normalizes both into the same
+// recursive representation, capturing a bare-string node's text in Message. It
+// returns nil for an empty/null cause.
+func parseQueryErrorCause(raw json.RawMessage) *QueryErrorCause {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+
+	node := &QueryErrorCause{}
+
+	// Non-object nodes are terminal values; capture a string's text in Message.
+	if raw[0] != '{' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			node.Message = s
+		}
+		return node
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return node
+	}
+
+	unmarshalField := func(key string, dst interface{}) {
+		if v, ok := fields[key]; ok {
+			_ = json.Unmarshal(v, dst)
+		}
+	}
+	unmarshalField("code", &node.Code)
+	unmarshalField("key", &node.Key)
+	unmarshalField("message", &node.Message)
+
+	// Descend into the child cause. The query service nests it under "cause",
+	// or - for data-service detail maps - under "error"; prefer "cause".
+	if v, ok := fields["cause"]; ok {
+		node.Cause = parseQueryErrorCause(v)
+	} else if v, ok := fields["error"]; ok {
+		node.Cause = parseQueryErrorCause(v)
+	}
+
+	return node
 }
 
 func createResourceError(msg string, cause error) *ResourceError {
