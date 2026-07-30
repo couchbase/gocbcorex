@@ -369,3 +369,27 @@ func (w *MgmtComponent) EnsureUserGroup(ctx context.Context, opts *EnsureUserGro
 		})
 	})
 }
+
+func (w *MgmtComponent) GetMetaKv2(ctx context.Context, opts *cbmgmtx.GetMetaKv2Options) (*cbmgmtx.GetMetaKv2Response, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetMetaKv2, opts)
+}
+
+func (w *MgmtComponent) PutMetaKv2(ctx context.Context, opts *cbmgmtx.PutMetaKv2Options) (*cbmgmtx.PutMetaKv2Response, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.PutMetaKv2, opts)
+}
+
+func (w *MgmtComponent) DeleteMetaKv2(ctx context.Context, opts *cbmgmtx.DeleteMetaKv2Options) (*cbmgmtx.DeleteMetaKv2Response, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.DeleteMetaKv2, opts)
+}
+
+func (w *MgmtComponent) GetMetaKv2Snapshot(ctx context.Context, opts *cbmgmtx.GetMetaKv2SnapshotOptions) (*cbmgmtx.GetMetaKv2SnapshotResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetMetaKv2Snapshot, opts)
+}
+
+func (w *MgmtComponent) SetMetaKv2Multiple(ctx context.Context, opts *cbmgmtx.SetMetaKv2MultipleOptions) (*cbmgmtx.SetMetaKv2MultipleResponse, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.SetMetaKv2Multiple, opts)
+}
+
+func (w *MgmtComponent) SyncMetaKv2Quorum(ctx context.Context, opts *cbmgmtx.SyncMetaKv2QuorumOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.SyncMetaKv2Quorum, opts)
+}

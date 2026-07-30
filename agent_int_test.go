@@ -619,3 +619,40 @@ func TestAgentStaticInfo(t *testing.T) {
 
 	assert.NotEqual(t, cbmgmtx.ConflictResolutionTypeUnset, mode)
 }
+
+func TestAgentMetaKv2(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx := context.Background()
+	keyPath := "/agent-test-" + uuid.NewString()[:6] + "/key1"
+
+	// 1. Put key
+	putResp, err := agent.PutMetaKv2(ctx, &cbmgmtx.PutMetaKv2Options{
+		Path:      keyPath,
+		Value:     []byte("agentval"),
+		Create:    true,
+		Recursive: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, putResp.Revision)
+
+	// 2. Get key
+	getResp, err := agent.GetMetaKv2(ctx, &cbmgmtx.GetMetaKv2Options{
+		Path: keyPath,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []byte("agentval"), getResp.Value)
+
+	// 3. Delete key
+	delResp, err := agent.DeleteMetaKv2(ctx, &cbmgmtx.DeleteMetaKv2Options{
+		Path: keyPath,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, delResp.Revision)
+}

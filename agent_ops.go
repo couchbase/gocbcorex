@@ -258,6 +258,30 @@ func (agent *Agent) EnsureUserGroup(ctx context.Context, opts *EnsureUserGroupOp
 	return agent.mgmt.EnsureUserGroup(ctx, opts)
 }
 
+func (agent *Agent) GetMetaKv2(ctx context.Context, opts *cbmgmtx.GetMetaKv2Options) (*cbmgmtx.GetMetaKv2Response, error) {
+	return agent.mgmt.GetMetaKv2(ctx, opts)
+}
+
+func (agent *Agent) PutMetaKv2(ctx context.Context, opts *cbmgmtx.PutMetaKv2Options) (*cbmgmtx.PutMetaKv2Response, error) {
+	return agent.mgmt.PutMetaKv2(ctx, opts)
+}
+
+func (agent *Agent) DeleteMetaKv2(ctx context.Context, opts *cbmgmtx.DeleteMetaKv2Options) (*cbmgmtx.DeleteMetaKv2Response, error) {
+	return agent.mgmt.DeleteMetaKv2(ctx, opts)
+}
+
+func (agent *Agent) GetMetaKv2Snapshot(ctx context.Context, opts *cbmgmtx.GetMetaKv2SnapshotOptions) (*cbmgmtx.GetMetaKv2SnapshotResponse, error) {
+	return agent.mgmt.GetMetaKv2Snapshot(ctx, opts)
+}
+
+func (agent *Agent) SetMetaKv2Multiple(ctx context.Context, opts *cbmgmtx.SetMetaKv2MultipleOptions) (*cbmgmtx.SetMetaKv2MultipleResponse, error) {
+	return agent.mgmt.SetMetaKv2Multiple(ctx, opts)
+}
+
+func (agent *Agent) SyncMetaKv2Quorum(ctx context.Context, opts *cbmgmtx.SyncMetaKv2QuorumOptions) error {
+	return agent.mgmt.SyncMetaKv2Quorum(ctx, opts)
+}
+
 func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
 	return agent.search.Query(ctx, opts)
 }
