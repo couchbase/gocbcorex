@@ -393,3 +393,42 @@ func (w *MgmtComponent) SetMetaKv2Multiple(ctx context.Context, opts *cbmgmtx.Se
 func (w *MgmtComponent) SyncMetaKv2Quorum(ctx context.Context, opts *cbmgmtx.SyncMetaKv2QuorumOptions) error {
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.SyncMetaKv2Quorum, opts)
 }
+
+type WatchMetaKv2Options struct {
+	Path         string
+	PollInterval time.Duration
+	OnBehalfOf   *cbhttpx.OnBehalfOfInfo
+}
+
+func (w *MgmtComponent) WatchMetaKv2(ctx context.Context, opts *WatchMetaKv2Options) (<-chan struct{}, error) {
+	if opts == nil {
+		opts = &WatchMetaKv2Options{}
+	}
+
+	epRes, err := w.GetEndpoint(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	mgmt := cbmgmtx.Management{
+		Transport: epRes.RoundTripper,
+		UserAgent: w.userAgent,
+		Endpoint:  epRes.Endpoint,
+		Auth: &cbhttpx.BasicAuth{
+			Username: epRes.Username,
+			Password: epRes.Password,
+		},
+	}
+
+	hlpr := cbmgmtx.MetaKvWatchHelper{
+		Logger:       w.logger.Named("metakv-watch"),
+		UserAgent:    w.userAgent,
+		OnBehalfOf:   opts.OnBehalfOf,
+		PollInterval: opts.PollInterval,
+		Path:         opts.Path,
+	}
+
+	return hlpr.Watch(ctx, &cbmgmtx.MetaKvWatchOptions{
+		Management: mgmt,
+	})
+}

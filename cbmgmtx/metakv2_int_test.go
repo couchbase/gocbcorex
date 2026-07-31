@@ -246,3 +246,57 @@ func TestMetaKv2SyncQuorum(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestMetaKvWatchHelper(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mgmt := getHttpMgmt()
+
+	watchDir := "/test-watch-hlpr-" + uuid.NewString()[:6] + "/"
+	keyPath := watchDir + "key1"
+
+	hlpr := cbmgmtx.MetaKvWatchHelper{
+		Path:         watchDir,
+		PollInterval: 100 * time.Millisecond,
+	}
+
+	ch, err := hlpr.Watch(ctx, &cbmgmtx.MetaKvWatchOptions{
+		Management: *mgmt,
+	})
+	require.NoError(t, err)
+
+	// 1. Initial result signal should be received immediately
+	select {
+	case <-ch:
+		// First result received
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for initial watch signal")
+	}
+
+	// 2. Put a key to trigger a revision change
+	putResp, err := mgmt.PutMetaKv2(context.Background(), &cbmgmtx.PutMetaKv2Options{
+		Path:      keyPath,
+		Value:     []byte("watchval"),
+		Create:    true,
+		Recursive: true,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, putResp.Revision)
+
+	// 3. Expect second signal on channel for revision change
+	select {
+	case <-ch:
+		// Revision change signal received
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for watch revision change signal")
+	}
+
+	// Cleanup key
+	_, _ = mgmt.DeleteMetaKv2(context.Background(), &cbmgmtx.DeleteMetaKv2Options{
+		Path:      watchDir,
+		Recursive: true,
+	})
+}

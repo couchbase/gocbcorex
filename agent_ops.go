@@ -282,6 +282,10 @@ func (agent *Agent) SyncMetaKv2Quorum(ctx context.Context, opts *cbmgmtx.SyncMet
 	return agent.mgmt.SyncMetaKv2Quorum(ctx, opts)
 }
 
+func (agent *Agent) WatchMetaKv2(ctx context.Context, opts *WatchMetaKv2Options) (<-chan struct{}, error) {
+	return agent.mgmt.WatchMetaKv2(ctx, opts)
+}
+
 func (agent *Agent) Search(ctx context.Context, opts *cbsearchx.QueryOptions) (cbsearchx.QueryResultStream, error) {
 	return agent.search.Query(ctx, opts)
 }
