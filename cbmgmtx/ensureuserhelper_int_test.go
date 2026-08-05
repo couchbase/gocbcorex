@@ -149,6 +149,89 @@ func TestEnsureUserDino(t *testing.T) {
 		return res
 	}, 90*time.Second, 1*time.Second)
 
+	// create a group to grant to the test user below. This is done in the
+	// open (unblocked) window between phases, so the group's own existence
+	// isn't itself part of what we're testing here - EnsureUserGroupHelper
+	// already covers that. What we care about is whether a change to *the
+	// user's* group/role membership propagates to every node.
+	testGroupName := "testgroup-" + uuid.NewString()[:6]
+	err := mgmt.UpsertUserGroup(ctx, &cbmgmtx.UpsertUserGroupOptions{
+		GroupName: testGroupName,
+		Roles:     []string{"ro_admin"},
+	})
+	require.NoError(t, err)
+
+	// now lets block traffic again before we grant the user an additional
+	// group membership
+	dino.BlockNodeTraffic(blockHost)
+
+	// grant the user membership in the new group. UpsertUser replaces the
+	// whole role/group list on every call - mirroring how a real caller
+	// (e.g. stellar-rosetta's grantRolesToUser) computes the full merged set
+	// before writing it - so wantRoles/wantGroups are the complete target
+	// values we expect to see on every node, not deltas from the create call.
+	wantRoles := []string{"ro_admin"}
+	wantGroups := []string{testGroupName}
+
+	grantTestUserGroup := func() {
+		log.Printf("granting the test user membership in %q", testGroupName)
+		_, err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+			Username:    testUsername,
+			DisplayName: testUsername,
+			Roles:       wantRoles,
+			Groups:      wantGroups,
+		})
+		require.NoError(t, err)
+	}
+	grantTestUserGroup()
+
+	var syncGrant sync.Mutex
+	hlprGrant := cbmgmtx.EnsureUserHelper{
+		Logger:     testutils.MakeTestLogger(t),
+		UserAgent:  "useragent",
+		OnBehalfOf: nil,
+
+		Username:    testUsername,
+		WantMissing: false,
+		WantSettings: &cbmgmtx.WantUserSettings{
+			Roles:  wantRoles,
+			Groups: wantGroups,
+		},
+	}
+
+	// the first couple of polls should fail, since a node is unavailable and
+	// hasn't seen the group-membership update yet
+	require.Never(t, func() bool {
+		syncGrant.Lock()
+		defer syncGrant.Unlock()
+
+		res, err := hlprGrant.Poll(ctx, &cbmgmtx.EnsureUserPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		require.NoError(t, err)
+
+		return res
+	}, 5*time.Second, 500*time.Millisecond)
+
+	// stop blocking traffic to the node
+	dino.AllowTraffic(blockHost)
+
+	// we should see that the polls eventually succeed once the blocked node
+	// catches up
+	require.Eventually(t, func() bool {
+		syncGrant.Lock()
+		defer syncGrant.Unlock()
+
+		res, err := hlprGrant.Poll(ctx, &cbmgmtx.EnsureUserPollOptions{
+			Transport: transport,
+			Targets:   targets,
+		})
+		require.NoError(t, err)
+
+		return res
+	}, 30*time.Second, 500*time.Millisecond)
+
 	// now lets block traffic again before we change the password
 	dino.BlockNodeTraffic(blockHost)
 

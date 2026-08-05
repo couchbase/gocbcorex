@@ -329,6 +329,11 @@ type EnsureUserOptions struct {
 	// EnsureUser that isn't specifically confirming a password change (this
 	// is meaningless in combination with WantMissing).
 	SincePasswordChanged *cbmgmtx.PasswordChangedMarker
+
+	// WantSettings, if set, causes EnsureUser to additionally wait until the
+	// given roles and/or groups have propagated to all nodes. Populate this
+	// from the same Roles/Groups passed to UpsertUser.
+	WantSettings *cbmgmtx.WantUserSettings
 }
 
 func (w *MgmtComponent) EnsureUser(ctx context.Context, opts *EnsureUserOptions) error {
@@ -340,6 +345,7 @@ func (w *MgmtComponent) EnsureUser(ctx context.Context, opts *EnsureUserOptions)
 		Domain:               opts.Domain,
 		WantMissing:          opts.WantMissing,
 		SincePasswordChanged: opts.SincePasswordChanged,
+		WantSettings:         opts.WantSettings,
 	}
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
