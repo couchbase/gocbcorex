@@ -53,6 +53,9 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 		if resolvedConfig.ExpirationTime == 0 {
 			resolvedConfig.ExpirationTime = defaultConfig.ExpirationTime
 		}
+		if resolvedConfig.DurabilityLevel == DurabilityLevelUnknown {
+			resolvedConfig.DurabilityLevel = defaultConfig.DurabilityLevel
+		}
 		if resolvedConfig.CleanupWindow == 0 {
 			resolvedConfig.CleanupWindow = defaultConfig.CleanupWindow
 		}
