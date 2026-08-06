@@ -39,13 +39,22 @@ func (r *LambdaRunner) Run(ctx context.Context, perConfig *TransactionOptions, a
 		if err != nil {
 			var txnErr *TransactionAttemptError
 			if !errors.As(err, &txnErr) {
-				r.Logger.Warn("unexpectedly fatal non-transaction error")
-				continue
+				// We cannot say anything about whether this is retryable, and
+				// retrying it blindly would spin without bound (this path has
+				// no expiry check and no backoff).  Treat it as fatal.
+				r.Logger.Warn("unexpectedly fatal non-transaction error", zap.Error(err))
+				return nil, &TransactionLambdaError{
+					Cause:  err,
+					Result: result,
+				}
 			}
 
 			result.Attempts = append(result.Attempts, txnErr.Result)
 
-			if txn.ShouldRetry() {
+			// Only a failure raised by the transaction itself is retryable.
+			// An error the user's lambda returned is final -- retrying it
+			// would just re-run the lambda until the transaction expires.
+			if txnErr.FromTransaction && txn.ShouldRetry() {
 				continue
 			}
 

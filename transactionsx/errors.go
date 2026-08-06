@@ -61,6 +61,11 @@ func (ce classifiedError) Wrap(errType error) *classifiedError {
 type TransactionAttemptError struct {
 	Cause  error
 	Result *TransactionAttemptResult
+
+	// FromTransaction indicates that Cause originated from a transaction
+	// operation, rather than being an arbitrary error returned by the user's
+	// lambda. Only the former is eligible to be retried.
+	FromTransaction bool
 }
 
 func (e *TransactionAttemptError) Error() string {
