@@ -55,10 +55,17 @@ func (r *LambdaRunner) Run(ctx context.Context, perConfig *TransactionOptions, a
 
 			result.Attempts = append(result.Attempts, txnErr.Result)
 
-			// Only a failure raised by the transaction itself is retryable.
-			// An error the user's lambda returned is final -- retrying it
-			// would just re-run the lambda until the transaction expires.
-			if txnErr.FromTransaction && txn.ShouldRetry() {
+			// Only a failure that was fatal to the attempt is retryable.
+			//
+			// transactionOperationStatus.Err() returns a
+			// *TransactionOperationError precisely when the failure was fatal
+			// (shouldRaise != Success); a benign failure such as a get for a
+			// missing document is returned as its bare cause, and an error the
+			// user's lambda produced is whatever they returned. In neither of
+			// those cases does retrying help -- the lambda would just be re-run
+			// to the same conclusion until the transaction expires.
+			var opErr *TransactionOperationError
+			if errors.As(txnErr.Cause, &opErr) && txn.ShouldRetry() {
 				continue
 			}
 

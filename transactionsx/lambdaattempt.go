@@ -92,9 +92,8 @@ func (a *TransactionLambdaAttempt) run(ctx context.Context, attemptFn AttemptFun
 		}
 
 		return nil, &TransactionAttemptError{
-			Cause:           lambdaErr,
-			Result:          result,
-			FromTransaction: txnErr != nil,
+			Cause:  lambdaErr,
+			Result: result,
 		}
 	}
 
