@@ -40,6 +40,95 @@ type TransactionCleanupRequest struct {
 	TxnStartTime    time.Time
 }
 
+// NewCleanupRequestFromAtrEntry builds a cleanup request describing a single
+// attempt as it is recorded in an ATR.
+//
+// TransactionCleaner.CleanupAttempt takes a TransactionCleanupRequest, and the
+// canonical source of one is an ATR entry -- but the conversion needs the
+// staged mutations resolved to per-bucket agents, and the JSON enums mapped
+// onto their domain types. Without this, the exported cleanup API cannot be
+// driven from outside the package.
+//
+// agentProvider resolves the agent for a bucket named in a staged mutation.
+func NewCleanupRequestFromAtrEntry(
+	attemptID string,
+	atrLocation ATRLocation,
+	atrID []byte,
+	entry AtrAttemptJson,
+	agentProvider TransactionsBucketAgentProviderFn,
+) (*TransactionCleanupRequest, error) {
+	state, err := txnStateFromJson(entry.State)
+	if err != nil {
+		return nil, err
+	}
+
+	toDocRecords := func(mutations []AtrMutationJson) ([]TransactionCleanupDocRecord, error) {
+		if len(mutations) == 0 {
+			return nil, nil
+		}
+		records := make([]TransactionCleanupDocRecord, 0, len(mutations))
+		for _, mutation := range mutations {
+			agent, oboUser, err := agentProvider(mutation.BucketName)
+			if err != nil {
+				return nil, err
+			}
+			records = append(records, TransactionCleanupDocRecord{
+				Agent:          agent,
+				OboUser:        oboUser,
+				ScopeName:      mutation.ScopeName,
+				CollectionName: mutation.CollectionName,
+				ID:             []byte(mutation.DocID),
+			})
+		}
+		return records, nil
+	}
+
+	inserts, err := toDocRecords(entry.Inserts)
+	if err != nil {
+		return nil, err
+	}
+	replaces, err := toDocRecords(entry.Replaces)
+	if err != nil {
+		return nil, err
+	}
+	removes, err := toDocRecords(entry.Removes)
+	if err != nil {
+		return nil, err
+	}
+
+	// The attempt's start time is recorded as the CAS macro of the pending
+	// entry.  It is absent for attempts that never reached pending.
+	var txnStartTime time.Time
+	if entry.PendingCAS != "" {
+		pendingCas, err := memdx.ParseMacroCasToCas([]byte(entry.PendingCAS))
+		if err != nil {
+			return nil, err
+		}
+		txnStartTime, err = memdx.ParseCasToTime(pendingCas)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &TransactionCleanupRequest{
+		AttemptID: attemptID,
+
+		AtrAgent:          atrLocation.Agent,
+		AtrOboUser:        atrLocation.OboUser,
+		AtrScopeName:      atrLocation.ScopeName,
+		AtrCollectionName: atrLocation.CollectionName,
+		AtrID:             atrID,
+
+		Inserts:         inserts,
+		Replaces:        replaces,
+		Removes:         removes,
+		State:           state,
+		ForwardCompat:   forwardCompatFromJson(entry.ForwardCompat),
+		DurabilityLevel: durabilityLevelFromJson(entry.DurabilityLevel),
+		TxnStartTime:    txnStartTime,
+	}, nil
+}
+
 type TransactionCleaner struct {
 	logger *zap.Logger
 	hooks  TransactionCleanupHooks
