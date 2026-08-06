@@ -90,7 +90,7 @@ func (e *EnsureUserHelper) pollOne(
 		return false, nil
 	}
 
-	if e.SincePasswordChanged != nil && !resp.PasswordChanged.IsAfter(*e.SincePasswordChanged) {
+	if e.SincePasswordChanged != nil && !resp.PasswordChanged.After(e.SincePasswordChanged.t) {
 		e.Logger.Debug("target responded with success, but the password change has not yet propagated")
 		return false, nil
 	}

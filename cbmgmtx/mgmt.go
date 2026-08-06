@@ -1294,7 +1294,7 @@ type UserJson struct {
 	Groups          []string              `json:"groups"`
 	Domain          AuthDomain            `json:"domain"`
 	ExternalGroups  []string              `json:"external_groups"`
-	PasswordChanged PasswordChangedMarker `json:"password_change_date"`
+	PasswordChanged time.Time             `json:"password_change_date"`
 }
 
 type GetAllUsersOptions struct {
@@ -1426,7 +1426,7 @@ func (h Management) UpsertUserWithResult(
 				return nil, err
 			}
 		} else {
-			passwordChanged := existingUser.PasswordChanged
+			passwordChanged := PasswordChangedMarker{t: existingUser.PasswordChanged}
 			previousPasswordChanged = &passwordChanged
 		}
 	}

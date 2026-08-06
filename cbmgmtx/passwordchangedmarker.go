@@ -1,7 +1,6 @@
 package cbmgmtx
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -15,23 +14,4 @@ import (
 // for newly created users.
 type PasswordChangedMarker struct {
 	t time.Time
-}
-
-func (m PasswordChangedMarker) IsAfter(other PasswordChangedMarker) bool {
-	return m.t.After(other.t)
-}
-
-func (m PasswordChangedMarker) MarshalJSON() ([]byte, error) {
-	return json.Marshal(m.t)
-}
-
-func (m *PasswordChangedMarker) UnmarshalJSON(data []byte) error {
-	var t time.Time
-	if err := json.Unmarshal(data, &t); err != nil {
-		return err
-	}
-
-	m.t = t
-
-	return nil
 }
