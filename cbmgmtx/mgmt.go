@@ -1377,7 +1377,6 @@ func (h Management) UpsertUser(
 	}
 
 	_ = resp.Body.Close()
-
 	return nil
 }
 
