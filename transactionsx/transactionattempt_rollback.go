@@ -283,7 +283,10 @@ func (t *TransactionAttempt) unstageStagedRemoveReplace(
 			}
 		}
 
-		return nil
+		// Fires once the staged replace or remove has actually been unstaged.
+		return invokeNoResHookWithDocID(ctx, t.hooks.RollbackReplaceOrRemove, mutation.Key, func() error {
+			return nil
+		})
 	})
 	if err != nil {
 		if t.isExpiryOvertimeAtomic() {

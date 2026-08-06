@@ -225,7 +225,15 @@ func (t *TransactionAttempt) stageRemove(
 			return nil, err
 		}
 
-		stagedInfo.Cas = result.Cas
+		// Brackets saving the CAS: Before fires once the staging mutation
+		// itself has completed, After once the attempt has recorded it.
+		err = invokeNoResHookWithDocID(ctx, t.hooks.StagedRemoveComplete, key, func() error {
+			stagedInfo.Cas = result.Cas
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 
 		return stagedInfo, nil
 	})
