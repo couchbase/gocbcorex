@@ -789,7 +789,13 @@ func (t *TransactionAttempt) ensureCleanUpRequest() {
 		zaputils.FQDocID("atr", t.atrAgent.BucketName(), t.atrScopeName, t.atrCollectionName, t.atrKey),
 		zap.Stringer("state", cleanupState))
 
-	t.cleanupQueue.AddRequest(req)
+	// The cleanup queue is optional, in the same way that lostCleanupSystem is
+	// (see the nil check in transactionattempt_atrs.go).  Nothing currently
+	// assigns it, so without this guard any attempt that staged a mutation and
+	// then rolled back would panic.
+	if t.cleanupQueue != nil {
+		t.cleanupQueue.AddRequest(req)
+	}
 }
 
 func (t *TransactionAttempt) result() *TransactionAttemptResult {
