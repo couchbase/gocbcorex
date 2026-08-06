@@ -97,6 +97,7 @@ func (c *LostCleanupManager) AddLocation(loc LostCleanupLocation) {
 
 	// create a new cleaner
 	cleaner := NewLostTransactionCleaner(&LostTransactionCleanerConfig{
+		Logger:            c.logger,
 		AtrAgent:          loc.Agent,
 		AtrOboUser:        loc.OboUser,
 		AtrScopeName:      loc.ScopeName,

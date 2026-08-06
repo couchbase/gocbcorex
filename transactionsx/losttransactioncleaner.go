@@ -45,13 +45,18 @@ type LostTransactionCleanerConfig struct {
 func NewLostTransactionCleaner(config *LostTransactionCleanerConfig) *LostTransactionCleaner {
 	cleanerUuid := uuid.New().String()
 
+	logger := config.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	cleaner := NewTransactionCleaner(&TransactionCleanerConfig{
-		Logger: config.Logger,
+		Logger: logger,
 		Hooks:  config.CleanupHooks,
 	})
 
 	return &LostTransactionCleaner{
-		logger:            config.Logger,
+		logger:            logger,
 		atrAgent:          config.AtrAgent,
 		atrOboUser:        config.AtrOboUser,
 		atrScopeName:      config.AtrScopeName,
