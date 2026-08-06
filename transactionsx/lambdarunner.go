@@ -19,9 +19,13 @@ func (r *LambdaRunner) Run(ctx context.Context, perConfig *TransactionOptions, a
 	}
 
 	result := &TransactionLambdaResult{
-		TransactionID:     txn.ID(),
-		Attempts:          nil,
-		UnstagingComplete: true,
+		TransactionID: txn.ID(),
+		Attempts:      nil,
+
+		// Set from the successful attempt's result below.  Left false until
+		// then, so that a transaction which never completes does not report
+		// itself as having unstaged.
+		UnstagingComplete: false,
 	}
 
 	for {

@@ -811,7 +811,7 @@ func (t *TransactionAttempt) result() *TransactionAttemptResult {
 			AtrScopeName:          "",
 			AtrCollectionName:     "",
 			AtrID:                 []byte(""),
-			UnstagingComplete:     true,
+			UnstagingComplete:     false,
 			Expired:               false,
 			PreExpiryAutoRollback: false,
 		}
