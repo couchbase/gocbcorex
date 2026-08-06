@@ -1336,52 +1336,16 @@ type UpsertUserOptions struct {
 	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
 }
 
-// UpsertUserResult is the result of a successful UpsertUser call.
-type UpsertUserResult struct {
-	// PreviousPasswordChanged holds the user's PasswordChangedMarker from
-	// immediately before this call took effect. It is only populated when
-	// this call included a new Password (i.e. it is nil if the password was
-	// not being changed by this call).
-	PreviousPasswordChanged *PasswordChangedMarker
-}
-
 func (h Management) UpsertUser(
 	ctx context.Context,
 	opts *UpsertUserOptions,
-) (*UpsertUserResult, error) {
+) error {
 	if opts.Username == "" {
-		return nil, errors.New("must specify username when upserting a user")
+		return errors.New("must specify username when upserting a user")
 	}
 
 	if opts.Domain == "" {
 		opts.Domain = "local"
-	}
-
-	var previousPasswordChanged *PasswordChangedMarker
-	if opts.Password != "" {
-		// Capture a baseline of the user's password_change_date before we
-		// make our change, so that a caller can later confirm (via
-		// EnsureUser) that this specific change has propagated to all nodes.
-		existingUser, err := h.GetUser(ctx, &GetUserOptions{
-			Domain:     opts.Domain,
-			Username:   opts.Username,
-			OnBehalfOf: opts.OnBehalfOf,
-		})
-		if err != nil {
-			if errors.Is(err, ErrUserNotFound) {
-				// The user doesn't exist yet, so this call is creating it.
-				// A zero-value marker is a safe baseline here: any real
-				// password_change_date set as part of creating the user
-				// will always be considered after it.
-				zeroMarker := PasswordChangedMarker{}
-				previousPasswordChanged = &zeroMarker
-			} else {
-				return nil, err
-			}
-		} else {
-			passwordChanged := existingUser.PasswordChanged
-			previousPasswordChanged = &passwordChanged
-		}
 	}
 
 	posts := url.Values{}
@@ -1405,14 +1369,71 @@ func (h Management) UpsertUser(
 		fmt.Sprintf("/settings/rbac/users/%s/%s", url.PathEscape(string(opts.Domain)), url.PathEscape(opts.Username)),
 		"application/x-www-form-urlencoded", opts.OnBehalfOf, strings.NewReader(posts.Encode()))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, h.DecodeCommonError(resp)
+		return h.DecodeCommonError(resp)
 	}
 
 	_ = resp.Body.Close()
+
+	return nil
+}
+
+type UpsertUserResult struct {
+	// PreviousPasswordChanged holds the user's PasswordChangedMarker from
+	// immediately before this call took effect.
+	PreviousPasswordChanged *PasswordChangedMarker
+}
+
+// UpsertUserWithResult captures a baseline PasswordChangedMarker before
+// applying the change, whenever opts.Password is set. This costs an extra
+// GetUser round-trip so prefer UpsertUser unless you actually need the
+// returned marker.
+func (h Management) UpsertUserWithResult(
+	ctx context.Context,
+	opts *UpsertUserOptions,
+) (*UpsertUserResult, error) {
+	if opts.Username == "" {
+		return nil, errors.New("must specify username when upserting a user")
+	}
+
+	domain := opts.Domain
+	if domain == "" {
+		domain = "local"
+	}
+
+	var previousPasswordChanged *PasswordChangedMarker
+	if opts.Password != "" {
+		// Capture a baseline of the user's password_change_date before we
+		// make our change, so that a caller can later confirm (via
+		// EnsureUser) that this specific change has propagated to all nodes.
+		existingUser, err := h.GetUser(ctx, &GetUserOptions{
+			Domain:     domain,
+			Username:   opts.Username,
+			OnBehalfOf: opts.OnBehalfOf,
+		})
+		if err != nil {
+			if errors.Is(err, ErrUserNotFound) {
+				// The user doesn't exist yet, so this call is creating it.
+				// A zero-value marker is a safe baseline here: any real
+				// password_change_date set as part of creating the user
+				// will always be considered after it.
+				zeroMarker := PasswordChangedMarker{}
+				previousPasswordChanged = &zeroMarker
+			} else {
+				return nil, err
+			}
+		} else {
+			passwordChanged := existingUser.PasswordChanged
+			previousPasswordChanged = &passwordChanged
+		}
+	}
+
+	if err := h.UpsertUser(ctx, opts); err != nil {
+		return nil, err
+	}
 
 	return &UpsertUserResult{
 		PreviousPasswordChanged: previousPasswordChanged,

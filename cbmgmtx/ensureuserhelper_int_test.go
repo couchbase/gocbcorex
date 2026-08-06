@@ -63,7 +63,7 @@ func TestEnsureUserDino(t *testing.T) {
 
 	createTestUser := func() *cbmgmtx.PasswordChangedMarker {
 		log.Printf("creating the user")
-		res, err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		res, err := mgmt.UpsertUserWithResult(ctx, &cbmgmtx.UpsertUserOptions{
 			Username:    testUsername,
 			DisplayName: testUsername,
 			Password:    "password1",
@@ -76,7 +76,7 @@ func TestEnsureUserDino(t *testing.T) {
 
 	changeTestUserPassword := func() *cbmgmtx.PasswordChangedMarker {
 		log.Printf("changing the user's password")
-		res, err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		res, err := mgmt.UpsertUserWithResult(ctx, &cbmgmtx.UpsertUserOptions{
 			Username:    testUsername,
 			DisplayName: testUsername,
 			Password:    "password2",
@@ -175,7 +175,7 @@ func TestEnsureUserDino(t *testing.T) {
 
 	grantTestUserGroup := func() {
 		log.Printf("granting the test user membership in %q", testGroupName)
-		_, err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+		err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 			Username:    testUsername,
 			DisplayName: testUsername,
 			Roles:       wantRoles,

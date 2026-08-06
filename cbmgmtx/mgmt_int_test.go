@@ -278,7 +278,7 @@ func TestHttpMgmtUsers(t *testing.T) {
 	ctx := context.Background()
 	testUsername := "testuser-" + uuid.NewString()[:6]
 
-	_, err := getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+	err := getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 		Username:    testUsername,
 		DisplayName: testUsername,
 		Password:    "password",
@@ -321,7 +321,7 @@ func TestHttpMgmtUsers(t *testing.T) {
 	require.ErrorIs(t, err, cbmgmtx.ErrUserNotFound)
 
 	// Test referencing a group that does not exist in user creation
-	_, err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+	err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 		Username:    "testuser-missing-group-" + uuid.NewString()[:6],
 		DisplayName: "testuser-missing-group",
 		Password:    "password",
@@ -331,7 +331,7 @@ func TestHttpMgmtUsers(t *testing.T) {
 
 	// Test referencing a group that does not exist in user modify
 	testModifyUsername := "testuser-modify-" + uuid.NewString()[:6]
-	_, err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+	err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 		Username:    testModifyUsername,
 		DisplayName: testModifyUsername,
 		Password:    "password",
@@ -345,7 +345,7 @@ func TestHttpMgmtUsers(t *testing.T) {
 		})
 	}()
 
-	_, err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
+	err = getHttpMgmt().UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 		Username:    testModifyUsername,
 		DisplayName: testModifyUsername,
 		Password:    "password",

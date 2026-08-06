@@ -296,8 +296,12 @@ func (w *MgmtComponent) GetUser(ctx context.Context, opts *cbmgmtx.GetUserOption
 	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.GetUser, opts)
 }
 
-func (w *MgmtComponent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
-	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.UpsertUser, opts)
+func (w *MgmtComponent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) error {
+	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.UpsertUser, opts)
+}
+
+func (w *MgmtComponent) UpsertUserWithResult(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
+	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.UpsertUserWithResult, opts)
 }
 
 func (w *MgmtComponent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
@@ -331,8 +335,7 @@ type EnsureUserOptions struct {
 	SincePasswordChanged *cbmgmtx.PasswordChangedMarker
 
 	// WantSettings, if set, causes EnsureUser to additionally wait until the
-	// given roles and/or groups have propagated to all nodes. Populate this
-	// from the same Roles/Groups passed to UpsertUser.
+	// given roles and/or groups have propagated to all nodes.
 	WantSettings *cbmgmtx.WantUserSettings
 }
 

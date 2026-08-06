@@ -230,8 +230,12 @@ func (agent *Agent) GetUser(ctx context.Context, opts *cbmgmtx.GetUserOptions) (
 	return agent.mgmt.GetUser(ctx, opts)
 }
 
-func (agent *Agent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
+func (agent *Agent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) error {
 	return agent.mgmt.UpsertUser(ctx, opts)
+}
+
+func (agent *Agent) UpsertUserWithResult(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
+	return agent.mgmt.UpsertUserWithResult(ctx, opts)
 }
 
 func (agent *Agent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
