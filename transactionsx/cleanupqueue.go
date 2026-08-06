@@ -42,6 +42,11 @@ func (q *TransactionCleanupQueue) AddRequest(req *TransactionCleanupRequest) {
 	}
 }
 
+// QueueLength reports how many requests are waiting to be processed.
+func (q *TransactionCleanupQueue) QueueLength() int32 {
+	return int32(len(q.requests))
+}
+
 func (q *TransactionCleanupQueue) runThread() {
 	ctx := context.Background()
 

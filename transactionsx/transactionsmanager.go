@@ -15,6 +15,7 @@
 package transactionsx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -28,6 +29,14 @@ import (
 // handling.  It also manages the cleanup process in the background.
 type TransactionsManager struct {
 	config TransactionsConfig
+
+	// cleanupQueue handles attempts made by this client which need unstaging
+	// or rolling back.  Nil when CleanupClientAttempts is disabled.
+	cleanupQueue *TransactionCleanupQueue
+
+	// lostCleanupSystem handles attempts abandoned by any client.  Nil when
+	// CleanupLostAttempts is disabled.
+	lostCleanupSystem *LostCleanupManager
 }
 
 // InitTransactions will initialize the transactions library and return a TransactionsManager
@@ -82,7 +91,67 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 		config: resolvedConfig,
 	}
 
+	cleaner := NewTransactionCleaner(&TransactionCleanerConfig{
+		Logger: resolvedConfig.Logger,
+		Hooks:  resolvedConfig.CleanUpHooks,
+	})
+
+	if resolvedConfig.CleanupClientAttempts {
+		t.cleanupQueue = NewTransactionsCleanupQueue(
+			resolvedConfig.Logger,
+			cleaner,
+			uint(resolvedConfig.CleanupQueueSize))
+	}
+
+	if resolvedConfig.CleanupLostAttempts {
+		var atrLocations []LostCleanupLocation
+		if resolvedConfig.CustomATRLocation.Agent != nil {
+			atrLocations = append(atrLocations, LostCleanupLocation{
+				Agent:          resolvedConfig.CustomATRLocation.Agent,
+				OboUser:        resolvedConfig.CustomATRLocation.OboUser,
+				ScopeName:      resolvedConfig.CustomATRLocation.ScopeName,
+				CollectionName: resolvedConfig.CustomATRLocation.CollectionName,
+				NumATRs:        resolvedConfig.NumATRs,
+			})
+		}
+
+		bucketAgentProvider := resolvedConfig.BucketAgentProvider
+		t.lostCleanupSystem = NewLostCleanupManager(&LostCleanupManagerConfig{
+			Logger:        resolvedConfig.Logger,
+			ATRLocations:  atrLocations,
+			CleanupWindow: resolvedConfig.CleanupWindow,
+			AgentProvider: func(ctx context.Context, bucketName string) (*gocbcorex.Agent, string, error) {
+				return bucketAgentProvider(bucketName)
+			},
+			CleanupHooks:      resolvedConfig.CleanUpHooks,
+			ClientRecordHooks: resolvedConfig.ClientRecordHooks,
+		})
+	}
+
 	return t, nil
+}
+
+// CleanupQueueLength reports how many attempts are waiting to be cleaned up by
+// this client, or 0 when client cleanup is disabled.
+func (t *TransactionsManager) CleanupQueueLength() int32 {
+	if t.cleanupQueue == nil {
+		return 0
+	}
+	return t.cleanupQueue.QueueLength()
+}
+
+// ClientCleanupEnabled reports whether this manager cleans up its own attempts.
+func (t *TransactionsManager) ClientCleanupEnabled() bool {
+	return t.cleanupQueue != nil
+}
+
+// LostCleanupLocations reports the ATR locations lost cleanup is currently
+// watching.  Empty when lost cleanup is disabled.
+func (t *TransactionsManager) LostCleanupLocations() []LostCleanupLocation {
+	if t.lostCleanupSystem == nil {
+		return nil
+	}
+	return t.lostCleanupSystem.Locations()
 }
 
 // Config returns the config that was used during the initialization
@@ -132,6 +201,8 @@ func (t *TransactionsManager) BeginTransaction(perConfig *TransactionOptions) (*
 
 	now := time.Now()
 	return &Transaction{
+		cleanupQueue:            t.cleanupQueue,
+		lostCleanupSystem:       t.lostCleanupSystem,
 		expiryTime:              now.Add(expirationTime),
 		startTime:               now,
 		durabilityLevel:         durabilityLevel,
@@ -256,8 +327,21 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 
 // Close will shut down this TransactionsManager object, shutting down all
 // background tasks associated with it.
+//
+// Attempts already queued for client-side cleanup are drained before
+// returning; lost cleanup is stopped immediately.
 func (t *TransactionsManager) Close() error {
-	return nil
+	var err error
+
+	if t.cleanupQueue != nil {
+		err = t.cleanupQueue.GracefulShutdown(context.Background())
+	}
+
+	if t.lostCleanupSystem != nil {
+		t.lostCleanupSystem.Close()
+	}
+
+	return err
 }
 
 // CreateGetResultOptions exposes options for the CreateGetResult method.

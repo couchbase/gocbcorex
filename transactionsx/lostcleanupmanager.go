@@ -136,12 +136,23 @@ func (c *LostCleanupManager) AddLocation(loc LostCleanupLocation) {
 		for _, cleaner := range c.cleaners {
 			if cleaner != cleanerEntry {
 				newCleaners = append(newCleaners, cleaner)
-				break
 			}
 		}
 		c.cleaners = newCleaners
 		c.lock.Unlock()
 	}()
+}
+
+// Locations reports the ATR locations currently being watched.
+func (c *LostCleanupManager) Locations() []LostCleanupLocation {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	locations := make([]LostCleanupLocation, 0, len(c.cleaners))
+	for _, cleaner := range c.cleaners {
+		locations = append(locations, cleaner.location)
+	}
+	return locations
 }
 
 func (c *LostCleanupManager) Close() {

@@ -31,6 +31,9 @@ type Transaction struct {
 	attempt       *TransactionAttempt
 	hooks         TransactionHooks
 	logger        *zap.Logger
+
+	cleanupQueue      *TransactionCleanupQueue
+	lostCleanupSystem *LostCleanupManager
 }
 
 // ID returns the transaction ID of this transaction.
@@ -67,6 +70,9 @@ func (t *Transaction) NewAttempt() error {
 		atrKey:            nil,
 		hooks:             t.hooks,
 		logger:            logger,
+
+		cleanupQueue:      t.cleanupQueue,
+		lostCleanupSystem: t.lostCleanupSystem,
 	}
 
 	return nil
