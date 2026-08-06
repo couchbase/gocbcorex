@@ -2,6 +2,7 @@ package transactionsx
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"go.uber.org/zap"
@@ -55,6 +56,16 @@ func (a *TransactionLambdaAttempt) Remove(ctx context.Context, opts RemoveOption
 }
 
 func (a *TransactionLambdaAttempt) storeTxnErr(err error) {
+	// Only failures that were fatal to the attempt are recorded. Err() returns
+	// a *TransactionOperationError exactly in that case; anything else is a
+	// benign failure the caller is free to handle, such as a get for a document
+	// that does not exist. Recording those too would force the transaction to
+	// fail even when the caller handled them and returned successfully.
+	var opErr *TransactionOperationError
+	if !errors.As(err, &opErr) {
+		return
+	}
+
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
