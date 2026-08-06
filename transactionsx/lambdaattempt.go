@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -53,6 +54,21 @@ func (a *TransactionLambdaAttempt) Remove(ctx context.Context, opts RemoveOption
 	}
 
 	return result, err
+}
+
+// HasExpired indicates whether the underlying transaction has expired.
+//
+// Exposed so that a lambda, or a hook it has configured, can observe the
+// transaction's expiry state. Hooks receive only a context.Context and so have
+// no other route to it.
+func (a *TransactionLambdaAttempt) HasExpired() bool {
+	return a.txn.HasExpired()
+}
+
+// TimeRemaining returns how long the underlying transaction has left before it
+// expires.
+func (a *TransactionLambdaAttempt) TimeRemaining() time.Duration {
+	return a.txn.TimeRemaining()
 }
 
 func (a *TransactionLambdaAttempt) storeTxnErr(err error) {
