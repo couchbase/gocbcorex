@@ -87,16 +87,17 @@ func (e *TransactionPostErrorRollbackError) Unwrap() error {
 }
 
 type TransactionOperationError struct {
-	ShouldNotRetry bool
-	Cause          error
-	ShouldRaise    TransactionErrorReason
-	ErrorClass     TransactionErrorClass
-	Result         *TransactionAttemptResult
+	ShouldNotRetry    bool
+	ShouldNotRollback bool
+	Cause             error
+	ShouldRaise       TransactionErrorReason
+	ErrorClass        TransactionErrorClass
+	Result            *TransactionAttemptResult
 }
 
 func (e *TransactionOperationError) Error() string {
-	return fmt.Sprintf("transaction operation error (shouldNotRetry: %t, shouldRaise: %d, errorClass: %d, result: ): %s",
-		e.ShouldNotRetry, e.ShouldRaise, e.ErrorClass, e.Cause)
+	return fmt.Sprintf("transaction operation error (shouldNotRetry: %t, shouldNotRollback: %t, shouldRaise: %d, errorClass: %d): %s",
+		e.ShouldNotRetry, e.ShouldNotRollback, e.ShouldRaise, e.ErrorClass, e.Cause)
 }
 
 func (e *TransactionOperationError) Unwrap() error {
@@ -121,10 +122,11 @@ func (s *transactionOperationStatus) Err() error {
 	}
 
 	return &TransactionOperationError{
-		ShouldNotRetry: s.shouldNotRetry,
-		Cause:          s.errorCause,
-		ShouldRaise:    s.shouldRaise,
-		ErrorClass:     s.errorClass,
+		ShouldNotRetry:    s.shouldNotRetry,
+		ShouldNotRollback: s.shouldNotRollback,
+		Cause:             s.errorCause,
+		ShouldRaise:       s.shouldRaise,
+		ErrorClass:        s.errorClass,
 	}
 }
 
