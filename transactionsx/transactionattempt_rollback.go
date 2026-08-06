@@ -167,7 +167,7 @@ func (t *TransactionAttempt) unstageStagedInsert(
 			Flags:          memdx.SubdocDocFlagAccessDeleted,
 			Ops: []memdx.MutateInOp{
 				{
-					Op:    memdx.MutateInOpType(memdx.LookupInOpTypeGet),
+					Op:    memdx.MutateInOpTypeDictSet,
 					Path:  []byte("txn"),
 					Flags: memdx.SubdocOpFlagXattrPath,
 					Value: []byte("null"),
