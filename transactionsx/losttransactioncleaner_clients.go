@@ -35,12 +35,51 @@ type jsonClientRecords struct {
 	Override *jsonClientOverride         `json:"override,omitempty"`
 }
 
-type clientRecordDetails struct {
-	OverrideActive    bool
+// ClientRecordDetails describes the state of the client record in a collection
+// at the moment it was read, from the point of view of one particular client.
+type ClientRecordDetails struct {
+	// ClientUUID is the uuid of the client this view was computed for.
+	ClientUUID string
+
+	// IndexOfThisClient is this client's position in ActiveClientIDs, which
+	// determines the subset of ATRs it is responsible for.
 	IndexOfThisClient int
-	ActiveClientIds   []string
-	ExpiredClientIDs  []string
-	ThisClientAtrs    []string
+
+	// ActiveClientIDs are the clients whose heartbeats are current, sorted by
+	// uuid.  Always includes this client.
+	ActiveClientIDs []string
+
+	// ExpiredClientIDs are the clients whose heartbeats have aged out.
+	ExpiredClientIDs []string
+
+	// ThisClientAtrs are the ATRs this client should process.
+	ThisClientAtrs []string
+
+	// OverrideEnabled reports whether an override is recorded at all;
+	// OverrideActive whether it is both recorded and still in force.  While an
+	// override is active, clients do not update the record.
+	OverrideEnabled      bool
+	OverrideActive       bool
+	OverrideExpiresNanos int64
+
+	// CasNowNanos is the collection's HLC at the time of reading, which is the
+	// clock all the expiry decisions above were made against.
+	CasNowNanos int64
+}
+
+// NumActiveClients returns the number of clients with current heartbeats.
+func (d *ClientRecordDetails) NumActiveClients() int {
+	return len(d.ActiveClientIDs)
+}
+
+// NumExpiredClients returns the number of clients whose heartbeats have aged out.
+func (d *ClientRecordDetails) NumExpiredClients() int {
+	return len(d.ExpiredClientIDs)
+}
+
+// NumExistingClients returns the total number of clients in the record.
+func (d *ClientRecordDetails) NumExistingClients() int {
+	return len(d.ActiveClientIDs) + len(d.ExpiredClientIDs)
 }
 
 func (c *LostTransactionCleaner) createClientRecord(ctx context.Context) error {
@@ -68,8 +107,8 @@ func (c *LostTransactionCleaner) createClientRecord(ctx context.Context) error {
 	})
 }
 
-func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clientRecordDetails, error) {
-	return invokeHook(ctx, c.clientRecordHooks.GetRecord, func() (*clientRecordDetails, error) {
+func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*ClientRecordDetails, error) {
+	return invokeHook(ctx, c.clientRecordHooks.GetRecord, func() (*ClientRecordDetails, error) {
 		result, err := c.atrAgent.LookupIn(ctx, &gocbcorex.LookupInOptions{
 			Key: clientRecordKey,
 			Ops: []memdx.LookupInOp{
@@ -162,13 +201,18 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clien
 			return nil, errors.New("this client uuid was missing from the active ids list")
 		}
 
+		var overrideEnabled bool
 		var overrideActive bool
+		var overrideExpiresNanos int64
 		if records.Override != nil {
-			if records.Override.Enabled {
-				overrideExpiryTime := time.Unix(0, records.Override.ExpiresNanos)
-				if overrideExpiryTime.Before(hlcNow) {
-					overrideActive = true
-				}
+			overrideEnabled = records.Override.Enabled
+			overrideExpiresNanos = records.Override.ExpiresNanos
+
+			// An override holds until its expiry passes, so it is active while
+			// the expiry is still in the future.
+			overrideExpiryTime := time.Unix(0, overrideExpiresNanos)
+			if overrideEnabled && hlcNow.Before(overrideExpiryTime) {
+				overrideActive = true
 			}
 		}
 
@@ -181,12 +225,18 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*clien
 			atrsToHandle = append(atrsToHandle, allAtrs[atrIdx])
 		}
 
-		return &clientRecordDetails{
-			OverrideActive:    overrideActive,
+		return &ClientRecordDetails{
+			ClientUUID:        c.uuid,
 			IndexOfThisClient: thisClientIdx,
-			ActiveClientIds:   activeClientIds,
+			ActiveClientIDs:   activeClientIds,
 			ExpiredClientIDs:  expiredClientIds,
 			ThisClientAtrs:    atrsToHandle,
+
+			OverrideEnabled:      overrideEnabled,
+			OverrideActive:       overrideActive,
+			OverrideExpiresNanos: overrideExpiresNanos,
+
+			CasNowNanos: hlcNow.UnixNano(),
 		}, nil
 	})
 }
@@ -255,7 +305,17 @@ func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientU
 	})
 }
 
-func (c *LostTransactionCleaner) processClient(ctx context.Context) ([]string, error) {
+// ProcessClient refreshes this client's entry in the collection's client
+// record and returns the resulting view of the record.
+//
+// This is the step LostTransactionCleaner performs at the start of every
+// cleanup cycle to work out which ATRs it owns.  It is exported so that the
+// record can also be driven and inspected directly.
+func (c *LostTransactionCleaner) ProcessClient(ctx context.Context) (*ClientRecordDetails, error) {
+	return c.processClient(ctx)
+}
+
+func (c *LostTransactionCleaner) processClient(ctx context.Context) (*ClientRecordDetails, error) {
 	clientDetails, err := c.fetchClientRecords(ctx)
 	if err != nil {
 		cerr := classifyError(err)
@@ -290,7 +350,7 @@ func (c *LostTransactionCleaner) processClient(ctx context.Context) ([]string, e
 
 	if clientDetails.OverrideActive {
 		// if override is enabled, we don't do any updates here...
-		return clientDetails.ThisClientAtrs, nil
+		return clientDetails, nil
 	}
 
 	// update the client record to refresh our heartbeat
@@ -308,5 +368,5 @@ func (c *LostTransactionCleaner) processClient(ctx context.Context) ([]string, e
 	}
 	clientDetails.ExpiredClientIDs = newExpiredClientUuids
 
-	return clientDetails.ThisClientAtrs, nil
+	return clientDetails, nil
 }

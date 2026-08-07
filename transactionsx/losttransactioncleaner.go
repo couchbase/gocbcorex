@@ -96,10 +96,11 @@ func (c *LostTransactionCleaner) cleanup(ctx context.Context) error {
 		zap.String("uuid", c.uuid),
 		zaputils.FQCollectionName("collection", c.atrAgent.BucketName(), c.atrScopeName, c.atrCollectionName))
 
-	atrsToProcess, err := c.processClient(ctx)
+	clientDetails, err := c.processClient(ctx)
 	if err != nil {
 		return err
 	}
+	atrsToProcess := clientDetails.ThisClientAtrs
 
 	nextAtrTime := time.Now()
 	timePerAtr := c.cleanupWindow / time.Duration(len(atrsToProcess))
