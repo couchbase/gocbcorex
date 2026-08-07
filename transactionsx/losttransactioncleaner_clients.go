@@ -250,6 +250,49 @@ func (c *LostTransactionCleaner) fetchClientRecords(ctx context.Context) (*Clien
 	})
 }
 
+// RemoveClient removes this client's entry from the collection's client
+// record.
+//
+// A client that shuts down cleanly should drop out of the record straight
+// away, so the remaining clients redistribute the ATRs immediately rather than
+// waiting for its heartbeat to age out.
+func (c *LostTransactionCleaner) RemoveClient(ctx context.Context) error {
+	c.logger.Debug("removing client from client record",
+		zap.String("uuid", c.uuid),
+		zaputils.FQCollectionName("collection", c.atrAgent.BucketName(), c.atrScopeName, c.atrCollectionName))
+
+	return invokeNoResHook(ctx, c.clientRecordHooks.RemoveClient, func() error {
+		_, err := c.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
+			Key: clientRecordKey,
+			Ops: []memdx.MutateInOp{
+				{
+					Op:    memdx.MutateInOpTypeDelete,
+					Path:  []byte(fmt.Sprintf("records.clients.%s", c.uuid)),
+					Flags: memdx.SubdocOpFlagXattrPath,
+				},
+				{
+					Op:    memdx.MutateInOpTypeSetDoc,
+					Value: []byte{0},
+				},
+			},
+			CollectionName: c.atrCollectionName,
+			ScopeName:      c.atrScopeName,
+			OnBehalfOf:     c.atrOboUser,
+		})
+		if err != nil {
+			cerr := classifyError(err)
+			// Our entry already being gone, or the record itself, is the state
+			// we were trying to reach.
+			if cerr.Class == TransactionErrorClassFailPathNotFound ||
+				cerr.Class == TransactionErrorClassFailDocNotFound {
+				return nil
+			}
+			return err
+		}
+		return nil
+	})
+}
+
 func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientUuidsToRemove []string) ([]string, error) {
 	c.logger.Debug("updating client record",
 		zap.String("uuid", c.uuid),

@@ -159,9 +159,27 @@ func (c *LostCleanupManager) Locations() []LostCleanupLocation {
 func (c *LostCleanupManager) Close() {
 	c.lock.Lock()
 	c.closed = true
+	// Snapshot the cleaners: each removes itself from this list as its
+	// goroutine winds down.
+	cleaners := make([]*lostCleanupCleaner, len(c.cleaners))
+	copy(cleaners, c.cleaners)
 	c.lock.Unlock()
 
 	c.bgCtxCancel()
 
 	c.closeWaitGrp.Wait()
+
+	// Drop out of each collection's client record now that we have stopped, so
+	// the remaining clients pick up our ATRs without waiting for our heartbeat
+	// to expire.  The background context is already cancelled by this point, so
+	// these need a fresh one.
+	for _, cleaner := range cleaners {
+		err := cleaner.cleaner.RemoveClient(context.Background())
+		if err != nil {
+			c.logger.Debug("failed to remove client from client record",
+				zap.Error(err),
+				zaputils.FQCollectionName("location", cleaner.location.Agent.BucketName(),
+					cleaner.location.ScopeName, cleaner.location.CollectionName))
+		}
+	}
 }
