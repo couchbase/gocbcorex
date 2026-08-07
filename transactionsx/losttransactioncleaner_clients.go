@@ -14,7 +14,6 @@ import (
 
 	"github.com/couchbase/gocbcorex"
 	"github.com/couchbase/gocbcorex/memdx"
-	"golang.org/x/exp/slices"
 )
 
 var clientRecordKey = []byte("_txn:client-record")
@@ -49,8 +48,14 @@ type ClientRecordDetails struct {
 	// uuid.  Always includes this client.
 	ActiveClientIDs []string
 
-	// ExpiredClientIDs are the clients whose heartbeats have aged out.
+	// ExpiredClientIDs are the clients whose heartbeats have aged out, as
+	// observed when the record was read.
 	ExpiredClientIDs []string
+
+	// RemovedClientIDs are the expired clients this cycle actually removed
+	// from the record.  A subset of ExpiredClientIDs -- another client may
+	// have removed one first.
+	RemovedClientIDs []string
 
 	// ThisClientAtrs are the ATRs this client should process.
 	ThisClientAtrs []string
@@ -359,14 +364,10 @@ func (c *LostTransactionCleaner) processClient(ctx context.Context) (*ClientReco
 		return nil, wrapError(err, "failed to update client record")
 	}
 
-	// removed any expired clients from our client details
-	newExpiredClientUuids := make([]string, 0, len(clientDetails.ExpiredClientIDs))
-	for _, clientUuid := range clientDetails.ExpiredClientIDs {
-		if !slices.Contains(removedClientUuids, clientUuid) {
-			newExpiredClientUuids = append(newExpiredClientUuids, clientUuid)
-		}
-	}
-	clientDetails.ExpiredClientIDs = newExpiredClientUuids
+	// ExpiredClientIDs describes what was observed when the record was read,
+	// so it is left alone; which of those we went on to remove is reported
+	// separately.
+	clientDetails.RemovedClientIDs = removedClientUuids
 
 	return clientDetails, nil
 }
