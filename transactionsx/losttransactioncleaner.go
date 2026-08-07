@@ -30,7 +30,13 @@ type LostTransactionCleaner struct {
 }
 
 type LostTransactionCleanerConfig struct {
-	Logger            *zap.Logger
+	Logger *zap.Logger
+
+	// ClientUUID identifies this client in the collection's client record.
+	// Generated if empty, which is what a normal cleaner wants; set it to
+	// act as a specific, already-known client.
+	ClientUUID string
+
 	AtrAgent          *gocbcorex.Agent
 	AtrOboUser        string
 	AtrScopeName      string
@@ -43,7 +49,10 @@ type LostTransactionCleanerConfig struct {
 }
 
 func NewLostTransactionCleaner(config *LostTransactionCleanerConfig) *LostTransactionCleaner {
-	cleanerUuid := uuid.New().String()
+	cleanerUuid := config.ClientUUID
+	if cleanerUuid == "" {
+		cleanerUuid = uuid.New().String()
+	}
 
 	logger := config.Logger
 	if logger == nil {
