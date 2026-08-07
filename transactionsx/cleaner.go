@@ -392,6 +392,13 @@ func (c *TransactionCleaner) commitRemDoc(
 		return err
 	}
 
+	// fetchDoc reports a document that is no longer part of this transaction by
+	// returning a result with no transaction metadata.  There is then nothing
+	// left to unstage, which is a success.
+	if getRes.TxnMeta == nil {
+		return nil
+	}
+
 	if getRes.TxnMeta.Operation.Type != MutationTypeJsonRemove {
 		return nil
 	}
