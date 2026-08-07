@@ -18,6 +18,10 @@ import (
 
 var clientRecordKey = []byte("_txn:client-record")
 
+// maxSubdocOps is the maximum number of operations the server accepts in a
+// single subdoc multi-mutation.
+const maxSubdocOps = 16
+
 type jsonClientRecord struct {
 	HeartbeatCas string `json:"heartbeat_ms,omitempty"`
 	ExpiresMS    int    `json:"expires_ms,omitempty"`
@@ -273,16 +277,13 @@ func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientU
 			Value: []byte(fmt.Sprintf("%d", c.numAtrs)),
 			Flags: memdx.SubdocOpFlagXattrPath | memdx.SubdocOpFlagMkDirP,
 		})
-		ops = append(ops, memdx.MutateInOp{
-			Op:    memdx.MutateInOpTypeSetDoc,
-			Value: []byte{0},
-		})
-
-		// fill up our remaining operations with expired client removals
+		// Fill up our remaining operations with expired client removals.  These
+		// are xattr operations, so they have to be added before the whole-doc
+		// write below -- the server rejects a multi-mutation whose xattr ops do
+		// not all precede its body ops.  One slot is left for that write.
 		var removedClientUuids []string
 		for _, clientUuid := range clientUuidsToRemove {
-			if len(ops) >= 16 {
-				// once we have 16 ops, we can't add anymore
+			if len(ops) >= maxSubdocOps-1 {
 				break
 			}
 
@@ -294,6 +295,11 @@ func (c *LostTransactionCleaner) updateClientRecord(ctx context.Context, clientU
 
 			removedClientUuids = append(removedClientUuids, clientUuid)
 		}
+
+		ops = append(ops, memdx.MutateInOp{
+			Op:    memdx.MutateInOpTypeSetDoc,
+			Value: []byte{0},
+		})
 
 		_, err := c.atrAgent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 			Key:            clientRecordKey,
