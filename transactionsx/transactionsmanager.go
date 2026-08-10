@@ -116,6 +116,22 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 		}
 
 		bucketAgentProvider := resolvedConfig.BucketAgentProvider
+
+		for _, loc := range resolvedConfig.CleanupCollections {
+			agent, oboUser, err := bucketAgentProvider(loc.BucketName)
+			if err != nil {
+				return nil, err
+			}
+
+			atrLocations = append(atrLocations, LostCleanupLocation{
+				Agent:          agent,
+				OboUser:        oboUser,
+				ScopeName:      loc.ScopeName,
+				CollectionName: loc.CollectionName,
+				NumATRs:        resolvedConfig.NumATRs,
+			})
+		}
+
 		t.lostCleanupSystem = NewLostCleanupManager(&LostCleanupManagerConfig{
 			Logger:        resolvedConfig.Logger,
 			ATRLocations:  atrLocations,

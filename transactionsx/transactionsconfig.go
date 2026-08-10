@@ -54,6 +54,16 @@ type TransactionsConfig struct {
 	// to cleanup any ‘lost’ transaction attempts.
 	CleanupLostAttempts bool
 
+	// CleanupCollections specifies metadata collections the lost cleanup
+	// process should watch from the outset, in addition to those it picks up as
+	// this client uses them.
+	//
+	// Without it a collection is only watched once this client has itself run a
+	// transaction against it, so an attempt abandoned in a collection that no
+	// live client happens to be using goes uncleaned. Naming the collections
+	// here closes that gap. Ignored unless CleanupLostAttempts is set.
+	CleanupCollections []LostATRLocation
+
 	// CleanupQueueSize controls the maximum queue size for the cleanup thread.
 	CleanupQueueSize uint32
 
