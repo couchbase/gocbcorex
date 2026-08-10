@@ -73,19 +73,29 @@ func durabilityLevelFromJson(durabilityLevel DurabilityLevelJson) DurabilityLeve
 	}
 }
 
-func txnStateFromJson(state TxnStateJson) (TransactionAttemptState, error) {
+// txnStateFromJson maps the state recorded against an ATR entry onto its domain
+// type.
+//
+// A state this client does not recognise is not an error.  A client running a
+// later version of the protocol may write a state that did not exist when this
+// one was built, and the protocol requires coping with that rather than refusing
+// to look at the entry -- refusing means never cleaning it up, so one entry
+// written by a newer client is leaked forever along with the documents it
+// staged.  Such a state maps to TransactionAttemptStateUnknown, which callers
+// must read as "leave this attempt's documents alone".
+func txnStateFromJson(state TxnStateJson) TransactionAttemptState {
 	switch state {
 	case TxnStateJsonCommitted:
-		return TransactionAttemptStateCommitted, nil
+		return TransactionAttemptStateCommitted
 	case TxnStateJsonCompleted:
-		return TransactionAttemptStateCompleted, nil
+		return TransactionAttemptStateCompleted
 	case TxnStateJsonPending:
-		return TransactionAttemptStatePending, nil
+		return TransactionAttemptStatePending
 	case TxnStateJsonAborted:
-		return TransactionAttemptStateAborted, nil
+		return TransactionAttemptStateAborted
 	case TxnStateJsonRolledBack:
-		return TransactionAttemptStateRolledBack, nil
+		return TransactionAttemptStateRolledBack
 	}
 
-	return TransactionAttemptState(0), errors.New("unexpected transaction state value")
+	return TransactionAttemptStateUnknown
 }

@@ -31,6 +31,15 @@ const (
 	// TransactionAttemptStateRolledBack indicates that the transaction was not committed and instead
 	// was rolled back in its entirety.
 	TransactionAttemptStateRolledBack = TransactionAttemptState(7)
+
+	// TransactionAttemptStateUnknown indicates an attempt whose recorded state
+	// this client does not recognise, which a client running a later version of
+	// the protocol is allowed to write.  An attempt of our own is never in this
+	// state; it only ever describes an entry read out of an ATR.
+	//
+	// Nothing can be inferred about whether such an attempt meant to commit or
+	// to roll back, so its documents must be left exactly as they are.
+	TransactionAttemptStateUnknown = TransactionAttemptState(8)
 )
 
 func (state TransactionAttemptState) String() string {
@@ -49,8 +58,10 @@ func (state TransactionAttemptState) String() string {
 		return "aborted"
 	case TransactionAttemptStateRolledBack:
 		return "rolled_back"
-	default:
+	case TransactionAttemptStateUnknown:
 		return "unknown"
+	default:
+		return "invalid"
 	}
 }
 

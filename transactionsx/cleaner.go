@@ -93,10 +93,7 @@ func NewCleanupRequestFromAtrEntry(
 	entry AtrAttemptJson,
 	agentProvider TransactionsBucketAgentProviderFn,
 ) (*TransactionCleanupRequest, error) {
-	state, err := txnStateFromJson(entry.State)
-	if err != nil {
-		return nil, err
-	}
+	state := txnStateFromJson(entry.State)
 
 	inserts, err := atrMutationsToDocRecords(entry.Inserts, agentProvider)
 	if err != nil {
@@ -276,6 +273,12 @@ func (c *TransactionCleaner) cleanupDocs(
 	case TransactionAttemptStateRolledBack:
 		return nil
 	case TransactionAttemptStateNothingWritten:
+		return nil
+	case TransactionAttemptStateUnknown:
+		// A state written by a newer client.  We cannot tell whether it was
+		// heading for a commit or a rollback, so the documents are left as they
+		// are; the ATR entry is still retired, since it is expired and nobody
+		// who understands it is coming back for it.
 		return nil
 	}
 

@@ -97,10 +97,7 @@ func (c *LostTransactionCleaner) fetchAtrExpiredAttempts(ctx context.Context, at
 				continue
 			}
 
-			state, err := txnStateFromJson(attempt.State)
-			if err != nil {
-				return nil, err
-			}
+			state := txnStateFromJson(attempt.State)
 
 			durabilityLevel := durabilityLevelFromJson(attempt.DurabilityLevel)
 
