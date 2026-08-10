@@ -100,10 +100,20 @@ func (a *TransactionLambdaAttempt) run(ctx context.Context, attemptFn AttemptFun
 	a.lock.Unlock()
 
 	if txnErr != nil {
-		// if there was a transaction error, force that to be the processed err.
-		// this could hide a user-error if they threw it after the transaction
-		// failed, but this is expected.
-		lambdaErr = txnErr
+		// A transaction failure takes precedence over whatever the lambda
+		// returned, which may be a user error raised after the transaction had
+		// already failed.  Hiding that user error is expected.
+		//
+		// It does not take precedence over another transaction failure though.
+		// Once an operation has failed fatally, every later operation fails with
+		// ErrPreviousOperationFailed, and if the lambda propagated one of those
+		// then that is the error the application actually saw, and the one that
+		// says where the attempt stopped.  Replacing it with the first recorded
+		// failure reports an error the caller never observed.
+		var lambdaOpErr *TransactionOperationError
+		if !errors.As(lambdaErr, &lambdaOpErr) {
+			lambdaErr = txnErr
+		}
 	}
 
 	if lambdaErr != nil {
