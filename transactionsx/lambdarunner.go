@@ -55,6 +55,27 @@ func (r *LambdaRunner) Run(ctx context.Context, perConfig *TransactionOptions, a
 
 			result.Attempts = append(result.Attempts, txnErr.Result)
 
+			// A failure raised as FailedPostCommit is not a failure of the
+			// transaction.  The attempt got as far as writing COMMITTED to the
+			// ATR, which is the point at which the transaction is durably
+			// committed and every mutation in it is guaranteed to be applied;
+			// what did not finish is the unstaging that follows, and cleanup
+			// completes that.  Reporting an error here would tell an
+			// application its transaction failed when the transaction has in
+			// fact committed, inviting it to redo work already applied.
+			//
+			// UnstagingComplete says which of the two happened, so the caller
+			// can still tell a fully completed transaction from one cleanup
+			// will finish.
+			var raiseErr *TransactionOperationError
+			if errors.As(txnErr.Cause, &raiseErr) &&
+				raiseErr.ShouldRaise == TransactionErrorReasonTransactionFailedPostCommit {
+				if txnErr.Result != nil {
+					result.UnstagingComplete = txnErr.Result.UnstagingComplete
+				}
+				return result, nil
+			}
+
 			// Only a failure that was fatal to the attempt is retryable.
 			//
 			// transactionOperationStatus.Err() returns a
