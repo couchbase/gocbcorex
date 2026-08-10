@@ -280,6 +280,11 @@ func (c *TransactionCleaner) rollbackRepRemDoc(
 		return err
 	}
 
+	// Nothing left to unstage - see fetchDoc.
+	if getRes.TxnMeta == nil {
+		return nil
+	}
+
 	err = invokeNoResHookWithDocID(ctx, c.hooks.RemoveLinks, doc.ID, func() error {
 		_, err = agent.MutateIn(ctx, &gocbcorex.MutateInOptions{
 			Key:            doc.ID,
@@ -325,6 +330,11 @@ func (c *TransactionCleaner) rollbackInsDoc(
 	getRes, err := c.fetchDoc(ctx, false, attemptID, doc, agent, oboUser)
 	if err != nil {
 		return err
+	}
+
+	// Nothing left to unstage - see fetchDoc.
+	if getRes.TxnMeta == nil {
+		return nil
 	}
 
 	if !getRes.Deleted {
@@ -392,9 +402,7 @@ func (c *TransactionCleaner) commitRemDoc(
 		return err
 	}
 
-	// fetchDoc reports a document that is no longer part of this transaction by
-	// returning a result with no transaction metadata.  There is then nothing
-	// left to unstage, which is a success.
+	// Nothing left to unstage - see fetchDoc.
 	if getRes.TxnMeta == nil {
 		return nil
 	}
@@ -435,6 +443,11 @@ func (c *TransactionCleaner) commitInsRepDoc(
 	getRes, err := c.fetchDoc(ctx, true, attemptID, doc, agent, oboUser)
 	if err != nil {
 		return err
+	}
+
+	// Nothing left to unstage - see fetchDoc.
+	if getRes.TxnMeta == nil {
+		return nil
 	}
 
 	if !getRes.Deleted {
@@ -501,6 +514,16 @@ type fetchDocResult struct {
 	Deleted bool
 }
 
+// fetchDoc reads a document staged by an attempt, along with the transaction
+// metadata cleanup needs in order to unstage it.
+//
+// A document that is no longer part of this attempt -- it is gone, its "txn"
+// xattr has been removed, another transaction has taken it over, or its body
+// has changed under a CRC32-matched staging read -- is reported by returning a
+// result whose TxnMeta is nil.  There is then nothing left for the caller to
+// unstage, and that is a success, not a failure: whatever changed the document
+// did so after this attempt lost its claim on it.  Every caller must check for
+// it before touching the other fields, which are zeroed in that case.
 func (c *TransactionCleaner) fetchDoc(
 	ctx context.Context,
 	crc32MatchStaging bool,
