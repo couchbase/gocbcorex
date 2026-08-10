@@ -40,6 +40,42 @@ type TransactionCleanupRequest struct {
 	TxnStartTime    time.Time
 }
 
+// atrMutationsToDocRecords converts the staged mutations recorded against one
+// ATR entry into the doc records cleanup operates on, resolving each mutation's
+// bucket to an agent with resolveAgent.
+//
+// Shared by the two paths that turn an ATR entry into a TransactionCleanupRequest
+// -- NewCleanupRequestFromAtrEntry and the lost cleaner's
+// fetchAtrExpiredAttempts -- which previously each had their own copy. Any
+// field missed here disables cleanup rather than failing visibly, so there
+// should only ever be one of these.
+func atrMutationsToDocRecords(
+	mutations []AtrMutationJson,
+	resolveAgent func(bucketName string) (*gocbcorex.Agent, string, error),
+) ([]TransactionCleanupDocRecord, error) {
+	if len(mutations) == 0 {
+		return nil, nil
+	}
+
+	records := make([]TransactionCleanupDocRecord, 0, len(mutations))
+	for _, mutation := range mutations {
+		agent, oboUser, err := resolveAgent(mutation.BucketName)
+		if err != nil {
+			return nil, err
+		}
+
+		records = append(records, TransactionCleanupDocRecord{
+			Agent:          agent,
+			OboUser:        oboUser,
+			ScopeName:      mutation.ScopeName,
+			CollectionName: mutation.CollectionName,
+			ID:             []byte(mutation.DocID),
+		})
+	}
+
+	return records, nil
+}
+
 // NewCleanupRequestFromAtrEntry builds a cleanup request describing a single
 // attempt as it is recorded in an ATR.
 //
@@ -62,36 +98,15 @@ func NewCleanupRequestFromAtrEntry(
 		return nil, err
 	}
 
-	toDocRecords := func(mutations []AtrMutationJson) ([]TransactionCleanupDocRecord, error) {
-		if len(mutations) == 0 {
-			return nil, nil
-		}
-		records := make([]TransactionCleanupDocRecord, 0, len(mutations))
-		for _, mutation := range mutations {
-			agent, oboUser, err := agentProvider(mutation.BucketName)
-			if err != nil {
-				return nil, err
-			}
-			records = append(records, TransactionCleanupDocRecord{
-				Agent:          agent,
-				OboUser:        oboUser,
-				ScopeName:      mutation.ScopeName,
-				CollectionName: mutation.CollectionName,
-				ID:             []byte(mutation.DocID),
-			})
-		}
-		return records, nil
-	}
-
-	inserts, err := toDocRecords(entry.Inserts)
+	inserts, err := atrMutationsToDocRecords(entry.Inserts, agentProvider)
 	if err != nil {
 		return nil, err
 	}
-	replaces, err := toDocRecords(entry.Replaces)
+	replaces, err := atrMutationsToDocRecords(entry.Replaces, agentProvider)
 	if err != nil {
 		return nil, err
 	}
-	removes, err := toDocRecords(entry.Removes)
+	removes, err := atrMutationsToDocRecords(entry.Removes, agentProvider)
 	if err != nil {
 		return nil, err
 	}

@@ -104,48 +104,23 @@ func (c *LostTransactionCleaner) fetchAtrExpiredAttempts(ctx context.Context, at
 
 			durabilityLevel := durabilityLevelFromJson(attempt.DurabilityLevel)
 
-			parseAtrMutation := func(staged AtrMutationJson) (TransactionCleanupDocRecord, error) {
-				agent, oboUser, err := c.agentProvider(ctx, staged.BucketName)
-				if err != nil {
-					return TransactionCleanupDocRecord{}, err
-				}
-
-				return TransactionCleanupDocRecord{
-					Agent:          agent,
-					OboUser:        oboUser,
-					CollectionName: staged.CollectionName,
-					ScopeName:      staged.ScopeName,
-				}, nil
+			resolveAgent := func(bucketName string) (*gocbcorex.Agent, string, error) {
+				return c.agentProvider(ctx, bucketName)
 			}
 
-			var insertMutations []TransactionCleanupDocRecord
-			for _, staged := range attempt.Inserts {
-				docRecord, err := parseAtrMutation(staged)
-				if err != nil {
-					return nil, err
-				}
-
-				insertMutations = append(insertMutations, docRecord)
+			insertMutations, err := atrMutationsToDocRecords(attempt.Inserts, resolveAgent)
+			if err != nil {
+				return nil, err
 			}
 
-			var replaceMutations []TransactionCleanupDocRecord
-			for _, staged := range attempt.Replaces {
-				docRecord, err := parseAtrMutation(staged)
-				if err != nil {
-					return nil, err
-				}
-
-				replaceMutations = append(replaceMutations, docRecord)
+			replaceMutations, err := atrMutationsToDocRecords(attempt.Replaces, resolveAgent)
+			if err != nil {
+				return nil, err
 			}
 
-			var removeMutations []TransactionCleanupDocRecord
-			for _, staged := range attempt.Removes {
-				docRecord, err := parseAtrMutation(staged)
-				if err != nil {
-					return nil, err
-				}
-
-				removeMutations = append(removeMutations, docRecord)
+			removeMutations, err := atrMutationsToDocRecords(attempt.Removes, resolveAgent)
+			if err != nil {
+				return nil, err
 			}
 
 			attemptsToCleanup = append(attemptsToCleanup, &TransactionCleanupRequest{
