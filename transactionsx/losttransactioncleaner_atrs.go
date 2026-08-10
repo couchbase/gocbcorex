@@ -91,7 +91,7 @@ func (c *LostTransactionCleaner) fetchAtrExpiredAttempts(ctx context.Context, at
 				return nil, err
 			}
 
-			hlcExpiryTime := hlcStartTime.Add(time.Duration(attempt.ExpiryTimeNanos))
+			hlcExpiryTime := hlcStartTime.Add(time.Duration(attempt.ExpiryTimeMillis) * time.Millisecond)
 			if hlcNow.Before(hlcExpiryTime) {
 				// skip transactions that have not expired yet
 				continue

@@ -40,9 +40,16 @@ type AtrMutationJson struct {
 }
 
 type AtrAttemptJson struct {
-	TransactionID   string       `json:"tid,omitempty"`
-	ExpiryTimeNanos uint         `json:"exp,omitempty"`
-	State           TxnStateJson `json:"st,omitempty"`
+	TransactionID string `json:"tid,omitempty"`
+
+	// ExpiryTimeMillis is how long the attempt had left to run when it wrote
+	// its pending entry, in milliseconds -- the unit the protocol defines for
+	// "exp" and the unit setATRPending writes.  It is measured from PendingCAS,
+	// not from when the entry is read, so an absolute expiry time is
+	// PendingCAS-as-a-time plus this.
+	ExpiryTimeMillis uint `json:"exp,omitempty"`
+
+	State TxnStateJson `json:"st,omitempty"`
 
 	PendingCAS    string `json:"tst,omitempty"`
 	CommitCAS     string `json:"tsc,omitempty"`
