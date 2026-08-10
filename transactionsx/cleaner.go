@@ -468,6 +468,8 @@ func (c *TransactionCleaner) commitInsRepDoc(
 				zaputils.FQDocID("doc", doc.Agent.BucketName(), doc.ScopeName, doc.CollectionName, doc.ID))
 			return err
 		}
+
+		return nil
 	}
 
 	err = invokeNoResHookWithDocID(ctx, c.hooks.CommitDoc, doc.ID, func() error {
