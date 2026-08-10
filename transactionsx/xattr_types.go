@@ -47,7 +47,13 @@ type AtrAttemptJson struct {
 	// "exp" and the unit setATRPending writes.  It is measured from PendingCAS,
 	// not from when the entry is read, so an absolute expiry time is
 	// PendingCAS-as-a-time plus this.
-	ExpiryTimeMillis uint `json:"exp,omitempty"`
+	//
+	// Signed, because nothing stops another client writing a negative value and
+	// an unsigned field fails to unmarshal one -- taking the whole ATR with it,
+	// so one bad entry hides every other attempt in that ATR from cleanup.  A
+	// negative value just means the attempt was already expired when it was
+	// written, which is coherent and actionable.
+	ExpiryTimeMillis int64 `json:"exp,omitempty"`
 
 	State TxnStateJson `json:"st,omitempty"`
 
