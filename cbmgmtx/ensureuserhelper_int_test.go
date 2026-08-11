@@ -2,6 +2,7 @@ package cbmgmtx_test
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"sync"
@@ -61,9 +62,31 @@ func TestEnsureUserDino(t *testing.T) {
 		},
 	}
 
-	createTestUser := func() *cbmgmtx.PasswordChangedMarker {
+	// getUserPasswordChanged fetches the user's current password_change_date,
+	// for use as a baseline passed into EnsureUserHelper.SincePasswordChanged.
+	// If the user doesn't exist yet, the zero time.Time is returned - any
+	// real password_change_date set as part of creating the user will always
+	// be considered after it, so this also confirms the newly-created user
+	// is visible everywhere.
+	getUserPasswordChanged := func() time.Time {
+		user, err := mgmt.GetUser(ctx, &cbmgmtx.GetUserOptions{
+			Username: testUsername,
+		})
+		if err != nil {
+			if errors.Is(err, cbmgmtx.ErrUserNotFound) {
+				return time.Time{}
+			}
+			require.NoError(t, err)
+		}
+
+		return user.PasswordChanged
+	}
+
+	createTestUser := func() time.Time {
 		log.Printf("creating the user")
-		res, err := mgmt.UpsertUserWithResult(ctx, &cbmgmtx.UpsertUserOptions{
+		marker := getUserPasswordChanged()
+
+		err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 			Username:    testUsername,
 			DisplayName: testUsername,
 			Password:    "password1",
@@ -71,12 +94,14 @@ func TestEnsureUserDino(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return res.PreviousPasswordChanged
+		return marker
 	}
 
-	changeTestUserPassword := func() *cbmgmtx.PasswordChangedMarker {
+	changeTestUserPassword := func() time.Time {
 		log.Printf("changing the user's password")
-		res, err := mgmt.UpsertUserWithResult(ctx, &cbmgmtx.UpsertUserOptions{
+		marker := getUserPasswordChanged()
+
+		err := mgmt.UpsertUser(ctx, &cbmgmtx.UpsertUserOptions{
 			Username:    testUsername,
 			DisplayName: testUsername,
 			Password:    "password2",
@@ -84,7 +109,7 @@ func TestEnsureUserDino(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return res.PreviousPasswordChanged
+		return marker
 	}
 
 	deleteTestUser := func() {
@@ -101,10 +126,10 @@ func TestEnsureUserDino(t *testing.T) {
 	// block access to the first endpoint
 	dino.BlockNodeTraffic(blockHost)
 
-	// create the test user. Since this is a brand new user, the returned
-	// baseline marker is the zero-value marker (there is no prior password
-	// change), so waiting on it also confirms that the newly-created user
-	// is visible everywhere.
+	// create the test user. Since this is a brand new user, the captured
+	// baseline is the zero time.Time (there is no prior password change), so
+	// waiting on it also confirms that the newly-created user is visible
+	// everywhere.
 	createMarker := createTestUser()
 
 	var syncCreate sync.Mutex
@@ -113,9 +138,9 @@ func TestEnsureUserDino(t *testing.T) {
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
 
-		Username:             testUsername,
-		WantMissing:          false,
-		SincePasswordChanged: createMarker,
+		Username:        testUsername,
+		WantMissing:     false,
+		PasswordChanged: createMarker,
 	}
 
 	// the first couple of polls should fail, since a node is unavailable
@@ -246,9 +271,9 @@ func TestEnsureUserDino(t *testing.T) {
 		UserAgent:  "useragent",
 		OnBehalfOf: nil,
 
-		Username:             testUsername,
-		WantMissing:          false,
-		SincePasswordChanged: passwordMarker,
+		Username:        testUsername,
+		WantMissing:     false,
+		PasswordChanged: passwordMarker,
 	}
 
 	// the first couple of polls should fail, since a node is unavailable

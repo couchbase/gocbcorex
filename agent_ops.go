@@ -234,10 +234,6 @@ func (agent *Agent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUserOpti
 	return agent.mgmt.UpsertUser(ctx, opts)
 }
 
-func (agent *Agent) UpsertUserWithResult(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
-	return agent.mgmt.UpsertUserWithResult(ctx, opts)
-}
-
 func (agent *Agent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
 	return agent.mgmt.DeleteUser(ctx, opts)
 }

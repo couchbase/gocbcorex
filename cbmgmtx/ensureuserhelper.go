@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"go.uber.org/zap"
@@ -35,10 +36,14 @@ type EnsureUserHelper struct {
 	Domain      AuthDomain
 	WantMissing bool
 
-	// SincePasswordChanged, if set, causes Poll to additionally wait until
-	// each target's password_change_date is after this marker. Leave this nil
-	// for any use of EnsureUser that isn't confirming a password change.
-	SincePasswordChanged *PasswordChangedMarker
+	// PasswordChanged, if non-zero, causes Poll to additionally wait until
+	// each target's password_change_date is at or after this time. Leave
+	// this as the zero value for any use of EnsureUser that isn't confirming
+	// a password change. Populate it from the PasswordChanged field of a
+	// UserJson returned by GetUser - it's safe to always pass this through
+	// even when the call being confirmed didn't change the password, since
+	// this check accepts an exact match as well as later times.
+	PasswordChanged time.Time
 
 	// WantSettings, if set, causes Poll to additionally wait until each
 	// target's roles and/or groups match the given values.
@@ -89,7 +94,7 @@ func (e *EnsureUserHelper) pollOne(
 		return false, nil
 	}
 
-	if e.SincePasswordChanged != nil && !resp.PasswordChanged.After(e.SincePasswordChanged.t) {
+	if !e.PasswordChanged.IsZero() && resp.PasswordChanged.Before(e.PasswordChanged) {
 		e.Logger.Debug("target responded with success, but the password change has not yet propagated")
 		return false, nil
 	}

@@ -300,10 +300,6 @@ func (w *MgmtComponent) UpsertUser(ctx context.Context, opts *cbmgmtx.UpsertUser
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.UpsertUser, opts)
 }
 
-func (w *MgmtComponent) UpsertUserWithResult(ctx context.Context, opts *cbmgmtx.UpsertUserOptions) (*cbmgmtx.UpsertUserResult, error) {
-	return OrchestrateSimpleMgmtCall(ctx, w, cbmgmtx.Management.UpsertUserWithResult, opts)
-}
-
 func (w *MgmtComponent) DeleteUser(ctx context.Context, opts *cbmgmtx.DeleteUserOptions) error {
 	return OrchestrateNoResMgmtCall(ctx, w, cbmgmtx.Management.DeleteUser, opts)
 }
@@ -326,13 +322,14 @@ type EnsureUserOptions struct {
 	WantMissing bool
 	OnBehalfOf  *cbhttpx.OnBehalfOfInfo
 
-	// SincePasswordChanged, if set, causes EnsureUser to additionally wait
-	// until the password change has propagated to all nodes, in addition to
-	// the usual existence check. Populate this from
-	// UpsertUserResult.PreviousPasswordChanged. Leave unset for any use of
+	// PasswordChanged, if non-zero, causes EnsureUser to additionally
+	// wait until the password change has propagated to all nodes, in
+	// addition to the usual existence check. Populate this from the
+	// PasswordChanged field of a UserJson returned by GetUser, captured
+	// before making the change being confirmed. Leave unset for any use of
 	// EnsureUser that isn't specifically confirming a password change (this
 	// is meaningless in combination with WantMissing).
-	SincePasswordChanged *cbmgmtx.PasswordChangedMarker
+	PasswordChanged time.Time
 
 	// WantSettings, if set, causes EnsureUser to additionally wait until the
 	// given roles and/or groups have propagated to all nodes.
@@ -341,14 +338,14 @@ type EnsureUserOptions struct {
 
 func (w *MgmtComponent) EnsureUser(ctx context.Context, opts *EnsureUserOptions) error {
 	hlpr := cbmgmtx.EnsureUserHelper{
-		Logger:               w.logger.Named("ensure-user"),
-		UserAgent:            w.userAgent,
-		OnBehalfOf:           opts.OnBehalfOf,
-		Username:             opts.Username,
-		Domain:               opts.Domain,
-		WantMissing:          opts.WantMissing,
-		SincePasswordChanged: opts.SincePasswordChanged,
-		WantSettings:         opts.WantSettings,
+		Logger:          w.logger.Named("ensure-user"),
+		UserAgent:       w.userAgent,
+		OnBehalfOf:      opts.OnBehalfOf,
+		Username:        opts.Username,
+		Domain:          opts.Domain,
+		WantMissing:     opts.WantMissing,
+		PasswordChanged: opts.PasswordChanged,
+		WantSettings:    opts.WantSettings,
 	}
 
 	b := ExponentialBackoff(100*time.Millisecond, 1*time.Second, 1.5)
