@@ -54,14 +54,18 @@ type queryWarningJson struct {
 }
 
 type queryErrorJson struct {
-	Code   uint32                `json:"code,omitempty"`
-	Msg    string                `json:"msg,omitempty"`
-	Reason *queryErrorReasonJson `json:"reason,omitempty"`
-	Retry  bool                  `json:"retry,omitempty"`
-}
-
-type queryErrorReasonJson struct {
 	Code    uint32 `json:"code,omitempty"`
-	Key     string `json:"key,omitempty"`
-	Message string `json:"message,omitempty"`
+	Msg     string `json:"msg,omitempty"`
+	Retry   bool   `json:"retry,omitempty"`
+	Line    uint32 `json:"line,omitempty"`
+	Column  uint32 `json:"column,omitempty"`
+	Repeats uint32 `json:"repeats,omitempty"`
+
+	// Reason carries the error's cause for regular errors, Cause carries it for
+	// transaction errors. They are mutually exclusive and both decode into a
+	// QueryErrorCause. They are kept raw here because the payload is polymorphic
+	// (a nested error object, an arbitrary detail map, or a bare scalar) - see
+	// parseQueryErrorCause.
+	Reason json.RawMessage `json:"reason,omitempty"`
+	Cause  json.RawMessage `json:"cause,omitempty"`
 }

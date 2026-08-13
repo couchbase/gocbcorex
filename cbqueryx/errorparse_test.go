@@ -95,3 +95,75 @@ func TestErrorParsing(t *testing.T) {
 		requireCollectionNotFound(t, err, "default", "_default", "test")
 	})
 }
+
+// deepestCause returns the terminal node of a cause chain.
+func deepestCause(c *QueryErrorCause) *QueryErrorCause {
+	for c != nil && c.Cause != nil {
+		c = c.Cause
+	}
+	return c
+}
+
+// TestParseErrorCause verifies that the two distinct DML cause structures the
+// query service emits (which nest the terminal KV status under different keys)
+// both normalize into the same QueryErrorCause chain, with the KV status text
+// reachable as the terminal node's Message.
+func TestParseErrorCause(t *testing.T) {
+	t.Run("SyncWriteAmbiguous", func(t *testing.T) {
+		// Terminal KV status is a bare string nested under "cause".
+		errJson := &queryErrorJson{
+			Code:   12009,
+			Msg:    "DML Error, possible causes include concurrent modification.",
+			Reason: []byte(`{"code":5502,"key":"datastore.couchbase.bucket.action","message":"Unable to complete action after 1 attempts","cause":{"attempts":1,"cause":"SYNC_WRITE_AMBIGUOUS"}}`),
+		}
+
+		serverErr := parseError(errJson)
+
+		require.NotNil(t, serverErr.Cause)
+		require.Equal(t, uint32(5502), serverErr.Cause.Code)
+		require.Equal(t, "datastore.couchbase.bucket.action", serverErr.Cause.Key)
+		require.Equal(t, "SYNC_WRITE_AMBIGUOUS", deepestCause(serverErr.Cause).Message)
+	})
+
+	t.Run("DurabilityInvalidLevel", func(t *testing.T) {
+		// Terminal KV status is a bare string nested under "error".
+		errJson := &queryErrorJson{
+			Code:   12009,
+			Msg:    "DML Error, possible causes include concurrent modification.",
+			Reason: []byte(`{"code":5502,"key":"datastore.couchbase.bucket.action","message":"Unable to complete action after 1 attempts","cause":{"attempts":1,"context":"Timeout(): Cannot specify bucket default timeout","error":"DURABILITY_INVALID_LEVEL"}}`),
+		}
+
+		serverErr := parseError(errJson)
+
+		require.NotNil(t, serverErr.Cause)
+		require.Equal(t, uint32(5502), serverErr.Cause.Code)
+		require.Equal(t, "DURABILITY_INVALID_LEVEL", deepestCause(serverErr.Cause).Message)
+	})
+
+	t.Run("TransactionCauseKey", func(t *testing.T) {
+		// Transaction errors deliver the cause under "cause" rather than
+		// "reason"; both must decode identically.
+		errJson := &queryErrorJson{
+			Code:  17014,
+			Msg:   "transaction error",
+			Cause: []byte(`{"code":12033,"key":"datastore.couchbase.CAS_mismatch","message":"CAS mismatch"}`),
+		}
+
+		serverErr := parseError(errJson)
+
+		require.NotNil(t, serverErr.Cause)
+		require.Equal(t, uint32(12033), serverErr.Cause.Code)
+		require.Equal(t, "CAS mismatch", serverErr.Cause.Message)
+	})
+
+	t.Run("NoCause", func(t *testing.T) {
+		errJson := &queryErrorJson{
+			Code: 3000,
+			Msg:  "syntax error",
+		}
+
+		serverErr := parseError(errJson)
+
+		require.Nil(t, serverErr.Cause)
+	})
+}

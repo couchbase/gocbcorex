@@ -619,3 +619,121 @@ func TestAgentStaticInfo(t *testing.T) {
 
 	assert.NotEqual(t, cbmgmtx.ConflictResolutionTypeUnset, mode)
 }
+
+func TestAgentMetaKv2(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx := context.Background()
+	keyPath := "/agent-test-" + uuid.NewString()[:6] + "/key1"
+
+	// 1. Put key
+	putResp, err := agent.PutMetaKv2(ctx, &cbmgmtx.PutMetaKv2Options{
+		Path:      keyPath,
+		Value:     []byte("agentval"),
+		Create:    true,
+		Recursive: true,
+	})
+
+	if testutilsint.IsOlderServerVersion(t, "8.0.0") {
+		// the metakv2 endpoints were only introduced in server 8.0.0, older servers
+		// report them as being unsupported instead.
+		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
+
+		_, err = agent.GetMetaKv2(ctx, &cbmgmtx.GetMetaKv2Options{
+			Path: keyPath,
+		})
+		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
+
+		_, err = agent.DeleteMetaKv2(ctx, &cbmgmtx.DeleteMetaKv2Options{
+			Path: keyPath,
+		})
+		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
+		return
+	}
+
+	require.NoError(t, err)
+	require.NotEmpty(t, putResp.Revision)
+
+	// 2. Get key
+	getResp, err := agent.GetMetaKv2(ctx, &cbmgmtx.GetMetaKv2Options{
+		Path: keyPath,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []byte("agentval"), getResp.Value)
+
+	// 3. Delete key
+	delResp, err := agent.DeleteMetaKv2(ctx, &cbmgmtx.DeleteMetaKv2Options{
+		Path: keyPath,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, delResp.Revision)
+}
+
+func TestAgentWatchMetaKv2(t *testing.T) {
+	testutilsint.SkipIfShortTest(t)
+
+	agent := CreateDefaultAgent(t)
+	t.Cleanup(func() {
+		err := agent.Close()
+		require.NoError(t, err)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	watchDir := "/agent-watch-" + uuid.NewString()[:6] + "/"
+	keyPath := watchDir + "key1"
+
+	ch, err := agent.WatchMetaKv2(ctx, &gocbcorex.WatchMetaKv2Options{
+		Path:         watchDir,
+		PollInterval: 100 * time.Millisecond,
+	})
+
+	if testutilsint.IsOlderServerVersion(t, "8.0.0") {
+		// the watcher polls using GetMetaKv2, so it cannot even be started against a
+		// server which does not support metakv2.
+		require.ErrorIs(t, err, cbmgmtx.ErrUnsupportedFeature)
+		require.Nil(t, ch)
+		return
+	}
+
+	require.NoError(t, err)
+
+	// 1. Initial result signal should be received
+	select {
+	case <-ch:
+		// First result received
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for initial metakv2 watch result signal")
+	}
+
+	// 2. Put a key to trigger a revision change
+	putResp, err := agent.PutMetaKv2(context.Background(), &cbmgmtx.PutMetaKv2Options{
+		Path:      keyPath,
+		Value:     []byte("watchval"),
+		Create:    true,
+		Recursive: true,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, putResp.Revision)
+
+	// 3. Expect a second signal on channel for revision change
+	select {
+	case <-ch:
+		// Revision change signal received
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for metakv2 watch revision change signal")
+	}
+
+	// Cleanup key
+	_, _ = agent.DeleteMetaKv2(context.Background(), &cbmgmtx.DeleteMetaKv2Options{
+		Path:      watchDir,
+		Recursive: true,
+	})
+}
