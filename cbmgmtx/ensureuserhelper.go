@@ -3,12 +3,29 @@ package cbmgmtx
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/couchbase/gocbcorex/cbhttpx"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
 )
+
+// WantUserSettings specifies expected role and/or group assignments to wait
+// for, as part of an EnsureUser call. Either field can be left nil to skip
+// checking that particular dimension.
+type WantUserSettings struct {
+	// Roles, if set, causes Poll to wait until each target's directly
+	// assigned roles (i.e. excluding any roles inherited via group
+	// membership) match this set exactly.
+	Roles []string
+
+	// Groups, if set, causes Poll to wait until each target's group
+	// memberships match this set exactly.
+	Groups []string
+}
 
 type EnsureUserHelper struct {
 	Logger     *zap.Logger
@@ -18,6 +35,19 @@ type EnsureUserHelper struct {
 	Username    string
 	Domain      AuthDomain
 	WantMissing bool
+
+	// PasswordChanged, if non-zero, causes Poll to additionally wait until
+	// each target's password_change_date is at or after this time. Leave
+	// this as the zero value for any use of EnsureUser that isn't confirming
+	// a password change. Populate it from the PasswordChanged field of a
+	// UserJson returned by GetUser - it's safe to always pass this through
+	// even when the call being confirmed didn't change the password, since
+	// this check accepts an exact match as well as later times.
+	PasswordChanged time.Time
+
+	// WantSettings, if set, causes Poll to additionally wait until each
+	// target's roles and/or groups match the given values.
+	WantSettings *WantUserSettings
 
 	confirmedEndpoints []string
 }
@@ -33,7 +63,7 @@ func (e *EnsureUserHelper) pollOne(
 		zap.String("targetUsername", e.Username),
 		zap.Bool("wantMissing", e.WantMissing))
 
-	_, err := Management{
+	resp, err := Management{
 		Transport: httpRoundTripper,
 		UserAgent: e.UserAgent,
 		Endpoint:  target.Endpoint,
@@ -64,8 +94,124 @@ func (e *EnsureUserHelper) pollOne(
 		return false, nil
 	}
 
+	if !e.PasswordChanged.IsZero() && resp.PasswordChanged.Before(e.PasswordChanged) {
+		e.Logger.Debug("target responded with success, but the password change has not yet propagated")
+		return false, nil
+	}
+
+	if e.WantSettings != nil {
+		if e.WantSettings.Roles != nil {
+			matched, err := rolesMatch(resp.Roles, e.WantSettings.Roles)
+			if err != nil {
+				return false, err
+			}
+			if !matched {
+				e.Logger.Debug("target responded with success, but the roles have not yet propagated")
+				return false, nil
+			}
+		}
+		if e.WantSettings.Groups != nil && !setsEqual(resp.Groups, e.WantSettings.Groups) {
+			e.Logger.Debug("target responded with success, but the groups have not yet propagated")
+			return false, nil
+		}
+	}
+
 	e.Logger.Debug("target responded successfully")
 	return true, nil
+}
+
+// parseRoleSpec parses a role spec string in the same encoded form used by
+// UpsertUserOptions.Roles (e.g. "data_reader[beer-sample:my_scope:my_collection]")
+// back into its component parts, so it can be compared structurally against
+// a role decoded from a GetUser response.
+func parseRoleSpec(spec string) (RoleJson, error) {
+	bracketIdx := strings.Index(spec, "[")
+	if bracketIdx == -1 {
+		return RoleJson{RoleName: spec}, nil
+	}
+
+	if !strings.HasSuffix(spec, "]") {
+		return RoleJson{}, fmt.Errorf("invalid role spec %q: missing closing ']'", spec)
+	}
+
+	roleName := spec[:bracketIdx]
+	scoping := spec[bracketIdx+1 : len(spec)-1]
+
+	parts := strings.Split(scoping, ":")
+	if len(parts) > 3 {
+		return RoleJson{}, fmt.Errorf("invalid role spec %q: too many ':'-separated parts", spec)
+	}
+	if parts[0] == "" {
+		return RoleJson{}, fmt.Errorf("invalid role spec %q: empty bucket name", spec)
+	}
+
+	role := RoleJson{
+		RoleName:   roleName,
+		BucketName: parts[0],
+	}
+	if len(parts) > 1 {
+		role.ScopeName = parts[1]
+	}
+	if len(parts) > 2 {
+		role.CollectionName = parts[2]
+	}
+
+	return role, nil
+}
+
+// rolesMatch reports whether actual's directly-assigned roles (i.e.
+// excluding any roles inherited via group membership) are exactly the set of
+// roles named in want.
+func rolesMatch(actual []RoleWithOriginsJson, want []string) (bool, error) {
+	var actualUserRoles []RoleJson
+	for _, role := range actual {
+		isDirectlyAssigned := false
+		for _, origin := range role.Origins {
+			if origin.Type == "user" {
+				isDirectlyAssigned = true
+				break
+			}
+		}
+		if !isDirectlyAssigned {
+			continue
+		}
+
+		actualUserRoles = append(actualUserRoles, role.RoleJson)
+	}
+
+	wantRoles := make([]RoleJson, len(want))
+	for i, spec := range want {
+		role, err := parseRoleSpec(spec)
+		if err != nil {
+			return false, err
+		}
+		wantRoles[i] = role
+	}
+
+	return setsEqual(actualUserRoles, wantRoles), nil
+}
+
+// setsEqual reports whether a and b contain the same elements, regardless of
+// order.
+func setsEqual[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	counts := make(map[T]int, len(a))
+	for _, v := range a {
+		counts[v]++
+	}
+	for _, v := range b {
+		counts[v]--
+	}
+	for _, c := range counts {
+		if c != 0 {
+			return false
+		}
+	}
+
+	return true
 }
 
 type EnsureUserPollOptions struct {
