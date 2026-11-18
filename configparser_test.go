@@ -7,6 +7,7 @@ import (
 	"github.com/couchbase/gocbcorex/contrib/cbconfig"
 	"github.com/couchbase/gocbcorex/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func LoadTestTerseConfig(t *testing.T, path string) *ParsedConfig {
@@ -167,5 +168,86 @@ func TestConfigParserAltAddresses(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestConfigParserForwardVbucketMap(t *testing.T) {
+	parseJson := func(t *testing.T, vbServerMapJson string) *ParsedConfig {
+		cfgJson := `{
+			"rev": 10,
+			"name": "default",
+			"nodeLocator": "vbucket",
+			"uuid": "4a4b3a83519d5612d48117fb1eb84afd",
+			"nodesExt": [
+				{"hostname": "host1", "services": {"kv": 11210, "mgmt": 8091}},
+				{"hostname": "host2", "services": {"kv": 11210, "mgmt": 8091}}
+			],
+			"nodes": [
+				{"hostname": "host1:8091", "ports": {"direct": 11210}},
+				{"hostname": "host2:8091", "ports": {"direct": 11210}}
+			],
+			"vBucketServerMap": ` + vbServerMapJson + `
+		}`
+
+		var cfg cbconfig.TerseConfigJson
+		require.NoError(t, json.Unmarshal([]byte(cfgJson), &cfg))
+
+		parsedConfig, err := ConfigParser{}.ParseTerseConfig(&cfg, "SOURCE_HOSTNAME")
+		require.NoError(t, err)
+
+		return parsedConfig
+	}
+
+	t.Run("Present", func(t *testing.T) {
+		cfg := parseJson(t, `{
+			"hashAlgorithm": "CRC",
+			"numReplicas": 1,
+			"serverList": ["host1:11210", "host2:11210"],
+			"vBucketMap": [[0, 1], [0, 1], [1, 0], [1, 0]],
+			"vBucketMapForward": [[1, 0], [0, 1], [1, -1], [0, 1]]
+		}`)
+
+		require.NotNil(t, cfg.VbucketMap)
+		require.NotNil(t, cfg.VbucketMapForward)
+		assert.Equal(t, 4, cfg.VbucketMapForward.NumVbuckets())
+		assert.Equal(t, 1, cfg.VbucketMapForward.NumReplicas())
+
+		idx, err := cfg.VbucketMapForward.NodeByVbucket(0, 0)
+		require.NoError(t, err)
+		assert.Equal(t, 1, idx)
+
+		idx, err = cfg.VbucketMapForward.NodeByVbucket(2, 1)
+		require.NoError(t, err)
+		assert.Equal(t, -1, idx)
+
+		// the fast-forward map should also make it through to the routing info
+		compCfgs := GenerateComponentConfigsFromConfig(cfg, "default", nil, "default", nil, nil)
+		assert.Same(t, cfg.VbucketMap, compCfgs.VbucketRoutingInfo.VbMap)
+		assert.Same(t, cfg.VbucketMapForward, compCfgs.VbucketRoutingInfo.VbMapForward)
+	})
+
+	t.Run("Absent", func(t *testing.T) {
+		cfg := parseJson(t, `{
+			"hashAlgorithm": "CRC",
+			"numReplicas": 1,
+			"serverList": ["host1:11210", "host2:11210"],
+			"vBucketMap": [[0, 1], [0, 1], [1, 0], [1, 0]]
+		}`)
+
+		require.NotNil(t, cfg.VbucketMap)
+		assert.Nil(t, cfg.VbucketMapForward)
+	})
+
+	t.Run("LengthMismatch", func(t *testing.T) {
+		cfg := parseJson(t, `{
+			"hashAlgorithm": "CRC",
+			"numReplicas": 1,
+			"serverList": ["host1:11210", "host2:11210"],
+			"vBucketMap": [[0, 1], [0, 1], [1, 0], [1, 0]],
+			"vBucketMapForward": [[1, 0], [0, 1]]
+		}`)
+
+		require.NotNil(t, cfg.VbucketMap)
+		assert.Nil(t, cfg.VbucketMapForward)
 	})
 }

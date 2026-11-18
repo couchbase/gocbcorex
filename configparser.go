@@ -89,6 +89,18 @@ func (p ConfigParser) ParseTerseConfig(config *cbconfig.TerseConfigJson, sourceH
 
 			out.BucketType = bktTypeCouchbase
 			out.VbucketMap = vbMap
+
+			// The fast-forward map is only useful if it lines up with the
+			// main map, so we ignore it if the number of vbuckets differs.
+			fwdMap := config.VBucketServerMap.VBucketMapForward
+			if len(fwdMap) == len(config.VBucketServerMap.VBucketMap) {
+				vbMapForward, err := NewVbucketMap(
+					fwdMap,
+					config.VBucketServerMap.NumReplicas)
+				if err == nil {
+					out.VbucketMapForward = vbMapForward
+				}
+			}
 		default:
 			out.BucketType = bktTypeInvalid
 		}

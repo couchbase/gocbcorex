@@ -44,6 +44,10 @@ type ParsedConfig struct {
 	BucketName string
 	BucketType BucketType
 	VbucketMap *VbucketMap
+	// VbucketMapForward is the fast-forward vbucket map published by the
+	// server while a rebalance is in progress, describing where each vbucket
+	// is moving to.  It is nil when no rebalance is in progress.
+	VbucketMapForward *VbucketMap
 
 	Nodes []ParsedConfigNode
 

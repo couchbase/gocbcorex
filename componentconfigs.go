@@ -124,8 +124,9 @@ func GenerateComponentConfigsFromConfig(
 		},
 		KvSelectedBucket: bucketName,
 		VbucketRoutingInfo: &VbucketRoutingInfo{
-			VbMap:      config.VbucketMap,
-			ServerList: kvDataNodeIds,
+			VbMap:        config.VbucketMap,
+			VbMapForward: config.VbucketMapForward,
+			ServerList:   kvDataNodeIds,
 		},
 		QueryComponentConfig: QueryComponentConfig{
 			HttpRoundTripper: httpTransport,

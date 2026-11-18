@@ -23,6 +23,9 @@ var _ VbucketRouter = &VbucketRouterMock{}
 //			DispatchToVbucketFunc: func(vbID uint16, vbServerIdx uint32) (string, error) {
 //				panic("mock out the DispatchToVbucket method")
 //			},
+//			DispatchToVbucketForwardFunc: func(vbID uint16, vbServerIdx uint32) (string, error) {
+//				panic("mock out the DispatchToVbucketForward method")
+//			},
 //			GetServerListFunc: func() ([]string, error) {
 //				panic("mock out the GetServerList method")
 //			},
@@ -44,6 +47,9 @@ type VbucketRouterMock struct {
 
 	// DispatchToVbucketFunc mocks the DispatchToVbucket method.
 	DispatchToVbucketFunc func(vbID uint16, vbServerIdx uint32) (string, error)
+
+	// DispatchToVbucketForwardFunc mocks the DispatchToVbucketForward method.
+	DispatchToVbucketForwardFunc func(vbID uint16, vbServerIdx uint32) (string, error)
 
 	// GetServerListFunc mocks the GetServerList method.
 	GetServerListFunc func() ([]string, error)
@@ -70,6 +76,13 @@ type VbucketRouterMock struct {
 			// VbServerIdx is the vbServerIdx argument value.
 			VbServerIdx uint32
 		}
+		// DispatchToVbucketForward holds details about calls to the DispatchToVbucketForward method.
+		DispatchToVbucketForward []struct {
+			// VbID is the vbID argument value.
+			VbID uint16
+			// VbServerIdx is the vbServerIdx argument value.
+			VbServerIdx uint32
+		}
 		// GetServerList holds details about calls to the GetServerList method.
 		GetServerList []struct {
 		}
@@ -82,11 +95,12 @@ type VbucketRouterMock struct {
 			VbucketRoutingInfo *VbucketRoutingInfo
 		}
 	}
-	lockDispatchByKey     sync.RWMutex
-	lockDispatchToVbucket sync.RWMutex
-	lockGetServerList     sync.RWMutex
-	lockNumReplicas       sync.RWMutex
-	lockUpdateRoutingInfo sync.RWMutex
+	lockDispatchByKey            sync.RWMutex
+	lockDispatchToVbucket        sync.RWMutex
+	lockDispatchToVbucketForward sync.RWMutex
+	lockGetServerList            sync.RWMutex
+	lockNumReplicas              sync.RWMutex
+	lockUpdateRoutingInfo        sync.RWMutex
 }
 
 // DispatchByKey calls DispatchByKeyFunc.
@@ -158,6 +172,42 @@ func (mock *VbucketRouterMock) DispatchToVbucketCalls() []struct {
 	mock.lockDispatchToVbucket.RLock()
 	calls = mock.calls.DispatchToVbucket
 	mock.lockDispatchToVbucket.RUnlock()
+	return calls
+}
+
+// DispatchToVbucketForward calls DispatchToVbucketForwardFunc.
+func (mock *VbucketRouterMock) DispatchToVbucketForward(vbID uint16, vbServerIdx uint32) (string, error) {
+	if mock.DispatchToVbucketForwardFunc == nil {
+		panic("VbucketRouterMock.DispatchToVbucketForwardFunc: method is nil but VbucketRouter.DispatchToVbucketForward was just called")
+	}
+	callInfo := struct {
+		VbID        uint16
+		VbServerIdx uint32
+	}{
+		VbID:        vbID,
+		VbServerIdx: vbServerIdx,
+	}
+	mock.lockDispatchToVbucketForward.Lock()
+	mock.calls.DispatchToVbucketForward = append(mock.calls.DispatchToVbucketForward, callInfo)
+	mock.lockDispatchToVbucketForward.Unlock()
+	return mock.DispatchToVbucketForwardFunc(vbID, vbServerIdx)
+}
+
+// DispatchToVbucketForwardCalls gets all the calls that were made to DispatchToVbucketForward.
+// Check the length with:
+//
+//	len(mockedVbucketRouter.DispatchToVbucketForwardCalls())
+func (mock *VbucketRouterMock) DispatchToVbucketForwardCalls() []struct {
+	VbID        uint16
+	VbServerIdx uint32
+} {
+	var calls []struct {
+		VbID        uint16
+		VbServerIdx uint32
+	}
+	mock.lockDispatchToVbucketForward.RLock()
+	calls = mock.calls.DispatchToVbucketForward
+	mock.lockDispatchToVbucketForward.RUnlock()
 	return calls
 }
 
