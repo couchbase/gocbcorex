@@ -3,6 +3,7 @@ package gocbcorex
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"testing"
 
@@ -204,4 +205,105 @@ func TestKvClientDoesNotWrapNonDispatchError(t *testing.T) {
 
 	var dispatchErr *KvDispatchNetError
 	require.NotErrorAs(t, err, &dispatchErr)
+}
+
+// The memdx client starts its read loop before the dial function returns, so
+// the read error handler can run before NewKvClient has stored the client.
+// This simulates the connection being dropped in that window.
+func TestKvClientReadErrorBeforeClientStored(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	closeCalls := 0
+	memdxCli := &MemdxClientMock{
+		LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+		RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+		CloseFunc: func() error {
+			closeCalls++
+			return nil
+		},
+	}
+
+	var closeHandlerErr error
+	closeHandlerCalls := 0
+
+	cli, err := NewKvClient(context.Background(), &KvClientOptions{
+		Logger: logger,
+		DialMemdxClient: func(
+			ctx context.Context,
+			address string,
+			dialOpts *memdx.DialConnOptions,
+			clientOpts *memdx.ClientOptions,
+		) (MemdxClient, error) {
+			clientOpts.ReadErrorHandler(io.EOF)
+			return memdxCli, nil
+		},
+		CloseHandler: func(_ KvClient, err error) {
+			closeHandlerCalls++
+			closeHandlerErr = err
+		},
+
+		Address: "endpoint1",
+
+		BootstrapOpts: KvClientBootstrapOptions{
+			DisableBootstrap:       true,
+			DisableDefaultFeatures: true,
+			DisableErrorMap:        true,
+		},
+	})
+	require.ErrorIs(t, err, net.ErrClosed)
+	assert.Nil(t, cli)
+
+	// The memdx read loop closes the connection itself, so the kv client
+	// must not (it can't safely use the memdx client at that point).
+	assert.Equal(t, 0, closeCalls)
+	assert.Equal(t, 1, closeHandlerCalls)
+	assert.ErrorIs(t, closeHandlerErr, io.EOF)
+}
+
+// Same window as above, but with the read error arriving from another
+// goroutine, as it does with a real memdx client. Run with -race.
+func TestKvClientConcurrentReadErrorDuringSetup(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	for i := 0; i < 100; i++ {
+		memdxCli := &MemdxClientMock{
+			LocalAddrFunc:  func() net.Addr { return &net.TCPAddr{} },
+			RemoteAddrFunc: func() net.Addr { return &net.TCPAddr{} },
+			CloseFunc:      func() error { return nil },
+		}
+
+		readErrDone := make(chan struct{})
+		cli, err := NewKvClient(context.Background(), &KvClientOptions{
+			Logger: logger,
+			DialMemdxClient: func(
+				ctx context.Context,
+				address string,
+				dialOpts *memdx.DialConnOptions,
+				clientOpts *memdx.ClientOptions,
+			) (MemdxClient, error) {
+				go func() {
+					clientOpts.ReadErrorHandler(io.EOF)
+					close(readErrDone)
+				}()
+				return memdxCli, nil
+			},
+
+			Address: "endpoint1",
+
+			BootstrapOpts: KvClientBootstrapOptions{
+				DisableBootstrap:       true,
+				DisableDefaultFeatures: true,
+				DisableErrorMap:        true,
+			},
+		})
+		<-readErrDone
+
+		// Depending on timing the error lands before or after setup
+		// completes; either way the client must end up closed.
+		if err != nil {
+			require.ErrorIs(t, err, net.ErrClosed)
+		} else {
+			require.ErrorIs(t, cli.Close(), net.ErrClosed)
+		}
+	}
 }
