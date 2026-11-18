@@ -114,15 +114,26 @@ type kvClient struct {
 	closed       atomic.Bool
 	closeHandler func(KvClient, error)
 
-	// connCountPeerAddr is the peer address used for the connection count
-	// metric. It's stored atomically because close() can run on the memdx
-	// read goroutine before NewKvClient has finished setting up the client.
-	connCountPeerAddr atomic.Pointer[string]
+	// connCountState tracks whether this connection has been counted in
+	// connCountMetric, so that setup and close() (which can run on the memdx
+	// read goroutine while setup is still in progress) record exactly one
+	// increment and one matching decrement between them. connCountAddr is
+	// the peer address it was counted under; it is written before the state
+	// moves to counted, and only read after observing that.
+	connCountState atomic.Int32
+	connCountAddr  string
 
 	connCountMetric metric.Int64UpDownCounter
 }
 
 var _ KvClient = (*kvClient)(nil)
+
+// States for kvClient.connCountState.
+const (
+	connCountPending int32 = iota
+	connCountCounted
+	connCountReleased
+)
 
 func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 	connStime := time.Now()
@@ -246,7 +257,6 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 		return nil, err
 	}
 	kvCli.cli = client
-	kvCli.connCountPeerAddr.Store(ptr.To(client.RemoteAddr().String()))
 
 	kvCli.telemetry = newKvClientTelem(kvCli.cli.LocalAddr(), kvCli.cli.RemoteAddr())
 
@@ -290,6 +300,17 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 		kvCli.logger.Debug("skipped bootstrapping new KvClient")
 	}
 
+	// Count the connection before checking whether it has been closed, so
+	// that a close racing with this either sees it counted and releases it,
+	// or has already released it and stops it being counted.
+	kvCli.connCountAddr = client.RemoteAddr().String()
+	if kvCli.connCountState.CompareAndSwap(connCountPending, connCountCounted) {
+		kvCli.connCountMetric.Add(context.Background(), 1, metric.WithAttributes(
+			semconv.DBSystemCouchbase,
+			semconv.NetworkPeerAddress(kvCli.connCountAddr),
+		))
+	}
+
 	// A connection read error can close the client while it is still being
 	// set up. The close handler has then already been called for a client the
 	// caller hasn't received, so it must not be handed out.
@@ -306,11 +327,6 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 	connETime := time.Now()
 	connDTime := connETime.Sub(connStime)
 	connDTimeSecs := float64(connDTime) / float64(time.Second)
-
-	kvCli.connCountMetric.Add(context.Background(), 1, metric.WithAttributes(
-		semconv.DBSystemCouchbase,
-		semconv.NetworkPeerAddress(client.RemoteAddr().String()),
-	))
 
 	connCreateDuraMetric.Record(context.Background(), connDTimeSecs, metric.WithAttributes(
 		semconv.DBSystemCouchbase,
@@ -358,10 +374,10 @@ func (c *kvClient) close(err error, closeConn bool) error {
 		return net.ErrClosed
 	}
 
-	if peerAddr := c.connCountPeerAddr.Load(); peerAddr != nil {
+	if c.connCountState.Swap(connCountReleased) == connCountCounted {
 		c.connCountMetric.Add(context.Background(), -1, metric.WithAttributes(
 			semconv.DBSystemCouchbase,
-			semconv.NetworkPeerAddress(*peerAddr),
+			semconv.NetworkPeerAddress(c.connCountAddr),
 		))
 	}
 
