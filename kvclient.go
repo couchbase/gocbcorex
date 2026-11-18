@@ -114,10 +114,26 @@ type kvClient struct {
 	closed       atomic.Bool
 	closeHandler func(KvClient, error)
 
+	// connCountState tracks whether this connection has been counted in
+	// connCountMetric, so that setup and close() (which can run on the memdx
+	// read goroutine while setup is still in progress) record exactly one
+	// increment and one matching decrement between them. connCountAddr is
+	// the peer address it was counted under; it is written before the state
+	// moves to counted, and only read after observing that.
+	connCountState atomic.Int32
+	connCountAddr  string
+
 	connCountMetric metric.Int64UpDownCounter
 }
 
 var _ KvClient = (*kvClient)(nil)
+
+// States for kvClient.connCountState.
+const (
+	connCountPending int32 = iota
+	connCountCounted
+	connCountReleased
+)
 
 func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 	connStime := time.Now()
@@ -284,14 +300,33 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 		kvCli.logger.Debug("skipped bootstrapping new KvClient")
 	}
 
+	// Count the connection before checking whether it has been closed, so
+	// that a close racing with this either sees it counted and releases it,
+	// or has already released it and stops it being counted.
+	kvCli.connCountAddr = client.RemoteAddr().String()
+	if kvCli.connCountState.CompareAndSwap(connCountPending, connCountCounted) {
+		kvCli.connCountMetric.Add(context.Background(), 1, metric.WithAttributes(
+			semconv.DBSystemCouchbase,
+			semconv.NetworkPeerAddress(kvCli.connCountAddr),
+		))
+	}
+
+	// A connection read error can close the client while it is still being
+	// set up. The close handler has then already been called for a client the
+	// caller hasn't received, so it must not be handed out.
+	if kvCli.closed.Load() {
+		kvCli.logger.Debug("connection closed during client setup")
+		markConnectionFailed()
+
+		return nil, contextualError{
+			Message: "connection closed during setup",
+			Cause:   net.ErrClosed,
+		}
+	}
+
 	connETime := time.Now()
 	connDTime := connETime.Sub(connStime)
 	connDTimeSecs := float64(connDTime) / float64(time.Second)
-
-	kvCli.connCountMetric.Add(context.Background(), 1, metric.WithAttributes(
-		semconv.DBSystemCouchbase,
-		semconv.NetworkPeerAddress(client.RemoteAddr().String()),
-	))
 
 	connCreateDuraMetric.Record(context.Background(), connDTimeSecs, metric.WithAttributes(
 		semconv.DBSystemCouchbase,
@@ -330,20 +365,28 @@ func (c *kvClient) HasFeature(feat memdx.HelloFeature) bool {
 	return slices.Contains(c.supportedFeatures, feat)
 }
 
-func (c *kvClient) close(err error) error {
+// close marks the client as closed and calls the close handler. closeConn
+// is false when the memdx read loop has already closed the connection; cli
+// must not be used in that case, as the read loop can run before NewKvClient
+// has stored cli.
+func (c *kvClient) close(err error, closeConn bool) error {
 	if !c.closed.CompareAndSwap(false, true) {
 		return net.ErrClosed
 	}
 
-	c.connCountMetric.Add(context.Background(), -1, metric.WithAttributes(
-		semconv.DBSystemCouchbase,
-		semconv.NetworkPeerAddress(c.cli.RemoteAddr().String()),
-	))
+	if c.connCountState.Swap(connCountReleased) == connCountCounted {
+		c.connCountMetric.Add(context.Background(), -1, metric.WithAttributes(
+			semconv.DBSystemCouchbase,
+			semconv.NetworkPeerAddress(c.connCountAddr),
+		))
+	}
 
-	closeErr := c.cli.Close()
-	if closeErr != nil {
-		if !errors.Is(closeErr, net.ErrClosed) {
-			return closeErr
+	if closeConn {
+		closeErr := c.cli.Close()
+		if closeErr != nil {
+			if !errors.Is(closeErr, net.ErrClosed) {
+				return closeErr
+			}
 		}
 	}
 
@@ -354,8 +397,8 @@ func (c *kvClient) close(err error) error {
 	return nil
 }
 
-func (c *kvClient) markClosed(err error) {
-	closeErr := c.close(err)
+func (c *kvClient) markClosed(err error, closeConn bool) {
+	closeErr := c.close(err, closeConn)
 	if closeErr != nil {
 		if !errors.Is(closeErr, net.ErrClosed) {
 			c.logger.Debug("failed to close connection for KvClient", zap.Error(closeErr))
@@ -366,7 +409,7 @@ func (c *kvClient) markClosed(err error) {
 }
 
 func (c *kvClient) Close() error {
-	return c.close(nil)
+	return c.close(nil, true)
 }
 
 func (c *kvClient) RemoteHostname() string {
@@ -391,7 +434,7 @@ func (c *kvClient) Dispatch(pak *memdx.Packet, cb memdx.DispatchCallback) (memdx
 		var netErr *net.OpError
 		if errors.As(err, &netErr) {
 			c.logger.Debug("dispatch failed", zap.Error(err))
-			c.markClosed(err)
+			c.markClosed(err, true)
 			return nil, &KvDispatchNetError{Cause: err}
 		}
 
@@ -437,5 +480,7 @@ func (c *kvClient) handleOrphanResponse(pak *memdx.Packet) {
 
 func (c *kvClient) handleConnectionReadError(err error) {
 	c.logger.Debug("received connection read error", zap.Error(err))
-	c.markClosed(err)
+
+	// The memdx read loop closes the connection itself before calling this.
+	c.markClosed(err, false)
 }

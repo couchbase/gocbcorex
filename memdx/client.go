@@ -73,6 +73,13 @@ func (c *Client) run() {
 		}
 	}
 
+	// Nothing reads from the connection once this loop exits, so close it
+	// here rather than relying on the read error handler to do it.
+	closeErr := c.conn.Close()
+	if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+		c.logger.Debug("failed to close connection after read error", zap.Error(closeErr))
+	}
+
 	if c.readErrorHandler != nil {
 		c.readErrorHandler(readErr)
 	}

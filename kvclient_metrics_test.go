@@ -2,6 +2,7 @@ package gocbcorex
 
 import (
 	"context"
+	"io"
 	"net"
 	"sync"
 	"testing"
@@ -120,4 +121,34 @@ func TestKvClientConnCountOpenClose(t *testing.T) {
 
 	require.NoError(t, cli.Close())
 	require.Equal(t, start, recorder.Sum())
+}
+
+// A read error can close the client while it is still being set up. Each
+// connection must still be counted at most once and released at most once.
+func TestKvClientConnCountClosedDuringSetup(t *testing.T) {
+	recorder := installConnCountRecorder()
+	start := recorder.Sum()
+
+	// Closed by a read error before setup completes.
+	_, err := newConnCountTestClient(t, func(clientOpts *memdx.ClientOptions) {
+		clientOpts.ReadErrorHandler(io.EOF)
+	})
+	require.Error(t, err)
+	require.Equal(t, start, recorder.Sum())
+
+	// Closed by a read error racing with setup.
+	for i := 0; i < 500; i++ {
+		readErrDone := make(chan struct{})
+		cli, err := newConnCountTestClient(t, func(clientOpts *memdx.ClientOptions) {
+			go func() {
+				clientOpts.ReadErrorHandler(io.EOF)
+				close(readErrDone)
+			}()
+		})
+		<-readErrDone
+		if err == nil {
+			_ = cli.Close()
+		}
+		require.Equal(t, start, recorder.Sum(), "iteration %d", i)
+	}
 }
