@@ -114,7 +114,7 @@ type kvClient struct {
 	closed       atomic.Bool
 	closeHandler func(KvClient, error)
 
-	connCountMetric metric.Int64Gauge
+	connCountMetric metric.Int64UpDownCounter
 }
 
 var _ KvClient = (*kvClient)(nil)
@@ -133,7 +133,8 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 		dialMemdxClient = DialMemdxClient
 	}
 
-	connCountMetric, err := meter.Int64Gauge(semconv.DBClientConnectionCountName)
+	connCountMetric, err := meter.Int64UpDownCounter(semconv.DBClientConnectionCountName,
+		metric.WithUnit(semconv.DBClientConnectionCountUnit))
 	if err != nil {
 		logger.Warn("failed to create connection count metric")
 	}
@@ -287,7 +288,7 @@ func NewKvClient(ctx context.Context, opts *KvClientOptions) (KvClient, error) {
 	connDTime := connETime.Sub(connStime)
 	connDTimeSecs := float64(connDTime) / float64(time.Second)
 
-	kvCli.connCountMetric.Record(context.Background(), 1, metric.WithAttributes(
+	kvCli.connCountMetric.Add(context.Background(), 1, metric.WithAttributes(
 		semconv.DBSystemCouchbase,
 		semconv.NetworkPeerAddress(client.RemoteAddr().String()),
 	))
@@ -334,7 +335,7 @@ func (c *kvClient) close(err error) error {
 		return net.ErrClosed
 	}
 
-	c.connCountMetric.Record(context.Background(), -1, metric.WithAttributes(
+	c.connCountMetric.Add(context.Background(), -1, metric.WithAttributes(
 		semconv.DBSystemCouchbase,
 		semconv.NetworkPeerAddress(c.cli.RemoteAddr().String()),
 	))
