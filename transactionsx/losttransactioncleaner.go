@@ -16,7 +16,7 @@ import (
 type LostTransactionCleaner struct {
 	logger            *zap.Logger
 	atrAgent          *gocbcorex.Agent
-	atrOboUser        string
+	atrOboUser        *gocbcorex.OnBehalfOfInfo
 	atrScopeName      string
 	atrCollectionName string
 	numAtrs           int
@@ -32,7 +32,7 @@ type LostTransactionCleaner struct {
 type LostTransactionCleanerConfig struct {
 	Logger            *zap.Logger
 	AtrAgent          *gocbcorex.Agent
-	AtrOboUser        string
+	AtrOboUser        *gocbcorex.OnBehalfOfInfo
 	AtrScopeName      string
 	AtrCollectionName string
 	NumATRS           int

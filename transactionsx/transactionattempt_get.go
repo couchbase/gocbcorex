@@ -84,7 +84,7 @@ func (t *TransactionAttempt) get(
 func (t *TransactionAttempt) mavRead(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,
@@ -367,7 +367,7 @@ type docWithMeta struct {
 func (t *TransactionAttempt) fetchDocWithMeta(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,

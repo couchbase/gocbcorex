@@ -45,7 +45,7 @@ func (t *TransactionAttempt) selectAtrKey(
 func (t *TransactionAttempt) selectAtrExclusive(
 	ctx context.Context,
 	firstAgent *gocbcorex.Agent,
-	firstOboUser string,
+	firstOboUser *gocbcorex.OnBehalfOfInfo,
 	firstKey []byte,
 ) *transactionOperationStatus {
 	atrKey, err := t.selectAtrKey(ctx, firstKey)

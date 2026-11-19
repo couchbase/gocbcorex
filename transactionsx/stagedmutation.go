@@ -64,7 +64,7 @@ type StagedMutation struct {
 type stagedMutation struct {
 	OpType         StagedMutationType
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 	Key            []byte

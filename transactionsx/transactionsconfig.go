@@ -11,7 +11,7 @@ import (
 // placed when performing transactions.
 type ATRLocation struct {
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 }
@@ -26,7 +26,7 @@ type LostATRLocation struct {
 
 // TransactionsBucketAgentProviderFn is a function used to provide an agent for
 // a particular bucket by name.
-type TransactionsBucketAgentProviderFn func(bucketName string) (*gocbcorex.Agent, string, error)
+type TransactionsBucketAgentProviderFn func(bucketName string) (*gocbcorex.Agent, *gocbcorex.OnBehalfOfInfo, error)
 
 // TransactionsConfig specifies various tunable options related to transactions.
 type TransactionsConfig struct {

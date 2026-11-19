@@ -81,7 +81,7 @@ func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
 
 	var txnState TransactionAttemptState
 	var atrAgent *gocbcorex.Agent
-	var atrOboUser string
+	var atrOboUser *gocbcorex.OnBehalfOfInfo
 	var atrScope, atrCollection string
 	var atrKey []byte
 	if txnData.ATR.ID != "" {
@@ -107,7 +107,7 @@ func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
 
 		txnState = TransactionAttemptStateNothingWritten
 		atrAgent = nil
-		atrOboUser = ""
+		atrOboUser = nil
 		atrScope = ""
 		atrCollection = ""
 		atrKey = nil
@@ -185,7 +185,7 @@ func (t *Transaction) resumeAttempt(txnData *SerializedAttemptJson) error {
 // GetOptions provides options for a Get operation.
 type GetOptions struct {
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 	Key            []byte
@@ -216,7 +216,7 @@ type MutableItemMeta struct {
 // GetResult represents the result of a Get or GetOptional operation.
 type GetResult struct {
 	agent          *gocbcorex.Agent
-	oboUser        string
+	oboUser        *gocbcorex.OnBehalfOfInfo
 	scopeName      string
 	collectionName string
 	key            []byte
@@ -238,7 +238,7 @@ func (t *Transaction) Get(ctx context.Context, opts GetOptions) (*GetResult, err
 // InsertOptions provides options for a Insert operation.
 type InsertOptions struct {
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 	Key            []byte

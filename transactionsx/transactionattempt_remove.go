@@ -124,7 +124,7 @@ func (t *TransactionAttempt) remove(
 func (t *TransactionAttempt) stageRemove(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,
@@ -298,7 +298,7 @@ func (t *TransactionAttempt) stageRemove(
 func (t *TransactionAttempt) stageRemoveOfInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,

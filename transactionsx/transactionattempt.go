@@ -38,7 +38,7 @@ type TransactionAttempt struct {
 	stateBits         uint32
 	stagedMutations   []*stagedMutation
 	atrAgent          *gocbcorex.Agent
-	atrOboUser        string
+	atrOboUser        *gocbcorex.OnBehalfOfInfo
 	atrScopeName      string
 	atrCollectionName string
 	atrKey            []byte

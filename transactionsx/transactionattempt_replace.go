@@ -126,7 +126,7 @@ func (t *TransactionAttempt) replace(
 func (t *TransactionAttempt) stageReplace(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,
