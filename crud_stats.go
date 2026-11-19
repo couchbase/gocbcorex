@@ -17,12 +17,12 @@ type StatsDataResult struct {
 type StatsByVbucketOptions struct {
 	GroupName  string
 	VbucketID  uint16
-	OnBehalfOf string
+	OnBehalfOf *OnBehalfOfInfo
 }
 
 type StatsByKeyOptions struct {
 	GroupName  string
-	OnBehalfOf string
+	OnBehalfOf *OnBehalfOfInfo
 }
 
 func (cc *CrudComponent) StatsByVbucket(
@@ -33,6 +33,11 @@ func (cc *CrudComponent) StatsByVbucket(
 	ctx, span := tracer.Start(ctx, "Stats")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleVbCrud(
 		ctx, cc.retries, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.VbucketID, 0,
@@ -40,7 +45,7 @@ func (cc *CrudComponent) StatsByVbucket(
 			_, err := client.Stats(ctx, &memdx.StatsRequest{
 				GroupName: opts.GroupName,
 				UtilsRequestMeta: memdx.UtilsRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			}, func(resp *memdx.StatsDataResponse) error {
 				dataCb(StatsDataResult{
@@ -69,6 +74,11 @@ func (cc *CrudComponent) StatsByKey(
 	ctx, span := tracer.Start(ctx, "StatsByKey")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return oboErr
+	}
+
 	servers, err := cc.vbs.GetServerList()
 	if err != nil {
 		return err
@@ -87,7 +97,7 @@ func (cc *CrudComponent) StatsByKey(
 					_, err := client.Stats(ctx, &memdx.StatsRequest{
 						GroupName: opts.GroupName,
 						UtilsRequestMeta: memdx.UtilsRequestMeta{
-							OnBehalfOf: opts.OnBehalfOf,
+							OnBehalfOf: oboUser,
 						},
 					}, func(resp *memdx.StatsDataResponse) error {
 						mu.Lock()

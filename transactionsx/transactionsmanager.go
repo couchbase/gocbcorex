@@ -39,8 +39,8 @@ func InitTransactions(config *TransactionsConfig) (*TransactionsManager, error) 
 		CleanupWindow:         60000 * time.Millisecond,
 		CleanupClientAttempts: true,
 		CleanupLostAttempts:   true,
-		BucketAgentProvider: func(bucketName string) (*gocbcorex.Agent, string, error) {
-			return nil, "", errors.New("no bucket agent provider was specified")
+		BucketAgentProvider: func(bucketName string) (*gocbcorex.Agent, *gocbcorex.OnBehalfOfInfo, error) {
+			return nil, nil, errors.New("no bucket agent provider was specified")
 		},
 	}
 
@@ -210,7 +210,7 @@ func (t *TransactionsManager) ResumeTransactionAttempt(txnBytes []byte, options 
 
 		atrLocation = ATRLocation{
 			Agent:          nil,
-			OboUser:        "",
+			OboUser:        nil,
 			ScopeName:      "",
 			CollectionName: "",
 		}
@@ -260,7 +260,7 @@ func (t *TransactionsManager) Close() error {
 // CreateGetResultOptions exposes options for the CreateGetResult method.
 type CreateGetResultOptions struct {
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 	Key            []byte

@@ -11,11 +11,11 @@ import (
 	"go.uber.org/zap"
 )
 
-type AgentProvider func(ctx context.Context, bucketName string) (*gocbcorex.Agent, string, error)
+type AgentProvider func(ctx context.Context, bucketName string) (*gocbcorex.Agent, *gocbcorex.OnBehalfOfInfo, error)
 
 type LostCleanupLocation struct {
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 	NumATRs        int
@@ -87,7 +87,7 @@ func (c *LostCleanupManager) AddLocation(loc LostCleanupLocation) {
 		oloc := cleaner.location
 
 		if loc.Agent.BucketName() == oloc.Agent.BucketName() &&
-			loc.OboUser == oloc.OboUser &&
+			oboUsersEqual(loc.OboUser, oloc.OboUser) &&
 			loc.ScopeName == oloc.ScopeName &&
 			loc.CollectionName == oloc.CollectionName {
 			c.lock.Unlock()
@@ -152,4 +152,14 @@ func (c *LostCleanupManager) Close() {
 	c.bgCtxCancel()
 
 	c.closeWaitGrp.Wait()
+}
+
+// oboUsersEqual compares two on-behalf-of users by value, treating two nil
+// users as equal.
+func oboUsersEqual(a, b *gocbcorex.OnBehalfOfInfo) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return *a == *b
 }

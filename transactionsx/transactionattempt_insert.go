@@ -118,7 +118,7 @@ func (t *TransactionAttempt) insert(
 func (t *TransactionAttempt) resolveConflictedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,
@@ -210,7 +210,7 @@ func (t *TransactionAttempt) resolveConflictedInsert(
 func (t *TransactionAttempt) stageInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,
@@ -363,7 +363,7 @@ type conflictedInsertMeta struct {
 func (t *TransactionAttempt) getMetaForConflictedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,
@@ -432,7 +432,7 @@ func (t *TransactionAttempt) getMetaForConflictedInsert(
 func (t *TransactionAttempt) cleanupStagedInsert(
 	ctx context.Context,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 	scopeName string,
 	collectionName string,
 	key []byte,

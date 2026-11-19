@@ -50,10 +50,10 @@ func initTransactionAndAttempt(
 ) (*transactionsx.TransactionsManager, *transactionsx.Transaction) {
 	txns, err := transactionsx.InitTransactions(&transactionsx.TransactionsConfig{
 		DurabilityLevel: transactionsx.DurabilityLevelNone,
-		BucketAgentProvider: func(bucketName string) (*gocbcorex.Agent, string, error) {
+		BucketAgentProvider: func(bucketName string) (*gocbcorex.Agent, *gocbcorex.OnBehalfOfInfo, error) {
 			// We can always return just this one agent as we only actually
 			// use a single bucket for this entire test.
-			return agent, "", nil
+			return agent, nil, nil
 		},
 		ExpirationTime: 60 * time.Second,
 	})

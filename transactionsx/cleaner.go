@@ -16,7 +16,7 @@ import (
 // TransactionCleanupDocRecord represents an individual document operation requiring cleanup.
 type TransactionCleanupDocRecord struct {
 	Agent          *gocbcorex.Agent
-	OboUser        string
+	OboUser        *gocbcorex.OnBehalfOfInfo
 	ScopeName      string
 	CollectionName string
 	ID             []byte
@@ -26,7 +26,7 @@ type TransactionCleanupRequest struct {
 	AttemptID string
 
 	AtrAgent          *gocbcorex.Agent
-	AtrOboUser        string
+	AtrOboUser        *gocbcorex.OnBehalfOfInfo
 	AtrScopeName      string
 	AtrCollectionName string
 	AtrID             []byte
@@ -409,7 +409,7 @@ func (c *TransactionCleaner) fetchDoc(
 	attemptID string,
 	dr TransactionCleanupDocRecord,
 	agent *gocbcorex.Agent,
-	oboUser string,
+	oboUser *gocbcorex.OnBehalfOfInfo,
 ) (*fetchDocResult, error) {
 	zeroRes := &fetchDocResult{
 		Body:    nil,

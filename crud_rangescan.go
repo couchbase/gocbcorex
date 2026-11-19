@@ -19,7 +19,7 @@ type RangeScanCreateOptions struct {
 	Sampling *memdx.RangeScanCreateRandomSamplingConfig
 	Snapshot *memdx.RangeScanCreateSnapshotRequirements
 
-	OnBehalfOf string
+	OnBehalfOf *OnBehalfOfInfo
 }
 
 type RangeScanCreateResult struct {
@@ -31,6 +31,11 @@ type RangeScanCreateResult struct {
 }
 
 func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCreateOptions) (*RangeScanCreateResult, error) {
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateRetries(
 		ctx, cc.retries,
 		func() (*RangeScanCreateResult, error) {
@@ -52,7 +57,7 @@ func (cc *CrudComponent) RangeScanCreate(ctx context.Context, opts *RangeScanCre
 							Sampling:     opts.Sampling,
 							Snapshot:     opts.Snapshot,
 							CrudRequestMeta: memdx.CrudRequestMeta{
-								OnBehalfOf: opts.OnBehalfOf,
+								OnBehalfOf: oboUser,
 							},
 						})
 						if err != nil {
@@ -74,7 +79,7 @@ type RangeScanContinueOptions struct {
 	MaxCount uint32
 	MaxBytes uint32
 
-	OnBehalfOf string
+	OnBehalfOf *OnBehalfOfInfo
 }
 
 type RangeScanContinueDataResult struct {
@@ -89,6 +94,11 @@ type RangeScanContinueResult struct {
 
 func (cr *RangeScanCreateResult) Continue(ctx context.Context, opts *RangeScanContinueOptions,
 	dataCb func(RangeScanContinueDataResult)) (*RangeScanContinueResult, error) {
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateRetries(
 		ctx, cr.parent.retries,
 		func() (*RangeScanContinueResult, error) {
@@ -100,7 +110,7 @@ func (cr *RangeScanCreateResult) Continue(ctx context.Context, opts *RangeScanCo
 				VbucketID: cr.vbucketID,
 				Deadline:  deadline,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			}, func(response *memdx.RangeScanDataResponse) error {
 				// We don't use a for i, item range here so that we can modify the entry in place.
@@ -133,13 +143,18 @@ func (cr *RangeScanCreateResult) Continue(ctx context.Context, opts *RangeScanCo
 }
 
 type RangeScanCancelOptions struct {
-	OnBehalfOf string
+	OnBehalfOf *OnBehalfOfInfo
 }
 
 type RangeScanCancelResult struct {
 }
 
 func (cr *RangeScanCreateResult) Cancel(ctx context.Context, opts *RangeScanCancelOptions) (*RangeScanCancelResult, error) {
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateRetries(
 		ctx, cr.parent.retries,
 		func() (*RangeScanCancelResult, error) {
@@ -147,7 +162,7 @@ func (cr *RangeScanCreateResult) Cancel(ctx context.Context, opts *RangeScanCanc
 				ScanUUID:  cr.ScanUUID,
 				VbucketID: cr.vbucketID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {

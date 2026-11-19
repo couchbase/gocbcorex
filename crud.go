@@ -96,7 +96,7 @@ type GetOptions struct {
 	CollectionName string
 	CollectionID   uint32
 	AcceptSnappy   bool
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetResult struct {
@@ -110,6 +110,11 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 	ctx, span := tracer.Start(ctx, "Get")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
@@ -121,7 +126,7 @@ func (cc *CrudComponent) Get(ctx context.Context, opts *GetOptions) (*GetResult,
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -151,7 +156,7 @@ type GetExOptions struct {
 	ScopeName      string
 	CollectionName string
 	CollectionID   uint32
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetExResult struct {
@@ -165,6 +170,11 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 	ctx, span := tracer.Start(ctx, "GetEx")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
@@ -176,7 +186,7 @@ func (cc *CrudComponent) GetEx(ctx context.Context, opts *GetExOptions) (*GetExR
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -204,7 +214,7 @@ type GetReplicaOptions struct {
 	CollectionID   uint32
 	ReplicaIdx     uint32
 	AcceptSnappy   bool
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetReplicaResult struct {
@@ -218,13 +228,18 @@ func (cc *CrudComponent) GetReplica(ctx context.Context, opts *GetReplicaOptions
 	ctx, span := tracer.Start(ctx, "GetReplica")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	fn := func(collectionID uint32, vbID uint16, client KvClient) (*GetReplicaResult, error) {
 		resp, err := client.GetReplica(ctx, &memdx.GetReplicaRequest{
 			CollectionID: collectionID,
 			Key:          opts.Key,
 			VbucketID:    vbID,
 			CrudRequestMeta: memdx.CrudRequestMeta{
-				OnBehalfOf: opts.OnBehalfOf,
+				OnBehalfOf: oboUser,
 			},
 		})
 		if err != nil {
@@ -272,7 +287,7 @@ type GetAllReplicasOptions struct {
 	ScopeName      string
 	CollectionName string
 	CollectionID   uint32
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetAllReplicasResult struct {
@@ -313,6 +328,11 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 	ctx, span := tracer.Start(ctx, "GetAllReplicas")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	maxReplicas := 3
 	result := ReplicaStream{
 		OutCh: make(chan *ReplicaStreamEntry, maxReplicas+1),
@@ -324,7 +344,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 			Key:          opts.Key,
 			VbucketID:    vbID,
 			CrudRequestMeta: memdx.CrudRequestMeta{
-				OnBehalfOf: opts.OnBehalfOf,
+				OnBehalfOf: oboUser,
 			},
 		})
 		if err != nil {
@@ -351,7 +371,7 @@ func (cc *CrudComponent) GetAllReplicas(ctx context.Context, opts *GetAllReplica
 			Key:          opts.Key,
 			VbucketID:    vbID,
 			CrudRequestMeta: memdx.CrudRequestMeta{
-				OnBehalfOf: opts.OnBehalfOf,
+				OnBehalfOf: oboUser,
 			},
 		})
 		if err != nil {
@@ -509,7 +529,7 @@ type UpsertOptions struct {
 	PreserveExpiry  bool
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type UpsertResult struct {
@@ -520,6 +540,11 @@ type UpsertResult struct {
 func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*UpsertResult, error) {
 	ctx, span := tracer.Start(ctx, "Upsert")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -544,7 +569,7 @@ func (cc *CrudComponent) Upsert(ctx context.Context, opts *UpsertOptions) (*Upse
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -569,7 +594,7 @@ type DeleteOptions struct {
 	CollectionID    uint32
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type DeleteResult struct {
@@ -580,6 +605,11 @@ type DeleteResult struct {
 func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*DeleteResult, error) {
 	ctx, span := tracer.Start(ctx, "Delete")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -594,7 +624,7 @@ func (cc *CrudComponent) Delete(ctx context.Context, opts *DeleteOptions) (*Dele
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -618,7 +648,7 @@ type GetAndTouchOptions struct {
 	CollectionName string
 	CollectionID   uint32
 	Expiry         uint32
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetAndTouchResult struct {
@@ -632,6 +662,11 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 	ctx, span := tracer.Start(ctx, "GetAndTouch")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
@@ -644,7 +679,7 @@ func (cc *CrudComponent) GetAndTouch(ctx context.Context, opts *GetAndTouchOptio
 				VbucketID:    vbID,
 				Expiry:       opts.Expiry,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -669,7 +704,7 @@ type GetRandomOptions struct {
 	ScopeName      string
 	CollectionName string
 	CollectionID   uint32
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetRandomResult struct {
@@ -684,6 +719,11 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 	ctx, span := tracer.Start(ctx, "GetRandom")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, nil,
@@ -693,7 +733,7 @@ func (cc *CrudComponent) GetRandom(ctx context.Context, opts *GetRandomOptions) 
 			resp, err := client.GetRandom(ctx, &memdx.GetRandomRequest{
 				CollectionID: collectionID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -721,7 +761,7 @@ type UnlockOptions struct {
 	CollectionName string
 	CollectionID   uint32
 	Cas            uint64
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type UnlockResult struct {
@@ -731,6 +771,11 @@ type UnlockResult struct {
 func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*UnlockResult, error) {
 	ctx, span := tracer.Start(ctx, "Unlock")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -744,7 +789,7 @@ func (cc *CrudComponent) Unlock(ctx context.Context, opts *UnlockOptions) (*Unlo
 				VbucketID:    vbID,
 				Cas:          opts.Cas,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -767,7 +812,7 @@ type TouchOptions struct {
 	CollectionName string
 	CollectionID   uint32
 	Expiry         uint32
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type TouchResult struct {
@@ -777,6 +822,11 @@ type TouchResult struct {
 func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchResult, error) {
 	ctx, span := tracer.Start(ctx, "Touch")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -790,7 +840,7 @@ func (cc *CrudComponent) Touch(ctx context.Context, opts *TouchOptions) (*TouchR
 				VbucketID:    vbID,
 				Expiry:       opts.Expiry,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -809,7 +859,7 @@ type GetAndLockOptions struct {
 	CollectionName string
 	ScopeName      string
 	CollectionID   uint32
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetAndLockResult struct {
@@ -823,6 +873,11 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 	ctx, span := tracer.Start(ctx, "GetAndLock")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleCrud(ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key,
 		func(collectionID uint32, endpoint string, vbID uint16, client KvClient) (*GetAndLockResult, error) {
@@ -834,7 +889,7 @@ func (cc *CrudComponent) GetAndLock(ctx context.Context, opts *GetAndLockOptions
 				Key:          opts.Key,
 				VbucketID:    vbID,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -865,7 +920,7 @@ type AddOptions struct {
 	Datatype        memdx.DatatypeFlag
 	Expiry          uint32
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type AddResult struct {
@@ -876,6 +931,11 @@ type AddResult struct {
 func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult, error) {
 	ctx, span := tracer.Start(ctx, "Add")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -898,7 +958,7 @@ func (cc *CrudComponent) Add(ctx context.Context, opts *AddOptions) (*AddResult,
 				Expiry:          opts.Expiry,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -928,7 +988,7 @@ type ReplaceOptions struct {
 	PreserveExpiry  bool
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type ReplaceResult struct {
@@ -939,6 +999,11 @@ type ReplaceResult struct {
 func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*ReplaceResult, error) {
 	ctx, span := tracer.Start(ctx, "Replace")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -963,7 +1028,7 @@ func (cc *CrudComponent) Replace(ctx context.Context, opts *ReplaceOptions) (*Re
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -989,7 +1054,7 @@ type AppendOptions struct {
 	Value           []byte
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type AppendResult struct {
@@ -1000,6 +1065,11 @@ type AppendResult struct {
 func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*AppendResult, error) {
 	ctx, span := tracer.Start(ctx, "Append")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -1021,7 +1091,7 @@ func (cc *CrudComponent) Append(ctx context.Context, opts *AppendOptions) (*Appe
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1047,7 +1117,7 @@ type PrependOptions struct {
 	Value           []byte
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type PrependResult struct {
@@ -1058,6 +1128,11 @@ type PrependResult struct {
 func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*PrependResult, error) {
 	ctx, span := tracer.Start(ctx, "Prepend")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -1079,7 +1154,7 @@ func (cc *CrudComponent) Prepend(ctx context.Context, opts *PrependOptions) (*Pr
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1107,7 +1182,7 @@ type IncrementOptions struct {
 	Delta           uint64
 	Expiry          uint32
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type IncrementResult struct {
@@ -1119,6 +1194,11 @@ type IncrementResult struct {
 func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) (*IncrementResult, error) {
 	ctx, span := tracer.Start(ctx, "Increment")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -1135,7 +1215,7 @@ func (cc *CrudComponent) Increment(ctx context.Context, opts *IncrementOptions) 
 				Expiry:          opts.Expiry,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1164,7 +1244,7 @@ type DecrementOptions struct {
 	Delta           uint64
 	Expiry          uint32
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type DecrementResult struct {
@@ -1176,6 +1256,11 @@ type DecrementResult struct {
 func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) (*DecrementResult, error) {
 	ctx, span := tracer.Start(ctx, "Decrement")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -1192,7 +1277,7 @@ func (cc *CrudComponent) Decrement(ctx context.Context, opts *DecrementOptions) 
 				Expiry:          opts.Expiry,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1218,7 +1303,7 @@ type GetMetaOptions struct {
 	CollectionID   uint32
 	FetchDatatype  bool
 	VBUUID         uint64
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetMetaResult struct {
@@ -1235,6 +1320,11 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 	ctx, span := tracer.Start(ctx, "GetMeta")
 	defer span.End()
 
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
+
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
 		opts.ScopeName, opts.CollectionName, opts.CollectionID, opts.Key, opts.VBUUID,
@@ -1247,7 +1337,7 @@ func (cc *CrudComponent) GetMeta(ctx context.Context, opts *GetMetaOptions) (*Ge
 				VbucketID:     vbID,
 				FetchDatatype: opts.FetchDatatype,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1286,7 +1376,7 @@ type AddWithMetaOptions struct {
 	StoreCas       uint64
 	Options        memdx.MetaOpFlag
 	VBUUID         uint64
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type AddWithMetaResult struct {
@@ -1297,6 +1387,11 @@ type AddWithMetaResult struct {
 func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptions) (*AddWithMetaResult, error) {
 	ctx, span := tracer.Start(ctx, "AddWithMeta")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
@@ -1317,7 +1412,7 @@ func (cc *CrudComponent) AddWithMeta(ctx context.Context, opts *AddWithMetaOptio
 				StoreCas:     opts.StoreCas,
 				Options:      opts.Options,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1350,7 +1445,7 @@ type SetWithMetaOptions struct {
 	StoreCas       uint64
 	Options        memdx.MetaOpFlag
 	VBUUID         uint64
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type SetWithMetaResult struct {
@@ -1361,6 +1456,11 @@ type SetWithMetaResult struct {
 func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptions) (*SetWithMetaResult, error) {
 	ctx, span := tracer.Start(ctx, "SetWithMeta")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
@@ -1382,7 +1482,7 @@ func (cc *CrudComponent) SetWithMeta(ctx context.Context, opts *SetWithMetaOptio
 				StoreCas:     opts.StoreCas,
 				Options:      opts.Options,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1413,7 +1513,7 @@ type DeleteWithMetaOptions struct {
 	RevNo          uint64
 	Options        memdx.MetaOpFlag
 	VBUUID         uint64
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type DeleteWithMetaResult struct {
@@ -1424,6 +1524,11 @@ type DeleteWithMetaResult struct {
 func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMetaOptions) (*DeleteWithMetaResult, error) {
 	ctx, span := tracer.Start(ctx, "DeleteWithMeta")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrudMeta(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider, cc.vbc,
@@ -1443,7 +1548,7 @@ func (cc *CrudComponent) DeleteWithMeta(ctx context.Context, opts *DeleteWithMet
 				StoreCas:     opts.StoreCas,
 				Options:      opts.Options,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1468,7 +1573,7 @@ type LookupInOptions struct {
 	CollectionID   uint32
 	Ops            []memdx.LookupInOp
 	Flags          memdx.SubdocDocFlag
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type LookupInResult struct {
@@ -1480,6 +1585,11 @@ type LookupInResult struct {
 func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*LookupInResult, error) {
 	ctx, span := tracer.Start(ctx, "LookupIn")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -1494,7 +1604,7 @@ func (cc *CrudComponent) LookupIn(ctx context.Context, opts *LookupInOptions) (*
 				Flags:        opts.Flags,
 				Ops:          opts.Ops,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1520,7 +1630,7 @@ type MutateInOptions struct {
 	PreserveExpiry  bool
 	Cas             uint64
 	DurabilityLevel memdx.DurabilityLevel
-	OnBehalfOf      string
+	OnBehalfOf      *OnBehalfOfInfo
 }
 
 type MutateInResult struct {
@@ -1532,6 +1642,11 @@ type MutateInResult struct {
 func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*MutateInResult, error) {
 	ctx, span := tracer.Start(ctx, "MutateIn")
 	defer span.End()
+
+	oboUser, oboErr := EncodeMemdOnBehalfOf(opts.OnBehalfOf)
+	if oboErr != nil {
+		return nil, oboErr
+	}
 
 	return OrchestrateSimpleCrud(
 		ctx, cc.retries, cc.collections, cc.vbs, cc.nmvHandler, cc.eclientProvider,
@@ -1550,7 +1665,7 @@ func (cc *CrudComponent) MutateIn(ctx context.Context, opts *MutateInOptions) (*
 				Cas:             opts.Cas,
 				DurabilityLevel: opts.DurabilityLevel,
 				CrudRequestMeta: memdx.CrudRequestMeta{
-					OnBehalfOf: opts.OnBehalfOf,
+					OnBehalfOf: oboUser,
 				},
 			})
 			if err != nil {
@@ -1577,7 +1692,7 @@ type GetOrLookupOptions struct {
 	Project        []string
 	WithExpiry     bool
 	WithFlags      bool
-	OnBehalfOf     string
+	OnBehalfOf     *OnBehalfOfInfo
 }
 
 type GetOrLookupResult struct {

@@ -255,7 +255,7 @@ func (t *TransactionAttempt) checkExpiredAtomic(ctx context.Context, stage strin
 func (t *TransactionAttempt) confirmATRPending(
 	ctx context.Context,
 	firstAgent *gocbcorex.Agent,
-	firstOboUser string,
+	firstOboUser *gocbcorex.OnBehalfOfInfo,
 	firstKey []byte,
 ) *transactionOperationStatus {
 	t.lock.Lock()

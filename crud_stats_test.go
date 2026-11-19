@@ -148,11 +148,42 @@ func TestStatsByKeyOnBehalfOfForwarded(t *testing.T) {
 
 	err := cc.StatsByKey(context.Background(), &StatsByKeyOptions{
 		GroupName:  "items",
-		OnBehalfOf: "user1",
+		OnBehalfOf: &OnBehalfOfInfo{Username: "user1", Domain: "external"},
 	}, func(StatsDataResult) {})
 
 	require.NoError(t, err)
 	require.NotNil(t, capturedReq)
 	assert.Equal(t, "items", capturedReq.GroupName)
-	assert.Equal(t, "user1", capturedReq.OnBehalfOf)
+	// The external domain must reach memcached encoded with the '^' prefix.
+	assert.Equal(t, "^user1", capturedReq.OnBehalfOf)
+}
+
+func TestStatsByKeyOnBehalfOfInvalidNotDispatched(t *testing.T) {
+	dispatched := false
+	kv := &KvClientMock{
+		RemoteHostnameFunc: func() string { return "hostname" },
+		RemoteAddrFunc:     func() net.Addr { return &net.TCPAddr{} },
+		LocalAddrFunc:      func() net.Addr { return &net.TCPAddr{} },
+		StatsFunc: func(_ context.Context, _ *memdx.StatsRequest, _ func(*memdx.StatsDataResponse) error) (*memdx.StatsActionResponse, error) {
+			dispatched = true
+			return &memdx.StatsActionResponse{}, nil
+		},
+	}
+
+	vbs := &VbucketRouterMock{
+		GetServerListFunc: func() ([]string, error) {
+			return []string{"ep1"}, nil
+		},
+	}
+	cc := newStatsCrudComponent(vbs, benchEndpointClientProvider{client: kv})
+
+	// A local user named '^bob' would be resolved by memcached as the
+	// external user 'bob', so the request must fail before being sent.
+	err := cc.StatsByKey(context.Background(), &StatsByKeyOptions{
+		GroupName:  "items",
+		OnBehalfOf: &OnBehalfOfInfo{Username: "^bob", Domain: "local"},
+	}, func(StatsDataResult) {})
+
+	assert.ErrorIs(t, err, ErrInvalidArgument)
+	assert.False(t, dispatched)
 }
