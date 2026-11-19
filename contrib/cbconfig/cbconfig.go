@@ -3,10 +3,11 @@ package cbconfig
 import "slices"
 
 type VBucketServerMapJson struct {
-	HashAlgorithm string   `json:"hashAlgorithm"`
-	NumReplicas   int      `json:"numReplicas"`
-	ServerList    []string `json:"serverList"`
-	VBucketMap    [][]int  `json:"vBucketMap,omitempty"`
+	HashAlgorithm     string   `json:"hashAlgorithm"`
+	NumReplicas       int      `json:"numReplicas"`
+	ServerList        []string `json:"serverList"`
+	VBucketMap        [][]int  `json:"vBucketMap,omitempty"`
+	VBucketMapForward [][]int  `json:"vBucketMapForward,omitempty"`
 }
 
 // TODO - have this take pointer args and handle the nil case

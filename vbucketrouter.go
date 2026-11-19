@@ -12,19 +12,25 @@ import (
 
 var (
 	ErrNoVbucketMap = contextualDeadline{"no vbucket map is available"}
+
+	ErrNoForwardVbucketMap = errors.New("no fast-forward vbucket map is available")
 )
 
 type VbucketRouter interface {
 	UpdateRoutingInfo(*VbucketRoutingInfo)
 	DispatchByKey(key []byte, vbServerIdx uint32) (string, uint16, error)
 	DispatchToVbucket(vbID uint16, vbServerIdx uint32) (string, error)
+	DispatchToVbucketForward(vbID uint16, vbServerIdx uint32) (string, error)
 	NumReplicas() (int, error)
 	GetServerList() ([]string, error)
 }
 
 type VbucketRoutingInfo struct {
-	VbMap      *VbucketMap
-	ServerList []string
+	VbMap *VbucketMap
+	// VbMapForward is the fast-forward map, which is only present while a
+	// rebalance is in progress.  It shares ServerList with VbMap.
+	VbMapForward *VbucketMap
+	ServerList   []string
 }
 
 type VbucketRouterOptions struct {
@@ -110,18 +116,56 @@ func (vbd *vbucketRouter) DispatchToVbucket(vbID uint16, vbServerIdx uint32) (st
 		return "", err
 	}
 
-	idx, err := info.VbMap.NodeByVbucket(vbID, vbServerIdx)
+	return dispatchToVbucketWithMap(info.VbMap, info.ServerList, vbID, vbServerIdx)
+}
+
+// DispatchToVbucketForward returns the endpoint which the fast-forward map
+// assigns to the vbucket.  This is where the vbucket will live once the
+// in-progress rebalance completes.
+func (vbd *vbucketRouter) DispatchToVbucketForward(vbID uint16, vbServerIdx uint32) (string, error) {
+	info, err := vbd.getRoutingInfo()
 	if err != nil {
 		return "", err
 	}
 
-	if idx < 0 || idx >= len(info.ServerList) {
+	if info.VbMapForward == nil {
+		return "", ErrNoForwardVbucketMap
+	}
+
+	return dispatchToVbucketWithMap(info.VbMapForward, info.ServerList, vbID, vbServerIdx)
+}
+
+func dispatchToVbucketWithMap(vbMap *VbucketMap, serverList []string, vbID uint16, vbServerIdx uint32) (string, error) {
+	idx, err := vbMap.NodeByVbucket(vbID, vbServerIdx)
+	if err != nil {
+		return "", err
+	}
+
+	if idx < 0 || idx >= len(serverList) {
 		return "", noServerAssignedError{
 			RequestedVbId: vbID,
 		}
 	}
 
-	return info.ServerList[idx], nil
+	return serverList[idx], nil
+}
+
+// fastForwardEndpoint returns the endpoint the fast-forward map assigns to the
+// vbucket, if there is one and it differs from the endpoint that rejected the
+// request.
+//
+// During a rebalance there is a window after a vbucket has been taken over by
+// its new owner, but before the server has published a vbucket map reflecting
+// that.  In that window the old owner will reply NOT_MY_VBUCKET with a config
+// which still names itself as owner, but the fast-forward map in that config
+// names the new owner.
+func fastForwardEndpoint(vb VbucketRouter, vbID uint16, vbServerIdx uint32, rejectedEndpoint string) (string, bool) {
+	endpoint, err := vb.DispatchToVbucketForward(vbID, vbServerIdx)
+	if err != nil || endpoint == rejectedEndpoint {
+		return "", false
+	}
+
+	return endpoint, true
 }
 
 type NotMyVbucketConfigHandler interface {
@@ -141,6 +185,10 @@ func OrchestrateMemdRouting[RespT any](
 		var emptyResp RespT
 		return emptyResp, err
 	}
+
+	// once we have redirected a request using the fast-forward map, this holds
+	// the endpoint which the main map pointed at (and which rejected it).
+	fwdFromEndpoint := ""
 
 	for {
 		res, err := fn(endpoint, vbID)
@@ -170,6 +218,8 @@ func OrchestrateMemdRouting[RespT any](
 			}
 
 			if errors.Is(err, memdx.ErrNotMyVbucket) || errors.Is(err, memdx.ErrConfigOnly) {
+				isNotMyVbucket := errors.Is(err, memdx.ErrNotMyVbucket)
+
 				newEndpoint, newVbID, err := vb.DispatchByKey(key, vbServerIdx)
 				if err != nil {
 					var emptyResp RespT
@@ -179,9 +229,28 @@ func OrchestrateMemdRouting[RespT any](
 				}
 
 				if newEndpoint == endpoint && newVbID == vbID {
+					// if the vbucket is being moved by a rebalance, the fast-forward
+					// map may know where it has gone before the main map does, so
+					// we try there (once) before giving up.
+					if isNotMyVbucket && fwdFromEndpoint == "" {
+						if fwdEndpoint, ok := fastForwardEndpoint(vb, vbID, vbServerIdx, endpoint); ok {
+							fwdFromEndpoint = endpoint
+							endpoint = fwdEndpoint
+							continue
+						}
+					}
+
 					// if after the update we are going to be sending the request back
 					// to the place that rejected it, we consider this non-deterministic
 					// and fall back to the application to deal with (or retries).
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
+				}
+
+				if fwdFromEndpoint != "" && newEndpoint == fwdFromEndpoint && newVbID == vbID {
+					// the fast-forward owner rejected the request too, and the main
+					// map still points at the original owner which already rejected it.
 					return res, &VbucketMapOutdatedError{
 						Cause: err,
 					}
@@ -212,6 +281,10 @@ func OrchestrateMemdRoutingByVbucketId[RespT any](
 		var emptyResp RespT
 		return emptyResp, err
 	}
+
+	// once we have redirected a request using the fast-forward map, this holds
+	// the endpoint which the main map pointed at (and which rejected it).
+	fwdFromEndpoint := ""
 
 	for {
 		res, err := fn(endpoint)
@@ -248,9 +321,28 @@ func OrchestrateMemdRoutingByVbucketId[RespT any](
 				}
 
 				if newEndpoint == endpoint {
+					// if the vbucket is being moved by a rebalance, the fast-forward
+					// map may know where it has gone before the main map does, so
+					// we try there (once) before giving up.
+					if fwdFromEndpoint == "" {
+						if fwdEndpoint, ok := fastForwardEndpoint(vb, vbID, vbServerIdx, endpoint); ok {
+							fwdFromEndpoint = endpoint
+							endpoint = fwdEndpoint
+							continue
+						}
+					}
+
 					// if after the update we are going to be sending the request back
 					// to the place that rejected it, we consider this non-deterministic
 					// and fall back to the application to deal with (or retries).
+					return res, &VbucketMapOutdatedError{
+						Cause: err,
+					}
+				}
+
+				if fwdFromEndpoint != "" && newEndpoint == fwdFromEndpoint {
+					// the fast-forward owner rejected the request too, and the main
+					// map still points at the original owner which already rejected it.
 					return res, &VbucketMapOutdatedError{
 						Cause: err,
 					}

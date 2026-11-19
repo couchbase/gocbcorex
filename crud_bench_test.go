@@ -44,6 +44,10 @@ func (r benchVbucketRouter) DispatchToVbucket(vbID uint16, vbServerIdx uint32) (
 	return r.endpoint, nil
 }
 
+func (r benchVbucketRouter) DispatchToVbucketForward(vbID uint16, vbServerIdx uint32) (string, error) {
+	return "", ErrNoForwardVbucketMap
+}
+
 func (r benchVbucketRouter) NumReplicas() (int, error) {
 	return r.numReplicas, nil
 }
