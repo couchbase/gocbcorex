@@ -530,7 +530,12 @@ func TestAgentConnectAfterCreateBucket(t *testing.T) {
 		opts.RetryManager = gocbcorex.NewRetryManagerDefault()
 
 		agent2, err := gocbcorex.CreateAgent(context.Background(), opts)
-		if errors.Is(err, memdx.ErrUnknownBucketName) {
+		// Immediately after creation the bucket may not be visible yet. Depending
+		// on which component notices first, this surfaces either as a memcached
+		// unknown-bucket error (KV select bucket) or as an HTTP 404 from the
+		// cluster config fetch during bootstrap (cbmgmtx.ErrBucketNotFound).
+		if errors.Is(err, memdx.ErrUnknownBucketName) ||
+			errors.Is(err, cbmgmtx.ErrBucketNotFound) {
 			return false
 		}
 		require.NoError(t, err)
